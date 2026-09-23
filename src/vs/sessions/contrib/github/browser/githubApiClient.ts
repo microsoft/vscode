@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -19,6 +21,8 @@ export interface IGitHubApiRequestOptions {
 	readonly etag?: string;
 	readonly token?: CancellationToken;
 	readonly createAuthenticationSession?: boolean;
+	/** Require these scopes instead of falling back to any available session. */
+	readonly authenticationScopes?: readonly string[];
 }
 
 export interface IGitHubApiResponse<T> {
@@ -76,6 +80,10 @@ export class GitHubApiClient extends Disposable {
 		return this._getConnection().endpoints.enterpriseHost;
 	}
 
+	async authenticate(scopes: readonly string[], token: CancellationToken): Promise<void> {
+		await this._getAuthToken(this._getConnection().authenticationProviderId, true, token, scopes);
+	}
+
 	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
 		const connection = this._getConnection();
 		return this._request<T>(method, `${connection.endpoints.apiBaseUri}${path}`, path, 'application/vnd.github.v3+json', callSite, connection.authenticationProviderId, options);
@@ -118,7 +126,11 @@ export class GitHubApiClient extends Disposable {
 	}
 
 	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, authenticationProviderId: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
-		const token = await this._getAuthToken(authenticationProviderId, options?.createAuthenticationSession !== false);
+		const cancellationToken = options?.token ?? CancellationToken.None;
+		const token = await this._getAuthToken(authenticationProviderId, options?.createAuthenticationSession !== false, cancellationToken, options?.authenticationScopes);
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
 		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
@@ -137,7 +149,7 @@ export class GitHubApiClient extends Disposable {
 			// The renderer cache can return stale 200 responses despite ETag polling.
 			disableCache: true,
 			callSite
-		}, options?.token ?? CancellationToken.None);
+		}, cancellationToken);
 
 		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
 		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
@@ -177,18 +189,37 @@ export class GitHubApiClient extends Disposable {
 		return { data, statusCode, etag: responseETag };
 	}
 
-	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean): Promise<string> {
-		let sessions = await this._authenticationService.getSessions(authenticationProviderId, [], { silent: true });
-		if ((!sessions || sessions.length === 0) && createIfNone) {
-			sessions = await this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true });
+	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean, token: CancellationToken, scopes?: readonly string[]): Promise<string> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
-		if (!sessions || sessions.length === 0) {
+		let sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { silent: true }), token);
+		if (!scopes && sessions.length === 0 && createIfNone) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true }), token);
+		}
+		const matchingSessions = sessions.filter(session => session.accessToken && (!scopes || scopes.every(scope => session.scopes.includes(scope))));
+		let session = matchingSessions.find(session => session.scopes.includes('repo')) ?? matchingSessions[0];
+		if (!session && scopes && createIfNone) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			try {
+				session = await raceCancellationError(this._authenticationService.createSession(authenticationProviderId, scopes, { activateImmediate: true }), token);
+			} catch (error) {
+				if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+					throw new CancellationError();
+				}
+				throw error;
+			}
+		}
+		if (!session?.accessToken || (scopes && !scopes.every(scope => session.scopes.includes(scope)))) {
 			throw new GitHubAuthenticationError();
 		}
 
-		// Prefer a session with 'repo' scope, but fall back to the first available session
-		const repoScopeSession = sessions.find(session => session.scopes.includes('repo'));
-		return repoScopeSession?.accessToken ?? sessions[0].accessToken ?? '';
+		return session.accessToken;
 	}
 }
 

@@ -5,6 +5,7 @@
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -26,6 +27,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -57,6 +59,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			content.push(localize('sessionsChat.remoteInspection', "Ask the agent to inspect a remote session using its session link. Inspection reads its current state and latest response or error without changing focus, marking the chat as read, or approving pending requests. If the host is unavailable, the result explains why; inspection does not reconnect it."));
 		}
 		content.push(localize('sessionsChat.promptOptions', "When prompt options appear above the new-session input, use Tab and Shift+Tab to move between them, then press Enter or Space to insert one. You can select a different option while the input is empty, exactly matches the inserted prompt, or only has its editable placeholder removed; other edits disable the options without hiding them. Clearing the input also clears the selected option. Use the Close action to hide the options and return focus to the input."));
+		content.push(localize('sessionsChat.migrations', "When agent customizations need an update, a notice below the new-session input shows how many need attention. Use Tab to reach Review Migrations and open the Migrations page. Dismiss Migration Notice for This Workspace hides the notice for that workspace, including after restarting, and returns focus to the input."));
 		if (configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.newSessionPickers', "In a new-session composer, open and focus the workspace picker{0} or the harness picker{1}. Focus either picker control and open its context menu{2} to configure its keybinding.", `<keybinding:${FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID}>`, `<keybinding:${FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID}>`, '<keybinding:editor.action.showContextMenu>'));
 		}
@@ -72,6 +75,12 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.feedbackAttachment', "When a feedback comments attachment appears above the input, focus it and press Enter or Space. A single comment opens directly. Multiple comments open a tree grouped by file; use the arrow keys to navigate, Enter to reveal a comment, and Escape to close the tree."));
 		content.push(localize('sessionsChat.inputBackground', "Press Alt+Enter to start the session in the background without navigating into it. The started session appears in the Chat Sessions view."));
 		content.push(localize('sessionsChat.workspace', "Shift+Tab to navigate to the workspace picker and choose a workspace for your session. When consolidated remote workspaces are enabled, opening the picker focuses its search input so you can immediately type to filter workspaces. If quick chats are available, you can also choose No workspace to start a workspace-less chat."));
+		if (isWeb) {
+			content.push(localize('sessionsChat.repositorySelection', "When choosing a GitHub repository in the browser, search or enter a GitHub URL or owner/repository. Use the arrow keys to navigate results, Enter to select, and Escape to cancel. Sign in to GitHub if prompted."));
+		}
+		if (accessor.get(IAgentHostFilterService).selectedHost?.sessionCreationProviderId) {
+			content.push(localize('sessionsChat.repositoryCreation', "This host creates a new environment for each session. Open Select Repository to choose its repository. Selecting a repository does not start an environment; sending your first message does. The harness label identifies the available agent, and Agent Default means the host chooses the model."));
+		}
 		content.push(localize('sessionsChat.workspaceHandoff', "Opening Agents from an editor can suggest that editor's folder for a fresh session. Choosing a workspace yourself or starting another session cancels a pending suggestion. If an explicitly requested workspace cannot be selected, a notification offers Retry and Choose Workspace actions."));
 		content.push(localize('sessionsChat.syncChanges', "When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session's repository. The action is disabled while synchronization is running."));
 		content.push(localize('sessionsChat.githubContext', "Use Add Context to attach files, images, and, when available, GitHub issues or pull requests."));
@@ -134,7 +143,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.filesView', "Focus the Files Explorer view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesFileView>'));
 		content.push(localize('sessionsChat.sessionsView', "Focus the Chat Sessions view{0}.", '<keybinding:workbench.action.chat.focusAgentSessionsViewer>'));
 		if (!isPhoneLayout(accessor.get(IWorkbenchLayoutService))) {
-			content.push(localize('sessionsChat.customizations', "Focus the Chat Customizations section at the bottom of the left sidebar{0}.", `<keybinding:${FOCUS_AI_CUSTOMIZATION_VIEW_ID}>`));
+			content.push(localize('sessionsChat.customizations', "Focus Chat Customizations in the left sidebar{0}.", `<keybinding:${FOCUS_AI_CUSTOMIZATION_VIEW_ID}>`));
 		}
 		content.push(localize('sessionsChat.toggleSidePanel', "Toggle the side panel (the editor area together with the auxiliary bar) open or closed{0}.", '<keybinding:workbench.action.agentToggleSidePanel>'));
 

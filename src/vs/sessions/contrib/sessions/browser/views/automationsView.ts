@@ -561,19 +561,19 @@ class AutomationCardsSection extends Disposable {
 		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runNowLabel = localize('runNow', "Run now");
 		const runningLabel = localize('running', "Running");
-		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, this.automationService.canRunAutomation?.(automation.id) === false);
+		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, !this.automationService.canRunAutomation(automation.id));
 		runBtn.element.classList.add('automations-card-run-button');
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation || this.automationService.canRunAutomation?.(automation.id) === false) {
+			if (!currentAutomation || !this.automationService.canRunAutomation(automation.id)) {
 				return;
 			}
 			runBtn.enabled = false;
 			runBtn.setAriaLabel(runningLabel);
 			runBtn.setTitle(runningLabel);
 			disposableTimeout(() => {
-				runBtn.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
+				runBtn.enabled = this.automationService.canRunAutomation(automation.id);
 				runBtn.setAriaLabel(runNowLabel);
 				runBtn.setTitle(runNowLabel);
 			}, 10_000, disposables);
@@ -611,7 +611,7 @@ class AutomationCardsSection extends Disposable {
 					return;
 				}
 				const currentAutomation = this.latestAutomations.get(automation.id);
-				if (!currentAutomation || this.automationService.canUpdateAutomation?.(automation.id) === false) {
+				if (!currentAutomation || !this.automationService.canUpdateAutomation(automation.id)) {
 					return;
 				}
 				void this.openEditDialog(currentAutomation);
@@ -641,10 +641,10 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
-		card.main.disabled = this.automationService.canUpdateAutomation?.(automation.id) === false;
-		card.runButton.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
-		card.canDeleteContext.set(this.automationService.canDeleteAutomation?.(automation.id) !== false);
-		card.canUpdateContext.set(this.automationService.canUpdateAutomation?.(automation.id) !== false);
+		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
+		card.runButton.enabled = this.automationService.canRunAutomation(automation.id);
+		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
+		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
 		const schedule = formatSchedule(automation.schedule);
 		const scheduleChanged = !previous || formatSchedule(previous.schedule) !== schedule;
@@ -697,7 +697,7 @@ class AutomationCardsSection extends Disposable {
 			return;
 		}
 		try {
-			const operation = this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
+			const operation = this.automationRunner.runOnce(automation, CancellationToken.None);
 			const dispatch = await operation.whenDispatched;
 			switch (dispatch.kind) {
 				case 'started':
@@ -910,7 +910,9 @@ class AutomationCardsSection extends Disposable {
 	private renderPartialState(catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
 		const unavailableProvidersChanged = catalogueState === 'unavailable'
 			&& (unavailableProviders.length !== this.partialUnavailableProviders.length
-				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id || provider.label !== this.partialUnavailableProviders[index].label));
+				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
+					|| provider.label !== this.partialUnavailableProviders[index].label
+					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason));
 		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
 		}
@@ -1733,7 +1735,7 @@ async function confirmAndDeleteAutomation(
 	dialogService: IDialogService,
 	logService: ILogService,
 ): Promise<void> {
-	if (automationService.canDeleteAutomation?.(automation.id) === false) {
+	if (!automationService.canDeleteAutomation(automation.id)) {
 		return;
 	}
 	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
@@ -2247,7 +2249,7 @@ registerAction2(class EnableAutomationAction extends Action2 {
 
 async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAutomationDescriptor, enabled: boolean): Promise<void> {
 	const automationService = accessor.get(IAutomationService);
-	if (automation.enabled === enabled || automationService.canUpdateAutomation?.(automation.id) === false) {
+	if (automation.enabled === enabled || !automationService.canUpdateAutomation(automation.id)) {
 		return;
 	}
 	const configurationService = accessor.get(IConfigurationService);

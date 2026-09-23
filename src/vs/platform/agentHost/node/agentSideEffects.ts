@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorCode } from '../../../base/common/errors.js';
+import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
@@ -30,9 +31,9 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
+import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	createErrorResponsePart,
@@ -208,6 +209,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
 	/** Serializes refreshes per session so state-based deduplication observes the preceding dispatch. */
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
+	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
 
 	/**
@@ -728,22 +730,32 @@ export class AgentSideEffects extends Disposable {
 				this._logService.trace(`[AgentSideEffects] Dropping completion for cancelled turn ${action.turnId} on ${sessionKey}`);
 				return;
 			}
+			const startedWithSteering = action.type === ActionType.ChatTurnStarted
+				&& action.queuedMessageId !== undefined
+				&& this._stateManager.getChatState(sessionKey)?.steeringMessage?.id === action.queuedMessageId;
 			this._stateManager.dispatchServerAction(sessionKey, action);
 			if (action.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === action.turnId) {
 				// Provider-promoted turns are already running and must not enter the admission/send path again.
-				const sessionChannel = parseRequiredSessionUriFromChatUri(sessionKey);
-				const state = this._stateManager.getSessionState(sessionKey);
-				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, sessionKey, this._chatContext(sessionChannel, sessionKey), state, action.message.model?.id);
-				const clientContext = {
-					...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
-				};
-				this._turnTracker.turnStarted(agent, sessionKey, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(sessionChannel)));
-				this._turnTracker.setCurrentStage(sessionKey, action.turnId, 'provider');
+				this._trackProviderStartedTurn(agent, sessionKey, action, startedWithSteering);
 			} else if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
+	}
+
+	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, startedWithSteering: boolean): void {
+		const session = parseRequiredSessionUriFromChatUri(channel);
+		const state = this._stateManager.getSessionState(channel);
+		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(session, channel), state, action.message.model?.id);
+		const clientContext = {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
+			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+		};
+		this._turnTracker.turnStarted(agent, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)));
+		if (startedWithSteering) {
+			this._turnTracker.markSteering(channel, action.turnId, 'started');
+		}
+		this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 	}
 
 	/**
@@ -1660,13 +1672,39 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionMcpServerStartRequested: {
+				this._pendingMcpServerStarts.get(sessionChannel, action.id)?.dispose(true);
+				const source = new CancellationTokenSource();
+				this._pendingMcpServerStarts.set(source, sessionChannel, action.id);
+				const token = source.token;
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.startMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {
+				const start = agent?.startMcpServer
+					? agent.startMcpServer(URI.parse(sessionChannel), action.id, token)
+					: Promise.reject(new Error('The session provider does not support starting MCP servers.'));
+				start.catch(err => {
+					if (token.isCancellationRequested) {
+						return;
+					}
 					this._logService.warn(`[AgentSideEffects] startMcpServer failed for ${sessionChannel}`, err);
+					const server = getCustomizationEnablementCandidates(this._stateManager.getSessionState(sessionChannel)?.customizations)
+						.find(candidate => candidate.customization.id === action.id)?.customization;
+					if (server?.type === CustomizationType.McpServer && server.state.kind !== McpServerStatus.Ready && server.state.kind !== McpServerStatus.Error && server.state.kind !== McpServerStatus.AuthRequired) {
+						this._stateManager.dispatchServerAction(sessionChannel, {
+							type: ActionType.SessionMcpServerStateChanged,
+							id: action.id,
+							state: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-start-failed', message: getErrorMessage(err) } },
+						});
+					}
+				}).finally(() => {
+					if (this._pendingMcpServerStarts.get(sessionChannel, action.id) === source) {
+						this._pendingMcpServerStarts.delete(sessionChannel, action.id);
+					}
+					source.dispose();
 				});
 				break;
 			}
 			case ActionType.SessionMcpServerStopRequested: {
+				this._pendingMcpServerStarts.get(sessionChannel, action.id)?.dispose(true);
+				this._pendingMcpServerStarts.delete(sessionChannel, action.id);
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.stopMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {
 					this._logService.warn(`[AgentSideEffects] stopMcpServer failed for ${sessionChannel}`, err);
@@ -1794,6 +1832,7 @@ export class AgentSideEffects extends Disposable {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientContext, turnStopWatch } = options;
 
 		const chatUri = URI.parse(chat);
+		const turnTelemetryContext = this._turnTracker.getProviderTelemetryContext(turnChannel, turnId);
 
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		// Declared outside the `try` so a turn that fails before the provider is
@@ -1850,7 +1889,7 @@ export class AgentSideEffects extends Disposable {
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'contributions');
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
-			const sendContext = { ...clientOperationContext, ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
+			const sendContext = { ...clientOperationContext, ...(turnTelemetryContext ? { turnTelemetryContext } : {}), ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
@@ -2022,6 +2061,10 @@ export class AgentSideEffects extends Disposable {
 
 
 	override dispose(): void {
+		for (const source of this._pendingMcpServerStarts.values()) {
+			source.dispose(true);
+		}
+		this._pendingMcpServerStarts.clear();
 		this._toolCallAgents.clear();
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();

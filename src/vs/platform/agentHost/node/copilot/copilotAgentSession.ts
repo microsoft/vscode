@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, raceCancellation, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -158,6 +158,12 @@ interface IMcpAuthToolCall {
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly parentToolCallId: string | undefined;
+}
+
+interface ILastMcpAuthRequirement {
+	readonly requestId: string;
+	readonly auth: McpAuthRequirement;
+	readonly acceptsTokenCompletion: boolean;
 }
 
 interface ICopilotActiveToolCall {
@@ -566,12 +572,11 @@ interface UsageContext {
 }
 
 /** Which SDK source produced an MCP lifecycle log record. */
-type McpLifecycleOrigin = 'loaded' | 'statusChanged' | 'inventory';
+type McpLifecycleOrigin = 'statusChanged' | 'inventory';
 
 /**
- * SDK-neutral fields carried into a single MCP lifecycle log record. The
- * `session.mcp_servers_loaded` event, the `session.mcp_server_status_changed`
- * event, and the `rpc.mcp.list` inventory each populate the subset they carry.
+ * SDK-neutral fields carried into a lifecycle log record from a live
+ * `session.mcp_server_status_changed` event or the `rpc.mcp.list` inventory.
  */
 interface IMcpLifecycleLogInfo {
 	readonly name: string;
@@ -715,6 +720,10 @@ class CopilotTurn extends Disposable {
 	 */
 	readonly toolCounts = new Map<string, number>();
 	readonly mainModelCallIds = new Set<string>();
+	/** Root SDK correlations are valid only while their owning protocol turn is active. */
+	readonly sdkTurnIds = new Set<string>();
+	readonly interactionIds = new Set<string>();
+	activeSdkTurnId: string | undefined;
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -793,6 +802,9 @@ class CopilotTurn extends Disposable {
 	 * Rejects {@link eventId} before disposal so pending fork-boundary checks do not hang.
 	 */
 	override dispose(): void {
+		this.sdkTurnIds.clear();
+		this.interactionIds.clear();
+		this.activeSdkTurnId = undefined;
 		if (!this._eventId.isSettled) {
 			this._eventId.error(new Error(`Turn ${this.id} was disposed before its SDK event id was recorded`));
 		}
@@ -847,11 +859,6 @@ export class CopilotAgentSession extends Disposable {
 	/** Canonical names for `read_agent`/`write_agent` labels; seeded from persisted events and kept for the session lifetime like the map above. */
 	private readonly _subagentDisplayNamesByAgentId = new Map<string, string>();
 	private readonly _resolveAgentName = (agentId: string) => this._subagentDisplayNamesByAgentId.get(agentId);
-	/** Maps SDK root-agent turn ids to their owning host protocol turn ids. */
-	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
-	/** Maps runtime interactions to their owning host protocol turn ids. */
-	private readonly _hostTurnIdsByInteractionId = new Map<string, string>();
-	private _activeRootSdkTurnId: string | undefined;
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
@@ -945,6 +952,7 @@ export class CopilotAgentSession extends Disposable {
 	 * replacing or clearing it disposes the old turn.
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
+	private readonly _idleWaiters = new Set<DeferredPromise<boolean>>();
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -974,6 +982,27 @@ export class CopilotAgentSession extends Disposable {
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
 
 	get isDisposed(): boolean { return this._store.isDisposed; }
+
+	/** Waits for idle, or returns false if the runtime is disposed first. */
+	async waitForIdle(token: CancellationToken = CancellationToken.None): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (this.isDisposed) {
+			return false;
+		}
+		if (!this.hasActiveTurn) {
+			return true;
+		}
+		const waiter = new DeferredPromise<boolean>();
+		this._idleWaiters.add(waiter);
+		try {
+			return await raceCancellationError(waiter.p, token);
+		} finally {
+			this._idleWaiters.delete(waiter);
+			waiter.complete(false);
+		}
+	}
 
 	/**
 	 * Captures terminal-only observed usage, excluding descendants and restored history.
@@ -1133,8 +1162,16 @@ export class CopilotAgentSession extends Disposable {
 	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
-	/** Pending SDK MCP auth handler promises, keyed by SDK auth request id. */
+	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
+	/**
+	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
+	 * Connected and needs-auth statuses remain the final lifecycle authority.
+	 */
+	private readonly _lastMcpAuthRequirements = new Map<string, ILastMcpAuthRequirement>();
+	/** Invalidates inventory snapshots when lifecycle events or authentication challenges arrive. */
+	private _mcpLifecycleVersion = 0;
+	private _mcpInventoryRequestVersion = 0;
 	/** `pending-edit-content:` URIs written during permission requests, keyed
 	 *  by toolCallId. Cleaned up when the permission resolves or the session
 	 *  is disposed. */
@@ -1188,6 +1225,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _pendingMcpSamplings = new Set<string>();
 
+	/** Maps SDK root-agent turn ids to their owning host protocol turn ids for Fusion event routing. */
+	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
 	private readonly _fusionProgress = new CopilotFusionProgress();
 	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
 	private readonly _fusionEventTurnIds = new Map<string, string>();
@@ -1211,10 +1250,8 @@ export class CopilotAgentSession extends Disposable {
 	private _surfaceProvisionalFusionToolStart: ((e: SessionEventPayload<'tool.execution_start'>) => void) | undefined;
 
 	/**
-	 * Last SDK-reported MCP status logged for each server (keyed by server
-	 * name). Used to suppress duplicate lifecycle log records when the SDK
-	 * re-reports an unchanged status — the `rpc.mcp.list` seed and the
-	 * `session.mcp_servers_loaded` event routinely carry the same snapshot.
+	 * Last SDK-reported MCP status logged per server, suppressing duplicate
+	 * records when live events and RPC inventory refreshes report the same state.
 	 */
 	private readonly _lastLoggedMcpStatus = new Map<string, SdkMcpServerStatus>();
 
@@ -1416,13 +1453,14 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring unroutable subagent model.call_finished: agentId=${event.agentId}, sdkTurnId=${event.data.turnId}`);
 			return;
 		}
+		const turn = this._currentTurn.value;
 		let turnId: string | undefined;
 		if (event.agentId) {
 			turnId = this._turnId;
 		} else if (event.data.interactionId) {
-			turnId = this._hostTurnIdsByInteractionId.get(event.data.interactionId);
+			turnId = turn?.interactionIds.has(event.data.interactionId) ? turn.id : undefined;
 		} else {
-			turnId = this._hostTurnIdsBySdkTurnId.get(event.data.turnId);
+			turnId = turn?.sdkTurnIds.has(event.data.turnId) ? turn.id : undefined;
 		}
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
@@ -1442,23 +1480,17 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Promotes a pending steering message into its own protocol turn:
-	 * closes the in-flight turn (so its responseParts settle into history)
-	 * and dispatches {@link ActionType.ChatTurnStarted} for a fresh
-	 * turn whose user message is the steering content. The action's
-	 * `queuedMessageId` atomically clears the corresponding pending
-	 * steering message from the session state.
+	 * Promotes a pending steering message into its own protocol turn: closes
+	 * the in-flight turn and dispatches {@link ActionType.ChatTurnStarted} with
+	 * the steering content. The action's `queuedMessageId` atomically clears
+	 * the corresponding pending steering message from session state.
 	 *
-	 * All subsequent SDK events (message deltas, tool calls, …) emitted
-	 * by the agent now reference the new `_turnId`, so the steering
-	 * response lands in the new turn rather than being folded into the
-	 * original.
-	 *
-	 * Returns the new turn id so callers (notably the `user.message`
-	 * handler) can associate the SDK event id with the steering turn for
-	 * history.truncate / sessions.fork mapping.
+	 * The active SDK turn association is transferred to the new
+	 * {@link CopilotTurn}, so subsequent SDK events target the steering turn
+	 * rather than being folded into the original turn.
 	 */
-	private _beginSteeringTurn(steering: IPendingSteering): string {
+	private _beginSteeringTurn(steering: IPendingSteering): void {
+		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
 		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
@@ -1481,10 +1513,13 @@ export class CopilotAgentSession extends Disposable {
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.markRunning();
 		}
-		if (this._activeRootSdkTurnId) {
-			this._recordHostSdkTurn(this._activeRootSdkTurnId, newTurnId);
+		if (activeSdkTurnId && turn) {
+			turn.activeSdkTurnId = activeSdkTurnId;
+			turn.sdkTurnIds.add(activeSdkTurnId);
 		}
-		return newTurnId;
+		if (activeSdkTurnId) {
+			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
+		}
 	}
 
 	/**
@@ -2023,6 +2058,7 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
+		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -2035,6 +2071,13 @@ export class CopilotAgentSession extends Disposable {
 			// `send()` failure path, replace the error we are propagating.
 			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
 		}
+	}
+
+	private _settleIdleWaiters(idle: boolean): void {
+		for (const waiter of this._idleWaiters) {
+			waiter.complete(idle);
+		}
+		this._idleWaiters.clear();
 	}
 
 	private _reportToolCallDetails(turn: CopilotTurn, responseType: 'success' | 'cancelled' | 'failed'): void {
@@ -2586,6 +2629,7 @@ export class CopilotAgentSession extends Disposable {
 		};
 	}
 
+	/** Resolves only matching, currently pending SDK authentication callbacks. */
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
 		let resolved = false;
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
@@ -2599,9 +2643,20 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: toolCall.toolCallId,
 				}, toolCall.parentToolCallId);
 			}
-			resolved = this._pendingMcpAuthRequests.respond(requestId, { kind: 'token', accessToken: params.token }) || resolved;
+			if (this._pendingMcpAuthRequests.respond(requestId, { kind: 'token', accessToken: params.token })) {
+				resolved = true;
+			}
 		}
 		return resolved;
+	}
+
+	private _hasPendingMcpAuthentication(serverName: string): boolean {
+		for (const [, pending] of this._pendingMcpAuthRequests.entries()) {
+			if (pending.serverName === serverName) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
@@ -2642,12 +2697,18 @@ export class CopilotAgentSession extends Disposable {
 			requiredScopes: requiredScopes.length ? [...requiredScopes] : undefined,
 			description: request.wwwAuthenticateParams?.error,
 		};
+		this._mcpLifecycleVersion++;
 		const toolCalls = this._activeMcpToolCalls(request.serverName);
 		const result = this._pendingMcpAuthRequests.register(request.requestId, {
 			serverName: request.serverName,
 			resource,
 			requiredScopes,
 			toolCalls,
+		});
+		this._lastMcpAuthRequirements.set(request.serverName, {
+			requestId: request.requestId,
+			auth,
+			acceptsTokenCompletion: true,
 		});
 		this._mcpCustomizations.applyOne({
 			name: request.serverName,
@@ -2665,7 +2726,19 @@ export class CopilotAgentSession extends Disposable {
 			}, toolCall.parentToolCallId);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] MCP server '${request.serverName}' requires authentication for ${resource.resource}`);
-		return result;
+		try {
+			return await result;
+		} catch (error) {
+			this._disableMcpTokenCompletion(request.serverName, request.requestId);
+			throw error;
+		}
+	}
+
+	private _disableMcpTokenCompletion(serverName: string, requestId: string): void {
+		const requirement = this._lastMcpAuthRequirements.get(serverName);
+		if (requirement?.requestId === requestId && requirement.acceptsTokenCompletion) {
+			this._lastMcpAuthRequirements.set(serverName, { ...requirement, acceptsTokenCompletion: false });
+		}
 	}
 
 	private _activeMcpToolCalls(serverName: string): IMcpAuthToolCall[] {
@@ -2750,6 +2823,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingMcpAuthRequestsForServer(serverName: string): void {
+		const requirement = this._lastMcpAuthRequirements.get(serverName);
+		if (requirement) {
+			this._disableMcpTokenCompletion(serverName, requirement.requestId);
+		}
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
 			if (pending.serverName !== serverName) {
 				continue;
@@ -3634,6 +3711,7 @@ export class CopilotAgentSession extends Disposable {
 	 * backstop, since {@link _beginAbort} no-ops when already aborted.
 	 */
 	override dispose(): void {
+		this._settleIdleWaiters(false);
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
@@ -3736,13 +3814,36 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async startMcpServer(id: string): Promise<void> {
+	/**
+	 * Starts a server or renews exhausted authentication callbacks via the SDK's OAuth reset.
+	 * An existing callback needs only a token response; SDK lifecycle updates determine connection progress.
+	 */
+	async startMcpServer(id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const serverName = this._mcpCustomizations.serverNameForCustomizationId(id);
 		if (!serverName) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Cannot start unknown MCP server customization ${id}`);
-			return;
+			throw new Error(`Cannot start unknown MCP server customization ${id}`);
 		}
-		return this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+		return raceCancellationError(this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const state = this._mcpCustomizations.stateForServer(serverName);
+			if (state?.kind === McpServerStatus.AuthRequired) {
+				this._mcpLifecycleVersion++;
+				this._mcpCustomizations.applyOne({ name: serverName, state }, true);
+				if (this._hasPendingMcpAuthentication(serverName)) {
+					return;
+				}
+				try {
+					await this._wrapper.session.rpc.mcp.oauth.authenticationStateChanged({ serverName });
+				} finally {
+					this._seedMcpServersFromRpc();
+				}
+				return;
+			}
 			try {
 				await this._wrapper.session.rpc.mcp.startServer({ serverName });
 			} finally {
@@ -3752,7 +3853,7 @@ export class CopilotAgentSession extends Disposable {
 				// where the start rejects before any status is emitted.
 				this._seedMcpServersFromRpc();
 			}
-		});
+		}), token);
 	}
 
 	private _reconcileMcpServerEnablement(): Promise<void> {
@@ -3868,7 +3969,9 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		return this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+			this._cancelPendingMcpAuthRequestsForServer(serverName);
 			await this._wrapper.session.rpc.mcp.stopServer({ serverName });
+			this._mcpLifecycleVersion++;
 			this._mcpCustomizations.applyOne({ name: serverName, state: { kind: McpServerStatus.Stopped } });
 		});
 	}
@@ -5196,9 +5299,9 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
-				const turnId = this._beginSteeringTurn(steering);
+				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
-					this._hostTurnIdsByInteractionId.set(e.data.interactionId, turnId);
+					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
 			}
 			if (this._turnId) {
@@ -5207,7 +5310,7 @@ export class CopilotAgentSession extends Disposable {
 					this._recordHostSdkTurn(e.data.turnId, this._turnId);
 				}
 				if (e.data.interactionId) {
-					this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._turnId);
+					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 				this._currentTurn.value?.completeEventId(e.id);
@@ -6426,19 +6529,19 @@ export class CopilotAgentSession extends Disposable {
 		// bare top-level entry (`SessionCustomizationUpdated`). Each state
 		// change is also logged (with structured metadata) so it flows to the
 		// agent host's OTLP log stream and the per-server Output channels.
-		this._register(wrapper.onMcpServersLoaded(e => {
-			this._logMcpServersSnapshot(e.data.servers.map((s: McpServersLoadedServer) => ({
-				name: s.name,
-				status: s.status,
-				error: s.error,
-				source: s.source,
-				transport: s.transport,
-				pluginName: s.pluginName,
-				pluginVersion: s.pluginVersion,
-			})), 'loaded');
-			this._applyMcpServerList(e.data.servers);
+		this._register(wrapper.onMcpServersLoaded(() => {
+			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
+			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.list`);
+			void this._refreshMcpServersFromRpc().catch(err => {
+				this._logService.warn(`[Copilot:${sessionId}] Failed to refresh MCP server inventory after session.mcp_servers_loaded`, err);
+			});
 		}));
 		this._register(wrapper.onMcpServerStatusChanged(e => {
+			this._mcpLifecycleVersion++;
+			const requirement = this._lastMcpAuthRequirements.get(e.data.serverName);
+			if (requirement && e.data.status !== 'pending') {
+				this._lastMcpAuthRequirements.set(e.data.serverName, { ...requirement, acceptsTokenCompletion: false });
+			}
 			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
 			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
 			if (!server) {
@@ -6446,6 +6549,9 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._mcpCustomizations.applyOne(server);
+		}));
+		this._register(wrapper.onMcpOAuthCompleted(e => {
+			this._handleMcpOAuthCompleted(e.data.requestId, e.data.outcome);
 		}));
 
 		this._register(wrapper.onToolsUpdated(() => {
@@ -6460,15 +6566,13 @@ export class CopilotAgentSession extends Disposable {
 		// the time we attach. The `session.mcp_servers_loaded` event may
 		// have fired before our subscription (e.g. for restored sessions or
 		// when servers are configured at session-creation time), and there
-		// is no replay. Subsequent `applyAll` calls from the event are
-		// idempotent, so this safely converges either way.
+		// is no replay. Later loaded events invalidate this RPC inventory.
 		this._seedMcpServersFromRpc();
 	}
 
 	/**
-	 * One-shot fetch of `rpc.mcp.list` at subscription time. Best-effort:
-	 * any failure is logged and the inventory simply stays empty until the
-	 * next live event arrives.
+	 * Seeds the authoritative RPC inventory; later loaded events repeat this
+	 * best-effort refresh.
 	 */
 	private _seedMcpServersFromRpc(): void {
 		this._refreshMcpServersFromRpc().catch(err => {
@@ -6476,13 +6580,23 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/** Refreshes live inventory, retrying snapshots overtaken by lifecycle events without superseding a newer refresh. */
 	private async _refreshMcpServersFromRpc(): Promise<void> {
 		const mcpRpc = this._wrapper.session.rpc?.mcp;
 		if (!mcpRpc) {
 			return;
 		}
-		const result = await mcpRpc.list();
-		if (!this._store.isDisposed) {
+		const requestVersion = ++this._mcpInventoryRequestVersion;
+		while (!this._store.isDisposed) {
+			const lifecycleVersion = this._mcpLifecycleVersion;
+			const result = await mcpRpc.list();
+			if (this._store.isDisposed || requestVersion !== this._mcpInventoryRequestVersion) {
+				return;
+			}
+			if (lifecycleVersion !== this._mcpLifecycleVersion) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Retrying MCP server inventory after a newer lifecycle update`);
+				continue;
+			}
 			this._logMcpServersSnapshot(result.servers.map(s => ({
 				name: s.name,
 				status: s.status,
@@ -6492,13 +6606,49 @@ export class CopilotAgentSession extends Disposable {
 				pluginVersion: s.sourcePluginVersion,
 			})), 'inventory');
 			this._applyMcpServerList(result.servers);
+			return;
 		}
 	}
 
 	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+		const serverNames = new Set(servers.map(server => server.name));
+		for (const serverName of this._lastMcpAuthRequirements.keys()) {
+			if (!serverNames.has(serverName)) {
+				this._lastMcpAuthRequirements.delete(serverName);
+			}
+		}
 		const sdkServers = servers
 			.map(s => this._toSdkMcpServer(s.name, s.status, s.error));
 		this._mcpCustomizations.applyAll(sdkServers);
+	}
+
+	/** Promotes a delivered OAuth token to Starting, then refreshes live inventory without treating it as Ready. */
+	private _handleMcpOAuthCompleted(requestId: string, outcome: 'token' | 'cancelled'): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const match = [...this._lastMcpAuthRequirements.entries()].find(([, requirement]) => requirement.requestId === requestId);
+		if (!match) {
+			return;
+		}
+		const [serverName, requirement] = match;
+		if (outcome !== 'token') {
+			this._disableMcpTokenCompletion(serverName, requestId);
+			return;
+		}
+		if (!requirement.acceptsTokenCompletion || this._hasPendingMcpAuthentication(serverName) || this._mcpCustomizations.stateForServer(serverName)?.kind !== McpServerStatus.AuthRequired) {
+			return;
+		}
+		this._mcpLifecycleVersion++;
+		this._disableMcpTokenCompletion(serverName, requestId);
+		this._mcpCustomizations.applyOne({
+			name: serverName,
+			state: { kind: McpServerStatus.Starting },
+			allowAuthRequiredToStarting: true,
+		});
+		void this._refreshMcpServersFromRpc().catch(error => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP server inventory after OAuth token delivery`, error);
+		});
 	}
 
 	/**
@@ -6532,7 +6682,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._lastLoggedMcpStatus.set(server.name, server.status);
 
-		const state = this._translateSdkMcpStatus(server.name, server.status, server.error);
+		const state = this._toSdkMcpServer(server.name, server.status, server.error).state;
 		const attributes: Record<string, OtelAttributeValue> = {
 			mcpEvent: server.origin,
 			mcpServer: server.name,
@@ -6594,18 +6744,21 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Translates the SDK's flat MCP status string into AHP's discriminated
-	 * {@link McpServerState} union.
+	 * Translates SDK status, preserving actionable authentication while a callback is pending.
+	 * Only a callback-free SDK `pending` update can replace a retained challenge with starting.
 	 */
 	private _toSdkMcpServer(name: string, status: SdkMcpServerStatus, error?: string): ISdkMcpServer {
+		const hasPendingAuthentication = this._hasPendingMcpAuthentication(name);
 		return {
 			name,
-			state: this._translateSdkMcpStatus(name, status, error),
+			state: this._translateSdkMcpStatus(name, status, error, hasPendingAuthentication),
+			...(status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
 			enabled: status !== 'disabled',
 		};
 	}
 
-	private _translateSdkMcpStatus(name: string, status: SdkMcpServerStatus, error?: string): McpServerState {
+	/** Translates SDK state while retaining the most recent challenge metadata for `needs-auth`. */
+	private _translateSdkMcpStatus(name: string, status: SdkMcpServerStatus, error: string | undefined, hasPendingAuthentication: boolean): McpServerState {
 		switch (status) {
 			case 'connected':
 				return { kind: McpServerStatus.Ready };
@@ -6617,16 +6770,24 @@ export class CopilotAgentSession extends Disposable {
 						message: error ?? 'MCP server failed to start',
 					},
 				};
-			case 'pending':
-			case 'needs-auth': {
+			case 'pending': {
 				const previous = this._mcpCustomizations.stateForServer(name);
-				if (previous?.kind === McpServerStatus.AuthRequired) {
+				if (hasPendingAuthentication && previous?.kind === McpServerStatus.AuthRequired) {
 					return previous;
 				}
 				return { kind: McpServerStatus.Starting };
 			}
+			case 'needs-auth': {
+				const previous = this._mcpCustomizations.stateForServer(name);
+				if (hasPendingAuthentication && previous?.kind === McpServerStatus.AuthRequired) {
+					return previous;
+				}
+				const auth = this._lastMcpAuthRequirements.get(name)?.auth;
+				return auth ? { kind: McpServerStatus.AuthRequired, ...auth } : { kind: McpServerStatus.Starting };
+			}
 			case 'disabled':
 			case 'not_configured':
+				this._lastMcpAuthRequirements.delete(name);
 				return { kind: McpServerStatus.Stopped };
 			default:
 				return { kind: McpServerStatus.Stopped };
@@ -7166,12 +7327,13 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
-				this._activeRootSdkTurnId = e.data.turnId;
 				if (this._currentTurn.value) {
+					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
+					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					this._hasFusionRootTurnBoundary = true;
 					this._recordHostSdkTurn(e.data.turnId, this._currentTurn.value.id);
 					if (e.data.interactionId) {
-						this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._currentTurn.value.id);
+						this._currentTurn.value.interactionIds.add(e.data.interactionId);
 					}
 				}
 				const telemetryMessageId = this._currentTurn.value?.id ?? e.data.turnId;
@@ -7209,8 +7371,9 @@ export class CopilotAgentSession extends Disposable {
 			if (e.agentId) {
 				this._refreshSubagentTaskStatuses();
 			}
-			if (!e.agentId && this._activeRootSdkTurnId === e.data.turnId) {
-				this._activeRootSdkTurnId = undefined;
+			const turn = this._currentTurn.value;
+			if (!e.agentId && turn?.activeSdkTurnId === e.data.turnId) {
+				turn.activeSdkTurnId = undefined;
 			}
 		}));
 
