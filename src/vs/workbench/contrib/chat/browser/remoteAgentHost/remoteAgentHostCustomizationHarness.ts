@@ -19,7 +19,7 @@ import { ROOT_STATE_URI, customizationId, type Customization } from '../../../..
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { ICustomizationSyncProvider, type ICustomizationPluginMarketplaceProvider, type IHarnessDescriptor, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
@@ -138,6 +138,7 @@ export function createRemoteAgentHarnessDescriptor(
 	controller: RemoteAgentPluginController,
 	itemProvider: AgentCustomizationItemProvider,
 	syncProvider: ICustomizationSyncProvider,
+	pluginMarketplaceProvider?: ICustomizationPluginMarketplaceProvider,
 ): IHarnessDescriptor {
 	return {
 		id: harnessId,
@@ -151,5 +152,6 @@ export function createRemoteAgentHarnessDescriptor(
 		itemProvider,
 		syncProvider,
 		pluginActions: controller.pluginActions,
+		pluginMarketplaceProvider,
 	};
 }

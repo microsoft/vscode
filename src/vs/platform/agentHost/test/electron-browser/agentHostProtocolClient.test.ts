@@ -18,7 +18,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetSessionPluginMarketplaceSnapshotExtensionMethod, InstallSessionPluginExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostSessionPluginMarketplaces } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -1854,6 +1855,25 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(request, error);
 	});
 
+	test('timing and session plugin marketplace capabilities are independent', () => {
+		const capabilities = [];
+		for (const timing of [false, true]) {
+			for (const marketplaces of [false, true]) {
+				const result = { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta(true, false, timing, marketplaces) };
+				capabilities.push({
+					timing: supportsAgentHostTiming(result),
+					marketplaces: supportsAgentHostSessionPluginMarketplaces(result),
+				});
+			}
+		}
+		assert.deepStrictEqual(capabilities, [
+			{ timing: false, marketplaces: false },
+			{ timing: false, marketplaces: true },
+			{ timing: true, marketplaces: false },
+			{ timing: true, marketplaces: true },
+		]);
+	});
+
 	test('first-response diagnostics require an enabled host capability, not product telemetry', async () => {
 		const diagnostic: IAgentHostFirstResponseDiagnostic = {
 			provider: 'copilot', requestId: 'request-1', outcome: 'notDispatched',
@@ -1899,6 +1919,64 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(resultPromise, error);
+	});
+
+	test('session plugin marketplace methods send VS Code extension requests', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+		const snapshot = {
+			marketplaces: [{ name: 'company', source: 'GitHub: company/plugins', managed: true }],
+			plugins: [{ name: 'review', marketplace: 'company', installed: false, source: 'review@company' }],
+			failures: [],
+		};
+
+		const snapshotPromise = client.getSessionPluginMarketplaceSnapshot(session);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: GetSessionPluginMarketplaceSnapshotExtensionMethod,
+			params: { session: session.toString() },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: snapshot });
+
+		const refreshPromise = client.refreshSessionPluginMarketplaces(session, 'company');
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 3,
+			method: RefreshSessionPluginMarketplacesExtensionMethod,
+			params: { session: session.toString(), marketplace: 'company' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: snapshot });
+
+		const installPromise = client.installSessionPlugin(session, 'review@company');
+		assert.deepStrictEqual(transport.sentMessages[2], {
+			jsonrpc: '2.0',
+			id: 4,
+			method: InstallSessionPluginExtensionMethod,
+			params: { session: session.toString(), source: 'review@company' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 4, result: { postInstallMessage: 'Configure the review plugin.' } });
+
+		assert.deepStrictEqual(await Promise.all([snapshotPromise, refreshPromise, installPromise]), [
+			snapshot,
+			snapshot,
+			{ postInstallMessage: 'Configure the review plugin.' },
+		]);
+	});
+
+	test('session plugin marketplace methods do not send requests without the advertised capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true, false));
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Host does not support session plugin marketplaces' };
+
+		await assertRemoteProtocolError(client.getSessionPluginMarketplaceSnapshot(session), error);
+		await assertRemoteProtocolError(client.refreshSessionPluginMarketplaces(session), error);
+		await assertRemoteProtocolError(client.installSessionPlugin(session, 'review@company'), error);
+		assert.deepStrictEqual(transport.sentMessages, []);
 	});
 
 	test('getSessionStateFile maps the returned host resource', async () => {

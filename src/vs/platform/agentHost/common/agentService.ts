@@ -26,7 +26,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot, type IAgentPluginInstallResult, type IAgentPluginMarketplaceSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -41,7 +41,9 @@ export type {
 	IAgentSubagentStartedSignal, IAgentSubagentResumedSignal, IAgentSubagentCompletedSignal,
 	IAgentSteeringConsumedSignal, IMcpNotification, IActiveClient, AgentProvider, IAgentCapabilities,
 	IAgentDescriptor, AuthenticateParams, IAgentHostAuthTokenRequest, AuthenticateResult,
-	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot,
+	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot, IAgentPluginInstallResult,
+	IAgentPluginMarketplaceFailure, IAgentPluginMarketplaceItem, IAgentPluginMarketplaces,
+	IAgentPluginMarketplace, IAgentPluginMarketplaceSnapshot,
 } from './agent.js';
 export {
 	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
@@ -803,6 +805,9 @@ export interface IAgentService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	getSessionPluginMarketplaceSnapshot?(session: URI): Promise<IAgentPluginMarketplaceSnapshot>;
+	refreshSessionPluginMarketplaces?(session: URI, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot>;
+	installSessionPlugin?(session: URI, source: string): Promise<IAgentPluginInstallResult>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1116,6 +1121,10 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Requires the VS Code live-session plugin marketplace capability advertised by initialize. */
+	getSessionPluginMarketplaceSnapshot?(session: URI): Promise<IAgentPluginMarketplaceSnapshot>;
+	refreshSessionPluginMarketplaces?(session: URI, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot>;
+	installSessionPlugin?(session: URI, source: string): Promise<IAgentPluginInstallResult>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;

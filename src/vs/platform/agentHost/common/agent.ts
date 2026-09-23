@@ -834,6 +834,44 @@ export interface IAgentChats {
 	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
 }
 
+export interface IAgentPluginMarketplace {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault?: boolean;
+	readonly managed?: boolean;
+	readonly available?: boolean;
+}
+
+export interface IAgentPluginMarketplaceItem {
+	readonly name: string;
+	readonly description?: string;
+	readonly marketplace: string;
+	readonly installed: boolean;
+	readonly source: string;
+}
+
+export interface IAgentPluginMarketplaceFailure {
+	readonly marketplace: string;
+	readonly error: string;
+}
+
+export interface IAgentPluginMarketplaceSnapshot {
+	readonly marketplaces: readonly IAgentPluginMarketplace[];
+	readonly plugins: readonly IAgentPluginMarketplaceItem[];
+	readonly failures: readonly IAgentPluginMarketplaceFailure[];
+}
+
+export interface IAgentPluginInstallResult {
+	readonly postInstallMessage?: string;
+	readonly deprecationWarning?: string;
+}
+
+export interface IAgentPluginMarketplaces {
+	getSnapshot(chat: URI, context: AgentChatOperationContext): Promise<IAgentPluginMarketplaceSnapshot>;
+	refresh(chat: URI, context: AgentChatOperationContext, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot>;
+	install(chat: URI, context: AgentChatOperationContext, source: string): Promise<IAgentPluginInstallResult>;
+}
+
 export interface IAgentResolveChatConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
@@ -1232,6 +1270,9 @@ export interface IAgent {
 
 	/** Exact-chat operations: create, send, abort, mutate, restore history, release, and dispose. */
 	readonly chats: IAgentChats;
+
+	/** Optional live-session marketplace operations owned by this provider. */
+	readonly pluginMarketplaces?: IAgentPluginMarketplaces;
 
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;

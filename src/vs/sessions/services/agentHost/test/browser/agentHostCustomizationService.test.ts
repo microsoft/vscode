@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -168,6 +169,53 @@ suite('AgentHostCustomizationService', () => {
 		const [mcpServer] = service.getMcpServers(sessionResource);
 
 		assert.deepStrictEqual({ isClientBundled: mcpServer.isClientBundled }, { isClientBundled: true });
+	});
+
+	test('forwards plugin marketplace operations for the selected session', async () => {
+		const calls: string[] = [];
+		const snapshot = {
+			marketplaces: [{ name: 'managed', source: 'GitHub: company/plugins', managed: true }],
+			plugins: [{ name: 'reviewer', marketplace: 'managed', source: 'reviewer@managed', installed: false }],
+			failures: [],
+		};
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-test';
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeCustomizations = Event.None;
+			override getCustomizations(): Customization[] { return []; }
+			override getWorkingDirectory(): string | undefined { return undefined; }
+			override getWorkingDirectories(): readonly string[] { return []; }
+			override getRootConfig() { return undefined; }
+			override getPluginMarketplaceSnapshot(sessionId: string) {
+				calls.push(`snapshot:${sessionId}`);
+				return Promise.resolve(snapshot);
+			}
+			override refreshPluginMarketplaces(sessionId: string) {
+				calls.push(`refresh:${sessionId}`);
+				return Promise.resolve(snapshot);
+			}
+			override installPlugin(sessionId: string, source: string) {
+				calls.push(`install:${sessionId}:${source}`);
+				return Promise.resolve({});
+			}
+		};
+		const { service, sessionResource } = createSut(provider);
+
+		assert.deepStrictEqual({
+			snapshot: await service.getPluginMarketplaceSnapshot(sessionResource, CancellationToken.None),
+			refresh: await service.refreshPluginMarketplaces(sessionResource, CancellationToken.None),
+			install: await service.installPlugin(sessionResource, 'reviewer@managed'),
+			calls,
+		}, {
+			snapshot,
+			refresh: snapshot,
+			install: {},
+			calls: [
+				'snapshot:agenthost-test:session-1',
+				'refresh:agenthost-test:session-1',
+				'install:agenthost-test:session-1:reviewer@managed',
+			],
+		});
 	});
 
 	for (const authority of ['local', 'remote-test']) {

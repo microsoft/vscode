@@ -46,6 +46,7 @@ import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
 import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../common/enablement.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -602,6 +603,7 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 		// Services must be resolved synchronously — the accessor is invalidated
 		// as soon as this method returns its promise.
 		const marketplaceService = accessor.get(IPluginMarketplaceService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
 		const notificationService = accessor.get(INotificationService);
 		const progressService = accessor.get(IProgressService);
 
@@ -614,10 +616,25 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 					title: localize('agentPlugins.refreshingMarketplaces', "Refreshing plugin marketplaces..."),
 					cancellable: true,
 				},
-				() => marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
-					refresh: true,
-					onMarketplaceError: reference => failedLabels.push(reference.displayLabel),
-				}),
+				async () => {
+					const provider = harnessService.getActiveDescriptor().pluginMarketplaceProvider;
+					const snapshot = provider
+						? await provider.refresh(harnessService.activeSessionResource.get(), cts.token)
+						: undefined;
+					if (snapshot) {
+						if (snapshot.failures.length > 0) {
+							const recovery = await marketplaceService.fetchMarketplacePluginsForNames(cts.token, new Set(snapshot.failures.map(failure => failure.marketplace)), {
+								refresh: true,
+							});
+							failedLabels.push(...recovery.unresolved);
+						}
+						return;
+					}
+					await marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
+						refresh: true,
+						onMarketplaceError: reference => failedLabels.push(reference.displayLabel),
+					});
+				},
 				() => cts.dispose(true),
 			);
 

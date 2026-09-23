@@ -93,7 +93,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
 import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
-import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -211,7 +211,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	/** Error to fail a subscription with, when the default generic error is not what is under test. */
 	public failNextSubscriptionError = new Map<string, Error>();
-	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+	public agents: RootState['agents'] = [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [] }];
 
 	// ---- Pending→error subscription support (repro for #5242) --------------
 	// Models a subscription that is first observed *pending* (value === undefined)
@@ -912,8 +912,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		ensureSyncedCustomizationProvider: () => { },
 	});
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	const harnessDescriptors: IHarnessDescriptor[] = [];
 	instantiationService.stub(ICustomizationHarnessService, {
-		registerExternalHarness: () => toDisposable(() => { }),
+		activeSessionResource: constObservable(URI.parse('agent-host-copilotcli:/test')),
+		registerExternalHarness: descriptor => {
+			harnessDescriptors.push(descriptor);
+			return toDisposable(() => { });
+		},
 	});
 	instantiationService.stub(IAgentPluginService, {
 		plugins: observableValue('plugins', []),
@@ -1047,7 +1052,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, harnessDescriptors };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -1060,7 +1065,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, harnessDescriptors } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
 		const pending = opts?.pendingTreatment;
@@ -1088,7 +1093,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService, harnessDescriptors };
 }
 
 function createByokLanguageModelTestData(groupName?: string): { languageModels: ReadonlyMap<string, ILanguageModelChatMetadata>; languageModelsServiceOverride: Partial<ILanguageModelsService> } {
@@ -1318,9 +1323,19 @@ suite('AgentHostChatContribution', () => {
 	suite('registration', () => {
 
 		test('registers agent', () => {
-			const { chatAgentService } = createContribution(disposables);
+			const { agentHostService, chatAgentService, harnessDescriptors } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', models: [] }],
+				activeSessions: 0,
+			});
 
-			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
+			assert.deepStrictEqual({
+				agentRegistered: chatAgentService.registeredAgents.has('agent-host-copilotcli'),
+				marketplaceProvider: harnessDescriptors.find(descriptor => descriptor.id === 'agent-host-copilotcli')?.pluginMarketplaceProvider !== undefined,
+			}, {
+				agentRegistered: true,
+				marketplaceProvider: true,
+			});
 		});
 
 	});

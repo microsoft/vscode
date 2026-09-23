@@ -5,6 +5,7 @@
 
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
+import type { IAgentPluginInstallResult, IAgentPluginMarketplaceSnapshot } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
@@ -12,9 +13,11 @@ import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevCont
 import { AgentHostTimingCapabilityMetaKey } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
+import { AgentHostSessionPluginMarketplacesCapabilityMetaKey } from './meta/agentHostSessionPluginMarketplacesMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+export { supportsAgentHostSessionPluginMarketplaces } from './meta/agentHostSessionPluginMarketplacesMeta.js';
 
 export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
 export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect';
@@ -46,6 +49,9 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const GetSessionPluginMarketplaceSnapshotExtensionMethod = 'vscode/sessionPluginMarketplaces/snapshot';
+export const RefreshSessionPluginMarketplacesExtensionMethod = 'vscode/sessionPluginMarketplaces/refresh';
+export const InstallSessionPluginExtensionMethod = 'vscode/sessionPluginMarketplaces/install';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
@@ -57,6 +63,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
+	readonly [AgentHostSessionPluginMarketplacesCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
@@ -67,12 +74,13 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionPluginMarketplaces = true): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		[AgentHostSessionPluginMarketplacesCapabilityMetaKey]: sessionPluginMarketplaces ? true : undefined,
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 	};
@@ -101,6 +109,20 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+export const getSessionPluginMarketplaceSnapshotParamsValidator = vObj({
+	session: vString(),
+});
+
+export const refreshSessionPluginMarketplacesParamsValidator = vObj({
+	session: vString(),
+	marketplace: vOptionalProp(vString()),
+});
+
+export const installSessionPluginParamsValidator = vObj({
+	session: vString(),
+	source: vString(),
+});
+
 export interface IAgentHostExtensionCommandMap {
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
@@ -110,6 +132,18 @@ export interface IAgentHostExtensionCommandMap {
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
+	};
+	[GetSessionPluginMarketplaceSnapshotExtensionMethod]: {
+		params: ValidatorType<typeof getSessionPluginMarketplaceSnapshotParamsValidator>;
+		result: IAgentPluginMarketplaceSnapshot;
+	};
+	[RefreshSessionPluginMarketplacesExtensionMethod]: {
+		params: ValidatorType<typeof refreshSessionPluginMarketplacesParamsValidator>;
+		result: IAgentPluginMarketplaceSnapshot;
+	};
+	[InstallSessionPluginExtensionMethod]: {
+		params: ValidatorType<typeof installSessionPluginParamsValidator>;
+		result: IAgentPluginInstallResult;
 	};
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };

@@ -29,6 +29,7 @@ import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSes
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { AgentHostPluginMarketplaceProvider } from '../agentSessions/agentHost/agentHostPluginMarketplaceProvider.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
@@ -412,7 +413,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 
-		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
+		const pluginMarketplaceProvider = agent.provider === 'copilotcli'
+			? agentStore.add(this._instantiationService.createInstance(AgentHostPluginMarketplaceProvider))
+			: undefined;
+		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider, pluginMarketplaceProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)

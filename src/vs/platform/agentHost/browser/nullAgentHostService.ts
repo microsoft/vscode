@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
+import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentPluginInstallResult, IAgentPluginMarketplaceSnapshot } from '../common/agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -62,6 +62,9 @@ export class NullAgentHostService implements IAgentHostService {
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async removeSessionArtifact(_session: URI, _artifactId: string): Promise<void> { return notSupported(); }
+	async getSessionPluginMarketplaceSnapshot(_session: URI): Promise<IAgentPluginMarketplaceSnapshot> { return notSupported(); }
+	async refreshSessionPluginMarketplaces(_session: URI, _marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> { return notSupported(); }
+	async installSessionPlugin(_session: URI, _source: string): Promise<IAgentPluginInstallResult> { return notSupported(); }
 	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { return notSupported(); }
 	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { return notSupported(); }

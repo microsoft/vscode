@@ -56,6 +56,8 @@ import {
 	AuthenticateParams,
 	AuthenticateResult,
 	IMcpNotification,
+	type IAgentPluginInstallResult,
+	type IAgentPluginMarketplaceSnapshot,
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
@@ -431,6 +433,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	getSessionPluginMarketplaceSnapshot(session: URI): Promise<IAgentPluginMarketplaceSnapshot> {
+		return this._requireClient().getSessionPluginMarketplaceSnapshot(session);
+	}
+
+	refreshSessionPluginMarketplaces(session: URI, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> {
+		return this._requireClient().refreshSessionPluginMarketplaces(session, marketplace);
+	}
+
+	installSessionPlugin(session: URI, source: string): Promise<IAgentPluginInstallResult> {
+		return this._requireClient().installSessionPlugin(session, source);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

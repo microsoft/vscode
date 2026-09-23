@@ -142,6 +142,7 @@ Manages the catalog of available and installed plugins:
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
 - **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
 - **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
+- **Desktop GitHub authentication** — native clone, fetch, and pull operations can fall back to an existing VS Code GitHub session for canonical `https://github.com/` repositories. Native Git credentials run first. The editor-token fallback requires Git 2.31 or later and reports an actionable error on older versions. Tokens are not persisted in repository config or included in Git command arguments; authenticated Git diagnostics disable tracing and redact credentials from failures.
 
 ### Marketplace Definition Files
 

@@ -34,6 +34,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { AgentHostPluginMarketplaceProvider } from './agentHostPluginMarketplaceProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
 import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
@@ -331,6 +332,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			syncedUri => this._activeClientService.getOrigin(syncedUri)));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
+		const pluginMarketplaceProvider = agent.provider === 'copilotcli'
+			? store.add(this._instantiationService.createInstance(AgentHostPluginMarketplaceProvider))
+			: undefined;
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
 			label: agent.displayName,
@@ -340,6 +344,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			hideGenerateButton: true,
 			syncProvider,
 			itemProvider,
+			pluginMarketplaceProvider,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
 			mcpServerCompatibilityProvider: agent.provider === 'copilotcli' ? {
 				acquire: sessionResource => createCustomizationMcpServerCompatibilityScope(

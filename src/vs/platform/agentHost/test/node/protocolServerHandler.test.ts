@@ -18,9 +18,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentPluginInstallResult, type IAgentPluginMarketplaceSnapshot, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, GetSessionPluginMarketplaceSnapshotExtensionMethod, InstallSessionPluginExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, supportsAgentHostSessionPluginMarketplaces } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -160,6 +160,9 @@ class MockAgentService implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	readonly getSessionPluginMarketplaceSnapshotCalls: string[] = [];
+	readonly refreshSessionPluginMarketplacesCalls: { session: string; marketplace: string | undefined }[] = [];
+	readonly installSessionPluginCalls: { session: string; source: string }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -270,6 +273,22 @@ class MockAgentService implements IAgentService {
 	}
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+	}
+	async getSessionPluginMarketplaceSnapshot(session: URI): Promise<IAgentPluginMarketplaceSnapshot> {
+		this.getSessionPluginMarketplaceSnapshotCalls.push(session.toString());
+		return {
+			marketplaces: [{ name: 'company', source: 'GitHub: company/plugins', managed: true }],
+			plugins: [{ name: 'review', marketplace: 'company', installed: false, source: 'review@company' }],
+			failures: [],
+		};
+	}
+	async refreshSessionPluginMarketplaces(session: URI, marketplace?: string): Promise<IAgentPluginMarketplaceSnapshot> {
+		this.refreshSessionPluginMarketplacesCalls.push({ session: session.toString(), marketplace });
+		return this.getSessionPluginMarketplaceSnapshot(session);
+	}
+	async installSessionPlugin(session: URI, source: string): Promise<IAgentPluginInstallResult> {
+		this.installSessionPluginCalls.push({ session: session.toString(), source });
+		return { postInstallMessage: 'Configure the review plugin.' };
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -483,6 +502,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
+				'vscode.sessionPluginMarketplaces': true,
 				'vscode.devContainers': true,
 			},
 		});
@@ -1081,6 +1101,80 @@ suite('ProtocolServerHandler', () => {
 			id: 20,
 			error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack },
 		});
+	});
+
+	test('advertises and routes live-session plugin marketplace extension requests', async () => {
+		const transport = connectClient('client-session-plugin-marketplaces');
+		const initializeResponse = findResponse(transport.sent, 1);
+		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
+		const initializeResult = initializeResponse.result as InitializeResult;
+		const session = 'copilotcli:/session-1';
+
+		const snapshotResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, GetSessionPluginMarketplaceSnapshotExtensionMethod, { session }));
+		const refreshResponse = waitForResponse(transport, 22);
+		transport.simulateMessage(request(22, RefreshSessionPluginMarketplacesExtensionMethod, { session, marketplace: 'company' }));
+		const installResponse = waitForResponse(transport, 23);
+		transport.simulateMessage(request(23, InstallSessionPluginExtensionMethod, { session, source: 'review@company' }));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionPluginMarketplaces(initializeResult),
+			legacy: supportsAgentHostSessionPluginMarketplaces({ ...initializeResult, _meta: undefined }),
+			malformed: supportsAgentHostSessionPluginMarketplaces({ ...initializeResult, _meta: { 'vscode.sessionPluginMarketplaces': 'true' } }),
+			responses: await Promise.all([snapshotResponse, refreshResponse, installResponse]),
+			snapshotCalls: agentService.getSessionPluginMarketplaceSnapshotCalls,
+			refreshCalls: agentService.refreshSessionPluginMarketplacesCalls,
+			installCalls: agentService.installSessionPluginCalls,
+		}, {
+			supported: true,
+			legacy: false,
+			malformed: false,
+			responses: [
+				{
+					jsonrpc: '2.0',
+					id: 21,
+					result: {
+						marketplaces: [{ name: 'company', source: 'GitHub: company/plugins', managed: true }],
+						plugins: [{ name: 'review', marketplace: 'company', installed: false, source: 'review@company' }],
+						failures: [],
+					},
+				},
+				{
+					jsonrpc: '2.0',
+					id: 22,
+					result: {
+						marketplaces: [{ name: 'company', source: 'GitHub: company/plugins', managed: true }],
+						plugins: [{ name: 'review', marketplace: 'company', installed: false, source: 'review@company' }],
+						failures: [],
+					},
+				},
+				{ jsonrpc: '2.0', id: 23, result: { postInstallMessage: 'Configure the review plugin.' } },
+			],
+			snapshotCalls: [session, session],
+			refreshCalls: [{ session, marketplace: 'company' }],
+			installCalls: [{ session, source: 'review@company' }],
+		});
+	});
+
+	test('rejects invalid live-session plugin marketplace extension params before routing', async () => {
+		const transport = connectClient('client-session-plugin-marketplaces-invalid');
+		const requests = [
+			{ method: GetSessionPluginMarketplaceSnapshotExtensionMethod, params: { session: buildChatUri('copilotcli:/session-1', 'peer-1') } },
+			{ method: RefreshSessionPluginMarketplacesExtensionMethod, params: { session: 'copilotcli:/session-1', marketplace: ' ' } },
+			{ method: InstallSessionPluginExtensionMethod, params: { session: 'copilotcli:/session-1', source: '' } },
+		];
+		for (const [index, entry] of requests.entries()) {
+			const id = index + 30;
+			const responsePromise = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, entry.method, entry.params));
+			const response = await responsePromise;
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.deepStrictEqual({
+			snapshot: agentService.getSessionPluginMarketplaceSnapshotCalls,
+			refresh: agentService.refreshSessionPluginMarketplacesCalls,
+			install: agentService.installSessionPluginCalls,
+		}, { snapshot: [], refresh: [], install: [] });
 	});
 
 	test('creates a detached worktree through the extension request', async () => {
