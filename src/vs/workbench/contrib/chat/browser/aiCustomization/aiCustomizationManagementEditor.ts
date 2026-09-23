@@ -100,6 +100,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections } from './customizationCardList.js';
@@ -687,6 +688,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@ICustomizationMigrationTelemetryService private readonly customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1420,6 +1422,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// Tools customizations only target the agent host (Copilot CLI), in both windows.
 			this.toolsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ToolsListWidget, AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
 			this.toolsContentContainer.appendChild(this.toolsListWidget.element);
+			this.editorDisposables.add(this.toolsListWidget.onDidRequestBrowseMarketplace(() => {
+				void this.browseToolExtensions().catch(error => this.notificationService.error(error));
+			}));
 		}
 
 		for (const section of this.workspaceService.managementSections) {
@@ -3524,6 +3529,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	getWelcomePage(): AICustomizationWelcomePage | undefined {
 		return this.viewMode === 'list' && this.selectedSection === undefined ? this.welcomePage : undefined;
+	}
+
+	private async browseToolExtensions(): Promise<void> {
+		if (this.input && !await this.group.closeEditor(this.input)) {
+			return;
+		}
+		await this.extensionsWorkbenchService.openSearch('@tag:language-model-tools');
 	}
 
 	/**
