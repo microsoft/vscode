@@ -95,6 +95,49 @@ export interface IAbstractToolPrimaryAction extends IChatConfirmationButton<(() 
 
 type AbstractToolPrimaryAction = IAbstractToolPrimaryAction | Separator;
 
+export function buildCustomOptionButtons<T>(options: readonly ConfirmationOption[], getData: (option: ConfirmationOption) => T): IChatConfirmationButton<T>[] {
+	const approve: ConfirmationOption[] = [];
+	const deny: ConfirmationOption[] = [];
+	for (const option of options) {
+		(option.kind === ConfirmationOptionKind.Deny ? deny : approve).push(option);
+	}
+
+	const makeAction = (option: ConfirmationOption): IChatConfirmationButton<T> => ({
+		label: option.label,
+		data: getData(option),
+	});
+
+	const makeGroupButton = (group: ConfirmationOption[], isSecondary: boolean): IChatConfirmationButton<T> => {
+		const [primary, ...rest] = group;
+		const button: IChatConfirmationButton<T> = {
+			...makeAction(primary),
+			isSecondary,
+		};
+		if (rest.length > 0) {
+			const moreActions: (IChatConfirmationButton<T> | Separator)[] = [];
+			let prevGroup = primary.group;
+			for (const option of rest) {
+				if (option.group !== prevGroup) {
+					moreActions.push(new Separator());
+				}
+				moreActions.push(makeAction(option));
+				prevGroup = option.group;
+			}
+			button.moreActions = moreActions;
+		}
+		return button;
+	};
+
+	const buttons: IChatConfirmationButton<T>[] = [];
+	if (approve.length > 0) {
+		buttons.push(makeGroupButton(approve, false));
+	}
+	if (deny.length > 0) {
+		buttons.push(makeGroupButton(deny, approve.length > 0));
+	}
+	return buttons;
+}
+
 /**
  * Base class for a tool confirmation.
  *
@@ -138,7 +181,9 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		let buttons: IChatConfirmationButton<(() => void)>[];
 
 		if (customOptions && customOptions.length > 0) {
-			buttons = this.buildCustomOptionButtons(toolInvocation, customOptions);
+			buttons = buildCustomOptionButtons(customOptions, option => () => {
+				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+			});
 		} else {
 			const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
 			const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
@@ -230,52 +275,6 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	protected confirmWith(toolInvocation: IChatToolInvocation, reason: ConfirmedReason): void {
 		IChatToolInvocation.confirmWith(toolInvocation, reason);
 	}
-
-	private buildCustomOptionButtons(toolInvocation: IChatToolInvocation, options: readonly ConfirmationOption[]): IChatConfirmationButton<(() => void)>[] {
-		const approve: ConfirmationOption[] = [];
-		const deny: ConfirmationOption[] = [];
-		for (const option of options) {
-			(option.kind === ConfirmationOptionKind.Deny ? deny : approve).push(option);
-		}
-
-		const makeAction = (option: ConfirmationOption): IChatConfirmationButton<(() => void)> => ({
-			label: option.label,
-			data: () => {
-				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
-			},
-		});
-
-		const makeGroupButton = (group: ConfirmationOption[], isSecondary: boolean): IChatConfirmationButton<(() => void)> => {
-			const [primary, ...rest] = group;
-			const button: IChatConfirmationButton<(() => void)> = {
-				...makeAction(primary),
-				isSecondary,
-			};
-			if (rest.length > 0) {
-				const moreActions: (IChatConfirmationButton<(() => void)> | Separator)[] = [];
-				let prevGroup = primary.group;
-				for (const option of rest) {
-					if (option.group !== prevGroup) {
-						moreActions.push(new Separator());
-					}
-					moreActions.push(makeAction(option));
-					prevGroup = option.group;
-				}
-				button.moreActions = moreActions;
-			}
-			return button;
-		};
-
-		const buttons: IChatConfirmationButton<(() => void)>[] = [];
-		if (approve.length > 0) {
-			buttons.push(makeGroupButton(approve, false));
-		}
-		if (deny.length > 0) {
-			buttons.push(makeGroupButton(deny, approve.length > 0));
-		}
-		return buttons;
-	}
-
 
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {
 		return [];

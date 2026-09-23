@@ -2084,6 +2084,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const section of this.migrationSectionLists) {
 			this.migrationSectionScrollPositions?.set(section.key, section.list.scrollTop);
 		}
+		if (this.migrationFooter && this.migrationContentContainer) {
+			this.migrationFooter.classList.remove('prompt-migration-footer-inline');
+			this.migrationContentContainer.appendChild(this.migrationFooter);
+		}
 		this.migrationPageDisposables.clear();
 		DOM.clearNode(this.migrationListContainer);
 		this.migrationClearSettingsContainer = undefined;
@@ -2124,7 +2128,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const renderGroup = (groupKey: string, groupLabel: string, customizations: readonly CustomizationMigrationCandidate[]): void => {
+		const renderGroup = (groupKey: string, groupLabel: string, customizations: readonly CustomizationMigrationCandidate[]): HTMLElement => {
 			const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group'));
 			const groupHeader = DOM.append(group, $('.prompt-migration-group-header'));
 			const groupHeading = DOM.append(groupHeader, $('.prompt-migration-group-heading'));
@@ -2139,7 +2143,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					"No customizations are available to migrate from {0}.",
 					groupLabel,
 				);
-				return;
+				return group;
 			}
 			const selectedInGroup = customizations.filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
 			const initialGroupState: boolean | 'mixed' = selectedInGroup === customizations.length ? true : selectedInGroup === 0 ? false : 'mixed';
@@ -2182,21 +2186,34 @@ export class AICustomizationManagementEditor extends EditorPane {
 				setGroupSelection(selected);
 				groupCheckbox.focus();
 			}));
+			return group;
 		};
 
 		const groups = category.group(candidates).filter(group => this.activeMigrationStorage === undefined || group.customizations.length > 0);
 		const groupedCandidates = new Set<string>();
+		let mcpServerMigrationGroup: HTMLElement | undefined;
 		for (const group of groups) {
 			for (const customization of group.customizations) {
 				groupedCandidates.add(this.getCustomizationMigrationCandidateKey(customization));
 			}
-			renderGroup(group.key, group.label, group.customizations);
+			const groupElement = renderGroup(group.key, group.label, group.customizations);
+			if (category.id === CustomizationMigrationCategoryId.McpServers && group.customizations.length > 0) {
+				mcpServerMigrationGroup = groupElement;
+			}
 		}
 
 		const ungroupedCandidates = candidates.filter(candidate => !groupedCandidates.has(this.getCustomizationMigrationCandidateKey(candidate)));
 		if (ungroupedCandidates.length > 0) {
 			const ungroupedItems = DOM.append(this.migrationListContainer, $('.prompt-migration-group-items.virtualized-section-list'));
 			this.createMigrationSectionList(ungroupedItems, `${category.id}:ungrouped`, category.pageTitle, ungroupedCandidates);
+		}
+
+		if (category.id === CustomizationMigrationCategoryId.McpServers && this.migrationFooter) {
+			this.migrationFooter.style.display = mcpServerMigrationGroup ? '' : 'none';
+			if (mcpServerMigrationGroup) {
+				this.migrationFooter.classList.add('prompt-migration-footer-inline');
+				mcpServerMigrationGroup.appendChild(this.migrationFooter);
+			}
 		}
 
 		if (mcpServerExclusions.length > 0) {
@@ -2213,7 +2230,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private renderMcpServerMigrationExclusions(exclusions: readonly IMcpServerCustomizationMigrationExclusion[]): void {
-		const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group'));
+		const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group.prompt-migration-unsupported-group'));
 		const groupHeader = DOM.append(group, $('.prompt-migration-group-header'));
 		const groupHeading = DOM.append(groupHeader, $('.prompt-migration-group-heading'));
 		DOM.append(groupHeading, $('h3.prompt-migration-group-title')).textContent = localize('mcpMigrationUnavailableGroup', "Not migratable");

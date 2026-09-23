@@ -1057,7 +1057,6 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
-	// The operation is advertised but currently fails for untracked paths; see KNOWN_ISSUES.md.
 	conformanceTest(context, 'discarding an untracked file removes it from disk', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-added-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-added');
@@ -1077,7 +1076,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			exists: false,
 			statuses: ['running', 'idle'],
 		});
-	}, false);
+	});
 
 	conformanceTest(context, 'discarding a deleted tracked file restores its contents', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-deleted-');

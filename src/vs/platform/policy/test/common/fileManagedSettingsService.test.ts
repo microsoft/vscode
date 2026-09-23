@@ -171,6 +171,21 @@ suite('normalizeManagedSettings', () => {
 		assert.deepStrictEqual(normalizeManagedSettings({}), {});
 	});
 
+	test('retains empty and future-only telemetry block presence through JSON serialization', () => {
+		const documents = [{ telemetry: {} }, { telemetry: { capture: {} } }, { telemetry: { future: ['value'] } }];
+		assert.deepStrictEqual(documents.map(document => JSON.parse(JSON.stringify(normalizeManagedSettings(document)))), [
+			{ telemetry: '{}' }, { telemetry: '{}' }, { telemetry: '{}' },
+		]);
+	});
+
+	test('does not interpret malformed or inherited telemetry values as a block anchor', () => {
+		const documents = [
+			{}, { telemetry: null }, { telemetry: false }, { telemetry: '{}' }, { telemetry: [] },
+			Object.create({ telemetry: {} }),
+		];
+		assert.deepStrictEqual(documents.map(document => normalizeManagedSettings(document)), documents.map(() => ({})));
+	});
+
 	test('drops a structured key whose value is not an object', () => {
 		const result = normalizeManagedSettings({
 			[COPILOT_ENABLED_PLUGINS_KEY]: 'already-a-string'
@@ -355,6 +370,18 @@ suite('FileManagedSettingsService', () => {
 suite('FileManagedSettingsChannelClient', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retains empty telemetry presence without modifying raw transport', async () => {
+		const channel = disposables.add(new DeferredManagedSettingsChannel());
+		const client = disposables.add(new FileManagedSettingsChannelClient(channel));
+		const raw = { telemetry: {} };
+		channel.resolveInitialRawSnapshot(raw);
+		channel.resolveInitialSnapshot(JSON.parse(JSON.stringify(normalizeManagedSettings(raw))));
+		await client.initialize();
+		assert.deepStrictEqual({ raw: client.rawManagedSettings, normalized: client.managedSettings }, {
+			raw: { telemetry: {} }, normalized: { telemetry: '{}' },
+		});
+	});
 
 	test('keeps newer event state when the initial snapshot resolves later', async () => {
 		const channel = disposables.add(new DeferredManagedSettingsChannel());

@@ -19,6 +19,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
@@ -30,6 +31,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationSessionConfigurationCapture, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
 
@@ -79,6 +81,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAutomationService private readonly automationService: IAutomationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -88,6 +91,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		const allowedProviders = getAutomationDialogProviders(this.automationService, existing);
 		const initial = existing ?? options.initialValues;
 		const isEdit = !!existing;
+		const dialogTelemetry = new AutomationDialogTelemetry(this.telemetryService, isEdit ? 'update' : 'create');
 		const initialTarget = initial?.target;
 		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
 		const initialSessionConfiguration: IAutomationSessionConfiguration | undefined = initial ? {
@@ -189,6 +193,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (completion.isSettled) {
 				return;
 			}
+			dialogTelemetry.complete(result !== undefined);
 			saveCancellation.value?.cancel();
 			void completion.complete(result);
 			dialog.dispose();
@@ -200,9 +205,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 			revalidate();
 			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
+				dialogTelemetry.validationFailed();
 				return;
 			}
 			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
+				dialogTelemetry.validationFailed();
 				return;
 			}
 
@@ -222,6 +229,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				await waitForAutomationSessionSync(cancellation.token);
 				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
 				if (sessionConfigurationCapture.kind === 'failed') {
+					dialogTelemetry.captureFailed();
 					showSessionConfigurationError(captureErrorMessage);
 					shouldFocusError = true;
 					return;
@@ -238,6 +246,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			} catch (error) {
 				if (!isCancellationError(error) && !cancellation.token.isCancellationRequested) {
 					this.logService.error('[AutomationDialog] Failed to save the automation session configuration.', error);
+					dialogTelemetry.captureFailed();
 					showSessionConfigurationError(captureErrorMessage);
 					shouldFocusError = true;
 				}

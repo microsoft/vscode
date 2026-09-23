@@ -514,8 +514,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 		return undefined;
 	}
 
-	// A session carries one repository, so a link from another repository would
-	// be polled against the wrong coordinates. Leave those in their own pill.
+	// Repository metadata stays scoped to the checkout; chat pills resolve recorded links independently.
 	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
@@ -4421,7 +4420,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			newSession.beginResolveConfigSync();
 			if (property === SessionConfigKey.Isolation) {
-				newSession.setConfigValue(SessionConfigKey.Branch, undefined);
+				const upstreamBranchName = normalizedValue === 'worktree'
+					? newSession.session.workspace.get()?.folders[0]?.gitRepository?.upstreamBranchName
+					: undefined;
+				newSession.setConfigValue(SessionConfigKey.Branch, upstreamBranchName);
 			}
 			newSession.setConfigValue(property, normalizedValue, true);
 			this._onDidChangeSessionConfig.fire(sessionId);

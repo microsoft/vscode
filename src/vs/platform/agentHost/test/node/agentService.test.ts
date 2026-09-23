@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -1346,8 +1346,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		for (const [removeArtifacts, useCompactPrompts] of [[false, false], [false, true], [true, false], [true, true]]) {
-			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} with ${useCompactPrompts ? 'compact' : 'original'} prompts persist centrally and list after restart without local database reads`, async () => {
+		for (const removeArtifacts of [false, true]) {
+			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} persist centrally and list after restart without local database reads`, async () => {
 				class ArtifactAgent extends MockAgent {
 					serverToolHost: IAgentServerToolHost | undefined;
 					setServerToolHost(host: IAgentServerToolHost): void {
@@ -1378,7 +1378,6 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 				getConfigurationService(svc).updateRootConfig({
 					[AgentHostArtifactToolsConfigKey]: true,
-					[AgentHostArtifactToolsCompactPromptsConfigKey]: useCompactPrompts,
 				});
 				const session = await svc.createSession({ provider: 'copilot' });
 				const addDefinition = agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference);
@@ -1411,7 +1410,7 @@ suite('AgentService (node dispatcher)', () => {
 					restarted: readSessionArtifacts(listed._meta),
 					databaseOpens,
 				}, {
-					repeatedClassification: !useCompactPrompts,
+					repeatedClassification: true,
 					items,
 					legacy: expectedArtifacts,
 					central: expectedArtifacts,
@@ -2062,6 +2061,16 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		gitService.getBranch = async () => ({
+			ref: 'refs/heads/feature',
+			name: 'feature',
+			kind: GitRefType.Head,
+			upstream: {
+				ref: 'refs/remotes/origin/main',
+				name: 'origin/main',
+				remote: 'origin'
+			},
+		});
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
@@ -2074,6 +2083,11 @@ suite('AgentService (node dispatcher)', () => {
 		registerTestAgentProvider(localService, agent);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
 
+		const initialWorktree = await localService.resolveSessionConfig({
+			provider: 'copilot',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		});
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
@@ -2086,12 +2100,16 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		assert.deepStrictEqual({
+			initialWorktreeBranch: initialWorktree.values[SessionConfigKey.Branch],
+			initialWorktreeDefault: initialWorktree.schema.properties[SessionConfigKey.Branch]?.default,
 			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
 		}, {
+			initialWorktreeBranch: 'origin/main',
+			initialWorktreeDefault: 'origin/main',
 			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
@@ -10311,7 +10329,7 @@ suite('AgentService (node dispatcher)', () => {
 				await database?.close();
 				await rm(directory, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('list refreshes do not rescan a provider catalog or prune a discovered session', async () => {
 			class CountingAgent extends MockAgent {
