@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../../../base/browser/dom.js';
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { toAction } from '../../../../../../base/common/actions.js';
+import { distinct } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -17,13 +21,20 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
@@ -40,6 +51,8 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPil
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { GitHubCommitResolver, parseGitHubCommitTarget } from '../../../../github/browser/githubCommitResolver.js';
+import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -70,8 +83,10 @@ const artifactSectionOrder: readonly { readonly type: SessionArtifactType; reado
 export interface IAgentHostSessionPillMetadata {
 	readonly pullRequestUrls: readonly string[];
 	readonly pullRequestTitles: ReadonlyMap<string, string>;
+	readonly pullRequestArtifacts: ReadonlyMap<string, ISessionArtifact>;
 	readonly issueUrls: readonly string[];
 	readonly issueTitles: ReadonlyMap<string, string>;
+	readonly issueArtifacts: ReadonlyMap<string, ISessionArtifact>;
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly references: readonly ISessionArtifact[];
 }
@@ -115,20 +130,24 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
-	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest));
-	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
+	const artifactPullRequests = distinct(entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
+	const artifactIssues = distinct(entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
 	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
+	const pullRequestArtifacts = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry]));
 	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
 	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
+	const issueArtifacts = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
 		pullRequestTitles,
+		pullRequestArtifacts,
 		issueUrls,
 		issueTitles,
+		issueArtifacts,
 		artifacts: remaining.filter(entry => entry.isArtifact),
 		references: remaining.filter(entry => !entry.isArtifact),
 	};
@@ -249,11 +268,222 @@ function websiteKey(url: string): string | undefined {
 	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
 }
 
+interface IGitHubReferenceTarget {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+}
+
+interface IPullRequestHoverDetails {
+	readonly pullRequest: IGitHubPullRequestHoverModel;
+	readonly checksStatus: GitHubChecksStatus | undefined;
+}
+
+interface IGitHubReferenceEntry<T> {
+	readonly target: IGitHubReferenceTarget;
+	readonly value: ReturnType<typeof observableValue<T | undefined>>;
+	readonly subscription: MutableDisposable<DisposableStore>;
+	generation: number;
+}
+
+class AgentHostGitHubReferenceResolver extends Disposable {
+
+	private readonly _issues = new Map<string, IGitHubReferenceEntry<IGitHubIssueHoverModel>>();
+	private readonly _pullRequests = new Map<string, IGitHubReferenceEntry<IPullRequestHoverDetails>>();
+
+	constructor(
+		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+		this._register(this._gitHubService.credentials.onDidInvalidate(() => {
+			for (const entry of this._issues.values()) {
+				this._initializeIssue(entry);
+			}
+			for (const entry of this._pullRequests.values()) {
+				this._initializePullRequest(entry);
+			}
+		}));
+	}
+
+	getIssue(target: IGitHubReferenceTarget): IObservable<IGitHubIssueHoverModel | undefined> {
+		const key = githubTargetKey(target);
+		let entry = this._issues.get(key);
+		if (!entry) {
+			entry = this._createEntry<IGitHubIssueHoverModel>(target);
+			this._issues.set(key, entry);
+			this._initializeIssue(entry);
+		}
+		return entry.value;
+	}
+
+	getPullRequest(target: IGitHubReferenceTarget): IObservable<IPullRequestHoverDetails | undefined> {
+		const key = githubTargetKey(target);
+		let entry = this._pullRequests.get(key);
+		if (!entry) {
+			entry = this._createEntry<IPullRequestHoverDetails>(target);
+			this._pullRequests.set(key, entry);
+			this._initializePullRequest(entry);
+		}
+		return entry.value;
+	}
+
+	retain(issueTargets: readonly IGitHubReferenceTarget[], pullRequestTargets: readonly IGitHubReferenceTarget[]): void {
+		this._retainEntries(this._issues, new Set(issueTargets.map(githubTargetKey)));
+		this._retainEntries(this._pullRequests, new Set(pullRequestTargets.map(githubTargetKey)));
+	}
+
+	private _createEntry<T>(target: IGitHubReferenceTarget): IGitHubReferenceEntry<T> {
+		return {
+			target,
+			value: observableValue<T | undefined>(this, undefined),
+			subscription: this._register(new MutableDisposable<DisposableStore>()),
+			generation: 0,
+		};
+	}
+
+	private _retainEntries<T>(entries: Map<string, IGitHubReferenceEntry<T>>, retainedKeys: ReadonlySet<string>): void {
+		for (const [key, entry] of entries) {
+			if (!retainedKeys.has(key)) {
+				this._store.delete(entry.subscription);
+				entries.delete(key);
+			}
+		}
+	}
+
+	private _initializeIssue(entry: IGitHubReferenceEntry<IGitHubIssueHoverModel>): void {
+		const generation = ++entry.generation;
+		const store = new DisposableStore();
+		entry.subscription.value = store;
+		const controller = new AbortController();
+		store.add(toDisposable(() => controller.abort()));
+		void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+			if (controller.signal.aborted || generation !== entry.generation) {
+				return;
+			}
+			const ref: GitHubIssueRef = { ...credential.account, ...entry.target };
+			const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
+			store.add(autorun(reader => {
+				const issue = subscription.resource.state.read(reader).value;
+				entry.value.set(issue ? toIssueHoverModel(issue) : undefined, undefined);
+			}));
+			void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
+		}, error => {
+			if (!controller.signal.aborted) {
+				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
+			}
+		});
+	}
+
+	private _initializePullRequest(entry: IGitHubReferenceEntry<IPullRequestHoverDetails>): void {
+		const generation = ++entry.generation;
+		const store = new DisposableStore();
+		entry.subscription.value = store;
+		const controller = new AbortController();
+		store.add(toDisposable(() => controller.abort()));
+		void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+			if (controller.signal.aborted || generation !== entry.generation) {
+				return;
+			}
+			const ref: PullRequestRef = { ...credential.account, ...entry.target };
+			const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
+				priority: 'visible',
+				core: true,
+				checks: { includeOptional: true },
+			}));
+			store.add(autorun(reader => {
+				const snapshot = subscription.resource.snapshot.read(reader);
+				const pullRequest = snapshot.core.value;
+				entry.value.set(pullRequest ? {
+					pullRequest: toPullRequestHoverModel(pullRequest),
+					checksStatus: getChecksStatus(snapshot),
+				} : undefined, undefined);
+			}));
+			void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
+			void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
+		}, error => {
+			if (!controller.signal.aborted) {
+				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
+			}
+		});
+	}
+}
+
+function githubTargetKey(target: IGitHubReferenceTarget): string {
+	return `${target.owner.toLowerCase()}/${target.repo.toLowerCase()}#${target.number}`;
+}
+
+function parseGitHubReferenceTarget(resource: URI, kind: 'pullRequest' | 'issue'): IGitHubReferenceTarget | undefined {
+	const segments = resource.path.split('/').filter(Boolean);
+	const expectedKind = kind === 'pullRequest' ? 'pull' : 'issues';
+	const number = Number(segments[3]);
+	return resource.authority.toLowerCase() === 'github.com'
+		&& segments.length >= 4
+		&& segments[2] === expectedKind
+		&& Number.isInteger(number)
+		&& number > 0
+		? { owner: segments[0], repo: segments[1], number }
+		: undefined;
+}
+
+function toIssueHoverModel(issue: GitHubIssue): IGitHubIssueHoverModel {
+	return {
+		title: issue.title,
+		body: issue.body,
+		state: issue.state,
+		stateReason: issue.stateReason,
+		author: issue.author,
+		createdAt: issue.createdAt,
+	};
+}
+
+function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullRequestHoverModel {
+	return {
+		title: pullRequest.title,
+		body: pullRequest.body ?? '',
+		state: pullRequest.state,
+		author: pullRequest.author ?? { login: 'unknown' },
+		headRef: pullRequest.headRef,
+		baseRef: pullRequest.baseRef,
+		isDraft: pullRequest.draft,
+		createdAt: pullRequest.createdAt,
+	};
+}
+
+function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
+	const checks = snapshot.checks.value?.checks;
+	if (!checks?.length) {
+		return undefined;
+	}
+	if (checks.some(isPendingCheck)) {
+		return 'pending';
+	}
+	return checks.some(isFailingCheck) ? 'failure' : 'success';
+}
+
+function isPendingCheck(check: PullRequestCheck): boolean {
+	return check.type === 'checkRun'
+		? check.status !== 'COMPLETED'
+		: check.status === 'PENDING' || check.status === 'EXPECTED';
+}
+
+function isFailingCheck(check: PullRequestCheck): boolean {
+	return check.type === 'checkRun'
+		? check.conclusion === 'FAILURE'
+		|| check.conclusion === 'TIMED_OUT'
+		|| check.conclusion === 'CANCELLED'
+		|| check.conclusion === 'ACTION_REQUIRED'
+		|| check.conclusion === 'STARTUP_FAILURE'
+		: check.status === 'FAILURE' || check.status === 'ERROR';
+}
+
 /** Adds Agent Host session metadata pills to a workbench chat input. */
 export class AgentHostSessionInputPills extends Disposable {
 
 	private readonly _browserChanged = observableSignal(this);
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _pullRequestHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
+	private readonly _issueHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -267,8 +497,12 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
+		const gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
+		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
@@ -378,6 +612,29 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const metadata = derived(this, reader => getAgentHostSessionPillMetadata(sessionState.read(reader)?._meta));
 		const gitHubState = derived(this, reader => readSessionGitHubState(sessionState.read(reader)?._meta));
+		this._register(autorun(reader => {
+			const currentMetadata = metadata.read(reader);
+			for (const [cache, links] of [
+				[this._issueHoverCache, currentMetadata.issueUrls],
+				[this._pullRequestHoverCache, currentMetadata.pullRequestUrls],
+			] as const) {
+				const retained = new Set(links.map(linkKey));
+				for (const key of cache.keys()) {
+					if (!retained.has(key)) {
+						cache.delete(key);
+					}
+				}
+			}
+			gitHubReferenceResolver.retain(
+				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
+				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),
+			);
+			gitHubCommitResolver.retain([...currentMetadata.artifacts, ...currentMetadata.references]
+				.flatMap(artifact => artifact.type === SessionArtifactType.Commit && artifact.link ? [parseUri(artifact.link)] : [])
+				.filter(isDefined)
+				.map(parseGitHubCommitTarget)
+				.filter(isDefined));
+		}));
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));
 		this._refreshBrowserListeners();
@@ -398,7 +655,17 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		const pullRequestSections = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
-			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', gitHubState.read(reader), currentMetadata.pullRequestTitles);
+			const currentResolution = resolution.read(reader);
+			return this._buildReferenceSections(
+				currentMetadata.pullRequestUrls,
+				'pullRequest',
+				reader,
+				gitHubReferenceResolver,
+				gitHubState.read(reader),
+				currentMetadata.pullRequestTitles,
+				currentMetadata.pullRequestArtifacts,
+				this._getRemoveArtifactAction(currentResolution, reader),
+			);
 		});
 		const pullRequestIcon = derived(this, reader => {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
@@ -406,18 +673,28 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const issueSections = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
-			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', undefined, currentMetadata.issueTitles);
+			const currentResolution = resolution.read(reader);
+			return this._buildReferenceSections(
+				currentMetadata.issueUrls,
+				'issue',
+				reader,
+				gitHubReferenceResolver,
+				undefined,
+				currentMetadata.issueTitles,
+				currentMetadata.issueArtifacts,
+				this._getRemoveArtifactAction(currentResolution, reader),
+			);
 		});
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
-				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution)
+				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
-				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution)
+				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
 		const browserSections = derived(this, reader => {
@@ -461,7 +738,16 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
+	private _buildReferenceSections(
+		links: readonly string[],
+		kind: 'pullRequest' | 'issue',
+		reader: IReader,
+		gitHubReferenceResolver: AgentHostGitHubReferenceResolver,
+		gitHubState?: ReturnType<typeof readSessionGitHubState>,
+		titles?: ReadonlyMap<string, string>,
+		artifacts?: ReadonlyMap<string, ISessionArtifact>,
+		removeArtifact?: (artifact: ISessionArtifact) => Promise<void>,
+	) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
@@ -469,29 +755,101 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			const number = githubReferenceNumber(resource, kind);
 			const title = titles?.get(linkKey(link));
+			const artifact = artifacts?.get(linkKey(link));
 			const label = referenceLabel(link, kind, title);
-			const pullRequestState = kind === 'pullRequest'
-				&& gitHubState?.pullRequestState
-				&& gitHubState.pullRequestStateUrl
-				&& linkKey(gitHubState.pullRequestStateUrl) === linkKey(link)
-				? gitHubState.pullRequestState
-				: 'open';
+			const target = parseGitHubReferenceTarget(resource, kind);
+			const pullRequestDetails = kind === 'pullRequest' && target
+				? gitHubReferenceResolver.getPullRequest(target).read(reader)
+				: undefined;
+			const issue = kind === 'issue' && target
+				? gitHubReferenceResolver.getIssue(target).read(reader)
+				: undefined;
+			const liveTitle = pullRequestDetails?.pullRequest.title ?? issue?.title;
+			const resourceLabel = liveTitle ? referenceLabel(link, kind, liveTitle) : label;
+			const pullRequestState = pullRequestDetails
+				? getPullRequestResourceStatus(pullRequestDetails.pullRequest).kind
+				: kind === 'pullRequest'
+					&& gitHubState?.pullRequestState
+					&& gitHubState.pullRequestStateUrl
+					&& linkKey(gitHubState.pullRequestStateUrl) === linkKey(link)
+					? gitHubState.pullRequestState
+					: 'open';
+			let hoverTabbableElements: readonly HTMLElement[] = [];
+			const createHover = pullRequestDetails && target
+				? (density: 'default' | 'compact') => createPullRequestResourceHover({
+					...target,
+					repositoryHref: `https://github.com/${target.owner}/${target.repo}`,
+					referenceHref: resource.toString(true),
+					pullRequest: pullRequestDetails.pullRequest,
+					checksStatus: pullRequestDetails.checksStatus,
+					density,
+					onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
+					onDidClickReference: () => this._openExternal(resource),
+					onDidClickBaseBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.baseRef),
+					onDidClickHeadBranch: () => this._clipboardService.writeText(pullRequestDetails.pullRequest.headRef),
+				})
+				: issue && target
+					? (density: 'default' | 'compact') => createIssueResourceHover({
+						...target,
+						repositoryHref: `https://github.com/${target.owner}/${target.repo}`,
+						referenceHref: resource.toString(true),
+						issue,
+						density,
+						onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
+						onDidClickReference: () => this._openExternal(resource),
+					})
+					: undefined;
+			const createDropdownHover = createHover ? () => {
+				const cache = kind === 'pullRequest' ? this._pullRequestHoverCache : this._issueHoverCache;
+				const key = linkKey(link);
+				const hover = createHover('compact');
+				const cached = cache.get(key);
+				if (!cached) {
+					cache.set(key, hover);
+					hoverTabbableElements = hover.tabbableElements;
+					return hover.element;
+				}
+				cached.element.className = hover.element.className;
+				cached.element.replaceChildren(...hover.element.childNodes);
+				cached.tabbableElements = hover.tabbableElements;
+				hoverTabbableElements = cached.tabbableElements;
+				return cached.element;
+			} : undefined;
+			const stateDescription = pullRequestDetails
+				? getPullRequestResourceStatus(pullRequestDetails.pullRequest).label
+				: issue
+					? getIssueResourceStatus(issue).label
+					: undefined;
+			const checksDescription = pullRequestDetails
+				? getPullRequestChecksStatusLabel(pullRequestDetails.pullRequest, pullRequestDetails.checksStatus)
+				: undefined;
 			return {
 				id: linkKey(link),
-				label,
+				label: liveTitle ?? label,
+				...((pullRequestDetails || issue) && number ? { badge: `#${number}`, className: 'chat-pill-github-reference' } : {}),
 				...(kind === 'pullRequest' && number ? { pillLabel: `#${number}` } : {}),
 				icon: kind === 'pullRequest' ? computePullRequestIcon(pullRequestState) : Codicon.issues,
 				pullRequestState: kind === 'pullRequest' ? pullRequestState : undefined,
-				toolbarActions: [toAction({
+				promotedAction: artifact && removeArtifact ? this._createRemoveAction(artifact, removeArtifact) : undefined,
+				toolbarActions: [withChatPillHoverLabel(toAction({
 					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
 					label: kind === 'pullRequest'
-						? localize('agentHostSessionPills.copyPullRequest', "Copy Pull Request URL")
-						: localize('agentHostSessionPills.copyIssue', "Copy Issue URL"),
+						? localize('agentHostSessionPills.copyPullRequest', "Copy pull request URL")
+						: localize('agentHostSessionPills.copyIssue', "Copy issue URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => this._clipboardService.writeText(resource.toString(true)),
-				})],
-				...getChatPillResourceLocation(resource, label),
-				...(title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
+				}), chatPillCopyUrlHoverLabel)],
+				...getChatPillResourceLocation(resource, resourceLabel),
+				...(stateDescription ? {
+					ariaDescription: checksDescription
+						? localize('agentHostSessionPills.referenceDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, resource.toString(true))
+						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true)),
+				} : {}),
+				...(liveTitle || title ? { tooltip: `${resourceLabel}\n${resource.toString(true)}` } : {}),
+				...(createDropdownHover && createHover ? {
+					hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+					pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
+				} : {}),
 				open: () => this._openExternal(resource),
 			};
 		}).filter(isDefined);
@@ -501,7 +859,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		return entries.length > 0 ? [{ title, entries }] : [];
 	}
 
-	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution): readonly IChatPillSection[] {
+	private _buildArtifactSections(entries: readonly ISessionArtifact[], browserUrls: ReadonlySet<string>, resolution: IAgentHostSessionResolution, commitResolver: GitHubCommitResolver, reader: IReader, removeArtifact?: (artifact: ISessionArtifact) => Promise<void>): readonly IChatPillSection[] {
 		const browserKeys = new Set([...browserUrls].map(websiteKey).filter(isDefined));
 		const entriesByType = new Map<SessionArtifactType, IChatPillEntry[]>();
 		for (const artifact of entries) {
@@ -511,10 +869,10 @@ export class AgentHostSessionInputPills extends Disposable {
 					continue;
 				}
 			}
-			const entry = this._artifactEntry(artifact, resolution);
+			const entry = this._artifactEntry(artifact, resolution, commitResolver, reader);
 			if (entry) {
 				const typeEntries = entriesByType.get(artifact.type) ?? [];
-				typeEntries.push(entry);
+				typeEntries.push(removeArtifact ? { ...entry, promotedAction: this._createRemoveAction(artifact, removeArtifact) } : entry);
 				entriesByType.set(artifact.type, typeEntries);
 			}
 		}
@@ -524,7 +882,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 	}
 
-	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): IChatPillEntry | undefined {
+	private _artifactEntry(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution, commitResolver: GitHubCommitResolver, reader: IReader): IChatPillEntry | undefined {
 		if (artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource) {
 			const artifactResource = parseUri(artifact.uri);
 			if (!artifactResource) {
@@ -534,10 +892,32 @@ export class AgentHostSessionInputPills extends Disposable {
 				? toAgentHostUri(artifactResource, resolution.connectionAuthority)
 				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
+			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
+			const fullPath = artifact.type === SessionArtifactType.File ? this._labelService.getUriLabel(resource, { noPrefix: true }) : undefined;
+			const relativePath = artifact.type === SessionArtifactType.File ? this._labelService.getUriLabel(resource, { relative: true, noPrefix: true }) : undefined;
 			return {
 				id: artifact.id,
 				label,
 				...(artifact.type === SessionArtifactType.File ? { resource } : { icon: Codicon.link }),
+				toolbarActions: [toAction({
+					id: artifact.type === SessionArtifactType.File
+						? `chat.agentHost.sessionPills.copyFilePath.${artifact.id}`
+						: `chat.agentHost.sessionPills.copyResourceUri.${artifact.id}`,
+					label: artifact.type === SessionArtifactType.File
+						? localize('agentHostSessionPills.copyFilePath', "Copy path")
+						: localize('agentHostSessionPills.copyResourceUri', "Copy URI"),
+					class: ThemeIcon.asClassName(Codicon.copy),
+					run: () => this._clipboardService.writeText(fullPath ?? resource.toString(true)),
+				})],
+				...(relativePath ? {
+					hoverActions: [toAction({
+						id: `chat.agentHost.sessionPills.copyFileRelativePath.${artifact.id}`,
+						label: localize('agentHostSessionPills.copyFileRelativePath', "Copy relative path"),
+						class: ThemeIcon.asClassName(Codicon.copy),
+						run: () => this._clipboardService.writeText(relativePath),
+					})],
+				} : {}),
+				...(imageMimeType?.startsWith('image/') ? { imagePreview: { resource, mimeType: imageMimeType } } : {}),
 				...getChatPillResourceLocation(resource, label),
 				open: () => this._openResource(resource),
 			};
@@ -546,20 +926,67 @@ export class AgentHostSessionInputPills extends Disposable {
 		const link = parseUri(artifact.link);
 		const icon = artifactIcons.get(artifact.type) ?? Codicon.archive;
 		if (link) {
-			const copyAction = artifact.type === SessionArtifactType.Commit && artifact.commitHash
-				? [toAction({
-					id: 'chat.agentHost.sessionPills.copyCommitHash',
-					label: localize('agentHostSessionPills.copyCommitHash', "Copy Commit Hash"),
+			const commitTarget = artifact.type === SessionArtifactType.Commit ? parseGitHubCommitTarget(link) : undefined;
+			const commit = commitTarget ? commitResolver.get(commitTarget).read(reader) : undefined;
+			const label = commit?.message.split(/\r?\n/, 1)[0] || artifact.label;
+			let hoverTabbableElements: readonly HTMLElement[] = [];
+			const createCommitHover = commitTarget && commit ? (density: 'default' | 'compact') => createCommitResourceHover({
+				owner: commitTarget.owner,
+				repo: commitTarget.repo,
+				repositoryHref: `https://github.com/${commitTarget.owner}/${commitTarget.repo}`,
+				referenceHref: link.toString(true),
+				commit,
+				density,
+				onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${commitTarget.owner}/${commitTarget.repo}`)),
+				onDidClickReference: () => this._openExternal(link),
+			}) : undefined;
+			const createCommitDropdownHover = createCommitHover ? () => {
+				const hover = createCommitHover('compact');
+				hoverTabbableElements = hover.tabbableElements;
+				return hover.element;
+			} : undefined;
+			const copyAction = artifact.type === SessionArtifactType.Commit
+				? withChatPillHoverLabel(toAction({
+					id: `chat.agentHost.sessionPills.copyCommitUrl.${artifact.id}`,
+					label: localize('agentHostSessionPills.copyCommitUrl', "Copy commit URL"),
 					class: ThemeIcon.asClassName(Codicon.copy),
-					run: () => this._clipboardService.writeText(artifact.commitHash!),
-				})]
-				: undefined;
+					run: () => this._clipboardService.writeText(link.toString(true)),
+				}), chatPillCopyUrlHoverLabel)
+				: artifact.type === SessionArtifactType.Website
+					? withChatPillHoverLabel(toAction({
+						id: `chat.agentHost.sessionPills.copyWebsiteUrl.${artifact.id}`,
+						label: localize('agentHostSessionPills.copyWebsiteUrl', "Copy website URL"),
+						class: ThemeIcon.asClassName(Codicon.copy),
+						run: () => this._clipboardService.writeText(link.toString(true)),
+					}), chatPillCopyUrlHoverLabel)
+					: artifact.type === SessionArtifactType.PullRequest || artifact.type === SessionArtifactType.Issue
+						? withChatPillHoverLabel(toAction({
+							id: `chat.agentHost.sessionPills.copyReferenceUrl.${artifact.id}`,
+							label: artifact.type === SessionArtifactType.PullRequest
+								? localize('agentHostSessionPills.copyPullRequestUrl', "Copy pull request URL")
+								: localize('agentHostSessionPills.copyIssueUrl', "Copy issue URL"),
+							class: ThemeIcon.asClassName(Codicon.copy),
+							run: () => this._clipboardService.writeText(link.toString(true)),
+						}), chatPillCopyUrlHoverLabel)
+						: undefined;
 			return {
 				id: artifact.id,
-				label: artifact.label,
+				label,
 				icon,
-				...(copyAction ? { toolbarActions: copyAction } : {}),
-				...getChatPillResourceLocation(link, artifact.label),
+				...(copyAction ? { toolbarActions: [copyAction] } : {}),
+				...((artifact.type === SessionArtifactType.Commit && (artifact.commitHash || commit?.sha)) ? {
+					hoverActions: [withChatPillHoverLabel(toAction({
+						id: `chat.agentHost.sessionPills.copyCommitHash.${artifact.id}`,
+						label: localize('agentHostSessionPills.copyCommitHash', "Copy commit hash"),
+						class: ThemeIcon.asClassName(Codicon.copy),
+						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
+					}), chatPillCopyHashHoverLabel)],
+				} : {}),
+				...getChatPillResourceLocation(link, label),
+				...(createCommitDropdownHover && createCommitHover ? {
+					hover: { content: createCommitDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+					pillHover: { element: () => createCommitHover('default').element, contentOwnsPadding: true },
+				} : {}),
 				open: () => this._openExternal(link),
 			};
 		}
@@ -574,6 +1001,33 @@ export class AgentHostSessionInputPills extends Disposable {
 			};
 		}
 		return undefined;
+	}
+
+	private _getRemoveArtifactAction(resolution: IAgentHostSessionResolution | undefined, reader: IReader): ((artifact: ISessionArtifact) => Promise<void>) | undefined {
+		return resolution?.connection.removeSessionArtifact && supportsAgentHostArtifactRemoval(resolution.connection.initializeResult.read(reader))
+			? artifact => this._removeArtifact(resolution, artifact)
+			: undefined;
+	}
+
+	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
+		return withChatPillHoverLabel(toAction({
+			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
+			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from session", artifact.label),
+			class: ThemeIcon.asClassName(Codicon.close),
+			run: () => removeArtifact(artifact),
+		}), chatPillRemoveReferenceHoverLabel);
+	}
+
+	private async _removeArtifact(resolution: IAgentHostSessionResolution, artifact: ISessionArtifact): Promise<void> {
+		try {
+			if (!resolution.connection.removeSessionArtifact) {
+				throw new Error(localize('agentHostSessionPills.removeArtifactUnavailable', "Removing references is unavailable for this session."));
+			}
+			await resolution.connection.removeSessionArtifact(resolution.backendSession, artifact.id);
+			status(localize('agentHostSessionPills.artifactRemoved', "{0} removed from session.", artifact.label));
+		} catch (error) {
+			this._notificationService.error(localize('agentHostSessionPills.removeArtifactFailed', "Could not remove {0} from this session: {1}", artifact.label, toErrorMessage(error)));
+		}
 	}
 
 	private _browserEntry(input: BrowserEditorInput, sessionResource: URI | undefined): IChatPillEntry {
