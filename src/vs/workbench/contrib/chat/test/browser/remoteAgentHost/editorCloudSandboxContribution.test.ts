@@ -43,7 +43,7 @@ import { EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution }
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -557,6 +557,59 @@ suite('Editor cloud sandbox discovery', () => {
 			before: [[discovered.name, undefined, undefined]],
 			after: [['Host title', true, true]],
 		});
+	});
+
+	test('publishes unknown read and archive flags on disconnect without changing activity', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived }];
+		await h.contribution.activate();
+		const controller = h.controllers.get(sessionType)!;
+		await controller.refresh(CancellationToken.None);
+		const before = controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]);
+		const deltas: IChatSessionItemsDelta[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => deltas.push(delta)));
+
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		h.connectionsChanged.fire();
+
+		assert.deepStrictEqual({
+			before,
+			deltas: deltas.map(delta => ({
+				items: delta.addedOrUpdated?.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]),
+				removed: delta.removed,
+			})),
+			items: controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]),
+		}, {
+			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, true]],
+			deltas: [{
+				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+				removed: undefined,
+			}],
+			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+		});
+	});
+
+	test('publishes host read and archive flags again when connection availability returns', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived }];
+		await h.contribution.activate();
+		const controller = h.controllers.get(sessionType)!;
+		await controller.refresh(CancellationToken.None);
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		h.authenticationPending.set(true, undefined);
+		const deltas: IChatSessionItemsDelta[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => deltas.push(delta)));
+
+		h.state.connected = true;
+		h.connectionsChanged.fire();
+
+		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, true]]]);
 	});
 
 	test('falls back to original history after a failed live connection, without creating a replacement', async () => {

@@ -125,6 +125,7 @@ class ConnectionState extends Disposable {
 		super();
 		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this.authenticationPending = this._register(authenticationService.acquire(address)).object;
+		this.authenticationPending.set(true, undefined);
 	}
 }
 
@@ -505,7 +506,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		} catch (err) {
 			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
 		} finally {
-			connState?.authenticationPending.set(false, undefined);
+			if (connState && this._connections.get(address) === connState) {
+				connState.authenticationPending.set(false, undefined);
+			}
 		}
 	}
 
@@ -538,7 +541,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
 			})
 			.finally(() => {
-				connState.authenticationPending.set(false, undefined);
+				if (this._connections.get(address) === connState) {
+					connState.authenticationPending.set(false, undefined);
+				}
 			});
 	}
 

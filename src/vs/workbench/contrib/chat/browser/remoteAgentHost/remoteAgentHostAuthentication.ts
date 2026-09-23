@@ -12,7 +12,7 @@ export const IRemoteAgentHostAuthenticationService = createDecorator<IRemoteAgen
 
 export interface IRemoteAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
-	/** Tracks the first authentication pass for as long as a connection or session list needs it. */
+	/** Shares each connection's initial authentication readiness with its retained session lists. */
 	acquire(address: string): IReference<ISettableObservable<boolean>>;
 }
 

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,7 +25,8 @@ import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthenti
 export class CloudSandboxSessionListController extends Disposable implements ICloudSandboxSessionList, IChatSessionItemController {
 	readonly sessionType: string;
 	readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
-	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
+	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
+	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	private readonly _notifications = this._register(new Emitter<INotification>());
 	private readonly _connectionStore = this._register(new MutableDisposable<DisposableStore>());
@@ -55,8 +56,9 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
 			'', authority));
-		this.onDidChangeChatSessionItems = Event.map(this._controller.onDidChangeChatSessionItems,
-			delta => ({ ...delta, addedOrUpdated: delta.addedOrUpdated?.map(item => this._listItem(item)) }), this._store);
+		this._register(this._controller.onDidChangeChatSessionItems(delta => {
+			this._onDidChangeChatSessionItems.fire({ ...delta, addedOrUpdated: delta.addedOrUpdated?.map(item => this._listItem(item)) });
+		}));
 		this._register(autorun(reader => {
 			if (!this._authenticationPending.read(reader)) {
 				void this.refresh(CancellationToken.None);
@@ -87,18 +89,23 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		if (this._connection === connection && RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.get())) {
 			return;
 		}
+		const wasConnected = !!this._connection;
 		this._connection = connection;
 		const store = new DisposableStore();
 		this._connectionStore.value = store;
 		store.add(connection.onDidNotification(notification => this._notifications.fire(notification)));
+		if (!wasConnected) {
+			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this.items });
+		}
 		void this.refresh(CancellationToken.None);
 	}
 
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.connectionStatus.set(status, undefined);
-		if (RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+		if (this._connection && (RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status))) {
 			this._connection = undefined;
 			this._connectionStore.clear();
+			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this.items });
 		}
 	}
 
