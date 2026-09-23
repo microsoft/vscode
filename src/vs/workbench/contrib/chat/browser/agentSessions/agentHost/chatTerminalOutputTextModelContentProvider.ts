@@ -75,28 +75,23 @@ function getTerminalText(state: TerminalState): string {
 	return normalizeTerminalText(state.content.map(getTerminalPartText).join(''));
 }
 
-function updateModel(model: ITextModel, value: string): void {
+function replaceModel(model: ITextModel, value: string): void {
 	const current = model.getValue();
 	if (current === value) {
 		return;
 	}
-	let prefixLength = 0;
-	const maxPrefixLength = Math.min(current.length, value.length);
-	while (prefixLength < maxPrefixLength && current.charCodeAt(prefixLength) === value.charCodeAt(prefixLength)) {
-		prefixLength++;
-	}
-	let currentSuffixStart = current.length;
-	let valueSuffixStart = value.length;
-	while (currentSuffixStart > prefixLength
-		&& valueSuffixStart > prefixLength
-		&& current.charCodeAt(currentSuffixStart - 1) === value.charCodeAt(valueSuffixStart - 1)) {
-		currentSuffixStart--;
-		valueSuffixStart--;
-	}
 	model.applyEdits([{
-		range: Range.fromPositions(model.getPositionAt(prefixLength), model.getPositionAt(currentSuffixStart)),
-		text: value.slice(prefixLength, valueSuffixStart),
+		range: model.getFullModelRange(),
+		text: value,
 	}]);
+}
+
+function appendModel(model: ITextModel, value: string): void {
+	if (!value) {
+		return;
+	}
+	const end = model.getPositionAt(model.getValueLength());
+	model.applyEdits([{ range: Range.fromPositions(end), text: value }]);
 }
 
 class TerminalTextModelSynchronizer {
@@ -129,7 +124,7 @@ class TerminalTextModelSynchronizer {
 				}
 				return;
 			case ActionType.TerminalCleared:
-				updateModel(this._model, '');
+				replaceModel(this._model, '');
 				this._updateCursor(state);
 				return;
 			case ActionType.TerminalInput:
@@ -153,14 +148,14 @@ class TerminalTextModelSynchronizer {
 	}
 
 	reconcile(state: TerminalState): void {
-		updateModel(this._model, getTerminalText(state));
+		replaceModel(this._model, getTerminalText(state));
 		this._updateCursor(state);
 		this._requiresReconcile = false;
 	}
 
 	showError(error: Error): void {
 		if (this._model.getValueLength() === 0) {
-			updateModel(this._model, localize('chatTerminalOutputUnavailable', "Terminal output is unavailable: {0}", error.message));
+			replaceModel(this._model, localize('chatTerminalOutputUnavailable', "Terminal output is unavailable: {0}", error.message));
 			this._requiresReconcile = true;
 		}
 	}
@@ -178,11 +173,7 @@ class TerminalTextModelSynchronizer {
 		if (!extendsLastPart && !startsNewPart) {
 			return false;
 		}
-		const text = normalizeTerminalText(data);
-		if (text) {
-			const end = this._model.getPositionAt(this._model.getValueLength());
-			this._model.applyEdits([{ range: Range.fromPositions(end), text }]);
-		}
+		appendModel(this._model, normalizeTerminalText(data));
 		this._updateCursor(state);
 		return true;
 	}
