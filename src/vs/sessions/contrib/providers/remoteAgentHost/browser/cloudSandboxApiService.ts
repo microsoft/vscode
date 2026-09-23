@@ -7,6 +7,7 @@ import { Limiter, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
@@ -56,6 +57,13 @@ interface ITaskDetail extends ITaskSummary {
 	readonly sessions?: readonly { readonly id: string; readonly environment_id?: string }[];
 }
 
+interface ICachedSandboxTask {
+	readonly summary: ITaskSummary;
+	readonly session?: ICloudSandboxDiscoveredSession;
+	readonly repositoryId?: number;
+	readonly needsRefresh?: boolean;
+}
+
 const LOG_PREFIX = '[CloudSandboxApi]';
 
 /**
@@ -102,6 +110,8 @@ const DISCOVERY_TASK_PAGE_LIMIT = 10;
  */
 const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
 
+const DISCOVERY_OVERLAP_MS = 60_000;
+
 /** HTTP status GitHub answers a rate-limited request with. */
 const HTTP_TOO_MANY_REQUESTS = 429;
 
@@ -144,6 +154,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
 	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
+	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
+	private _discoverySince: string | undefined;
+	private _discoveryGeneration = 0;
+	private readonly _onDidChangeAccount = this._register(new Emitter<string | undefined>());
+	readonly onDidChangeAccount = this._onDidChangeAccount.event;
 
 	constructor(
 		@IRequestService private readonly _requestService: IRequestService,
@@ -153,6 +168,51 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 	) {
 		super();
+		this._register(this._authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === this._authenticationProviderId) {
+				void this._onAuthenticationChanged();
+			}
+		}));
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(e => {
+			if (e.id === this._authenticationProviderId) {
+				void this._onAuthenticationChanged();
+			}
+		}));
+		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(e => {
+			if (e.id === this._authenticationProviderId) {
+				void this._onAuthenticationChanged();
+			}
+		}));
+	}
+
+	private get _authenticationProviderId(): string {
+		return this._productService.defaultChatAgent?.provider?.default?.id ?? 'github';
+	}
+
+	async getAccountKey(): Promise<string | undefined> {
+		const generation = this._discoveryGeneration;
+		const session = await this._resolveGitHubSession();
+		if (generation !== this._discoveryGeneration) {
+			throw new CancellationError();
+		}
+		return session ? JSON.stringify([this._authenticationProviderId, session.account.id]) : undefined;
+	}
+
+	private async _onAuthenticationChanged(): Promise<void> {
+		const generation = ++this._discoveryGeneration;
+		this._discoverySince = undefined;
+		this._discoveredTasks.clear();
+		this._repositoryNames.clear();
+		try {
+			const accountKey = await this.getAccountKey();
+			if (generation === this._discoveryGeneration && !this._store.isDisposed) {
+				this._onDidChangeAccount.fire(accountKey);
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.warn(`${LOG_PREFIX} Resolving discovery account failed: ${toErrorMessage(error)}`);
+			}
+		}
 	}
 
 	async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
@@ -183,91 +243,135 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return environment;
 	}
 
-	/**
-	 * Enumerate sandbox-backed cloud sessions by scanning recent tasks and resolving each one's
-	 * Mission Control environment binding.
-	 *
-	 * Only a `complete` result may be reconciled against: a partial or truncated scan is missing
-	 * entries that still exist.
-	 */
-	async listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
-		const tasks: ITaskSummary[] = [];
+	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
+	async listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult> {
+		const generation = this._discoveryGeneration;
+		const since = options?.incremental ? this._discoverySince : undefined;
+		const tasks = new Map<string, ITaskSummary>();
+		const cache = new Map(this._discoveredTasks);
 		let truncated = false;
-		for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
-			let batch: readonly ITaskSummary[];
-			let hasNextPage: boolean;
-			try {
-				const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}&page=${page}`, 'list', token);
-				const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
-				if (!response?.tasks) {
-					// Earlier pages are still worth seeding, so only fail outright on the first.
-					if (page === 1) {
-						return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
-					}
-					truncated = true;
-					break;
-				}
-				batch = response.tasks;
-				hasNextPage = hasNextLink(context.res.headers?.['link']);
-			} catch (error) {
-				if (isCancellationError(error)) {
-					throw error;
-				}
+		let checkpoint: number | undefined;
+		let latestUpdate: number | undefined;
+		// Separate repository scopes include workspace-less sandboxes as well as repository sessions.
+		for (const withRepository of [true, false]) {
+			for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				if (page === 1) {
-					return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
+				const query: Record<string, string> = {
+					per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
+					page: String(page),
+					sort: 'updated_at',
+					direction: 'desc',
+					with_repo: String(withRepository),
+					...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
+				};
+				try {
+					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks${toQuery(query)}`, 'list', token);
+					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
+					if (!Array.isArray(response?.tasks)) {
+						throw new Error('listTasks returned no tasks array');
+					}
+					const date = context.res.headers?.['date'];
+					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
+					if (!Number.isNaN(serverTime)) {
+						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
+					}
+					for (const task of response.tasks) {
+						tasks.set(task.id, task);
+						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
+						if (!Number.isNaN(updatedAt)) {
+							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
+						}
+					}
+					if (!hasNextLink(context.res.headers?.['link'])) {
+						break;
+					}
+					if (page === DISCOVERY_TASK_PAGE_LIMIT) {
+						truncated = true;
+					}
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					if (tasks.size === 0) {
+						return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
+					}
+					this._logService.warn(`${LOG_PREFIX} Discovery page ${page} (with_repo=${withRepository}) failed: ${toErrorMessage(error)}`);
+					truncated = true;
+					break;
 				}
-				this._logService.warn(`${LOG_PREFIX} Discovery page ${page} failed: ${toErrorMessage(error)}`);
-				truncated = true;
-				break;
-			}
-			tasks.push(...batch);
-			if (!hasNextPage) {
-				break;
-			}
-			if (page === DISCOVERY_TASK_PAGE_LIMIT) {
-				truncated = true;
-			}
-			if (token.isCancellationRequested) {
-				truncated = true;
-				break;
 			}
 		}
 
-		const sandboxTasks = tasks.filter(task => !task.archived_at && isCloudSandboxTask(task));
+		const scannedTaskIds = new Set(tasks.keys());
+		if (since) {
+			for (const [id, cached] of cache) {
+				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+					tasks.set(id, cached.summary);
+				}
+			}
+		}
+		const removedTaskIds: string[] = [];
+		const sandboxTasks: ITaskSummary[] = [];
+		for (const task of tasks.values()) {
+			if (!task.archived_at && isCloudSandboxTask(task)) {
+				sandboxTasks.push(task);
+			} else {
+				if (cache.has(task.id) || isCloudSandboxTask(task)) {
+					removedTaskIds.push(task.id);
+				}
+				cache.delete(task.id);
+			}
+		}
 		let unresolved = 0;
-		// Bounded fan-out: resolving every task at once trips the rate limit, and each rejected
-		// fetch silently drops its session from this pass.
 		const limiter = new Limiter<ICloudSandboxDiscoveredSession | undefined>(DISCOVERY_TASK_FETCH_CONCURRENCY);
 		let discovered: (ICloudSandboxDiscoveredSession | undefined)[];
 		try {
 			discovered = await Promise.all(sandboxTasks.map(task => limiter.queue(async (): Promise<ICloudSandboxDiscoveredSession | undefined> => {
 				try {
-					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
-					const full = await this._readJson<ITaskDetail>(context);
-					if (!full) {
-						unresolved++;
-						return undefined;
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
 					}
-					const binding = getTaskEnvironmentBinding(full);
-					if (!binding) {
-						// No environment bound yet — a real state, not a failure to resolve.
-						return undefined;
+					let cached = cache.get(task.id);
+					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at) {
+						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
+						const full = await this._readJson<ITaskDetail>(context);
+						if (!full) {
+							throw new Error('getTask returned no task');
+						}
+						if (full.archived_at) {
+							removedTaskIds.push(task.id);
+							cache.delete(task.id);
+							return undefined;
+						}
+						const binding = getTaskEnvironmentBinding(full);
+						if (!binding && cached?.session) {
+							removedTaskIds.push(task.id);
+						}
+						cached = {
+							summary: task,
+							repositoryId: full.repository?.id ?? task.repository?.id,
+							session: binding ? {
+								...binding,
+								taskId: task.id,
+								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
+								updatedAt: full.updated_at ?? task.updated_at,
+							} : undefined,
+						};
 					}
-					const repositoryId = full.repository?.id ?? task.repository?.id;
-					const repoName = repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined;
-					return {
-						environmentId: binding.environmentId,
-						sessionId: binding.sessionId,
-						taskId: task.id,
-						name: full.name ?? task.name ?? `Sandbox ${task.id}`,
-						repoName,
-						updatedAt: full.updated_at ?? task.updated_at,
-					};
+					if (cached.session && cached.repositoryId !== undefined && !cached.session.repoName) {
+						const repoName = await this._resolveRepositoryName(cached.repositoryId, token);
+						cached = { ...cached, session: { ...cached.session, repoName } };
+					}
+					cache.set(task.id, cached);
+					return cached.session;
 				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw new CancellationError();
+					}
 					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
+					cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
 					unresolved++;
 					return undefined;
 				}
@@ -276,10 +380,38 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			limiter.dispose();
 		}
 
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (generation !== this._discoveryGeneration) {
+			return { kind: 'failed', reason: 'Authentication changed during discovery' };
+		}
+		const partial = unresolved > 0 || truncated;
+		if (!partial) {
+			// Browsers may not expose Date through CORS; task timestamps also use the server's clock.
+			const nextCheckpoint = checkpoint ?? latestUpdate;
+			if (nextCheckpoint !== undefined) {
+				this._discoverySince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
+			}
+			if (!since) {
+				for (const id of cache.keys()) {
+					if (!scannedTaskIds.has(id)) {
+						cache.delete(id);
+					}
+				}
+			}
+		}
+		this._discoveredTasks.clear();
+		for (const [id, cached] of cache) {
+			this._discoveredTasks.set(id, cached);
+		}
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
-		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
-		return { kind: unresolved > 0 || truncated ? 'partial' : 'complete', sessions };
+		this._logService.info(`${LOG_PREFIX} ${since ? 'Incremental discovery' : 'Discovery'} found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${scannedTaskIds.size} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		if (partial) {
+			return { kind: 'partial', sessions, removedTaskIds };
+		}
+		return since ? { kind: 'incremental', sessions, removedTaskIds } : { kind: 'complete', sessions };
 	}
 
 	/**
@@ -502,7 +634,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE'): Promise<IRequestContext> {
-		const accessToken = await this._resolveGitHubToken();
+		const accessToken = (await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
 			throw new CloudSandboxAuthenticationRequiredError();
@@ -614,8 +746,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/** A GitHub session carrying at least the configured chat provider scopes. */
-	private async _resolveGitHubToken(): Promise<string | undefined> {
-		const providerId = this._productService.defaultChatAgent?.provider?.default?.id ?? 'github';
+	private async _resolveGitHubSession(): Promise<AuthenticationSession | undefined> {
+		const providerId = this._authenticationProviderId;
 		const scopes = this._productService.defaultChatAgent?.providerScopes?.[0] ?? FALLBACK_SCOPES;
 
 		let exact: readonly AuthenticationSession[];
@@ -624,29 +756,29 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		} catch (error) {
 			// Throws when the auth provider extension has not registered yet.
 			this._logService.warn(`${LOG_PREFIX} getSessions('${providerId}') failed: ${toErrorMessage(error)}`);
-			return undefined;
+			throw new CloudSandboxAuthenticationRequiredError();
 		}
 		if (exact.length > 0) {
-			return exact[0].accessToken;
+			return exact[0];
 		}
 
 		// Fall back to the narrowest session whose scopes are a superset of what we need.
 		const all = await this._authenticationService.getSessions(providerId, undefined, undefined, true);
 		const required = new Set(scopes);
-		let best: { token: string; extra: number } | undefined;
+		let best: { session: AuthenticationSession; extra: number } | undefined;
 		for (const session of all) {
 			const granted = new Set(session.scopes);
 			if ([...required].every(scope => granted.has(scope))) {
 				const extra = granted.size - required.size;
 				if (!best || extra < best.extra) {
-					best = { token: session.accessToken, extra };
+					best = { session, extra };
 				}
 			}
 		}
 		if (!best) {
 			this._logService.warn(`${LOG_PREFIX} No '${providerId}' session with scopes [${scopes.join(', ')}]`);
 		}
-		return best?.token;
+		return best?.session;
 	}
 }
 
