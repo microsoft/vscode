@@ -848,6 +848,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			})
 		));
 		this.fullOutputAction = action;
+		this._outputView.updateFullOutputAvailability();
 		this._updateToolbarActions();
 		void this._outputView.refresh().catch(onUnexpectedError);
 	}
@@ -1536,6 +1537,11 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			? ariaLabel + ', ' + accessibleViewHint
 			: ariaLabel;
 		scrollableDomNode.setAttribute('aria-label', label);
+	}
+
+	public updateFullOutputAvailability(): void {
+		this.updateAriaLabel();
+		this._setTruncationMessage(!!this._getTerminalCommandOutput()?.truncated);
 	}
 
 	public getCommandAndOutputAsText(): string | undefined {

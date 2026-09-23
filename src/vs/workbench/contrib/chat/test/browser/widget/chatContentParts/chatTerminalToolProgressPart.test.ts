@@ -600,6 +600,35 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		assert.deepStrictEqual({ action: part.fullOutputAction, probes: harness.probes.length }, { action: undefined, probes: 1 });
 	});
 
+	test('publishes the header action and inline link before the asynchronous output refresh completes', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const availability = new DeferredPromise<void>();
+		const refresh = new DeferredPromise<void>();
+		const { part } = harness.createPart({ mode: 'plain', availability: availability.p });
+		const outputView = (part as unknown as { _outputView: { refresh(): Promise<void> } })._outputView;
+		const refreshStub = sinon.stub(outputView, 'refresh').returns(refresh.p);
+
+		availability.complete();
+		for (let attempt = 0; attempt < 10 && !part.fullOutputAction; attempt++) {
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			action: part.fullOutputAction?.label,
+			inlineLink: part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link')?.textContent,
+			refreshStarted: refreshStub.called,
+			refreshComplete: refresh.isSettled,
+		}, {
+			action: 'Open Full Output (Read-Only)',
+			inlineLink: 'Open Full Output',
+			refreshStarted: true,
+			refreshComplete: false,
+		});
+
+		refresh.complete();
+		await timeout(0);
+	});
+
 	test('does not publish a stale action after terminal identity replacement', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
 		const availability = new DeferredPromise<void>();
