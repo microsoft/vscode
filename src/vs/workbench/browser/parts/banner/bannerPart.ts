@@ -232,7 +232,12 @@ export class BannerPart extends Part implements IBannerService {
 		messageContainer.setAttribute('aria-hidden', 'true');
 		messageContainer.appendChild(this.getBannerMessage(item.message));
 		if (ariaLabel) {
-			this.itemDisposables.add(this.hoverService.setupDelayedHover(messageContainer, { content: ariaLabel }));
+			// Only reveal the message via a hover when it is actually truncated. Showing it
+			// unconditionally pops an overlay that intercepts pointer events on controls below
+			// the banner (e.g. the Extensions Refresh button).
+			this.itemDisposables.add(this.hoverService.setupDelayedHover(messageContainer, () => ({
+				content: messageContainer.scrollWidth > messageContainer.clientWidth ? ariaLabel : '',
+			})));
 		}
 
 		// Message Actions

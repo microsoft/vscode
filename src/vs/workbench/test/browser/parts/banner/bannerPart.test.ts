@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IBannerItem } from '../../../../services/banner/browser/bannerService.js';
 import { BannerPart } from '../../../../browser/parts/banner/bannerPart.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
@@ -15,8 +18,11 @@ import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 suite('BannerPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createBanner() {
+	function createBanner(hoverService?: IHoverService) {
 		const services = workbenchInstantiationService(undefined, store);
+		if (hoverService) {
+			services.stub(IHoverService, hoverService);
+		}
 		const container = append(mainWindow.document.body, $('.part.banner'));
 		store.add(toDisposable(() => container.remove()));
 		const banner = store.add(services.createInstance(BannerPart));
@@ -71,5 +77,34 @@ suite('BannerPart', () => {
 			closed: 1,
 			height: 0,
 		});
+	});
+
+	test('only reveals the message hover when the text is truncated, so it never overlays adjacent controls', () => {
+		let resolveHover: (() => Omit<IHoverOptions, 'target'>) | undefined;
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupDelayedHover: (_target, options): IDisposable => {
+				resolveHover = typeof options === 'function' ? options : () => options;
+				return Disposable.None;
+			}
+		};
+		const { banner, container } = createBanner(hoverService);
+		banner.show({ id: 'trust', icon: undefined, message: 'Restricted Mode is intended for safe code browsing' });
+
+		const messageContainer = container.querySelector<HTMLElement>('.message-container')!;
+		const contentFor = (scrollWidth: number, clientWidth: number) => {
+			Object.defineProperty(messageContainer, 'scrollWidth', { value: scrollWidth, configurable: true });
+			Object.defineProperty(messageContainer, 'clientWidth', { value: clientWidth, configurable: true });
+			return resolveHover?.().content;
+		};
+
+		assert.deepStrictEqual({
+			whenFits: contentFor(100, 100),
+			whenTruncated: contentFor(200, 100),
+		}, {
+			whenFits: '',
+			whenTruncated: 'Restricted Mode is intended for safe code browsing',
+		});
+		banner.hide('trust');
 	});
 });
