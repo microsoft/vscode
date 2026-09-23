@@ -28,6 +28,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fromNowByDay } from '../../../../base/common/date.js';
@@ -91,6 +92,24 @@ const TIER_SECTIONS: readonly IInboxTierSpec[] = [
 	{ key: 'moderate', priority: InboxNotificationPriority.Moderate },
 	{ key: 'low', priority: InboxNotificationPriority.Low },
 ];
+
+type InboxInteractionTelemetryEvent = {
+	interaction: string;
+	trigger: string;
+	notificationKind: string;
+	notificationActionKind: string;
+	hasSession: string;
+};
+
+type InboxInteractionTelemetryClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks user interactions taken directly from the Sessions Inbox notifications view.';
+	interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded inbox interaction identifier.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded inbox surface where the interaction originated.' };
+	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind when the interaction came from a card, otherwise none.' };
+	notificationActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification action kind when the interaction came from an action button, otherwise none.' };
+	hasSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification had an associated session resource.' };
+};
 
 export class InboxNotificationsView extends AbstractCustomView {
 
@@ -163,6 +182,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		InboxNotificationsView.activeInstance = this;
@@ -252,6 +272,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		sortByPriorityButton.label = localize('inboxNotifications.sort.priority', "Priority");
 		this._register(sortByPriorityButton.onDidClick(() => {
 			this.inboxNotificationsService.setSortMode(InboxNotificationsSortMode.Priority);
+			this.logInboxInteraction('sort.priority', 'toolbar');
 		}));
 
 		const sortByRecencyButton = this._register(new Button(sortButtons, {
@@ -263,6 +284,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		sortByRecencyButton.label = localize('inboxNotifications.sort.recency', "Recent");
 		this._register(sortByRecencyButton.onDidClick(() => {
 			this.inboxNotificationsService.setSortMode(InboxNotificationsSortMode.Recency);
+			this.logInboxInteraction('sort.recent', 'toolbar');
 		}));
 
 		this._register(autorun(reader => {
@@ -279,7 +301,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 			secondary: true,
 		}));
 		this._register(toggleCompletedButton.onDidClick(() => {
-			this.showCompleted.set(!this.showCompleted.get(), undefined);
+			const nextShowing = !this.showCompleted.get();
+			this.showCompleted.set(nextShowing, undefined);
+			this.logInboxInteraction(nextShowing ? 'showCompleted' : 'hideCompleted', 'toolbar');
 		}));
 		this._register(autorun(reader => {
 			const showing = this.showCompleted.read(reader);
@@ -301,7 +325,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 			ariaLabel: localize('inboxNotifications.showNewNotificationsAria', "Show New Notifications"),
 		}));
 		showNewNotificationsButton.label = localize('inboxNotifications.showNewNotifications', "Show New Notifications");
-		this._register(showNewNotificationsButton.onDidClick(() => this.applyDeferredUpdates(true)));
+		this._register(showNewNotificationsButton.onDidClick(() => {
+			if (this.applyDeferredUpdates(true)) {
+				this.logInboxInteraction('deferredUpdates.showNewNotifications', 'banner');
+			}
+		}));
 		this.listPaneElement.appendChild(this.deferredUpdatesBanner);
 
 		this.listPaneElement.appendChild(this.scrollableElement.getDomNode());
@@ -311,7 +339,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.listContainer.set(list, undefined);
 		this._register(addDisposableListener(list, EventType.FOCUS_IN, event => this.onListFocusIn(event)));
 		this._register(addDisposableListener(list, EventType.FOCUS_OUT, () => {
-			setTimeout(() => this.applyDeferredUpdates(false), 0);
+			setTimeout(() => {
+				if (this.applyDeferredUpdates(false)) {
+					this.logInboxInteraction('deferredUpdates.autoApply', 'inlineInput');
+				}
+			}, 0);
 		}));
 		this._register(addDisposableListener(list, EventType.KEY_DOWN, event => this.onListKeyDown(event)));
 
@@ -639,6 +671,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 					pullRequestButton.element.classList.add('inbox-notifications-item-pr-state-link');
 					pullRequestButton.label = `$(${pullRequestState.icon.id}) ${pullRequestState.label}`;
 					this.renderedListDisposables.add(pullRequestButton.onDidClick(() => {
+						this.logInboxInteraction('openPullRequestState', 'pullRequestState', item);
 						void this.openerService.open(pullRequestUri).catch(onUnexpectedError);
 					}));
 				} else {
@@ -691,6 +724,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(confirmationWidget.domNode);
 			store.add(confirmationWidget.onDidClick(({ button }) => {
+				this.logInboxInteraction('submitConfirmation', 'inlineConfirmation', item);
 				void this.submitConfirmationPart(item, part, button.data.buttonLabel, button.data.buttonIndex);
 			}));
 			return;
@@ -713,6 +747,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(toolConfirmationWidget.domNode);
 			store.add(toolConfirmationWidget.onDidClick(({ button }) => {
+				this.logInboxInteraction('submitToolConfirmation', 'inlineToolConfirmation', item);
 				void this.submitToolConfirmationPart(item, part, button.data.buttonIndex);
 			}));
 			return;
@@ -732,6 +767,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			{
 				shouldAutoFocus: false,
 				onSubmit: answers => {
+					this.logInboxInteraction('submitQuestionCarousel', 'inlineQuestionCarousel', item);
 					void this.submitQuestionCarouselPart(item, part, answers);
 				},
 			},
@@ -1076,7 +1112,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 				actions: [toAction({
 					id: `${action.id}.always`,
 					label: localize('inboxNotifications.action.always', "Always {0}", action.label),
-					run: () => this.runAction(item, action, undefined, true),
+					run: () => {
+						this.logInboxInteraction('runActionAlways', 'actionDropdown', item, action.kind);
+						return this.runAction(item, action, undefined, true);
+					},
 				})],
 			}))
 			: this.renderedListDisposables.add(new Button(container, baseOptions));
@@ -1087,8 +1126,26 @@ export class InboxNotificationsView extends AbstractCustomView {
 				this.agentMergeDropdownButtons.set(this.getAgentMergeDropdownButtonKey(item.id, action.kind), button.dropdownButton.element);
 			}
 		}
-		this.renderedListDisposables.add(button.onDidClick(() => void this.runAction(item, action, button.element)));
+		this.renderedListDisposables.add(button.onDidClick(() => {
+			this.logInboxInteraction('runAction', 'actionButton', item, action.kind);
+			void this.runAction(item, action, button.element);
+		}));
 		return button;
+	}
+
+	private logInboxInteraction(
+		interaction: string,
+		trigger: string,
+		item?: IInboxNotificationItem,
+		actionKind: InboxNotificationActionKind | 'none' = 'none',
+	): void {
+		this.telemetryService.publicLog2<InboxInteractionTelemetryEvent, InboxInteractionTelemetryClassification>('agents/inboxInteraction', {
+			interaction,
+			trigger,
+			notificationKind: item?.kind ?? 'none',
+			notificationActionKind: actionKind,
+			hasSession: item?.sessionResource ? 'yes' : 'no',
+		});
 	}
 
 	private canShowAgentMergeAlwaysDropdown(item: IInboxNotificationItem, actionKind: InboxNotificationActionKind): actionKind is InboxAgentMergeActionKind {
