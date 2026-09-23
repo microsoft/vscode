@@ -6,6 +6,7 @@
 import type { TelemetryConfig } from '@github/copilot-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import type { IAgentHostFirstResponseDiagnostic, IAgentHostTurnTimingDiagnostic } from './agentHostTiming.js';
 
 
 /**
@@ -52,6 +53,11 @@ export interface IAgentHostNativeOTelConfig {
 export interface IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 
+	/** Whether content-free diagnostics have an enabled, supported destination. */
+	readonly diagnosticsEnabled: boolean;
+	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void;
+	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void;
+
 	/**
 	 * Returns the telemetry config to hand to `new CopilotClient({ telemetry })`,
 	 * starting the loopback receiver + store on first call when in DB mode.
@@ -95,3 +101,19 @@ export interface IAgentHostOTelService {
 }
 
 export const IAgentHostOTelService = createDecorator<IAgentHostOTelService>('agentHostOTelService');
+
+export const NullAgentHostOTelService: IAgentHostOTelService = {
+	_serviceBrand: undefined,
+	diagnosticsEnabled: false,
+	emitTurnTiming: () => { },
+	emitFirstResponse: () => { },
+	getSdkTelemetryConfig: async () => undefined,
+	getNativeSdkTelemetryConfig: async () => undefined,
+	getSessionTraceContext: () => undefined,
+	releaseSessionTraceContext: () => { },
+	withTraceContext: (_context, fn) => fn(),
+	getCurrentTraceContext: () => undefined,
+	getSpansDbPath: () => undefined,
+	emitSessionTitleChanged: () => { },
+	flush: async () => { },
+};
