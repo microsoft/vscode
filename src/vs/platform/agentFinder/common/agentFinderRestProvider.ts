@@ -23,6 +23,7 @@ const maxResponseBytes = 5 * 1024 * 1024;
 const defaultPageSize = 30;
 const maxPageSize = 100;
 const maxQueryLength = 4096;
+const maxUnsupportedOnlyPages = 32;
 const maxUriLength = 8192;
 const maxPageTokenLength = 8192;
 // JSON escaping can expand each token character to six characters; allow room for the cursor envelope.
@@ -52,26 +53,12 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? defaultPageSize;
 		if (query.length > maxQueryLength || !isNonNegativeInteger(requestedPageSize) || requestedPageSize === 0 ||
+			options.mediaType === CustomizationMarketplaceMediaType.CursorPlugin ||
 			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new AgentFinderError(localize('agentFinder.invalidQuery', "The customization catalog query is invalid."));
 		}
 		const pageSize = Math.min(requestedPageSize, maxPageSize);
-		const cursor = options.cursor === undefined ? undefined : parseCursor(options.cursor, !!query);
-		const offset = cursor?.kind === 'browse' ? cursor.offset : 0;
-		const pageToken = cursor?.kind === 'search' ? cursor.pageToken : undefined;
-		const request: IRequestOptions = {
-			url: query ? `${endpoint}/search` : `${endpoint}/agents?pageSize=${pageSize}&offset=${offset}${options.mediaType ? `&type=${encodeURIComponent(options.mediaType)}` : ''}`,
-			type: query ? 'POST' : 'GET',
-			headers: query ? { Accept: 'application/json', 'Content-Type': 'application/json' } : { Accept: 'application/json' },
-			data: query ? JSON.stringify({
-				query: { text: query, ...(options.mediaType ? { filter: { type: [options.mediaType] } } : {}) },
-				pageSize,
-				...(pageToken ? { pageToken } : {}),
-			}) : undefined,
-			timeout: requestTimeout,
-			followRedirects: 0,
-			callSite: 'agentFinder.query',
-		};
+		let cursor = options.cursor === undefined ? undefined : parseCursor(options.cursor, !!query);
 
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
@@ -82,8 +69,33 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		}, requestTimeout, store);
 
 		try {
-			const response = await raceCancellationError(this.requestPage(request, cancellation.token), cancellation.token);
-			return parsePage(response, pageSize, query ? { kind: 'search', pageToken } : { kind: 'browse', offset });
+			for (let unsupportedOnlyPages = 0; ; unsupportedOnlyPages++) {
+				const offset = cursor?.kind === 'browse' ? cursor.offset : 0;
+				const pageToken = cursor?.kind === 'search' ? cursor.pageToken : undefined;
+				const request: IRequestOptions = {
+					url: query ? `${endpoint}/search` : `${endpoint}/agents?pageSize=${pageSize}&offset=${offset}${options.mediaType ? `&type=${encodeURIComponent(options.mediaType)}` : ''}`,
+					type: query ? 'POST' : 'GET',
+					headers: query ? { Accept: 'application/json', 'Content-Type': 'application/json' } : { Accept: 'application/json' },
+					data: query ? JSON.stringify({
+						query: { text: query, ...(options.mediaType ? { filter: { type: [options.mediaType] } } : {}) },
+						pageSize,
+						...(pageToken ? { pageToken } : {}),
+					}) : undefined,
+					timeout: requestTimeout,
+					followRedirects: 0,
+					callSite: 'agentFinder.query',
+				};
+				const response = await raceCancellationError(this.requestPage(request, cancellation.token), cancellation.token);
+				const page = parsePage(response, pageSize, query ? { kind: 'search', pageToken } : { kind: 'browse', offset });
+				const items = page.items.filter(item => item.mediaType !== CustomizationMarketplaceMediaType.CursorPlugin);
+				if (items.length || !page.nextCursor) {
+					return { ...page, items, total: options.mediaType !== undefined && items.length === page.items.length ? page.total : undefined };
+				}
+				if (unsupportedOnlyPages >= maxUnsupportedOnlyPages) {
+					throw new AgentFinderError(localize('agentFinder.unsupportedPages', "The customization catalog returned too many unsupported entries. Try a different search."));
+				}
+				cursor = parseCursor(page.nextCursor, !!query);
+			}
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();

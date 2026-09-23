@@ -53,6 +53,13 @@ const mcpServer = {
 	source: 'launch-augment-set',
 };
 
+const cursorPlugin = {
+	...skill,
+	identifier: 'cursor-plugin',
+	type: CustomizationMarketplaceMediaType.CursorPlugin,
+	mediaType: CustomizationMarketplaceMediaType.CursorPlugin,
+};
+
 class TestRequestService implements IRequestService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidCompleteRequest = Event.None;
@@ -168,7 +175,7 @@ suite('AgentFinderRestProvider', () => {
 		}]);
 	});
 
-	test('parses observed metadata for each plugin media type', async () => {
+	test('parses observed metadata for supported plugin media types', async () => {
 		const plugins = [
 			{ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
 			{ mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceSet: 'github/awesome-copilot', repoPath: 'plugins/accessibility-kanban/plugin.json' },
@@ -183,8 +190,13 @@ suite('AgentFinderRestProvider', () => {
 		assert.deepStrictEqual(page.items.map(item => [item.mediaType, item.repository?.toString(), item.publisher, item.stars]), [
 			[CustomizationMarketplaceMediaType.ClaudePlugin, 'https://github.com/JetBrains/go-modern-guidelines', 'JetBrains', undefined],
 			[CustomizationMarketplaceMediaType.CopilotPlugin, 'https://github.com/github/awesome-copilot', 'github', undefined],
-			[CustomizationMarketplaceMediaType.CursorPlugin, 'https://github.com/ChromeDevTools/chrome-devtools-mcp', 'ChromeDevTools', undefined],
 		]);
+	});
+
+	test('rejects requests for unsupported Cursor plugins before making a request', async () => {
+		const { service, requests } = createService({ results: [] });
+		await assert.rejects(service.query({ mediaType: CustomizationMarketplaceMediaType.CursorPlugin }, CancellationToken.None), /query is invalid/);
+		assert.strictEqual(requests.requests.length, 0);
 	});
 
 	suite('installation provenance', () => {
@@ -208,7 +220,7 @@ suite('AgentFinderRestProvider', () => {
 			return (await service.query({ pageSize: 100 }, CancellationToken.None)).items;
 		}
 
-		test('derives observed skill and supported plugin roots, but not Cursor plugins', async () => {
+		test('derives observed skill and supported plugin roots without exposing Cursor plugins', async () => {
 			const result = await resources([
 				skill,
 				copilotPlugin,
@@ -226,7 +238,6 @@ suite('AgentFinderRestProvider', () => {
 				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
 				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
 				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
-				undefined,
 			]);
 		});
 
@@ -423,6 +434,64 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
+	test('skips Cursor-only browse pages without losing the next supported result', async () => {
+		const requests = new TestRequestService(async options => {
+			const offset = options.url?.includes('offset=1') ? 1 : 0;
+			return response({ results: [offset ? skill : cursorPlugin], total: 2, offset, pageSize: 1 });
+		});
+		const page = await new AgentFinderRestProvider(requests).query({ pageSize: 1 }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			ids: page.items.map(item => item.identifier),
+			total: page.total,
+			nextCursor: page.nextCursor,
+			urls: requests.requests.map(request => request.url),
+		}, {
+			ids: [skill.identifier],
+			total: undefined,
+			nextCursor: undefined,
+			urls: [
+				'https://agentfinder.github.com/api/v1/agents?pageSize=1&offset=0',
+				'https://agentfinder.github.com/api/v1/agents?pageSize=1&offset=1',
+			],
+		});
+	});
+
+	test('advances browse offsets by native records when a page mixes supported and Cursor plugins', async () => {
+		const responses = [
+			{ results: [skill, cursorPlugin], total: 3, offset: 0, pageSize: 2 },
+			{ results: [{ ...skill, identifier: 'another-skill' }], total: 3, offset: 2, pageSize: 2 },
+		];
+		const requests = new TestRequestService(async () => response(responses.shift()));
+		const service = new AgentFinderRestProvider(requests);
+		const first = await service.query({ pageSize: 2 }, CancellationToken.None);
+		const second = await service.query({ pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			ids: [first, second].map(page => page.items.map(item => item.identifier)),
+			cursors: [first.nextCursor, second.nextCursor],
+			totals: [first.total, second.total],
+		}, {
+			ids: [[skill.identifier], ['another-skill']],
+			cursors: [JSON.stringify({ kind: 'browse', offset: 2 }), undefined],
+			totals: [undefined, undefined],
+		});
+	});
+
+	test('does not expose a final page containing only Cursor plugins', async () => {
+		const { service, requests } = createService({ results: [cursorPlugin], total: 1, offset: 0, pageSize: 30 });
+		const page = await service.query({}, CancellationToken.None);
+		assert.deepStrictEqual({ page, requests: requests.requests.length }, { page: { items: [], total: undefined, nextCursor: undefined }, requests: 1 });
+	});
+
+	test('bounds consecutive Cursor-only pages instead of returning an empty continuation', async () => {
+		const requests = new TestRequestService(async () => response({
+			results: [cursorPlugin], total: 100, offset: requests.requests.length - 1, pageSize: 1,
+		}));
+		await assert.rejects(new AgentFinderRestProvider(requests).query({ pageSize: 1 }, CancellationToken.None), /too many unsupported entries/);
+		assert.strictEqual(requests.requests.length, 33);
+	});
+
 	test('POSTs structured filtered search and returns opaque tokens unchanged', async () => {
 		const pageToken = 'opaque+/=&?"token';
 		const responses = [
@@ -446,6 +515,26 @@ suite('AgentFinderRestProvider', () => {
 				headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
 				body: { query: { text: 'postgres + "JSON" & café', filter: { type: [CustomizationMarketplaceMediaType.Skill] } }, pageSize: 2, ...(token ? { pageToken: token } : {}) },
 			})),
+		});
+	});
+
+	test('skips Cursor-only search pages while preserving the opaque search token', async () => {
+		const responses = [
+			{ results: [{ ...cursorPlugin, score: 100 }], pageToken: 'next' },
+			{ results: [{ ...skill, score: 50 }] },
+		];
+		const requests = new TestRequestService(async () => response(responses.shift()));
+		const page = await new AgentFinderRestProvider(requests).query({ query: 'plugin', pageSize: 1 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			ids: page.items.map(item => item.identifier),
+			total: page.total,
+			nextCursor: page.nextCursor,
+			pageTokens: requests.requests.map(request => JSON.parse(request.data!).pageToken),
+		}, {
+			ids: [skill.identifier],
+			total: undefined,
+			nextCursor: undefined,
+			pageTokens: [undefined, 'next'],
 		});
 	});
 
