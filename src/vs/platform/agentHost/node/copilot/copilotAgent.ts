@@ -1045,7 +1045,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
-			// window reload), so nothing reacts to it here.
+			// window reload), so nothing reacts to it here. Refreshing BYOK models
+			// republishes the whole catalog, which also re-applies the Claude default
+			// thinking level (see `_withClaudeDefaultReasoningEffort`).
 			this._refreshByokModels();
 		}));
 
@@ -2184,7 +2186,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: true,
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
-		this._models.set([...this._capiModels, ...hydraFusionModels, ...this._byokModels], undefined);
+		this._models.set([...this._withClaudeDefaultReasoningEffort(this._capiModels), ...hydraFusionModels, ...this._byokModels], undefined);
+	}
+
+	private _getClaudeDefaultReasoningEffort(): string | undefined {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeDefaultReasoningEffort) || undefined;
+	}
+
+	/**
+	 * Applies {@link CopilotCliConfigKey.ClaudeDefaultReasoningEffort} to the Claude models'
+	 * thinking-level picker at publish time, so a setting change takes effect without re-listing.
+	 * Models that do not support the configured level keep their built-in default.
+	 */
+	private _withClaudeDefaultReasoningEffort(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+		const effort = this._getClaudeDefaultReasoningEffort();
+		if (!effort) {
+			return models;
+		}
+		return models.map(model => {
+			const configSchema = model.configSchema;
+			const thinkingLevel = configSchema?.properties[ThinkingLevelConfigKey];
+			if (!configSchema || !thinkingLevel?.enum?.includes(effort) || !model.id.toLowerCase().startsWith('claude')) {
+				return model;
+			}
+			return {
+				...model,
+				configSchema: { ...configSchema, properties: { ...configSchema.properties, [ThinkingLevelConfigKey]: { ...thinkingLevel, default: effort } } },
+			};
+		});
 	}
 
 	/**
