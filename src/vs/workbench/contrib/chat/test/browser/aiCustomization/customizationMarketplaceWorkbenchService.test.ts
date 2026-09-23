@@ -13,12 +13,12 @@ import { IRequestOptions } from '../../../../../../base/parts/request/common/req
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentFinderRestProvider } from '../../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,10 +48,10 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled', true);
 		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.publicGitHubFeed.enabled', true);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
@@ -59,7 +59,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			await service.query({}, CancellationToken.None),
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({

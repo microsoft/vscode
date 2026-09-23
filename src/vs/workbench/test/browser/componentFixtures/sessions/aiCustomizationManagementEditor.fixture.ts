@@ -23,6 +23,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -976,9 +977,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				...options.configuration,
-				[ChatConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
+				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
-			const sourceEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AgentFinderPublicFeedEnabled) === true
+			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true
 				|| configurationService.getValue<boolean>('test.marketplace.other.enabled') === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
@@ -988,8 +989,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
-					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
+					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled' },
 				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
@@ -1520,7 +1521,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.togglePublicFeed) {
 		const configuration = marketplaceConfiguration!;
-		const setting = ChatConfiguration.AgentFinderPublicFeedEnabled;
+		const setting = CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled;
 		await configuration.setUserConfiguration(setting, !agentFinderPublicFeedEnabled);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === setting; }

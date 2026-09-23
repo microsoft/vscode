@@ -20,6 +20,7 @@ import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hove
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -244,7 +245,7 @@ suite('aiCustomizationManagementEditor', () => {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-			[ChatConfiguration.AgentFinderPublicFeedEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			...values,
 		};
 		return {
@@ -409,10 +410,10 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [ChatConfiguration.AgentFinderPublicFeedEnabled]) {
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]) {
 		const context = createContributedSectionEditor(enablementSettings);
 		const { editor, section } = context;
-		const configuration = createConfigurationServiceStub({ [ChatConfiguration.AgentFinderPublicFeedEnabled]: enabled });
+		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
 		const sections: { id: AICustomizationManagementSection }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
@@ -465,7 +466,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const container = editor.contributedSectionContainers.get(section)!;
 		container.textContent = 'Feature content';
 
-		await configuration.updateValue(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		editor.updateContributedSectionEnablement();
 		const disabled = {
 			created: state.created,
@@ -476,7 +477,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sections: sections.map(section => section.id),
 			overview: getOverview(),
 		};
-		await configuration.updateValue(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		editor.updateContributedSectionEnablement();
 		editor.selectSectionById(section);
 
@@ -493,14 +494,14 @@ suite('aiCustomizationManagementEditor', () => {
 	test('keeps a contributed section alive while either source is enabled', async () => {
 		const secondSetting = 'test.marketplace.second.enabled';
 		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(
-			true, [ChatConfiguration.AgentFinderPublicFeedEnabled, secondSetting]);
+			true, [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, secondSetting]);
 		editor.rebuildVisibleSections();
 		editor.setVisible(true);
 		editor.selectSectionById(section);
 		const firstWidget = editor.getActiveSectionWidget();
 		await configuration.updateValue(secondSetting, true);
 		editor.updateContributedSectionEnablement();
-		await configuration.updateValue(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		editor.updateContributedSectionEnablement();
 		const remainingSource = {
 			sameWidget: editor.getActiveSectionWidget() === firstWidget,
