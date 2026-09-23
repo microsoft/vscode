@@ -29,6 +29,8 @@ export const enum CopilotCliConfigKey {
 	ClaudeAdvisor = 'claudeAdvisor',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
+	/** Apply the Copilot Chat Claude agent prompt (ported) as section overrides on Claude models. Off by default. */
+	ClaudeChatParityPrompt = 'claudeChatParityPrompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -59,6 +61,8 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+
+export const AgentHostClaudeChatParityPromptEnabledSettingId = 'chat.agentHost.claudeChatParityPrompt.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -183,6 +187,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
 		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ClaudeChatParityPrompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.claudeChatParityPrompt.title', "Claude Chat-Parity Agent Prompt"),
+		description: localize('agentHost.config.claudeChatParityPrompt.description', "When enabled, Copilot SDK sessions running a Claude model apply system-prompt section overrides ported from the Copilot Chat Claude agent prompt, replacing the SDK's verification and thoroughness mandates with Copilot Chat's scope and exploration restraint guidance."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({

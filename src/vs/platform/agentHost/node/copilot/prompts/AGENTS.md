@@ -7,7 +7,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
-- `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `anthropicPrompt.ts` — the Claude-family contributor. Layers two independently gated overrides: the **Copilot Chat parity port** (`chat.agentHost.claudeChatParityPrompt.enabled`, every Claude model) and the **Opus 4.8 tuning** (`chat.agentHost.opus48Prompt.enabled`, Opus 4.8 only). One contributor because the registry resolves exactly one per model and does not fall through when a contributor opts out.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -79,6 +79,23 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
 
+## Claude Chat-parity port (`anthropicPrompt.ts`)
+
+`claudeChatParitySectionOverrides` ports the Copilot Chat Claude agent prompt (`extensions/copilot/src/extension/prompts/node/agent/anthropicPrompts.tsx`, `Claude46OpusPrompt` / `Claude46SonnetPrompt`) onto the SDK foundation in `customize` mode. Motivation: on matched clippy-bench tasks Claude under the SDK prompt spent ~2.5x the verification turns and ~2.3x the output tokens of the same model under Copilot Chat, at equal resolution — the SDK prompt mandates "verify before done" in six places with no restraint guidance; Copilot Chat's has no verification mandate and five restraint instructions.
+
+| Section | Action | What changes |
+|---|---|---|
+| `code_change_rules` | transform | drops the "Validate that your changes preserve existing behavior" bullet; appends Copilot Chat `implementationDiscipline` |
+| `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint, Opus or Sonnet wording), `operationalSafety`, `parallelizationStrategy`, `communicationStyle` |
+| `tool_instructions` | transform | drops the foundation's `<example>` blocks and the `<ask_user>` walkthrough (~940 tokens; `trimFoundationToolInstructions`), keeps `<bash>` mode/`read_bash` guidance, `<task>` delegation policy and the `<sql>` todo contract; appends Copilot Chat `toolUseInstructions` with SDK tool names (`view`/`edit`/`create`/`bash`). The registry appends the universal host lines after the transform |
+| `last_instructions` | transform | drops "Your goal is to deliver complete, working solutions … Verify your changes actually work …", the `<task_completion>` block (keeping its dependency-install bullet as a plain line) and "be thorough" (`trimFoundationLastInstructions`); `<tool_calling>` and any other foundation text survive |
+
+Transforms (not `replace`) are used for every section so dynamic foundation content in those sections (e.g. rubber-duck guidance) survives, and a foundation rewording degrades to "append only" rather than clobbering. `tone` is left alone because the host's `identity` group replacement already removes the foundation tone sub-section. When both Claude settings are on, `mergeSectionOverrides` folds the Opus 4.8 `guidelines` append after the parity transform and keeps its `tone` append.
+
+Known residual: the `bash` tool's own "Prefer short inspect → act → verify loops" sentence sits inside the `tool_instructions` group and is kept deliberately — the surrounding `<bash>` mode guidance encodes runtime behavior the schema does not express.
+
+Not part of the port: Copilot Chat lines that reference extension-only tools (`semantic_search`, explore/execution subagents, `manage_todo_list`), its identity sentences (the host replaces identity) and `securityRequirements` (covered by the SDK `safety` section). The per-turn `<system_reminder>` (chat title / artifact registration) is injected by the session-title controller, not this registry, and is unaffected by this setting.
+
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 
 `chat.agentHost.copilot.modelCapabilityOverrides` entries (keyed by model id; `'*'` matches every model, a specific entry wins field-by-field) carry the experimentation knobs the launcher applies: `family` (prompt and tool-profile alias, so a preview model resolves through another family's contributor), `reasoningEffort` (wins over the model picker's thinking level; set it on the `'*'` entry to pin every model, re-applied on session resume and mid-session model change), `availableTools`/`excludedTools` (SDK tool filters; applied on launch and resume, but not on a mid-session model change — and enforced against every SDK-registered tool, including the host's shell and server tools, not just the forwarded client tools), `modelCapabilities` (per-property overrides passed through to the SDK's `modelCapabilities` field — e.g. vision support, token limits — applied on every launch and resume), and `promptOverrideString`/`promptOverrideFile` (YAML system-prompt and tool-description overrides, applied on launch and resume).
@@ -99,6 +116,6 @@ The runtime keeps its *own* per-model config (system-prompt parts, capabilities,
 
 - **Empty overrides = no override.** `resolveSectionOverrides` returning `{}` (or `undefined`) falls back to the default message — equivalent to composing nothing over the defaults, kept explicit to avoid pointless object churn.
 - **Don't mutate the shared default.** `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` is a shared constant; layering spreads into a fresh object, preserving any other customize-mode fields (e.g. `content`). Keep it that way.
-- **Spacing is relative to the foundation.** `composeToolInstructions` pads by action (`append` leads with `\n`, `prepend` trails with `\n`, `replace` owns the section). When writing a section's `content` by hand, a leading `\n` keeps appended text off the foundation's last line.
+- **Spacing is relative to the foundation.** `composeToolInstructions` pads by action (`append` leads with `\n`, `prepend` trails with `\n`, `replace` owns the section). A transform is wrapped so the universal lines are appended after its output; only `remove` is left untouched. When writing a section's `content` by hand, a leading `\n` keeps appended text off the foundation's last line.
 - **Observability.** The launcher logs `describeSystemMessageConfig(...)` at `info` (mode + overridden sections) and the full config at `trace`. Keep new config shapes summarizable there.
 - **Tests.** `../../../test/node/agentHostPromptRegistry.test.ts` covers the registry/wiring; `../../../test/node/toolInstructions.test.ts` covers the composition/gating. Add cases there, not new harnesses.
