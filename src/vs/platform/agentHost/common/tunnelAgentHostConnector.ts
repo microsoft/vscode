@@ -229,8 +229,8 @@ class TunnelConnection extends Disposable {
 		}));
 	}
 
-	relaySend(data: string): void {
-		this._socket.send(data);
+	relaySend(data: string): Promise<void> {
+		return this._socket.send(data);
 	}
 
 	override dispose(): void {
@@ -411,7 +411,11 @@ export class TunnelAgentHostConnector extends Disposable {
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
-		this._connections.get(connectionId)?.relaySend(message);
+		const connection = this._connections.get(connectionId);
+		if (!connection) {
+			throw new Error(`${LOG_PREFIX} connection '${connectionId}' is not available`);
+		}
+		await connection.relaySend(message);
 	}
 
 	async disconnect(connectionId: string): Promise<void> {

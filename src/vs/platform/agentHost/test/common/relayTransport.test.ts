@@ -24,8 +24,12 @@ class MockRelayChannel implements IRelayChannel {
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 
 	readonly sentMessages: { connectionId: string; message: string }[] = [];
+	sendError: Error | undefined;
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
+		if (this.sendError) {
+			throw this.sendError;
+		}
 		this.sentMessages.push({ connectionId, message });
 	}
 
@@ -274,6 +278,35 @@ suite('ReconnectingRelayTransport', () => {
 		assert.deepStrictEqual({ sentMessages: mockChannel.sentMessages, warnings: logService.warnings }, {
 			sentMessages: [],
 			warnings: ['[ReconnectingRelayTransport] send before the relay channel was established; dropping message'],
+		});
+	});
+
+	test('closes when the established relay disappeared before the first send', async () => {
+		const logService = new RecordingLogService();
+		mockChannel.sendError = new Error('connection is not available');
+		const transport = disposables.add(new ReconnectingRelayTransport(
+			async () => ({ connectionId: 'conn-1' }),
+			mockChannel,
+			() => undefined,
+			logService,
+			'[ReconnectingRelayTransport]',
+			AgentHostClientConnectionKind.DevTunnel
+		));
+		let closeCount = 0;
+		disposables.add(transport.onClose(() => closeCount++));
+
+		await transport.connect();
+		transport.send({ jsonrpc: '2.0', method: 'reconnect', id: 42 });
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.deepStrictEqual({
+			closeCount,
+			errorCount: logService.errors.length,
+			hasRelaySendError: logService.errors[0]?.includes('relaySend failed'),
+		}, {
+			closeCount: 1,
+			errorCount: 1,
+			hasRelaySendError: true,
 		});
 	});
 

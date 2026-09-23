@@ -8,8 +8,8 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 
 /** A minimal bidirectional text-message socket over a tunnel byte stream. */
 export interface ITunnelMessageSocket extends IDisposable {
-	/** Send a text message. */
-	send(data: string): void;
+	/** Send a text message, rejecting when it cannot be delivered to the socket. */
+	send(data: string): Promise<void>;
 	/** Fires for each complete text message received. */
 	readonly onDidReceiveMessage: Event<string>;
 	/** Fires once when the socket closes, for any reason. */

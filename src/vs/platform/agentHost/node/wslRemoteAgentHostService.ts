@@ -473,13 +473,18 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	async relaySend(connectionId: string, message: string): Promise<void> {
 		const conn = this._connections.get(connectionId);
 		if (!conn) {
-			this._logService.debug(`${LOG_PREFIX} relaySend: no connection ${connectionId}`);
-			return;
+			throw new Error(`${LOG_PREFIX} connection '${connectionId}' is not available`);
 		}
 		try {
-			conn.ws.send(message);
+			if (conn.ws.readyState !== conn.ws.OPEN) {
+				throw new Error(`WebSocket is not open (readyState ${conn.ws.readyState})`);
+			}
+			await new Promise<void>((resolve, reject) => {
+				conn.ws.send(message, error => error ? reject(error) : resolve());
+			});
 		} catch (err) {
 			this._logService.warn(`${LOG_PREFIX} relaySend failed for ${connectionId}`, err);
+			throw err;
 		}
 	}
 

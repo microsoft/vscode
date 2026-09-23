@@ -274,10 +274,11 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 		});
 	}
 
-	send(data: string): void {
-		if (!this._closed) {
-			this.writeFrame(VSBuffer.fromString(data), WebSocketOpcode.Text);
+	async send(data: string): Promise<void> {
+		if (this._closed || this._closeSent) {
+			throw new Error('WebSocket is not open');
 		}
+		this.writeFrame(VSBuffer.fromString(data), WebSocketOpcode.Text);
 	}
 
 	close(): void {

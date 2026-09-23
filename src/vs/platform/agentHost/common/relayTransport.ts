@@ -31,6 +31,7 @@ export interface IRelayMessage {
 export interface IRelayChannel {
 	readonly onDidRelayMessage: Event<IRelayMessage>;
 	readonly onDidRelayClose: Event<string /* connectionId */>;
+	/** Rejects when the relay is unavailable so the transport can surface closure. */
 	relaySend(connectionId: string, message: string): Promise<void>;
 }
 
@@ -122,6 +123,7 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 		this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
 		this._channel.relaySend(connectionId, text).catch((err) => {
 			this._logService.error(`${this._logPrefix} relaySend failed`, err);
+			this._fireClose();
 		});
 	}
 
