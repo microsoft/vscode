@@ -786,6 +786,9 @@ export async function stopServer(
 	}
 
 	await Promises.settled(descendants.map(async descendant => {
+		if (!await processOperations.isSameProcessRunning(descendant)) {
+			return;
+		}
 		try {
 			await processOperations.killTree(descendant.pid, true);
 		} catch (error) {

@@ -19,7 +19,7 @@ import { collectServerDescendants, killServer, stopServer } from './serverIntegr
 suite('Agent Host test server cleanup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function runDescendantKillFailureTest(isSameProcessRunning: boolean): Promise<{ error: Error | undefined; calls: string[] }> {
+	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[]): Promise<{ error: Error | undefined; calls: string[] }> {
 		const descendant = { pid: 123, name: 'node.exe', commandLine: 'node child.js' };
 		const server = spawn(process.execPath, ['-e', `
 			process.stdin.resume();
@@ -33,6 +33,7 @@ suite('Agent Host test server cleanup', () => {
 		});
 		const calls: string[] = [];
 		const killError = new Error('taskkill failed');
+		let identityCheckIndex = 0;
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
 			const error = await stopServer({ process: server, port: 0 }, async () => [descendant], 5_000, {
@@ -42,7 +43,11 @@ suite('Agent Host test server cleanup', () => {
 				},
 				isSameProcessRunning: async process => {
 					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
-					return isSameProcessRunning;
+					const result = isSameProcessRunningResults[identityCheckIndex++];
+					if (result === undefined) {
+						throw new Error('Unexpected process identity check');
+					}
+					return result;
 				},
 			}).then(
 				() => undefined,
@@ -107,24 +112,42 @@ suite('Agent Host test server cleanup', () => {
 
 	test('ignores a failed descendant kill when the process identity is no longer present', async function () {
 		this.timeout(15_000);
-		const result = await runDescendantKillFailureTest(false);
+		const result = await runDescendantKillFailureTest([false]);
 
 		assert.deepStrictEqual(result, {
 			error: undefined,
-			calls: ['kill:123:true', 'isSameProcessRunning:123:node.exe:node child.js'],
+			calls: ['isSameProcessRunning:123:node.exe:node child.js'],
+		});
+	});
+
+	test('ignores a failed descendant kill when the process exits during taskkill', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
 		});
 	});
 
 	test('preserves a failed descendant kill when the same process identity is still present', async function () {
 		this.timeout(15_000);
-		const result = await runDescendantKillFailureTest(true);
+		const result = await runDescendantKillFailureTest([true, true]);
 
 		assert.deepStrictEqual({
 			error: result.error?.message,
 			calls: result.calls,
 		}, {
 			error: 'taskkill failed',
-			calls: ['kill:123:true', 'isSameProcessRunning:123:node.exe:node child.js'],
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
 		});
 	});
 
