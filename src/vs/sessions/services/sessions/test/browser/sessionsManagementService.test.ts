@@ -749,6 +749,29 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(calls, ['stop /chat', 'stop /peer', 'archive']);
 	});
 
+	test('archiving an idle session stops an active peer chat before archiving', async () => {
+		const peerChat = { ...stubChat, resource: URI.parse('test:///peer'), status: constObservable(SessionStatus.InProgress) };
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats: constObservable([stubChat, peerChat]),
+		});
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(): Promise<void> {
+				calls.push('archive');
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		chatService.cancelCurrentRequestForSession = async resource => {
+			calls.push(`stop ${resource.path}`);
+		};
+
+		await service.archiveSession(session);
+
+		assert.deepStrictEqual(calls, ['stop /peer', 'archive']);
+	});
+
 	test('archiving a running session with unloaded chats cancels its main chat before archiving', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
 		const { service, chatService } = createSessionsManagementService(session, disposables);

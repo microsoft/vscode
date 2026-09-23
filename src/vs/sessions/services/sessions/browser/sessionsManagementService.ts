@@ -1236,11 +1236,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
-		if (isActiveSessionStatus(session.status.get())) {
-			const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
-			for (const chat of activeChats.length ? activeChats : [session.mainChat.get()]) {
-				await this._cancelChatRequest(chat);
-			}
+		const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
+		if (activeChats.length === 0 && isActiveSessionStatus(session.status.get())) {
+			await this._cancelChatRequest(session.mainChat.get());
+		}
+		for (const chat of activeChats) {
+			await this._cancelChatRequest(chat);
 		}
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 		this._onDidArchiveSession.fire(session);
