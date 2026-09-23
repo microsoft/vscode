@@ -1045,6 +1045,55 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
+			const workspaceUri = URI.file('/workspace');
+			const pluginUri = URI.file('/plugins/claude-plugin');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.md');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'name: reviewer',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool.sh"',
+					'      env:',
+					'        EXISTING: "value"',
+					'---',
+				],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Claude,
+				label: 'claude-plugin',
+				enablement: observableValue('claudePluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('claudePluginHooks', []),
+				commands: observableValue('claudePluginCommands', []),
+				skills: observableValue('claudePluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('claudePluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('claudePluginInstructions', []),
+				mcpServerDefinitions: observableValue('claudePluginMcpServers', []),
+				automations: observableValue('claudePluginAutomations', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.deepStrictEqual(agents.map(agent => agent.hooks?.[HookType.PreToolUse]), [[{
+				type: 'command',
+				command: '/plugins/claude-plugin/scripts/pre-tool.sh',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					CLAUDE_PLUGIN_ROOT: '/plugins/claude-plugin',
+				},
+			}]]);
+		});
+
 
 		test('header with handOffs', async () => {
 			const rootFolderName = 'custom-agents-with-handoffs';

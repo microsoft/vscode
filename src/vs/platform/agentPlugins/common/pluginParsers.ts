@@ -563,6 +563,35 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 }
 
 /**
+ * Applies the plugin-root convention for a Claude or Open Plugin hook command.
+ */
+export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
+	switch (format) {
+		case PluginFormat.Claude:
+			return interpolateHookCommandRoot(hook, pluginUri, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+		case PluginFormat.OpenPlugin:
+			return interpolateHookCommandRoot(hook, pluginUri, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+		default:
+			return hook;
+	}
+}
+
+function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: URI, token: string, envVar: string): Record<string, unknown> {
+	const fsPath = pluginUri.fsPath;
+	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(token, fsPath) : undefined) as Record<string, unknown>;
+	for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
+		if (typeof hook[field] === 'string') {
+			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
+		}
+	}
+	result.env = {
+		...(result.env && typeof result.env === 'object' && !Array.isArray(result.env) ? result.env : {}),
+		[envVar]: fsPath,
+	};
+	return result;
+}
+
+/**
  * Replaces plugin-root token references in MCP server definition string fields
  * with the plugin root filesystem path.
  */
@@ -839,20 +868,10 @@ export function interpolateHookPluginRoot(
 	token: string,
 	envVar: string,
 ): IParsedHookGroup[] {
-	const fsPath = pluginUri.fsPath;
 	const typedJson = json as { hooks?: Record<string, unknown[]> };
 
 	const mutateHookCommand = (hook: Record<string, unknown>): void => {
-		for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
-			if (typeof hook[field] === 'string') {
-				hook[field] = shellQuotePluginRootInCommand(hook[field] as string, fsPath, token);
-			}
-		}
-
-		if (!hook.env || typeof hook.env !== 'object') {
-			hook.env = {};
-		}
-		(hook.env as Record<string, string>)[envVar] = fsPath;
+		Object.assign(hook, interpolateHookCommandRoot(hook, pluginUri, token, envVar));
 	};
 
 	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
