@@ -122,6 +122,7 @@ suite('AgentFinderRestProvider', () => {
 				icon: 'https://github.com/ChromeDevTools.png?size%3D64',
 				publisher: 'ChromeDevTools',
 				version: undefined,
+				score: undefined,
 				installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
 			}],
 			total: 1678,
@@ -433,10 +434,10 @@ suite('AgentFinderRestProvider', () => {
 		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			pages: [first, second].map(page => ({ total: page.total, nextCursor: page.nextCursor })),
+			pages: [first, second].map(page => ({ scores: page.items.map(item => item.score), total: page.total, nextCursor: page.nextCursor })),
 			requests: requests.requests.map(request => ({ type: request.type, url: request.url, headers: request.headers, body: JSON.parse(request.data!) })),
 		}, {
-			pages: [{ total: undefined, nextCursor: JSON.stringify({ kind: 'search', pageToken }) }, { total: undefined, nextCursor: undefined }],
+			pages: [{ scores: [90], total: undefined, nextCursor: JSON.stringify({ kind: 'search', pageToken }) }, { scores: [80], total: undefined, nextCursor: undefined }],
 			requests: [undefined, pageToken].map(token => ({
 				type: 'POST',
 				url: 'https://agentfinder.github.com/api/v1/search',
@@ -444,6 +445,17 @@ suite('AgentFinderRestProvider', () => {
 				body: { query: { text: 'postgres + "JSON" & café', filter: { type: [CustomizationMarketplaceMediaType.Skill] } }, pageSize: 2, ...(token ? { pageToken: token } : {}) },
 			})),
 		});
+	});
+
+	test('validates optional relevance scores without inventing a score for browsing', async () => {
+		const scores = [undefined, 0, 50.5, 100];
+		const { service } = createService({ results: scores.map(score => ({ ...skill, score })) });
+		const page = await service.query({ query: 'accessibility' }, CancellationToken.None);
+		assert.deepStrictEqual(page.items.map(item => item.score), scores);
+		for (const score of [-1, 101, '90', null, true]) {
+			const { service } = createService({ results: [{ ...skill, score }] });
+			await assert.rejects(service.query({ query: 'accessibility' }, CancellationToken.None), /invalid response/);
+		}
 	});
 
 	test('unfiltered search omits the filter and does not invent a total', async () => {
@@ -469,7 +481,7 @@ suite('AgentFinderRestProvider', () => {
 		assert.deepStrictEqual(page.items.map(resourceSnapshot), [{
 			identifier: 'test', displayName: 'Test', mediaType: 'application/future-agent', description: '',
 			tags: ['valid'], capabilities: [], representativeQueries: ['query'],
-			url: undefined, externalUrl: undefined, repository: undefined, icon: undefined, publisher: undefined, version: undefined, installation: undefined,
+			url: undefined, externalUrl: undefined, repository: undefined, icon: undefined, publisher: undefined, version: undefined, score: undefined, installation: undefined,
 		}]);
 	});
 

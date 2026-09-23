@@ -17,7 +17,7 @@ import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -48,6 +48,11 @@ const sourceDirectory = joinPath(repository, 'skills', 'demo-skill');
 const destinationDirectory = URI.file('/workspace/.github/skills');
 const skillDestination = joinPath(destinationDirectory, 'demo-skill');
 const skillContent = '# Demo skill\n';
+const sources = [
+	{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
+	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
+];
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
@@ -149,7 +154,7 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 suite('CustomizationMarketplaceInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(options: { enabled?: boolean } = { enabled: true }) {
+	async function createFixture(options: { enabled?: boolean; otherSourceEnabled?: boolean } = { enabled: true }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const logService = store.add(new NullLogService());
 		const fileService = store.add(new FileService(logService));
@@ -251,8 +256,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		if (options.enabled !== undefined) {
-			await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, options.enabled);
+		for (const source of sources) {
+			const enabled = source.id === 'testSource' ? options.enabled : options.otherSourceEnabled ?? options.enabled;
+			if (enabled !== undefined) {
+				await configurationService.setUserConfiguration(source.enablementSetting, enabled);
+			}
 		}
 		const dialogService = new class extends mock<IDialogService>() {
 			readonly confirmations: IConfirmation[] = [];
@@ -299,6 +307,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
 		instantiationService.stub(IChatEntitlementService, entitlementService);
+		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = sources;
+		}());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDialogService, dialogService);
@@ -319,9 +330,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}());
 	}
 
-	async function setExperimentEnabled(configurationService: TestConfigurationService, enabled: boolean): Promise<void> {
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, enabled);
-		fireConfigurationChange(configurationService, ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled);
+	async function setSourcesEnabled(configurationService: TestConfigurationService, enabled: boolean, sourceIds = sources.map(source => source.id)): Promise<void> {
+		const changedSources = sources.filter(source => sourceIds.includes(source.id));
+		for (const source of changedSources) {
+			await configurationService.setUserConfiguration(source.enablementSetting, enabled);
+		}
+		for (const source of changedSources) {
+			fireConfigurationChange(configurationService, source.enablementSetting);
+		}
 	}
 
 	async function stagingDirectories(fileService: IFileService): Promise<string[]> {
@@ -343,14 +359,100 @@ suite('CustomizationMarketplaceInstallService', () => {
 		return result.sort(([left], [right]) => left.localeCompare(right));
 	}
 
-	suite('experiment gate', () => {
+	suite('source gates', () => {
+		test('a different enabled source cannot authorize disabled or unknown source installations', async () => {
+			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
+			const candidates = [resource(), pluginResource(), mcpResource(), resource({ sourceId: 'unknown' })];
+			for (const candidate of candidates) {
+				await assert.rejects(fixture.service.install(candidate), /marketplace source/);
+			}
+			const enabledCandidate = { ...pluginResource(), sourceId: 'anotherSource' };
+			await fixture.service.install(enabledCandidate);
+			assert.deepStrictEqual({
+				states: candidates.map(candidate => fixture.service.getInstallState(candidate).kind),
+				registryLookups: fixture.mcpService.lookups,
+				repositoryCalls: fixture.repositoryService.calls,
+				folderRequests: fixture.harnessService.folderRequests,
+				pluginInstalls: fixture.pluginService.calls,
+			}, {
+				states: ['unavailable', 'unavailable', 'unavailable', 'unavailable'],
+				registryLookups: [], repositoryCalls: [], folderRequests: [],
+				pluginInstalls: [{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } }],
+			});
+		});
+
+		test('disabling one source cancels only its pending skill import and preserves other source state', async () => {
+			const fixture = await createFixture();
+			const second = resource({ sourceId: 'anotherSource' });
+			await fixture.service.install(second);
+			const first = resource({
+				installation: { kind: 'skill', repository: 'owner/catalog', ref: 'release', path: 'skills/first-skill' },
+			});
+			await fixture.fileService.writeFile(joinPath(repository, 'skills', 'first-skill', SKILL_FILENAME), VSBuffer.fromString(skillContent));
+			const paused = new DeferredPromise<void>();
+			const resume = new DeferredPromise<URI>();
+			fixture.repositoryService.onEnsure = async () => {
+				await paused.complete();
+				return resume.p;
+			};
+			const firstOutcome = Promise.allSettled([fixture.service.install(first)]);
+			await Promise.race([paused.p, firstOutcome]);
+			const pluginResult = new DeferredPromise<IInstallPluginFromSourceResult>();
+			fixture.pluginService.onInstall = () => pluginResult.p;
+			const secondPlugin = { ...pluginResource(), sourceId: 'anotherSource' };
+			const secondOperation = fixture.service.install(secondPlugin);
+			await setSourcesEnabled(fixture.configurationService, false, ['testSource']);
+			const afterDisable = {
+				cancelled: fixture.repositoryService.calls[1].options?.token?.isCancellationRequested,
+				first: fixture.service.getInstallState(first).kind,
+				second: fixture.service.getInstallState(second).kind,
+				secondPlugin: fixture.service.getInstallState(secondPlugin).kind,
+				mcpListener: fixture.mcpChanges.hasListeners(),
+			};
+			await assert.rejects(fixture.service.install(first), /marketplace source/);
+			await pluginResult.complete({ success: true });
+			await secondOperation;
+			await resume.complete(repository);
+			const [firstResult] = await firstOutcome;
+			await setSourcesEnabled(fixture.configurationService, true, ['testSource']);
+			assert.deepStrictEqual({
+				afterDisable,
+				firstCancelled: firstResult.status === 'rejected' && isCancellationError(firstResult.reason),
+				firstTargetExists: await fixture.fileService.exists(joinPath(destinationDirectory, 'first-skill')),
+				staging: await stagingDirectories(fixture.fileService),
+				secondState: fixture.service.getInstallState(second).kind,
+				secondFiles: await readTree(fixture.fileService, skillDestination),
+				pluginInstalls: fixture.pluginService.calls.length,
+			}, {
+				afterDisable: { cancelled: true, first: 'unavailable', second: 'installed', secondPlugin: 'installing', mcpListener: true },
+				firstCancelled: true, firstTargetExists: false, staging: [],
+				secondState: 'installed', secondFiles: [[SKILL_FILENAME, skillContent]], pluginInstalls: 1,
+			});
+		});
+
+		test('disabling another source does not cancel a pending skill import', async () => {
+			const fixture = await createFixture();
+			const candidate = resource({ sourceId: 'anotherSource' });
+			fixture.repositoryService.onEnsure = async () => {
+				await setSourcesEnabled(fixture.configurationService, false, ['testSource']);
+				await setSourcesEnabled(fixture.configurationService, true, ['testSource']);
+				assert.strictEqual(fixture.repositoryService.calls[0].options?.token?.isCancellationRequested, false);
+				return repository;
+			};
+			await fixture.service.install(candidate);
+			assert.deepStrictEqual({ state: fixture.service.getInstallState(candidate).kind, installedFiles: await readTree(fixture.fileService, skillDestination) }, {
+				state: 'installed', installedFiles: [[SKILL_FILENAME, skillContent]],
+			});
+		});
+
 		for (const enabled of [undefined, false]) {
-			test(`blocks all installation activity when the experiment is ${enabled === undefined ? 'unset' : 'explicitly disabled'}`, async () => {
+			test(`blocks all installation activity when sources are ${enabled === undefined ? 'unset' : 'explicitly disabled'}`, async () => {
 				const fixture = await createFixture({ enabled });
 				await fixture.configurationService.setUserConfiguration('chat.agentFinder.enabled', true);
+				await fixture.configurationService.setUserConfiguration('chat.customizations.unifiedMarketplace.enabled', true);
 				const candidates = [resource(), pluginResource(), mcpResource()];
 				for (const candidate of candidates) {
-					await assert.rejects(fixture.service.install(candidate), /unified marketplace experiment/);
+					await assert.rejects(fixture.service.install(candidate), /marketplace source/);
 				}
 				assert.deepStrictEqual({
 					states: candidates.map(candidate => fixture.service.getInstallState(candidate).kind),
@@ -381,7 +483,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			test(`keeps feature observers dormant ${initiallyEnabled ? 'after disabling' : 'from disabled construction'} and restores them on re-enable`, async () => {
 				const fixture = await createFixture({ enabled: initiallyEnabled });
 				if (initiallyEnabled) {
-					await setExperimentEnabled(fixture.configurationService, false);
+					await setSourcesEnabled(fixture.configurationService, false);
 				}
 				let changes = 0;
 				store.add(fixture.service.onDidChange(() => changes++));
@@ -405,7 +507,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					mcpListener: fixture.mcpChanges.hasListeners(),
 					entitlementListener: fixture.sentimentChanges.hasListeners(),
 				};
-				await setExperimentEnabled(fixture.configurationService, true);
+				await setSourcesEnabled(fixture.configurationService, true);
 				changes = 0;
 				const enabledReads = fixture.marketplaceService.readCount;
 				fixture.installedPlugins.set([], undefined);
@@ -448,7 +550,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				const outcome = Promise.allSettled([fixture.service.install(resource())]);
 				await Promise.race([paused.p, outcome]);
 				const writesBeforeDisable = fixture.provider.writes.length;
-				await setExperimentEnabled(fixture.configurationService, false);
+				await setSourcesEnabled(fixture.configurationService, false);
 				const tokenCancelled = fixture.repositoryService.calls[0]?.options?.token?.isCancellationRequested === true;
 				await resume.complete();
 				const [result] = await outcome;
@@ -463,7 +565,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				};
 				fixture.repositoryService.onEnsure = undefined;
 				fixture.provider.afterWrite = undefined;
-				await setExperimentEnabled(fixture.configurationService, true);
+				await setSourcesEnabled(fixture.configurationService, true);
 				const stateBeforeRetry = fixture.service.getInstallState(resource()).kind;
 				await fixture.service.install(resource());
 				assert.deepStrictEqual({
@@ -485,7 +587,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		test('disabling during registry resolution never hands off to the MCP installer', async () => {
 			const fixture = await createFixture();
 			fixture.mcpService.onLookup = async () => {
-				await setExperimentEnabled(fixture.configurationService, false);
+				await setSourcesEnabled(fixture.configurationService, false);
 				return fixture.mcpService.galleryServer;
 			};
 			await assert.rejects(fixture.service.install(mcpResource()), isCancellationError);
@@ -508,8 +610,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 			};
 			const outcome = Promise.allSettled([fixture.service.install(candidate)]);
 			await Promise.race([started.p, outcome]);
-			await setExperimentEnabled(fixture.configurationService, false);
-			await setExperimentEnabled(fixture.configurationService, true);
+			await setSourcesEnabled(fixture.configurationService, false);
+			await setSourcesEnabled(fixture.configurationService, true);
 			await lookup.complete(fixture.mcpService.galleryServer);
 			const [result] = await outcome;
 			const oldOperation = {
@@ -535,11 +637,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 		test('re-enabling does not reuse installed state for a skill removed while disabled', async () => {
 			const fixture = await createFixture();
 			await fixture.service.install(resource());
-			await setExperimentEnabled(fixture.configurationService, false);
+			await setSourcesEnabled(fixture.configurationService, false);
 			const deleted = Event.toPromise(Event.filter(fixture.fileService.onDidFilesChange, event => event.contains(skillDestination)));
 			await fixture.fileService.del(skillDestination, { recursive: true });
 			await deleted;
-			await setExperimentEnabled(fixture.configurationService, true);
+			await setSourcesEnabled(fixture.configurationService, true);
 			const stateBeforeRetry = fixture.service.getInstallState(resource()).kind;
 			await fixture.service.install(resource());
 			assert.deepStrictEqual({

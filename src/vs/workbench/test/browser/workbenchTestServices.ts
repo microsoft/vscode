@@ -1658,6 +1658,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
+	floatingBorderWidth: number | undefined;
+
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
@@ -1666,6 +1668,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	testSaveState(): void {
 		return super.saveState();
+	}
+
+	protected override getFloatingBorderWidth(): number {
+		return this.floatingBorderWidth ?? super.getFloatingBorderWidth();
 	}
 
 	clearState(): void {

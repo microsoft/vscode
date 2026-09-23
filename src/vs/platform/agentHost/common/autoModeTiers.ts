@@ -47,9 +47,9 @@ export function getAutoModeTierLabel(tier: string): string {
 /** Localized picker description, or nothing for an unrecognized value so callers can omit it. */
 export function getAutoModeTierDescription(tier: string): string | undefined {
 	switch (tier) {
-		case 'efficiency': return localize('autoModeTier.efficiencyDescription', "Cheaper models for everyday tasks");
-		case 'balance': return localize('autoModeTier.balanceDescription', "Balances capability and cost");
-		case 'intelligence': return localize('autoModeTier.intelligenceDescription', "Most capable models, higher cost");
+		case 'efficiency': return localize('autoModeTier.efficiencyDescription', "Optimizes for cost and speed, using more capable models only when needed.");
+		case 'balance': return localize('autoModeTier.balanceDescription', "Balances cost/speed and capability based on task complexity.");
+		case 'intelligence': return localize('autoModeTier.intelligenceDescription', "Optimizes for capability, using faster models only when the task allows it.");
 		default: return undefined;
 	}
 }

@@ -14,7 +14,8 @@ import { dirname, getComparisonKey, isEqual, joinPath } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -44,10 +45,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private readonly pending = new Map<string, Promise<void>>();
-	private readonly installedSkills = new Map<string, URI>();
+	private readonly installedSkills = new Map<string, { readonly uri: URI; readonly sourceId: string }>();
 	private readonly lifetimeToken = cancelOnDispose(this._store);
 	private readonly enabledDisposables = this._register(new DisposableStore());
-	private enabledToken: CancellationToken = CancellationToken.Cancelled;
+	private observingInstallations = false;
 	private readonly locationPicker: CustomizationLocationPicker;
 
 	constructor(
@@ -58,6 +59,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
+		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -69,7 +71,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		super();
 		this.locationPicker = instantiationService.createInstance(CustomizationLocationPicker);
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled)) {
+			if (this.customizationMarketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
 				this.updateEnablement();
 			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this._onDidChange.fire();
@@ -79,18 +81,31 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled) === true;
+		return getEnabledCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).length > 0;
+	}
+
+	private isSourceEnabled(sourceId: string): boolean {
+		const source = this.customizationMarketplaceService.sources.find(source => source.id === sourceId);
+		return !!source && this.configurationService.getValue<boolean>(source.enablementSetting) === true;
 	}
 
 	private updateEnablement(): void {
-		this.enabledDisposables.clear();
-		this.enabledToken = CancellationToken.Cancelled;
-		if (!this.isEnabled()) {
-			this.installedSkills.clear();
+		for (const [key, skill] of this.installedSkills) {
+			if (!this.isSourceEnabled(skill.sourceId)) {
+				this.installedSkills.delete(key);
+			}
+		}
+		const enabled = this.isEnabled();
+		if (enabled === this.observingInstallations) {
 			this._onDidChange.fire();
 			return;
 		}
-		this.enabledToken = cancelOnDispose(this.enabledDisposables);
+		this.observingInstallations = enabled;
+		this.enabledDisposables.clear();
+		if (!enabled) {
+			this._onDidChange.fire();
+			return;
+		}
 		this.enabledDisposables.add(autorun(reader => {
 			this.pluginMarketplaceService.installedPlugins.read(reader);
 			this.harnessService.activeHarness.read(reader);
@@ -101,7 +116,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this.enabledDisposables.add(this.entitlementService.onDidChangeSentiment(() => this._onDidChange.fire()));
 		this.enabledDisposables.add(this.fileService.onDidFilesChange(event => {
 			let changed = false;
-			for (const [key, uri] of this.installedSkills) {
+			for (const [key, { uri }] of this.installedSkills) {
 				if (event.contains(uri, FileChangeType.DELETED)) {
 					this.installedSkills.delete(key);
 					changed = true;
@@ -114,8 +129,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
-		if (!this.isEnabled()) {
-			return { kind: 'unavailable', message: localize('customizationMarketplace.experimentDisabled', "Enable the unified marketplace experiment to install resources.") };
+		if (!this.isSourceEnabled(resource.sourceId)) {
+			return { kind: 'unavailable', message: localize('customizationMarketplace.sourceDisabled', "Enable this resource's marketplace source to install it.") };
 		}
 		if (this.entitlementService.sentiment.hidden) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.aiDisabled', "Enable AI features to install customizations.") };
@@ -155,30 +170,38 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const state = this.getInstallState(resource);
+		if (state.kind === 'unavailable') {
+			throw new Error(state.message);
+		}
 		const key = getCustomizationMarketplaceResourceKey(resource);
 		const pending = this.pending.get(key);
 		if (pending) {
 			return pending;
 		}
-		const state = this.getInstallState(resource);
-		if (state.kind === 'unavailable') {
-			throw new Error(state.message);
-		}
 		if (state.kind === 'installed') {
 			return;
 		}
-		const token = this.enabledToken;
+		const operationDisposables = new DisposableStore();
+		const token = cancelOnDispose(operationDisposables);
+		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
+		operationDisposables.add(this.configurationService.onDidChangeConfiguration(() => {
+			if (!this.isSourceEnabled(resource.sourceId)) {
+				operationDisposables.dispose();
+			}
+		}));
 		const operation = this.doInstall(resource, token);
 		this.pending.set(key, operation);
 		this._onDidChange.fire();
 		try {
 			await operation;
 		} catch (error) {
-			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isEnabled()) {
+			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(resource.sourceId)) {
 				throw new CancellationError();
 			}
 			throw error;
 		} finally {
+			operationDisposables.dispose();
 			this.pending.delete(key);
 			if (this.isEnabled()) {
 				this._onDidChange.fire();
@@ -187,14 +210,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private async doInstall(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
-		this.checkEnabled(token);
+		this.checkEnabled(resource.sourceId, token);
 		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'mcp') {
 			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name);
-			this.checkEnabled(token);
+			this.checkEnabled(resource.sourceId, token);
 			if (!server) {
 				throw new Error(localize('customizationMarketplace.mcpUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
 			}
@@ -243,7 +266,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const project = this.workspaceService.getActiveProjectRoot();
 		const key = this.getSkillKey(resource);
 		const checkContext = (token: CancellationToken = CancellationToken.None) => {
-			this.checkEnabled(enabledToken);
+			this.checkEnabled(resource.sourceId, enabledToken);
 			if (token.isCancellationRequested || harness !== this.harnessService.activeHarness.get() || !isEqual(session, this.harnessService.activeSessionResource.get()) || !isEqual(project, this.workspaceService.getActiveProjectRoot())) {
 				throw new CancellationError();
 			}
@@ -303,7 +326,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					}
 					checkContext(token);
 					await this.fileService.move(staging, target, false);
-					this.installedSkills.set(key, joinPath(target, SKILL_FILENAME));
+					this.installedSkills.set(key, { uri: joinPath(target, SKILL_FILENAME), sourceId: resource.sourceId });
 				} finally {
 					try {
 						if (await this.fileService.exists(staging)) {
@@ -366,8 +389,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return JSON.stringify([getCustomizationMarketplaceResourceKey(resource), this.harnessService.activeHarness.get(), root ? getComparisonKey(root) : '']);
 	}
 
-	private checkEnabled(token: CancellationToken): void {
-		if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isEnabled() || this.entitlementService.sentiment.hidden) {
+	private checkEnabled(sourceId: string, token: CancellationToken): void {
+		if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(sourceId) || this.entitlementService.sentiment.hidden) {
 			throw new CancellationError();
 		}
 	}

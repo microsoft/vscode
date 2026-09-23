@@ -30,7 +30,7 @@ import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../.
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -60,6 +60,11 @@ suite('Sessions - Chat View', () => {
 			results: ['notReady', 'notReady', 'applied'],
 			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
 		});
+	});
+
+	test('reserves the expanded context usage widget width from long requests', () => {
+		const expandedContextUsageWidth = 14 + 6 + 4 + 44;
+		assert.ok(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE >= expandedContextUsageWidth);
 	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
@@ -287,6 +292,17 @@ suite('Sessions - Chat View', () => {
 			iconOffset: { x: 5, y: 5 },
 			iconEscapes: false,
 		});
+	});
+
+	test('uses compact codicons for experimental repository controls', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.experimental-new-session-composer'));
+		const repositoryControls = dom.append(widget, dom.$('.new-chat-repo-config-container'));
+		const icon = dom.append(repositoryControls, dom.$('span.codicon.codicon-git-branch'));
+
+		assert.strictEqual(dom.getWindow(icon).getComputedStyle(icon, '::before').fontSize, '12px');
 	});
 
 	test('new-chat primary pickers match the input control height without clipping split model sections', () => {

@@ -22,7 +22,7 @@ import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../..
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -32,10 +32,12 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
+import { IsSessionsWindowContext } from '../../../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
-import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../../browser/menus.js';
+import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
@@ -47,6 +49,8 @@ import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace,
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -253,9 +257,11 @@ function setupServices(
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
-	}));
+	});
+	store.add(configurationService.onDidChangeConfigurationEmitter);
+	instantiationService.stub(IConfigurationService, configurationService);
 	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
 	instantiationService.stub(IDialogService, {
 		prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
@@ -333,7 +339,7 @@ function setupServices(
 		override readonly changesets = changesetsObs;
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs };
+	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -385,7 +391,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('contributes one repository toolbar action per renderable property', () => {
+	test('contributes repository toolbar actions in the configured layout order', async () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
@@ -399,27 +405,30 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
-		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+		const getEntries = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
-			.map(item => ({
-				id: item.command.id,
-				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				group: item.group,
-				order: item.order,
-			}));
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const orders = [getEntries()];
+		const setSetting = async (setting: string, value: boolean) => {
+			await services.configurationService.setUserConfiguration(setting, value);
+			services.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === setting;
+				}
+			}());
+			orders.push(getEntries());
+		};
+		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
+		await setSetting(UNIFIED_WORKSPACE_PICKER_SETTING, true);
+		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, false);
 
-		assert.deepStrictEqual(entries, [{
-			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`,
-			title: 'Isolation',
-			group: getNewSessionRepositoryConfigGroup(1, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`),
-			order: 1,
-		}, {
-			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`,
-			title: 'Base Branch',
-			group: getNewSessionRepositoryConfigGroup(2, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`),
-			order: 2,
-		}]);
+		assert.deepStrictEqual(orders, [
+			['Isolation', 'Base Branch'],
+			['Isolation', 'Base Branch'],
+			['Base Branch', 'Isolation'],
+			['Isolation', 'Base Branch'],
+		]);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -497,7 +506,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places mode immediately before approvals in secondary toolbars', () => {
+	test('places mode immediately before approvals in new and running session toolbars', () => {
 		const summarize = (menu: MenuId, ids: readonly string[]) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => ids.includes(item.command.id))
@@ -527,12 +536,53 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.newSessionApprovePicker', order: 1 },
 				{ id: 'sessions.agentHost.newSessionPermissionModePicker', order: 2 },
 			],
-			runningSessionPrimary: [],
+			runningSessionPrimary: [
+				{ id: 'sessions.agentHost.runningSessionModePicker', order: 0.1 },
+				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 0.2 },
+				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 0.3 },
+			],
 			runningSessionSecondary: [
 				{ id: 'sessions.agentHost.runningSessionModePicker', order: 9 },
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
+		});
+	});
+
+	test('moves running-session controls only in the desktop Agents Window experiment', () => {
+		const findModePicker = (menu: MenuId) => {
+			const item = MenuRegistry.getMenuItems(menu)
+				.find(item => isIMenuItem(item) && item.command.id === 'sessions.agentHost.runningSessionModePicker');
+			assert.ok(item && isIMenuItem(item));
+			return item;
+		};
+		const primary = findModePicker(MenuId.ChatInput);
+		const secondary = findModePicker(MenuId.ChatInputSecondary);
+		const visible = (item: typeof primary, values: Record<string, boolean>) => item.when?.evaluate({
+			getValue<T>(key: string): T | undefined {
+				return values[key] as T | undefined;
+			},
+		}) ?? true;
+		const agentHost = { [ChatContextKeys.chatIsAgentHostSession.key]: true };
+		const experiment = {
+			[`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: true,
+			[`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`]: true,
+		};
+		const evaluate = (values: Record<string, boolean>) => ({
+			primary: visible(primary, { ...agentHost, ...values }),
+			secondary: visible(secondary, { ...agentHost, ...values }),
+		});
+
+		assert.deepStrictEqual({
+			agentsWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
+			experimentOff: evaluate({ ...experiment, [`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: false, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
+			editorWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: false, [IsPhoneLayoutContext.key]: false }),
+			phone: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: true }),
+		}, {
+			agentsWindow: { primary: true, secondary: false },
+			experimentOff: { primary: false, secondary: true },
+			editorWindow: { primary: false, secondary: true },
+			phone: { primary: false, secondary: true },
 		});
 	});
 

@@ -6,14 +6,13 @@
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-
-export const enum CustomizationMarketplaceConfiguration {
-	Enabled = 'chat.customizations.unifiedMarketplace.enabled',
-}
 
 export const CustomizationMarketplaceMediaType = {
 	Skill: 'application/ai-skill',
@@ -46,6 +45,8 @@ export interface ICustomizationMarketplaceEntry {
 	readonly publisher?: string;
 	readonly version?: string;
 	readonly stars?: number;
+	/** Source-assigned relevance from 0 to 100, not a quality or trust rating. Unscored search results rank as 0. */
+	readonly score?: number;
 	readonly installation?: CustomizationMarketplaceInstallation;
 }
 
@@ -58,18 +59,9 @@ export function getCustomizationMarketplaceResourceKey(resource: ICustomizationM
 	return JSON.stringify([resource.sourceId, resource.identifier, resource.version ?? null]);
 }
 
-interface ICustomizationMarketplaceSourceCursor {
-	readonly id: string;
-	/** An absent cursor means this source is exhausted. */
-	readonly cursor?: string;
-	readonly total?: number;
-}
-
+/** Opaque, short-lived continuation owned by the marketplace that issued it. */
 export interface ICustomizationMarketplaceCursor {
-	readonly query: string;
-	readonly mediaType?: CustomizationMarketplaceMediaType;
-	readonly pageSize: number;
-	readonly sources: readonly ICustomizationMarketplaceSourceCursor[];
+	readonly token: string;
 }
 
 export interface ICustomizationMarketplaceQuery {
@@ -77,10 +69,14 @@ export interface ICustomizationMarketplaceQuery {
 	readonly mediaType?: CustomizationMarketplaceMediaType;
 	/** Limit the query to the listed registered sources. An absent value queries every source. */
 	readonly sourceIds?: readonly string[];
-	/** Maximum number of entries to request from each source. */
+	/** Maximum number of entries in the combined page. */
 	readonly pageSize?: number;
-	/** Continue with the same query, media type, page size, and registered sources. */
+	/** Continue with the same query, media type, page size, and selected sources. */
 	readonly cursor?: ICustomizationMarketplaceCursor;
+}
+
+export interface ICustomizationMarketplaceRequest extends ICustomizationMarketplaceQuery {
+	readonly sourceIds: readonly string[];
 }
 
 export interface ICustomizationMarketplacePage {
@@ -90,10 +86,13 @@ export interface ICustomizationMarketplacePage {
 }
 
 export interface ICustomizationMarketplaceSourceQuery extends Omit<ICustomizationMarketplaceQuery, 'cursor' | 'sourceIds'> {
+	/** Maximum number of entries in a native source page; unchanged throughout pagination. */
+	readonly pageSize?: number;
 	readonly cursor?: string;
 }
 
 export interface ICustomizationMarketplaceSourcePage {
+	/** Search results must be in descending score order across all pages, treating absent scores as zero. */
 	readonly items: readonly ICustomizationMarketplaceEntry[];
 	readonly total?: number;
 	readonly nextCursor?: string;
@@ -106,24 +105,60 @@ export interface ICustomizationMarketplaceProvider {
 
 export interface ICustomizationMarketplaceSource extends ICustomizationMarketplaceProvider {
 	readonly id: string;
-	readonly label?: string;
 }
 
-export interface ICustomizationMarketplaceSourceDescriptor {
+export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
-	readonly label: string;
+	readonly label?: string;
+	readonly enablementSetting: string;
+}
+
+export function createLazyCustomizationMarketplaceSource(id: string, createProvider: () => ICustomizationMarketplaceProvider): ICustomizationMarketplaceSource {
+	const provider = new Lazy(createProvider);
+	return {
+		id,
+		query: async (options, token) => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return provider.value.query(options, token);
+		},
+	};
 }
 
 export const ICustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('customizationMarketplaceService');
 
 export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
-	getSources?(): Promise<readonly ICustomizationMarketplaceSourceDescriptor[]>;
+	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 }
 
-export class CustomizationMarketplaceService implements ICustomizationMarketplaceService {
-	declare readonly _serviceBrand: undefined;
+export interface ICustomizationMarketplaceQueryService {
+	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+}
+
+interface IMarketplaceSourceState {
+	cursor?: string;
+	total?: number;
+	items: ICustomizationMarketplaceEntry[];
+	exhausted: boolean;
+	lastScore: number;
+}
+
+interface IMarketplaceContinuation {
+	readonly query: string;
+	readonly mediaType?: CustomizationMarketplaceMediaType;
+	readonly pageSize: number;
+	readonly sourceIds: readonly string[];
+	readonly states: readonly IMarketplaceSourceState[];
+	readonly nextSourceIndex: number;
+	readonly expiresAt: number;
+}
+
+export class CustomizationMarketplaceService implements ICustomizationMarketplaceQueryService {
+
+	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(32);
 
 	constructor(private readonly sources: readonly ICustomizationMarketplaceSource[]) {
 		if (sources.some(source => !source.id) || new Set(sources.map(source => source.id)).size !== sources.length) {
@@ -131,48 +166,88 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 	}
 
-	async getSources(): Promise<readonly ICustomizationMarketplaceSourceDescriptor[]> {
-		return this.sources.map(source => ({ id: source.id, label: source.label ?? source.id }));
-	}
-
-	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
-		if (token.isCancellationRequested) {
+	async query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+		if (token.isCancellationRequested || options.sourceIds.length === 0) {
 			throw new CancellationError();
 		}
+		const sources = this.sources.filter(source => options.sourceIds.includes(source.id));
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? 30;
-		const sourceIds = options.sourceIds;
-		const selectedSourceIds = sourceIds ? new Set(sourceIds) : undefined;
-		const selectedSources = selectedSourceIds ? this.sources.filter(source => selectedSourceIds.has(source.id)) : this.sources;
-		if (query.length > 4096 || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
-			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType)) ||
-			(sourceIds !== undefined && (sourceIds.length === 0 || selectedSourceIds!.size !== sourceIds.length || selectedSources.length !== sourceIds.length))) {
+		if (sources.length !== options.sourceIds.length || query.length > 4096 || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
+			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new Error(localize('customizationMarketplace.invalidQuery', "The marketplace query is invalid."));
 		}
 		const pageSize = Math.min(requestedPageSize, 100);
-		const cursor = options.cursor;
-		if (cursor && (cursor.query !== query || cursor.mediaType !== options.mediaType || cursor.pageSize !== pageSize ||
-			cursor.sources.length !== selectedSources.length || cursor.sources.some((source, index) => source.id !== selectedSources[index].id))) {
+		for (const [key, value] of [...this.continuations]) {
+			if (value.expiresAt <= Date.now()) {
+				this.continuations.delete(key);
+			}
+		}
+		const continuation = options.cursor && this.continuations.get(options.cursor.token);
+		if (options.cursor && (!continuation || continuation.query !== query || continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize ||
+			continuation.sourceIds.length !== sources.length || continuation.sourceIds.some((id, index) => id !== sources[index].id))) {
 			throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
 		}
+		const states: IMarketplaceSourceState[] = continuation
+			? continuation.states.map(state => ({ ...state, items: [...state.items] }))
+			: sources.map(() => ({ items: [], exhausted: false, lastScore: 100 }));
+		let nextSourceIndex = continuation?.nextSourceIndex ?? 0;
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		try {
-			const pages = await raceCancellationError(Promise.all(selectedSources.map((source, index): ICustomizationMarketplaceSourcePage | Promise<ICustomizationMarketplaceSourcePage> => {
-				const previous = cursor?.sources[index];
-				return previous && previous.cursor === undefined
-					? { items: [], total: previous.total }
-					: source.query({ query, mediaType: options.mediaType, pageSize, cursor: previous?.cursor }, cancellation.token);
-			})), cancellation.token);
-			const sources = pages.map((page, index) => ({
-				id: selectedSources[index].id,
-				cursor: page.nextCursor,
-				total: page.total,
-			}));
+			const items: ICustomizationMarketplaceResource[] = [];
+			while (items.length < pageSize) {
+				await raceCancellationError(Promise.all(states.map(async (state, index) => {
+					if (state.items.length || state.exhausted) {
+						return;
+					}
+					const page = await sources[index].query({ query, mediaType: options.mediaType, pageSize, cursor: state.cursor }, cancellation.token);
+					if (page.items.length > pageSize ||
+						(page.total !== undefined && (!Number.isSafeInteger(page.total) || page.total < page.items.length)) ||
+						(page.nextCursor !== undefined && (!page.nextCursor || page.nextCursor === state.cursor || !page.items.length))) {
+						throw new Error(localize('customizationMarketplace.invalidSourcePage', "The marketplace source '{0}' returned an invalid page.", sources[index].id));
+					}
+					let lastScore = state.lastScore;
+					for (const item of page.items) {
+						const score = item.score ?? 0;
+						if ((item.score !== undefined && !Number.isFinite(item.score)) || score < 0 || score > 100 || (query && score > lastScore)) {
+							throw new Error(localize('customizationMarketplace.invalidSourceScore', "The marketplace source '{0}' returned invalid relevance ordering.", sources[index].id));
+						}
+						lastScore = score;
+					}
+					state.items = [...page.items];
+					state.cursor = page.nextCursor;
+					state.total = page.total;
+					state.exhausted = page.nextCursor === undefined;
+					state.lastScore = lastScore;
+				})), cancellation.token);
+
+				let selected = -1;
+				for (let offset = 0; offset < states.length; offset++) {
+					const index = ((query ? 0 : nextSourceIndex) + offset) % states.length;
+					if (states[index].items.length && (selected < 0 ||
+						(query && (states[index].items[0].score ?? 0) > (states[selected].items[0].score ?? 0)))) {
+						selected = index;
+					}
+				}
+				if (selected < 0) {
+					break;
+				}
+				items.push({ ...states[selected].items.shift()!, sourceId: sources[selected].id });
+				nextSourceIndex = (selected + 1) % states.length;
+			}
+			let nextCursor: ICustomizationMarketplaceCursor | undefined;
+			if (states.some(state => state.items.length || !state.exhausted)) {
+				nextCursor = { token: generateUuid() };
+				this.continuations.set(nextCursor.token, {
+					query, mediaType: options.mediaType, pageSize, sourceIds: sources.map(source => source.id),
+					states, nextSourceIndex, expiresAt: Date.now() + 30 * 60_000,
+				});
+			}
 			return {
-				items: pages.flatMap((page, index) => page.items.map(item => ({ ...item, sourceId: selectedSources[index].id }))),
-				total: pages.every(page => page.total !== undefined) ? pages.reduce((total, page) => total + page.total!, 0) : undefined,
-				nextCursor: sources.some(source => source.cursor !== undefined) ? { query, mediaType: options.mediaType, pageSize, sources } : undefined,
+				items,
+				total: states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,
+				nextCursor,
 			};
 		} finally {
 			cancellation.cancel();

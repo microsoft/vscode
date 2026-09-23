@@ -6,6 +6,17 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 - [`../AI_CUSTOMIZATIONS.md`](../AI_CUSTOMIZATIONS.md)
 
+## LOCAL EXPERIMENT OVERRIDES
+
+Production behavior reads the `sessions.list.rearrage` treatment directly from the assignment service. For local testing only, use the assignment service's standard developer override in the user `settings.json`:
+
+- Treatment: `"experiments.override.sessions.list.rearrage": true`
+- Control: `"experiments.override.sessions.list.rearrage": false`
+
+The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
+
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+
 ## SCENARIOS
 
 ### Customization discovery
@@ -13,7 +24,7 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.unifiedMarketplace.enabled` (experimental and disabled by default).
+- Enable `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled` (experimental and disabled by default). This enables the AgentFinder public feed, currently the only production source; Marketplace itself has no feature flag.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
@@ -34,9 +45,11 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.
 15. Install an MCP server. It must be resolved against the configured registry and use the normal MCP installation flow, not executable configuration supplied by the catalog.
 16. Check that installation errors allow retry without losing search results, cancellations do not announce success, and unsupported formats such as Cursor plugins explain why installation is unavailable.
-17. With `chat.customizations.unifiedMarketplace.enabled` unset or false, verify Discover still searches installed customizations but performs no catalog or installation work.
-18. Enable the experiment, start a query or skill import, then disable it. Catalog requests/imports must be cancelled while installed Discover results remain available. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
-19. With an additional test source, return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide.
+17. With the public feed setting unset or false and no other sources enabled, verify Discover still searches installed customizations but performs no catalog or installation work. Neither former setting, `chat.agentFinder.enabled` nor `chat.customizations.unifiedMarketplace.enabled`, enables a source.
+18. Enable the public feed, then disable it during a query or skill import. Catalog requests and imports must be cancelled while installed Discover results remain available. Re-enabling must not revive a cancelled operation or reuse stale installed-skill state.
+19. With an additional test source and an independent enablement setting, verify each window requests only its enabled sources. A disabled source must not be initialized or queried, even when another source is active. Disabling one source resets discovery, does not cancel another source's install, and does not clear that other source's installed-skill state. Installation of disabled or unknown source resources remains unavailable.
+20. Have the test sources return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide. Continuation after a source-set change requires a new search. No second production source is introduced by this change.
+21. Supply independently ranked test sources and search. Each combined page contains at most 24 entries in descending relevance order, including across **Load More** boundaries. Short native pages are backfilled, undisplayed entries are retained, and a failed or cancelled continuation can be retried without losing entries. Equal scores use source-registration order; unscored entries rank as zero. Queryless browsing interleaves the feeds while preserving each feed's native order, continues the rotation across page boundaries, and fills remaining slots from other feeds when one exhausts. Scores are internal ranking signals, not displayed quality or trust ratings.
 
 ### Scenario 1: Empty state — no session, no customizations
 

@@ -121,6 +121,7 @@
 	height: var(--vscode-spacing-size240);
 	min-height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-body1);
 	white-space: nowrap;
 }
 

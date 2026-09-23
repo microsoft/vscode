@@ -235,7 +235,7 @@ suite('aiCustomizationManagementEditor', () => {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: true,
+			[ChatConfiguration.AgentFinderPublicFeedEnabled]: true,
 			...values,
 		};
 		return {
@@ -353,7 +353,7 @@ suite('aiCustomizationManagementEditor', () => {
 		return editor;
 	}
 
-	function createContributedSectionEditor(enablementSetting?: string) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -377,7 +377,7 @@ suite('aiCustomizationManagementEditor', () => {
 			label: 'Test harness settings',
 			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
-			enablementSetting,
+			enablementSettings,
 			supportsHarness: id => id === harnessId,
 			create: () => {
 				state.created++;
@@ -394,10 +394,10 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
-	function createGatedSectionEditor(enabled?: boolean) {
-		const context = createContributedSectionEditor(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled);
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [ChatConfiguration.AgentFinderPublicFeedEnabled]) {
+		const context = createContributedSectionEditor(enablementSettings);
 		const { editor, section } = context;
-		const configuration = createConfigurationServiceStub({ [ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled]: enabled });
+		const configuration = createConfigurationServiceStub({ [ChatConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
 		const sections: { id: AICustomizationManagementSection }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
@@ -450,7 +450,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const container = editor.contributedSectionContainers.get(section)!;
 		container.textContent = 'Feature content';
 
-		await configuration.updateValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, false);
+		await configuration.updateValue(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
 		editor.updateContributedSectionEnablement();
 		const disabled = {
 			created: state.created,
@@ -461,7 +461,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sections: sections.map(section => section.id),
 			overview: getOverview(),
 		};
-		await configuration.updateValue(ChatConfiguration.ChatCustomizationsUnifiedMarketplaceEnabled, true);
+		await configuration.updateValue(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
 		editor.updateContributedSectionEnablement();
 		editor.selectSectionById(section);
 
@@ -472,6 +472,58 @@ suite('aiCustomizationManagementEditor', () => {
 				overview: [AICustomizationManagementSection.Agents],
 			},
 			reenabled: { created: 2, disposed: 1, visible: true },
+		});
+	});
+
+	test('keeps a contributed section alive while either source is enabled', async () => {
+		const secondSetting = 'test.marketplace.second.enabled';
+		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(
+			true, [ChatConfiguration.AgentFinderPublicFeedEnabled, secondSetting]);
+		editor.rebuildVisibleSections();
+		editor.setVisible(true);
+		editor.selectSectionById(section);
+		const firstWidget = editor.getActiveSectionWidget();
+		await configuration.updateValue(secondSetting, true);
+		editor.updateContributedSectionEnablement();
+		await configuration.updateValue(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		editor.updateContributedSectionEnablement();
+		const remainingSource = {
+			sameWidget: editor.getActiveSectionWidget() === firstWidget,
+			selected: editor.selectedSection,
+			created: state.created,
+			disposed: state.disposed,
+			visible: state.visible,
+			sections: sections.map(section => section.id),
+			overview: getOverview(),
+		};
+		await configuration.updateValue(secondSetting, false);
+		editor.updateContributedSectionEnablement();
+		const noneEnabled = {
+			widget: editor.getActiveSectionWidget(),
+			selected: editor.selectedSection,
+			disposed: state.disposed,
+			sections: sections.map(section => section.id),
+		};
+		await configuration.updateValue(secondSetting, true);
+		editor.updateContributedSectionEnablement();
+		editor.selectSectionById(section);
+		assert.deepStrictEqual({ remainingSource, noneEnabled, reenabled: { created: state.created, visible: state.visible } }, {
+			remainingSource: {
+				sameWidget: true, selected: section, created: 1, disposed: 0, visible: true,
+				sections: [AICustomizationManagementSection.Agents, section],
+				overview: [AICustomizationManagementSection.Agents, section],
+			},
+			noneEnabled: { widget: undefined, selected: undefined, disposed: 1, sections: [AICustomizationManagementSection.Agents] },
+			reenabled: { created: 2, visible: true },
+		});
+	});
+
+	test('a contributed section with no source settings remains hidden', () => {
+		const { editor, state, section, sections } = createGatedSectionEditor(true, []);
+		editor.rebuildVisibleSections();
+		editor.selectSectionById(section);
+		assert.deepStrictEqual({ created: state.created, sections: sections.map(section => section.id) }, {
+			created: 0, sections: [AICustomizationManagementSection.Agents],
 		});
 	});
 
@@ -533,6 +585,29 @@ suite('aiCustomizationManagementEditor', () => {
 			reused: true,
 			created: 1,
 		});
+	});
+
+	test('reopening input reactivates Discover without a visibility transition', async () => {
+		const { editor } = createContributedSectionEditor();
+		const firstInput = store.add(new AICustomizationManagementEditorInput());
+		const reopenedInput = store.add(new AICustomizationManagementEditorInput());
+		const visibilityChanges: boolean[] = [];
+		editor.selectedSection = undefined;
+		Object.assign(editor, {
+			welcomePage: {
+				setVisible(visible: boolean) {
+					visibilityChanges.push(visible);
+				},
+			},
+		});
+		editor.setVisible(true);
+		await editor.setInput(firstInput, undefined, {}, CancellationToken.None);
+		visibilityChanges.length = 0;
+
+		editor.clearInput();
+		await editor.setInput(reopenedInput, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual(visibilityChanges, [false, true]);
 	});
 
 	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {
