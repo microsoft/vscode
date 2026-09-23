@@ -140,6 +140,7 @@ suite('InboxNotificationsService', () => {
 		const managementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionsChangeEmitter.event,
 			getSessions: () => sessions,
+			getSession: (resource: URI) => sessions.find(candidate => candidate.resource.toString() === resource.toString()),
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
 		const effectiveGitHubService = gitHubService ?? new TestGitHubService();

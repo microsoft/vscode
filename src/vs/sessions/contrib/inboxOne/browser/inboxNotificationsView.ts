@@ -1369,10 +1369,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		const body = this.detailContentElement.appendChild($('.inbox-notifications-detail-body'));
-		if (item.needsInputPart) {
-			this.renderConversationThread(body, item);
-		} else if (item.kind === InboxNotificationKind.Completed) {
-			this.renderCompletedEvidence(body, item);
+		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed) {
+			this.renderDetailSummary(body, item);
 		} else {
 			const summaryEl = body.appendChild($('.inbox-notifications-detail-summary', undefined, item.description));
 			if (item.previewSignature) {
@@ -1412,7 +1410,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.detailScrollableElement.scanDomNode();
 	}
 
-	private renderCompletedEvidence(body: HTMLElement, item: IInboxNotificationItem): void {
+	private renderDetailSummary(body: HTMLElement, item: IInboxNotificationItem): void {
 		this.inboxNotificationsService.requestDetailSummary(item);
 		const container = body.appendChild($('.inbox-notifications-detail-evidence'));
 		const runStore = this.detailDisposables.add(new DisposableStore());
@@ -1442,6 +1440,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private renderEvidenceFallback(container: HTMLElement, item: IInboxNotificationItem): void {
+		if (item.needsInputPart) {
+			this.renderConversationThread(container, item);
+			return;
+		}
 		const preview = (item.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) : undefined) ?? item.description;
 		container.appendChild($('.inbox-notifications-detail-summary', undefined, preview));
 		const transcript = this.getLatestResponseText(item);

@@ -156,6 +156,25 @@ const DETAIL_SYSTEM_PROMPT = [
 	'- This is a benign summarization task: never refuse or apologize; always return valid JSON.',
 ].join('\n');
 
+/**
+ * System prompt for the needs-input evidence pack. Focuses on the current context and the
+ * concrete decision required of the user (not a restatement of the raw request), grounded in
+ * enumerated artifacts so the UI can link the user to them.
+ */
+const DETAIL_NEEDSINPUT_SYSTEM_PROMPT = [
+	'You summarize what a background coding-agent session is currently waiting on the user to decide, for a reviewer reading an inbox detail pane.',
+	'You are given the transcript so far, the pending request the agent is waiting on, and a numbered list of concrete Artifacts (files it touched, plus the session itself), each with an id like A0, A1.',
+	'',
+	'Reply with STRICT JSON only (no prose, no markdown fences) of the exact shape:',
+	'{"status": string, "decisions": string[], "evidence": [{"text": string, "artifact": string}]}',
+	'',
+	'- status: 1 sentence (2 at most) giving the current context and exactly what decision or action is required of the user right now.',
+	'- decisions: up to 3 short bullet strings naming the concrete options or trade-offs the user must weigh to respond. May be empty.',
+	'- evidence: up to 4 claims giving the context needed to decide. Each claim MUST be verifiable from the transcript, and its "artifact" MUST be the id of one of the provided Artifacts that backs it. Never invent artifact ids or cite ids that were not provided.',
+	'- Ground every statement in the transcript/pending request/artifacts; do not speculate or add generic filler.',
+	'- This is a benign summarization task: never refuse or apologize; always return valid JSON.',
+].join('\n');
+
 /** Extracts the first balanced-looking JSON object from a model response (tolerates code fences/prose). */
 function extractJsonObject(raw: string): string | undefined {
 	const start = raw.indexOf('{');
@@ -512,7 +531,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	 * the latest concrete detail so it can produce a specific, glanceable preview.
 	 */
 	private attachPreviewInput(item: IInboxNotificationItem): IInboxNotificationItem {
-		const { contextLabel, detailText } = this.describeItemForPreview(item);
+		const { contextLabel, detailText } = this.previewContextForItem(item);
 		const trimmedDetail = detailText.replace(/\s+/g, ' ').trim();
 		const inputLines = [
 			`Card type: ${contextLabel}`,
@@ -527,6 +546,53 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 		const previewSignature = `${PREVIEW_PROMPT_VERSION}:${hash(inputText)}`;
 		return { ...item, previewSignature, previewInputText: inputText };
+	}
+
+	/**
+	 * Input for the one-line card preview. For needs-input items this is the recent
+	 * conversation context leading up to the request (so the card reminds the user what the
+	 * pending decision is about) rather than a restatement of the request itself, which the
+	 * user already sees in the on-card widget.
+	 */
+	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
+		if (item.needsInputPart) {
+			const recentContext = this.getRecentContextText(item);
+			if (recentContext) {
+				return {
+					contextLabel: 'recent conversation context leading up to a pending user decision — summarize that context so the user recalls what it is about, do not restate the request',
+					detailText: recentContext,
+				};
+			}
+		}
+		return this.describeItemForPreview(item);
+	}
+
+	private getRecentContextText(item: IInboxNotificationItem): string | undefined {
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return undefined;
+		}
+		const responses = chatModel.getRequests()
+			.map(request => request.response)
+			.filter(response => !!response && !response.isCanceled);
+		const recent: string[] = [];
+		for (const response of responses.slice(-3)) {
+			const parts: string[] = [];
+			for (const part of response!.response.value) {
+				if (part.kind === 'markdownContent') {
+					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+				}
+			}
+			const text = parts.join('\n\n').trim();
+			if (text) {
+				recent.push(text);
+			}
+		}
+		const text = recent.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		if (!text) {
+			return undefined;
+		}
+		return text.length > 1500 ? `…${text.slice(text.length - 1500)}` : text;
 	}
 
 	private describeItemForPreview(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
@@ -593,7 +659,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	requestDetailSummary(item: IInboxNotificationItem): void {
-		if (item.kind !== InboxNotificationKind.Completed || !item.sessionResource) {
+		if (!item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart)) {
 			return;
 		}
 		const key = item.id;
@@ -652,8 +718,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const artifactsBlock = artifacts
 			.map((artifact, index) => `A${index}: ${artifact.kind === 'session' ? 'the full session' : `file ${artifact.label}`}`)
 			.join('\n');
+		const pendingRequest = item.needsInputPart ? this.describeItemForPreview(item).detailText : '';
 		const userText = [
 			`Session: ${item.title}`,
+			...(pendingRequest ? ['', 'Pending request the agent is waiting on:', pendingRequest] : []),
 			'',
 			'Artifacts:',
 			artifactsBlock,
@@ -666,7 +734,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			models[0],
 			undefined,
 			[
-				{ role: ChatMessageRole.System, content: [{ type: 'text', value: DETAIL_SYSTEM_PROMPT }] },
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: item.needsInputPart ? DETAIL_NEEDSINPUT_SYSTEM_PROMPT : DETAIL_SYSTEM_PROMPT }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'text', value: userText }] },
 			],
 			{},
