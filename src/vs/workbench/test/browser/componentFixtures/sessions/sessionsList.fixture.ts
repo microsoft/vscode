@@ -654,22 +654,30 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	if (options.revealHierarchyGuides) {
-		const pinnedSection = listHost.querySelector<HTMLElement>('.session-section-icon.codicon-pinned')?.parentElement;
-		if (!pinnedSection) {
-			throw new Error('Expected the pinned section to reveal its session.');
+		const pinnedSection = listHost.querySelector<HTMLElement>('.monaco-list-row[aria-expanded="false"] .session-section-icon.codicon-pinned')?.parentElement;
+		if (pinnedSection) {
+			pinnedSection.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			await Promise.resolve();
 		}
-		pinnedSection.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-		return Promise.resolve().then(() => {
-			const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
-			if (!sessionItem) {
-				throw new Error('Expected a session row to reveal its hierarchy guides.');
-			}
-			sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		});
+		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
+		if (!sessionItem) {
+			throw new Error('Expected a session row to reveal its hierarchy guides.');
+		}
+		sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 	}
 }
 
+const NESTED_CHAT_SESSION: ISessionSpec = {
+	id: 'a',
+	title: 'HTTP Client Retry Plan',
+	workspace: 'vscode-tools',
+	minutesAgo: 2,
+	chats: [
+		{ id: 'task-a', title: 'Task A' },
+		{ id: 'task-b', title: 'Task B' },
+	],
+};
 const GROUP: ISessionGroup = { id: 'group-1', name: 'Release work', createdAt: Date.now() };
 const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'a', title: 'Fix authentication redirect loop', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, changesSummary: { files: 4, additions: 132, deletions: 18 } },
@@ -1016,24 +1024,29 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			width: 340,
 		}),
 	}),
+	SessionsList_NestedChats: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['An expanded session in its workspace section has two nested chat rows. Rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [NESTED_CHAT_SESSION],
+			revealHierarchyGuides: true,
+			width: 340,
+		}),
+	}),
+	SessionsList_NestedChats_PinnedView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['An expanded session with its view pinned remains in its workspace section rather than the Pinned sidebar section. Its sticky marker does not shift the parent icon or hierarchy connectors, and both nested chat rows remain visible.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
+			revealHierarchyGuides: true,
+			width: 340,
+		}),
+	}),
 	SessionsList_NestedChatHierarchyGuides: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
 		render: ctx => renderSessionsList(ctx, {
-			sessions: [
-				{
-					id: 'a',
-					title: 'HTTP Client Retry Plan',
-					workspace: 'vscode-tools',
-					minutesAgo: 2,
-					pinned: true,
-					sticky: true,
-					chats: [
-						{ id: 'task-a', title: 'Task A' },
-						{ id: 'task-b', title: 'Task B' },
-					],
-				},
-			],
+			sessions: [{ ...NESTED_CHAT_SESSION, pinned: true, sticky: true }],
 			revealHierarchyGuides: true,
 			width: 340,
 		}),
