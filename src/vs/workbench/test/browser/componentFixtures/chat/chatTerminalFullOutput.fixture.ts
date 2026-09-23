@@ -111,7 +111,9 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			registration.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async stat(): Promise<IFileStatWithPartialMetadata> {
-					return new class extends mock<IFileStatWithPartialMetadata>() { }();
+					return new class extends mock<IFileStatWithPartialMetadata>() {
+						override readonly size = 128;
+					}();
 				}
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());

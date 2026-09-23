@@ -24,7 +24,7 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTr
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
-import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, type IFileStatWithPartialMetadata } from '../../../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, getLargeFileConfirmationLimit, IFileService, type IFileStatWithPartialMetadata } from '../../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -265,6 +265,7 @@ interface ITerminalFullOutputPartOptions {
 	readonly hasReference?: boolean;
 	readonly truncated?: boolean;
 	readonly artifactAvailable?: boolean;
+	readonly artifactSize?: number;
 	readonly availability?: Promise<void>;
 }
 
@@ -322,7 +323,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 	}());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { }());
 
-	const availabilityByResource = new Map<string, Promise<void>>();
+	const availabilityByResource = new Map<string, { readonly ready: Promise<void>; readonly size: number }>();
 	const probes: URI[] = [];
 	instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 		override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
@@ -331,8 +332,10 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			if (!availability) {
 				throw createFileSystemProviderError('Full output unavailable', FileSystemProviderErrorCode.FileNotFound);
 			}
-			await availability;
-			return new class extends mock<IFileStatWithPartialMetadata>() { }();
+			await availability.ready;
+			return new class extends mock<IFileStatWithPartialMetadata>() {
+				override readonly size = availability.size;
+			}();
 		}
 	}());
 
@@ -429,9 +432,12 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		};
 		if (terminal && data.terminalCommandOutput?.truncated) {
 			const resource = ChatResponseResource.createTerminalOutputUri(sessionResource, toolCallId, terminal, terminalOutputName(toolCallId));
-			availabilityByResource.set(resource.toString(), options.availability ?? (options.artifactAvailable === false
-				? Promise.reject(createFileSystemProviderError('Full output unavailable', FileSystemProviderErrorCode.FileNotFound))
-				: Promise.resolve()));
+			availabilityByResource.set(resource.toString(), {
+				ready: options.availability ?? (options.artifactAvailable === false
+					? Promise.reject(createFileSystemProviderError('Full output unavailable', FileSystemProviderErrorCode.FileNotFound))
+					: Promise.resolve()),
+				size: options.artifactSize ?? 128,
+			});
 		}
 		const part = store.add(instantiationService.createInstance(
 			ChatTerminalToolProgressPart,
@@ -580,6 +586,27 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ action: part.fullOutputAction, probes: harness.probes.length }, { action: undefined, probes: 1 });
 	});
+
+	for (const oversized of [false, true]) {
+		test(`preserves the saved-path fallback above the host read limit (oversized: ${oversized})`, async () => {
+			const harness = await createTerminalFullOutputHarness(store);
+			const { part } = harness.createPart({
+				mode: 'plain',
+				artifactSize: getLargeFileConfirmationLimit('agent-host') + (oversized ? 1 : 0),
+				fallback: 'Saved to: /artifact/output.txt',
+				preview: 'preview',
+			});
+			await harness.expand(part, 'plain');
+			await timeout(0);
+			assert.deepStrictEqual({
+				action: !!part.fullOutputAction,
+				rendered: snapshotText(harness.raw(part)),
+			}, {
+				action: !oversized,
+				rendered: oversized ? 'Saved to: /artifact/output.txt' : 'preview',
+			});
+		});
+	}
 
 	test('does not publish a stale action after terminal identity replacement', async () => {
 		const harness = await createTerminalFullOutputHarness(store);

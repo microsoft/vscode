@@ -66,7 +66,7 @@ import { editorBackground } from '../../../../../../../platform/theme/common/col
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
+import { FileOperationResult, getLargeFileConfirmationLimit, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
 
 /**
  * Minimum number of rows to display in the terminal output view.
@@ -822,7 +822,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _probeFullOutput(resource: URI, terminalUri: URI, runId: string): Promise<void> {
 		try {
-			await this._fileService.stat(resource);
+			const stat = await this._fileService.stat(resource);
+			if (stat.size > getLargeFileConfirmationLimit(terminalUri.authority)) {
+				return;
+			}
 		} catch (error) {
 			const result = toFileOperationResult(error);
 			if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_PERMISSION_DENIED) {
