@@ -468,9 +468,6 @@ export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
  */
 export const SESSION_CHANGES_CHANGESET_ID = 'session';
 
-/** Well-known id of the cumulative changes attributed to one chat. */
-export const CHAT_CHANGES_CHANGESET_ID = 'chat';
-
 /**
  * Well-known id of the changeset that holds the diff made during the session's
  * **last turn** only (as opposed to the cumulative session diff). Consumers that
@@ -813,8 +810,6 @@ export interface ISession {
 	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
-	/** Session-owned selectable changesets shared by all chats in the session. */
-	readonly changesets?: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * The artifacts and references the agent recorded for this session (pull
 	 * requests, issues, files, …). Both categories share this observable and are

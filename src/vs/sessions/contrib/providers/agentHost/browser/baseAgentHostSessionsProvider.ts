@@ -980,7 +980,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
-	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
 	modelSelection: ModelSelection | undefined;
@@ -1298,9 +1297,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// As soon as the session is no longer active, the changes summary will be
 		// updated from `metadata.changes` (mirroring `SessionSummary.changes`).
 		this.setChangesSummary(metadata.changes);
-		this.changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
-		this.updateChangesets(metadata.changesets);
-
 		// The last turn's changes and the chat customizations, parsed from the
 		// chat-state turns. Computed lazily from the same active-session
 		// subscriptions used for changes.
@@ -2136,11 +2132,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 	}
 
-	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined): void {
-		this.changesets.set(changesetsMetadata
-			? createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata)
-			: undefined, undefined);
-	}
 }
 
 /**
@@ -2463,7 +2454,6 @@ class NewSession extends Disposable {
 			title,
 			updatedAt,
 			status: this._status,
-			changesets: constObservable([]),
 			modelId: this._modelId,
 			mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
@@ -6083,9 +6073,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetadataFromState(sessionId, state, previous);
 		const rawId = this._rawIdFromChatId(sessionId);
-		if (rawId) {
-			this._sessionCache.get(rawId)?.updateChangesets(state.changesets);
-		}
 		this._applyChatCatalogFromState(sessionId, state);
 		if (rawId) {
 			this._chatCatalogLoading.get(rawId)?.set(false, undefined);

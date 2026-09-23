@@ -250,7 +250,6 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get status() { return this._session.status; }
 	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
-	get changesets() { return this._session.changesets; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
@@ -302,7 +301,6 @@ class ResourceOverrideSession implements ISession {
 	get status() { return this._session.status; }
 	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
-	get changesets() { return this._session.changesets; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }

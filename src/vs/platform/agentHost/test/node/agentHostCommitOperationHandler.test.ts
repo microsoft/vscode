@@ -248,7 +248,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			gitCalls: gitService.calls,
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
-			prompt: 'Repository: repo\nBranch: abc1234\nChanged files:\n- Create: /repo/file.ts (+1 -0)',
+			prompt: `Repository: repo\nBranch: abc1234\nChanged files:\n- Create: ${URI.file('/repo/file.ts').fsPath} (+1 -0)`,
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 		});
 	});
