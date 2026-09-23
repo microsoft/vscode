@@ -65,10 +65,6 @@ export function decideHostKeyTrust(
 		return { kind: 'deny', reason: 'revoked' };
 	}
 
-	if (request.knownHostsMatch === 'other-key-type' && !storedKeyMatches) {
-		return { kind: 'deny', reason: 'mismatch', source: 'known-hosts' };
-	}
-
 	if (strict === 'no' || strict === 'off') {
 		// The opt-out covers *unknown* keys, not a key that disagrees with one
 		// we already trust. Verified against OpenSSH 9.9: with
@@ -112,6 +108,9 @@ export function decideHostKeyTrust(
 	// No exact known_hosts match.
 	if (strict === 'yes') {
 		return { kind: 'deny', reason: 'strict-yes' };
+	}
+	if (strict === 'accept-new' && request.knownHostsMatch === 'other-key-type') {
+		return { kind: 'deny', reason: 'mismatch', source: 'known-hosts' };
 	}
 	if (strict === 'accept-new' && request.knownHostsMatch === 'unknown') {
 		return { kind: 'trust', persist: true, reason: 'strict-accept-new' };
