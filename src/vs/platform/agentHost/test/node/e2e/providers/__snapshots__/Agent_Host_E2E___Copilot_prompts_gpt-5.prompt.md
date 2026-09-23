@@ -771,7 +771,7 @@
     },
     {
       "name": "create_session",
-      "description": "Create delegated work and start it with an initial prompt, either in a new chat sharing the current session's workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.",
+      "description": "Create delegated work and start it with an initial prompt.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -781,19 +781,19 @@
               "currentSession",
               "independent"
             ],
-            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree."
+            "description": "Use `independent` only for work that is unrelated to the current session's plan or deliverable. Otherwise omit it; defaults to `currentSession`. Work in the current session can also be in a different workspace."
           },
           "prompt": {
             "type": "string",
-            "description": "Initial prompt to send to the new session."
+            "description": "Initial prompt to send to the new chat or session."
           },
           "workspace": {
             "type": "string",
-            "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`."
+            "description": "Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session's workspace."
           },
           "worktree": {
             "type": "boolean",
-            "description": "Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session's isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`."
+            "description": "Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session's isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set."
           },
           "title": {
             "type": "string",
@@ -805,7 +805,6 @@
           }
         },
         "required": [
-          "relationship",
           "prompt",
           "title"
         ]

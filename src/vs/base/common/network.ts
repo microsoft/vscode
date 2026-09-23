@@ -98,6 +98,10 @@ export namespace Schemas {
 
 	/** Scheme used for read-only resources owned by a chat response or attachment */
 	export const vscodeChatResponseResource = 'vscode-chat-response-resource';
+	/** Scheme used for Agent Host terminal channels. */
+	export const agentHostTerminal = 'agenthost-terminal';
+	/** Scheme used for subscription-backed Agent Host terminal output editors. */
+	export const vscodeChatTerminalOutput = 'vscode-chat-terminal-output';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)

@@ -8,13 +8,14 @@ import type { Database, RunResult } from '@vscode/sqlite3';
 import { Sequencer } from '../../../base/common/async.js';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider } from '../common/agent.js';
 import { decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
  * In particular, discovery may upgrade a restored session to external, but must
- * never override an explicitly created Agent Host session. Removing legacy
+ * never override an explicitly created or adopted Agent Host session. Removing legacy
  * migration alone does not make this redundant; it can only be removed if
  * registration APIs encode these conflict rules without relying on stored origin.
  */
@@ -117,7 +118,11 @@ export type AgentHostDatabaseSessionChatCatalogReplaceResult =
 
 export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned';
 
+export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
+
 export interface IAgentHostDatabase extends IDisposable {
+	readonly _serviceBrand: undefined;
+
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
 	 * When requested, the tombstone check and registration are atomic.
@@ -451,6 +456,7 @@ function close(database: Database): Promise<void> {
 }
 
 export class AgentHostDatabase implements IAgentHostDatabase {
+	declare readonly _serviceBrand: undefined;
 
 	private _databasePromise: Promise<Database> | undefined;
 	private _closed: Promise<void> | true | undefined;

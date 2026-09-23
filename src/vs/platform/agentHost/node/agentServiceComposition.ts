@@ -6,7 +6,6 @@
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
-import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -25,12 +24,12 @@ import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.j
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
-import { AgentHostDatabase } from './agentHostDatabase.js';
+import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
-import { AgentSessionRegistry } from './agentSessionRegistry.js';
+import { IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
@@ -84,16 +83,16 @@ export function createAgentServiceComposition(
 	const contributions = owned.add(new MutableDisposable<IDisposable>());
 	let agentService: AgentService | undefined;
 	try {
-		const databasePath = options.rootConfigResource
-			? joinPath(dirname(options.rootConfigResource), 'agent-host.db').fsPath
-			: ':memory:';
-		const orchestratorDatabase = owned.add(options.orchestratorDatabase ?? new AgentHostDatabase(databasePath));
+		if (options.orchestratorDatabase) {
+			owned.add(options.orchestratorDatabase);
+		}
+		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
 		const { callbackAdapter, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
 		const providerService = accessor.get(IAgentHostProviderService);
-		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
+		const sessionRegistry = accessor.get(IAgentSessionRegistry);
 		const core: IAgentServiceCore = {
 			disposables: owned,
 			authenticationService,
