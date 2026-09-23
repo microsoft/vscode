@@ -192,7 +192,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ClaudeAltPrompt]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.claudeAltPrompt.title', "Claude Alternate Agent Prompt"),
-		description: localize('agentHost.config.claudeAltPrompt.description', "When enabled, Copilot SDK sessions running a Claude model apply system-prompt section overrides ported from the Copilot Chat Claude agent prompt, replacing the SDK's verification and thoroughness mandates with Copilot Chat's scope and exploration restraint guidance."),
+		description: localize('agentHost.config.claudeAltPrompt.description', "When enabled, Copilot SDK sessions running a Claude model apply system-prompt section overrides ported from the Copilot Chat Claude agent prompt, replacing the SDK's verification and thoroughness mandates with Copilot Chat's scope and exploration restraint guidance. Applies to sessions launched after the change."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({

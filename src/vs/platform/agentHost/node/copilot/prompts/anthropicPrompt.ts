@@ -59,7 +59,9 @@ export const CLAUDE_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE = [
 /**
  * Copilot Chat `<instructions>` exploration guidance. The Opus variant
  * (Claude46OpusPrompt) is the default for every Claude model, matching Copilot
- * Chat's own fallback; Sonnet gets its Claude46SonnetPrompt wording.
+ * Chat's own fallback; Sonnet gets its Claude46SonnetPrompt wording. Haiku
+ * receives the Opus wording here although Copilot Chat routes it to its Claude
+ * 4.5 prompt — evaluated as acceptable (terminalbench2-1 +11 resolved, 1.14× input).
  */
 function explorationGuidance(model: ModelSelection): string {
 	if (isSonnet(model)) {
