@@ -57,6 +57,8 @@ export interface WebviewView {
 	 * Force the webview view to show.
 	 */
 	show(preserveFocus: boolean): void;
+
+	close(): void;
 }
 
 /**
