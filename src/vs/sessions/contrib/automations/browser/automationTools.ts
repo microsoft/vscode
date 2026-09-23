@@ -165,13 +165,11 @@ export class ListAutomationsTool implements IToolImpl {
 		const automationCount = providers.reduce((count, provider) => count + provider.automations.length, 0);
 		const incompleteProviderCount = providers.filter(provider => provider.state !== 'ready').length;
 		const result = automationToolResult(JSON.stringify(providers, undefined, 2));
-		result.toolResultMessage = incompleteProviderCount === 1
-			? localize('automation.tool.list.result.oneIncompleteProvider', "Listed {0} visible automations from {1} providers; 1 provider is incomplete", automationCount, providers.length)
-			: incompleteProviderCount > 1
-				? localize('automation.tool.list.result.incompleteProviders', "Listed {0} visible automations from {1} providers; {2} providers are incomplete", automationCount, providers.length, incompleteProviderCount)
-				: automationCount === 1
-					? localize('automation.tool.list.result.singular', "Listed 1 automation")
-					: localize('automation.tool.list.result.plural', "Listed {0} automations", automationCount);
+		result.toolResultMessage = incompleteProviderCount > 0
+			? localize('automation.tool.list.result.incompleteProviders', "Visible automations: {0}; incomplete providers: {1} of {2}", automationCount, incompleteProviderCount, providers.length)
+			: automationCount === 1
+				? localize('automation.tool.list.result.singular', "Listed 1 automation")
+				: localize('automation.tool.list.result.plural', "Listed {0} automations", automationCount);
 		return result;
 	}
 }

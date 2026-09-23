@@ -535,7 +535,7 @@ suite('AutomationTools', () => {
 					automations: [],
 				},
 			],
-			message: 'Listed 1 visible automations from 2 providers; 1 provider is incomplete',
+			message: 'Visible automations: 1; incomplete providers: 1 of 2',
 		});
 	});
 
@@ -558,10 +558,12 @@ suite('AutomationTools', () => {
 			state: providers[0].state,
 			ids: providers[0].automations.map((automation: { id: string }) => automation.id),
 			availableOperations: providers[0].automations[0].availableOperations,
+			message: result.toolResultMessage,
 		}, {
 			state: 'unavailable',
 			ids: ['automation-1'],
 			availableOperations: [],
+			message: 'Visible automations: 1; incomplete providers: 1 of 1',
 		});
 	});
 
