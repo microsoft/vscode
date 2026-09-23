@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -134,6 +134,7 @@ class TestSessionTypePicker extends SessionTypePicker {
 interface ITestPickerServices {
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly chatEntitlementService?: IChatEntitlementService;
+	readonly providers?: readonly ISessionsProvider[];
 }
 
 function createPicker(
@@ -151,9 +152,9 @@ function createPicker(
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
-			return (localProviderIds.includes(providerId)
+			return (services.providers?.find(provider => provider.id === providerId) ?? (localProviderIds.includes(providerId)
 				? { id: providerId, label: providerId, supportsLocalWorkspaces: true }
-				: undefined) as T | undefined;
+				: undefined)) as T | undefined;
 		}
 	}());
 	instantiationService.stub(IStorageService, storage);
@@ -215,6 +216,53 @@ suite('SessionTypePicker', () => {
 		visibility.push(picker.isVisible.get());
 
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
+
+	test('a creation destination keeps Copilot fixed without overwriting a saved Cloud preference', () => {
+		const cloud = sessionType('cloud', 'cloud-agent', 'Cloud');
+		const sandbox = sessionType('creation', 'sandbox-agent', 'Copilot');
+		management.setSessionTypes([sandbox, cloud]);
+		session.set(createFakeSession('cloud', cloud.sessionType.id, folder), undefined);
+		const providerId = observableValue<string | undefined>('creationProvider', undefined);
+		const picker = createPicker(disposables, session, management, storage, { providerId }, undefined, [], {
+			providers: [upcastPartial<ISessionsProvider>({
+				id: 'creation',
+				sessionTypes: [sandbox.sessionType],
+				getSessionTypes: () => [sandbox.sessionType],
+			})],
+		});
+		picker.pick({ providerId: 'cloud', sessionTypeId: cloud.sessionType.id });
+		session.set(undefined, undefined);
+		providerId.set('creation', undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+		const scoped = {
+			offered: picker.offeredSessionTypeIds,
+			selected: picker.selectedPick,
+			preferred: picker.getPreferredSessionType(folder),
+			storedForCreation: picker.getUserPickedSessionType(),
+			label: trigger?.getAttribute('aria-label'),
+			disabled: trigger?.getAttribute('aria-disabled'),
+			tabIndex: trigger?.tabIndex,
+		};
+		providerId.set(undefined, undefined);
+
+		assert.deepStrictEqual({
+			scoped,
+			storedAfterLeaving: picker.getUserPickedSessionType(),
+		}, {
+			scoped: {
+				offered: [sandbox.sessionType.id],
+				selected: { providerId: 'creation', sessionTypeId: sandbox.sessionType.id },
+				preferred: { providerId: 'creation', sessionTypeId: sandbox.sessionType.id },
+				storedForCreation: undefined,
+				label: 'Session Type, Copilot',
+				disabled: 'true',
+				tabIndex: -1,
+			},
+			storedAfterLeaving: { providerId: 'cloud', sessionTypeId: cloud.sessionType.id },
+		});
 	});
 
 	test('uses provider initialization metadata before models are discovered', () => {

@@ -14,6 +14,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
@@ -53,8 +54,11 @@ import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js'
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
+
+export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
 
 /**
  * Mission Control creates every sandbox session as `ahp-session:/<id>` while the host advertises the
@@ -76,6 +80,7 @@ const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
 	order: 1,
 	connectable: false,
+	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
 };
 
 /** Names the environment rather than the task used as the provider's display name. */
@@ -203,7 +208,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		// when disabled, so enabling the setting doesn't require a reload and disabling it doesn't
 		// leave stale providers, connections, or credential refreshers behind.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CloudSandboxEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+			if (e.affectsConfiguration(CloudSandboxEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this._updateHostGroupRegistration();
 				if (this._isEnabled()) {
 					void this._discoverAndSeed();
@@ -665,7 +670,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	}
 
 	private _isEnabled(): boolean {
-		return isCloudSandboxEnabled(this._configurationService);
+		return isCloudSandboxEnabled(this._configurationService) && !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 	}
 
 	/**

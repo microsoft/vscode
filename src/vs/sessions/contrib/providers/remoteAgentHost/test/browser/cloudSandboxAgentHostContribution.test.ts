@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -34,6 +35,7 @@ import {
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -45,7 +47,7 @@ import { IAgentHostFilterService } from '../../../../../services/agentHostFilter
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
@@ -161,6 +163,7 @@ const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
 	label: 'GitHub Sandboxes',
 	order: 1,
 	connectable: false,
+	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
 };
 
 interface ITestHarness {
@@ -198,6 +201,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly getEnvironment?: (id: string, token: CancellationToken) => Promise<ICloudSandboxEnvironmentRecord>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
+	readonly aiDisabled?: boolean;
 	readonly logService?: ILogService;
 }): Promise<ITestHarness> {
 	const discoveryHandlers: (() => Promise<void>)[] = [];
@@ -292,6 +296,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const configurationService = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
+		[ChatAIDisabledSettingId]: options?.aiDisabled ?? false,
 	});
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -416,6 +421,33 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const { hostGroups } = await createContribution(store, [discoveredSession()], { enabled: false });
 
 		assert.deepStrictEqual([...hostGroups], []);
+	});
+
+	test('does not advertise or discover sandboxes when AI features are disabled', async () => {
+		let discoveries = 0;
+		const { contribution, hostGroups } = await createContribution(store, [], {
+			aiDisabled: true,
+			listSessions: async () => {
+				discoveries++;
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+
+		assert.deepStrictEqual({ discoveries, groups: [...hostGroups], providers: [...contribution.stubProviders.keys()] }, { discoveries: 0, groups: [], providers: [] });
+	});
+
+	test('removes sandbox hosts and disposes their providers when AI features are disabled', async () => {
+		const { contribution, configurationService, hostGroups } = await createContribution(store, [discoveredSession()]);
+		const providers = [...contribution.stubProviders.values()];
+		await configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === ChatAIDisabledSettingId,
+			affectedKeys: new Set([ChatAIDisabledSettingId]),
+			change: { keys: [ChatAIDisabledSettingId], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+
+		assert.deepStrictEqual({ disposed: providers.map(provider => provider.disposed), groups: [...hostGroups] }, { disposed: [true], groups: [] });
 	});
 
 	test('does not warn when discovery is cancelled', async () => {
