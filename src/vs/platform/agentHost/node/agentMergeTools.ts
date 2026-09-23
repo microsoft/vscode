@@ -12,16 +12,18 @@ import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeSessionState } from '../common/agentMerge.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { isSessionStatusArchived } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentMergeCIEvidence, AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciEvidenceMetadata, ciFailureExcerpt, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from './agentMergeCIEvidence.js';
 import { AgentMergeCIRequest, IAgentMergeToolAccessor, parseAgentMergeCIRequest } from './shared/agentMergeServerTools.js';
 
 export interface IAgentMergeTurnContext {
 	readonly session: string;
+	readonly chat: string;
+	readonly folderKey: string;
 	readonly turnId: string;
 	readonly ref: PullRequestRef;
 	readonly headSha: string;
@@ -45,7 +47,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	constructor(
 		private readonly _isFeatureEnabled: () => boolean,
-		private readonly _getTurnContext: (session: string) => IAgentMergeTurnContext | undefined,
+		private readonly _getTurnContext: (chat: string) => IAgentMergeTurnContext | undefined,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -63,27 +65,35 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (!this.isEnabled()) {
 			throw new Error('Agent Merge is disabled in the host configuration.');
 		}
-		const state = this._stateManager.getSessionState(session);
+		const resolvedState = this._stateManager.getSessionState(session);
+		if (!resolvedState) {
+			throw new Error(`Cannot update Agent Merge for unknown session: ${session}`);
+		}
+		const folder = resolveGitHubStateFolder(this._stateManager, session);
+		if (folder.folderKey === undefined) {
+			throw new Error('Cannot update Agent Merge for a chat without a working directory.');
+		}
+		const state = this._stateManager.getSessionState(folder.sessionUri);
 		if (!state) {
 			throw new Error(`Cannot update Agent Merge for unknown session: ${session}`);
 		}
 		if (enabled && isSessionStatusArchived(state.status)) {
 			throw new Error('Cannot enable Agent Merge for an archived session.');
 		}
-		const values = this._configurationService.getSessionConfigValues(session);
+		const values = this._configurationService.getSessionConfigValues(folder.sessionUri);
 		if (!values) {
 			throw new Error('Cannot update Agent Merge before session configuration is available.');
 		}
-		const current = readAgentMergeSessionState(values);
+		const sessionFolderKey = state.workingDirectories?.[0] ? resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey : undefined;
+		const current = readAgentMergeFolderState(values, folder.folderKey, sessionFolderKey);
 		if (current?.enabled !== enabled) {
-			this._configurationService.updateSessionConfig(session, {
-				[SessionConfigKey.AgentMerge]: {
-					enabled,
-					...(current?.overrides ? { overrides: current.overrides } : {}),
-				},
-			});
+			this._configurationService.updateSessionConfig(folder.sessionUri, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, {
+				enabled,
+				...(current?.overrides ? { overrides: current.overrides } : {}),
+				chat: folder.sourceUri,
+			}));
 		}
-		this._logService.info(`[AgentMergeTools] Set session enablement: session=${session}, enabled=${enabled}`);
+		this._logService.info(`[AgentMergeTools] Set folder enablement: session=${folder.sessionUri}, folder=${folder.folderKey}, enabled=${enabled}`);
 		return JSON.stringify({ enabled });
 	}
 

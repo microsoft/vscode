@@ -419,7 +419,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const { coordinator, stateManager, changesets } = createEnvironment();
 		const session = AgentSession.uri('mock', 'ready-catalog').toString();
 		const defaultChat = buildDefaultChatUri(session);
-		createSession(stateManager, session);
+		createSession(stateManager, session, 'file:///repo');
 		const baseline = changesets.catalogRefreshes.length;
 
 		coordinator.onSessionReady(session);
@@ -431,7 +431,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const { stateManager, changesets } = createEnvironment();
 		const session = AgentSession.uri('mock', 'agent-merge-catalog').toString();
 		const defaultChat = buildDefaultChatUri(session);
-		createSession(stateManager, session);
+		createSession(stateManager, session, 'file:///repo');
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
 
 		stateManager.dispatchServerAction(session, {

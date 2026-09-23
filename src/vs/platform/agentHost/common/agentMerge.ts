@@ -9,6 +9,7 @@ import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
+import type { URI as ProtocolURI } from './state/sessionState.js';
 
 export const AgentMergeConfigKey = {
 	Enabled: 'agentMerge.enabled',
@@ -105,6 +106,7 @@ export interface AgentMergeInjectedConfiguration {
 export interface AgentMergeSessionState {
 	readonly enabled: boolean;
 	readonly overrides?: AgentMergeSessionOverrides;
+	readonly chat?: ProtocolURI;
 	readonly target?: AgentMergeTarget;
 	readonly injectedConfiguration?: AgentMergeInjectedConfiguration;
 	readonly lastPromptFingerprint?: string;
@@ -132,6 +134,21 @@ export interface AgentMergeControllerState {
 	readonly repeatedPromptCount?: number;
 	readonly totalPromptCount?: number;
 	readonly repairBaseCommit?: string;
+}
+
+/** The user-owned Agent Merge settings of one folder: whether it runs, its overrides, and the chat that turned it on. */
+export interface AgentMergeFolderSessionState {
+	readonly enabled: boolean;
+	readonly overrides?: AgentMergeSessionOverrides;
+	readonly chat?: ProtocolURI;
+}
+
+/** The host-owned Agent Merge lifecycle state of one folder. */
+export type AgentMergeFolderControllerState = Omit<AgentMergeControllerState, 'injectedConfiguration'>;
+
+/** A folder's complete Agent Merge state, with the session-wide elevated configuration. */
+export interface AgentMergeFolderState extends AgentMergeFolderSessionState, AgentMergeFolderControllerState {
+	readonly injectedConfiguration?: AgentMergeInjectedConfiguration;
 }
 
 export type AgentMergeRequiredChecks =
@@ -461,6 +478,11 @@ export function agentMergeMergePullRequestDemotedNotice(): string {
 }
 
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined): AgentMergeSessionState | undefined {
+	const firstFolderState = readFirstAgentMergeFolderState(values);
+	if (firstFolderState) {
+		const { chat, ...state } = firstFolderState;
+		return state;
+	}
 	const value = values?.[SessionConfigKey.AgentMerge];
 	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
 		return undefined;
@@ -468,7 +490,7 @@ export function readAgentMergeSessionState(values: Record<string, unknown> | und
 	const controller = isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController] : {};
 	const overrides = readOverrides(value.overrides);
 	const target = readTarget(controller.target);
-	const injectedConfiguration = readInjectedConfiguration(controller.injectedConfiguration);
+	const injectedConfiguration = readAgentMergeInjectedConfiguration(values);
 	return {
 		enabled: value.enabled,
 		...(overrides ? { overrides } : {}),
@@ -482,6 +504,105 @@ export function readAgentMergeSessionState(values: Record<string, unknown> | und
 	};
 }
 
+/** Reads the session-wide elevated configuration, falling back to where earlier versions stored it. */
+export function readAgentMergeInjectedConfiguration(values: Record<string, unknown> | undefined): AgentMergeInjectedConfiguration | undefined {
+	return readInjectedConfiguration(values?.[SessionConfigKey.AgentMergeInjectedConfiguration])
+		?? readInjectedConfiguration(isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController].injectedConfiguration : undefined);
+}
+
+/**
+ * Reads the Agent Merge state of each folder, keyed by working-directory key.
+ * Settings written by earlier versions describe the session folder
+ * (`sessionFolderKey`), and take precedence while they are present.
+ */
+export function readAgentMergeFolderStates(values: Record<string, unknown> | undefined, sessionFolderKey: string | undefined): ReadonlyMap<string, AgentMergeFolderState> {
+	const result = new Map<string, AgentMergeFolderState>();
+	const injectedConfiguration = readAgentMergeInjectedConfiguration(values);
+	const folderValues = readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]);
+	const controllerValues = readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]);
+	for (const [folderKey, value] of folderValues) {
+		const client = readFolderClientState(value);
+		if (!client) {
+			continue;
+		}
+		result.set(folderKey, {
+			...client,
+			...readFolderControllerState(controllerValues.get(folderKey)),
+			...(injectedConfiguration ? { injectedConfiguration } : {}),
+		});
+	}
+	if (sessionFolderKey !== undefined) {
+		const legacy = readLegacyAgentMergeSessionState(values, injectedConfiguration);
+		if (legacy) {
+			result.set(sessionFolderKey, {
+				...result.get(sessionFolderKey),
+				...legacy,
+			});
+		}
+	}
+	return result;
+}
+
+/** Reads the Agent Merge state of one folder; see {@link readAgentMergeFolderStates}. */
+export function readAgentMergeFolderState(values: Record<string, unknown> | undefined, folderKey: string | undefined, sessionFolderKey: string | undefined): AgentMergeFolderState | undefined {
+	if (folderKey === undefined) {
+		return readLegacyAgentMergeSessionState(values, readAgentMergeInjectedConfiguration(values));
+	}
+	return readAgentMergeFolderStates(values, sessionFolderKey).get(folderKey);
+}
+
+/** Whether Agent Merge is on for any folder of a session. */
+export function isAnyAgentMergeEnabled(values: Record<string, unknown> | undefined, sessionFolderKey: string | undefined): boolean {
+	for (const state of readAgentMergeFolderStates(values, sessionFolderKey).values()) {
+		if (state.enabled) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Returns the session config patch that replaces one folder's Agent Merge
+ * state (or removes it when `state` is `undefined`). Writing the session folder
+ * also clears the settings of earlier versions.
+ */
+export function withAgentMergeFolderState(values: Record<string, unknown> | undefined, folderKey: string, sessionFolderKey: string | undefined, state: AgentMergeFolderState | undefined): Record<string, unknown> {
+	const folderValues = new Map(readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]));
+	const controllerValues = new Map(readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]));
+	if (state) {
+		folderValues.set(folderKey, {
+			enabled: state.enabled,
+			...(state.overrides ? { overrides: state.overrides } : {}),
+			...(state.chat ? { chat: state.chat } : {}),
+		});
+		const controller = toAgentMergeFolderControllerState(state);
+		if (Object.keys(controller).length > 0) {
+			controllerValues.set(folderKey, controller);
+		} else {
+			controllerValues.delete(folderKey);
+		}
+	} else {
+		folderValues.delete(folderKey);
+		controllerValues.delete(folderKey);
+	}
+	return {
+		[SessionConfigKey.AgentMergeFolders]: Object.fromEntries(folderValues),
+		[SessionConfigKey.AgentMergeControllerFolders]: Object.fromEntries(controllerValues),
+		...(state?.injectedConfiguration ? { [SessionConfigKey.AgentMergeInjectedConfiguration]: state.injectedConfiguration } : {}),
+		...(folderKey === sessionFolderKey ? {
+			[SessionConfigKey.AgentMerge]: undefined,
+			[SessionConfigKey.AgentMergeController]: undefined,
+		} : {}),
+	};
+}
+
+/** Returns the session config patch that sets or clears the session-wide elevated configuration. */
+export function withAgentMergeInjectedConfiguration(injectedConfiguration: AgentMergeInjectedConfiguration | undefined): Record<string, unknown> {
+	return {
+		[SessionConfigKey.AgentMergeInjectedConfiguration]: injectedConfiguration ?? undefined,
+	};
+}
+
 /**
  * Returns session config values with Agent Merge injected overrides removed,
  * so callers can read the user's own picker selections while merge is active.
@@ -490,9 +611,8 @@ export function getNonMergeSessionConfigValues(values: Readonly<Record<string, u
 	if (!values) {
 		return {};
 	}
-	const agentMerge = readAgentMergeSessionState(values as Record<string, unknown>);
-	const injected = agentMerge?.injectedConfiguration;
-	if (!agentMerge?.enabled || !injected) {
+	const injected = readAgentMergeInjectedConfiguration(values as Record<string, unknown>);
+	if (!injected) {
 		return values;
 	}
 	const restored = { ...values };
@@ -512,6 +632,106 @@ export function getNonMergeSessionConfigValues(values: Readonly<Record<string, u
 		}
 	}
 	return restored;
+}
+
+function readFirstAgentMergeFolderState(values: Record<string, unknown> | undefined): AgentMergeFolderState | undefined {
+	const injectedConfiguration = readAgentMergeInjectedConfiguration(values);
+	const folderValues = readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]);
+	const controllerValues = readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]);
+	for (const [folderKey, value] of folderValues) {
+		const client = readFolderClientState(value);
+		if (client?.enabled) {
+			return {
+				...client,
+				...readFolderControllerState(controllerValues.get(folderKey)),
+				...(injectedConfiguration ? { injectedConfiguration } : {}),
+			};
+		}
+	}
+	for (const [folderKey, value] of folderValues) {
+		const client = readFolderClientState(value);
+		if (client) {
+			return {
+				...client,
+				...readFolderControllerState(controllerValues.get(folderKey)),
+				...(injectedConfiguration ? { injectedConfiguration } : {}),
+			};
+		}
+	}
+	return undefined;
+}
+
+function readLegacyAgentMergeSessionState(values: Record<string, unknown> | undefined, injectedConfiguration: AgentMergeInjectedConfiguration | undefined): AgentMergeFolderState | undefined {
+	const value = values?.[SessionConfigKey.AgentMerge];
+	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
+		return undefined;
+	}
+	const controller = isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController] : {};
+	const overrides = readOverrides(value.overrides);
+	const target = readTarget(controller.target);
+	return {
+		enabled: value.enabled,
+		...(overrides ? { overrides } : {}),
+		...(typeof value.chat === 'string' ? { chat: value.chat } : {}),
+		...(target ? { target } : {}),
+		...(injectedConfiguration ? { injectedConfiguration } : {}),
+		...(typeof controller.lastPromptFingerprint === 'string' ? { lastPromptFingerprint: controller.lastPromptFingerprint } : {}),
+		...(typeof controller.lastPromptAt === 'string' ? { lastPromptAt: controller.lastPromptAt } : {}),
+		...(typeof controller.repeatedPromptCount === 'number' && Number.isInteger(controller.repeatedPromptCount) && controller.repeatedPromptCount >= 0 ? { repeatedPromptCount: controller.repeatedPromptCount } : {}),
+		...(typeof controller.totalPromptCount === 'number' && Number.isInteger(controller.totalPromptCount) && controller.totalPromptCount >= 0 ? { totalPromptCount: controller.totalPromptCount } : {}),
+		...(typeof controller.repairBaseCommit === 'string' ? { repairBaseCommit: controller.repairBaseCommit } : {}),
+	};
+}
+
+function readRecordMap(value: unknown): ReadonlyMap<string, Record<string, unknown>> {
+	if (!isRecord(value)) {
+		return new Map();
+	}
+	const result = new Map<string, Record<string, unknown>>();
+	for (const [key, entry] of Object.entries(value)) {
+		if (isRecord(entry)) {
+			result.set(key, entry);
+		}
+	}
+	return result;
+}
+
+function readFolderClientState(value: unknown): AgentMergeFolderSessionState | undefined {
+	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
+		return undefined;
+	}
+	const overrides = readOverrides(value.overrides);
+	return {
+		enabled: value.enabled,
+		...(overrides ? { overrides } : {}),
+		...(typeof value.chat === 'string' ? { chat: value.chat } : {}),
+	};
+}
+
+function readFolderControllerState(value: unknown): AgentMergeFolderControllerState {
+	if (!isRecord(value)) {
+		return {};
+	}
+	const target = readTarget(value.target);
+	return {
+		...(target ? { target } : {}),
+		...(typeof value.lastPromptFingerprint === 'string' ? { lastPromptFingerprint: value.lastPromptFingerprint } : {}),
+		...(typeof value.lastPromptAt === 'string' ? { lastPromptAt: value.lastPromptAt } : {}),
+		...(typeof value.repeatedPromptCount === 'number' && Number.isInteger(value.repeatedPromptCount) && value.repeatedPromptCount >= 0 ? { repeatedPromptCount: value.repeatedPromptCount } : {}),
+		...(typeof value.totalPromptCount === 'number' && Number.isInteger(value.totalPromptCount) && value.totalPromptCount >= 0 ? { totalPromptCount: value.totalPromptCount } : {}),
+		...(typeof value.repairBaseCommit === 'string' ? { repairBaseCommit: value.repairBaseCommit } : {}),
+	};
+}
+
+function toAgentMergeFolderControllerState(state: AgentMergeFolderState): AgentMergeFolderControllerState {
+	return {
+		...(state.target ? { target: state.target } : {}),
+		...(state.lastPromptFingerprint ? { lastPromptFingerprint: state.lastPromptFingerprint } : {}),
+		...(state.lastPromptAt ? { lastPromptAt: state.lastPromptAt } : {}),
+		...(state.repeatedPromptCount !== undefined ? { repeatedPromptCount: state.repeatedPromptCount } : {}),
+		...(state.totalPromptCount !== undefined ? { totalPromptCount: state.totalPromptCount } : {}),
+		...(state.repairBaseCommit ? { repairBaseCommit: state.repairBaseCommit } : {}),
+	};
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {

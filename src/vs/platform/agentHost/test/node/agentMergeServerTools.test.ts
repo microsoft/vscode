@@ -40,6 +40,7 @@ suite('Agent Merge server tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: ['file:///repo'],
 		});
 		stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: {} });
 		const tools = store.add(new AgentMergeTools(
@@ -169,22 +170,16 @@ suite('Agent Merge server tools', () => {
 
 		assert.deepStrictEqual({
 			results: [enabled, repeated, disabled].map(result => JSON.parse(result)),
-			enabledValues,
-			disabledValues,
+			enabledAgentMerge: readAgentMergeSessionState(enabledValues),
+			disabledAgentMerge: readAgentMergeSessionState(disabledValues),
+			mode: disabledValues?.[SessionConfigKey.Mode],
 			changes,
 			rootEnabled: stateManager.rootState.config?.values[AgentMergeConfigKey.Enabled],
 		}, {
 			results: [{ enabled: true }, { enabled: true }, { enabled: false }],
-			enabledValues: {
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides },
-				[SessionConfigKey.AgentMergeController]: controllerState,
-				[SessionConfigKey.Mode]: 'plan',
-			},
-			disabledValues: {
-				[SessionConfigKey.AgentMerge]: { enabled: false, overrides },
-				[SessionConfigKey.AgentMergeController]: controllerState,
-				[SessionConfigKey.Mode]: 'plan',
-			},
+			enabledAgentMerge: { enabled: true, overrides },
+			disabledAgentMerge: { enabled: false, overrides },
+			mode: 'plan',
 			changes: 2,
 			rootEnabled: true,
 		});

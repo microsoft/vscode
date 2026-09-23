@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -286,6 +286,53 @@ suite('Agent Merge gate', () => {
 				commentWatermark: '2026-08-02T00:00:00.000Z',
 			},
 			lastPromptFingerprint: 'fingerprint',
+		});
+	});
+
+	test('migrates legacy Agent Merge state into the session folder slot on read and first write', () => {
+		const folderKey = 'file:///repo';
+		const legacy = {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
+			[SessionConfigKey.AgentMergeController]: {
+				target: {
+					branchName: 'feature',
+					enabledAt: '2026-08-01T00:00:00.000Z',
+					commentWatermark: '2026-08-02T00:00:00.000Z',
+				},
+				totalPromptCount: 2,
+			},
+		};
+		const read = readAgentMergeFolderState(legacy, folderKey, folderKey);
+		const patch = withAgentMergeFolderState(legacy, folderKey, folderKey, read ? { ...read, enabled: false } : undefined);
+
+		assert.deepStrictEqual({ read, patch }, {
+			read: {
+				enabled: true,
+				overrides: { fixCI: false },
+				target: {
+					branchName: 'feature',
+					enabledAt: '2026-08-01T00:00:00.000Z',
+					commentWatermark: '2026-08-02T00:00:00.000Z',
+				},
+				totalPromptCount: 2,
+			},
+			patch: {
+				[SessionConfigKey.AgentMergeFolders]: {
+					[folderKey]: { enabled: false, overrides: { fixCI: false } },
+				},
+				[SessionConfigKey.AgentMergeControllerFolders]: {
+					[folderKey]: {
+						target: {
+							branchName: 'feature',
+							enabledAt: '2026-08-01T00:00:00.000Z',
+							commentWatermark: '2026-08-02T00:00:00.000Z',
+						},
+						totalPromptCount: 2,
+					},
+				},
+				[SessionConfigKey.AgentMerge]: undefined,
+				[SessionConfigKey.AgentMergeController]: undefined,
+			},
 		});
 	});
 
