@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
+import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -25,6 +28,7 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -450,6 +454,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			devContainerService = disposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 	});
 
@@ -476,6 +481,7 @@ suite('ProtocolServerHandler', () => {
 			serverSeq: stateManager.serverSeq,
 			meta: {
 				'vscode.detachedWorktrees': true,
+				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
 				'vscode.devContainers': true,
@@ -973,6 +979,46 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('first-response diagnostics are opt-in, validated and content-free on the extension bridge', async () => {
+		const calls: IAgentHostFirstResponseDiagnostic[] = [];
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService,
+			{ ...NullAgentHostOTelService, diagnosticsEnabled: true, emitFirstResponse: diagnostic => calls.push(diagnostic) },
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'timing-client' }));
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		assert.strictEqual(supportsAgentHostTiming(initialize.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostTiming(undefined), false);
+		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			requestId: 'request-1', provider: 'copilot', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: true,
+			totalElapsedMs: 0, hasResponseText: false,
+		};
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, prompt: 'private', path: 'private' }));
+		await response;
+		const invalid = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, totalElapsedMs: 'not numeric' }));
+		assert.ok(hasKey(await invalid, { error: true }));
+		assert.deepStrictEqual(calls, [diagnostic]);
+
+		const disabled = connectClient('timing-disabled');
+		const disabledInitialize = findResponse(disabled.sent, 1);
+		assert.ok(disabledInitialize && hasKey(disabledInitialize, { result: true }));
+		assert.strictEqual(supportsAgentHostTiming(disabledInitialize.result as InitializeResult), false);
+		const ignored = waitForResponse(disabled, 2);
+		disabled.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', diagnostic));
+		await ignored;
+		assert.deepStrictEqual(calls, [diagnostic]);
+	});
+
 	test('advertises and routes artifact removal through the extension request', async () => {
 		const transport = connectClient('client-remove-artifact');
 		const initializeResponse = findResponse(transport.sent, 1);
@@ -1260,6 +1306,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1451,6 +1498,86 @@ suite('ProtocolServerHandler', () => {
 		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
+	});
+
+	test('server-only session actions are rejected, not dispatched', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+
+		const transport = connectClient('attacker-client', [sessionUri]);
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'forged-client-tool-request',
+					kind: SessionInputRequestKind.ToolClientExecution,
+					chat: defaultChatUri,
+					turnId: 'turn-1',
+					clientId: 'victim-client',
+					toolCall: {
+						toolCallId: 'tool-call-1',
+						toolName: 'readFile',
+						displayName: 'Read File',
+						contributor: { kind: ToolCallContributorKind.Client, clientId: 'victim-client' },
+						status: ToolCallStatus.Running,
+						invocationMessage: 'Reading file',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						toolInput: '{"filePath":"/victim/secret.txt"}',
+					},
+				},
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			inputNeeded: stateManager.getSessionState(sessionUri)?.inputNeeded,
+			rejectedAction: envelope?.action.type,
+			rejectionReason: envelope?.rejectionReason,
+			origin: envelope?.origin,
+		}, {
+			handledActions: [],
+			inputNeeded: undefined,
+			rejectedAction: ActionType.SessionInputNeededSet,
+			rejectionReason: `Server-only action: ${ActionType.SessionInputNeededSet}`,
+			origin: { clientId: 'attacker-client', clientSeq: 1 },
+		});
+	});
+
+	test('server-only action rejections do not reach host action listeners', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+
+		const transport = connectClient('attacker-client', [sessionUri]);
+		transport.sent.length = 0;
+		const hostActions: ActionType[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => hostActions.push(envelope.action.type)));
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionChatRemoved,
+				chat: defaultChatUri,
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			hostActions,
+			rejectedAction: envelope?.action.type,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			handledActions: [],
+			hostActions: [],
+			rejectedAction: ActionType.SessionChatRemoved,
+			rejectionReason: `Server-only action: ${ActionType.SessionChatRemoved}`,
+		});
 	});
 
 	test('unsupported chat actions are rejected, not dispatched', () => {
@@ -2682,6 +2809,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			)));
 		}
 
@@ -2728,6 +2856,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -2777,6 +2906,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2827,6 +2957,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2869,6 +3000,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2919,6 +3051,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4187,6 +4320,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -4293,6 +4427,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4433,6 +4568,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 		});
 
@@ -4606,6 +4742,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 		});
 

@@ -371,6 +371,11 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
+.automation-target-error {
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
 .automation-form-save-status {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);

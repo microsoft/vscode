@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import type { IProcessInfo } from '@vscode/windows-process-tree';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
 import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
-import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -665,17 +665,79 @@ export interface IServerHandle {
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 const SERVER_EXIT_TIMEOUT_MS = 5_000;
 
-async function getServerDescendants(pid: number): Promise<number[]> {
+interface IServerDescendant {
+	readonly pid: number;
+	readonly name: string;
+	readonly commandLine: string;
+}
+
+export function collectServerDescendants(pid: number, processList: readonly IProcessInfo[]): IServerDescendant[] {
+	const childrenByParent = new Map<number, IProcessInfo[]>();
+	for (const process of processList) {
+		let children = childrenByParent.get(process.ppid);
+		if (!children) {
+			children = [];
+			childrenByParent.set(process.ppid, children);
+		}
+		children.push(process);
+	}
+
+	const descendants: IServerDescendant[] = [];
+	const visited = new Set([pid]);
+	const collectDescendants = (parentPid: number): void => {
+		for (const process of childrenByParent.get(parentPid) ?? []) {
+			if (visited.has(process.pid)) {
+				continue;
+			}
+			visited.add(process.pid);
+			// Prune protected system branches that stale PPIDs can attach to a reused server PID.
+			if (!process.commandLine) {
+				continue;
+			}
+			descendants.push({ pid: process.pid, name: process.name, commandLine: process.commandLine });
+			collectDescendants(process.pid);
+		}
+	};
+	collectDescendants(pid);
+	return descendants;
+}
+
+async function getServerDescendants(pid: number): Promise<IServerDescendant[]> {
 	if (!isWindows) {
 		return [];
 	}
 	// Once the parent exits, taskkill /T can no longer discover its descendants.
-	const { getProcessList } = await import('@vscode/windows-process-tree');
-	return (await promisify(getProcessList)(pid)).filter(process => process.pid !== pid).map(process => process.pid);
+	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
+	const processList = await promisify(getProcessList)(pid, ProcessDataFlag.CommandLine);
+	return collectServerDescendants(pid, processList);
 }
 
+async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promise<boolean> {
+	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
+	// Signal 0 requires termination access on Windows and can report EPERM while a process exits.
+	return new Promise(resolve => getProcessList(descendant.pid, processList => {
+		const process = processList?.find(process => process.pid === descendant.pid);
+		resolve(process?.name === descendant.name && process.commandLine === descendant.commandLine);
+	}, ProcessDataFlag.CommandLine));
+}
+
+interface IServerProcessOperations {
+	killTree(pid: number, forceful: boolean): Promise<void>;
+	isSameProcessRunning(descendant: IServerDescendant): Promise<boolean>;
+}
+
+const defaultServerProcessOperations: IServerProcessOperations = {
+	killTree,
+	isSameProcessRunning: isSameWindowsProcessRunning,
+};
+
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined, getDescendants = getServerDescendants, timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS, killProcessTree = killTree): Promise<void> {
+export async function stopServer(
+	server: IServerHandle | undefined,
+	getDescendants = getServerDescendants,
+	timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS,
+	processOperations = defaultServerProcessOperations,
+): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
@@ -685,7 +747,7 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 	const serverExit = new DeferredPromise<void>();
 	const onExit = () => serverExit.complete();
 	serverProcess.once('exit', onExit);
-	let descendants: number[] = [];
+	let descendants: IServerDescendant[] = [];
 	let snapshotError: Error | undefined;
 	try {
 		try {
@@ -701,7 +763,7 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 		}
 		serverProcess.stdin?.end();
 		if (!await raceTimeout(serverExit.p.then(() => true), Math.max(0, deadline - Date.now()))) {
-			await killServer(server, killProcessTree);
+			await killServer(server, (pid, forceful) => processOperations.killTree(pid, forceful));
 		}
 	} finally {
 		serverProcess.removeListener('exit', onExit);
@@ -710,18 +772,15 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 		throw snapshotError;
 	}
 
-	await Promises.settled(descendants.map(async pid => {
+	await Promises.settled(descendants.map(async descendant => {
+		if (!await processOperations.isSameProcessRunning(descendant)) {
+			return;
+		}
 		try {
-			await killProcessTree(pid, true);
+			await processOperations.killTree(descendant.pid, true);
 		} catch (error) {
-			try {
-				process.kill(pid, 0);
-			} catch (probeError) {
-				const errorCode = getErrorCode(probeError);
-				if (errorCode === 'ESRCH' || errorCode === 'EPERM') {
-					return; // The descendant already exited or is no longer controllable.
-				}
-				throw probeError;
+			if (!await processOperations.isSameProcessRunning(descendant)) {
+				return;
 			}
 			throw error;
 		}
@@ -729,7 +788,7 @@ export async function stopServer(server: IServerHandle | undefined, getDescendan
 }
 
 /** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
-export async function killServer(server: IServerHandle | undefined, killProcessTree = killTree): Promise<void> {
+export async function killServer(server: IServerHandle | undefined, killProcessTree: IServerProcessOperations['killTree'] = killTree): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;

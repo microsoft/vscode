@@ -16,6 +16,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
+import { CONNECTED_EDITOR_TABS_CLASS } from '../../../browser/parts/editor/editor.js';
 
 /** Reduced scrollbar size (px) applied when Modern UI is on. */
 const MODERN_UI_SCROLLBAR_SIZE = 8;
@@ -58,7 +59,6 @@ interface IModernUIModule {
 const MODERN_UI_CLASS = 'modern-ui';
 const MODERN_UI_COMPACT_CLASS = 'modern-ui-compact';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
-const MODERN_UI_CONNECTED_EDITOR_TABS_CLASS = 'modern-ui-connected-editor-tabs';
 const MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS = 'modern-ui-notifications-dialogs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
 
@@ -218,7 +218,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		container.classList.toggle(MODERN_UI_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_COMPACT_CLASS, compact);
 		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
-		container.classList.toggle(MODERN_UI_CONNECTED_EDITOR_TABS_CLASS, enabled && this.useConnectedEditorTabs());
+		container.classList.toggle(CONNECTED_EDITOR_TABS_CLASS, enabled && this.useConnectedEditorTabs());
 		container.classList.toggle(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
 	}
@@ -245,7 +245,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 			container.classList.remove(MODERN_UI_CLASS);
 			container.classList.remove(MODERN_UI_COMPACT_CLASS);
 			container.classList.remove(MODERN_UI_TABS_CLASS);
-			container.classList.remove(MODERN_UI_CONNECTED_EDITOR_TABS_CLASS);
+			container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
 			container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
 			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
 		}

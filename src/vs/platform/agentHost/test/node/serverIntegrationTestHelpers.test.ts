@@ -15,7 +15,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { killServer, stopServer } from './serverIntegrationTestHelpers.js';
+import { collectServerDescendants, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
 class TestServerProcess extends ChildProcess {
 	override readonly pid = process.pid + 1;
@@ -34,7 +34,10 @@ suite('Agent Host test server cleanup', () => {
 	for (const { name, cleanup } of [
 		{
 			name: 'graceful shutdown fallback',
-			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => stopServer({ process, port: 0 }, async () => [], 0, killProcessTree),
+			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => stopServer({ process, port: 0 }, async () => [], 0, {
+				killTree: killProcessTree,
+				isSameProcessRunning: async () => assert.fail('No descendant identity checks expected'),
+			}),
 		},
 		{
 			name: 'forceful shutdown',
@@ -111,28 +114,102 @@ suite('Agent Host test server cleanup', () => {
 		}));
 	}
 
-	test('a confirmed server exit does not hide a descendant cleanup failure', () => runWithFakedTimers({}, async () => {
-		const server = new TestServerProcess();
-		const descendantPid = process.pid;
-		const error = new Error('descendant access denied');
-		const killedPids: number[] = [];
-		await assert.rejects(stopServer({ process: server, port: 0 }, async () => [descendantPid], 0, async pid => {
-			killedPids.push(pid);
-			if (pid === server.pid) {
-				server.exit();
-				return;
+	for (const { name, identityChecks } of [
+		{ name: 'skips missing or reused descendants', identityChecks: [false] },
+		{ name: 'accepts descendants exiting during taskkill', identityChecks: [true, false] },
+		{ name: 'preserves errors for surviving descendants', identityChecks: [true, true] },
+	]) {
+		test(`a queued server exit after taskkill failure ${name}`, () => runWithFakedTimers({}, async () => {
+			const server = new TestServerProcess();
+			const descendant = { pid: server.pid + 1, name: 'node.exe', commandLine: 'node child.js' };
+			const rootError = new Error('server process not found');
+			const descendantError = new Error('descendant access denied');
+			const calls: string[] = [];
+			let identityCheckIndex = 0;
+			const stopped = stopServer({ process: server, port: 0 }, async () => [descendant], 0, {
+				killTree: async (pid, forceful) => {
+					calls.push(`kill:${pid}:${forceful}`);
+					if (pid === server.pid) {
+						setTimeout(() => {
+							calls.push('server:exit');
+							server.exit();
+						}, 1);
+						throw rootError;
+					}
+					throw descendantError;
+				},
+				isSameProcessRunning: async process => {
+					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
+					const result = identityChecks[identityCheckIndex++];
+					if (result === undefined) {
+						throw new Error('Unexpected process identity check');
+					}
+					return result;
+				},
+			});
+			if (identityChecks.at(-1)) {
+				await assert.rejects(stopped, actual => actual === descendantError);
+			} else {
+				await stopped;
 			}
-			throw error;
-		}), actual => actual === error);
 
-		assert.deepStrictEqual({
-			killedPids,
-			exitListeners: server.listenerCount('exit'),
-		}, {
-			killedPids: [server.pid, descendantPid],
-			exitListeners: 0,
+			const identityCheck = `isSameProcessRunning:${descendant.pid}:${descendant.name}:${descendant.commandLine}`;
+			assert.deepStrictEqual({
+				calls,
+				exitCode: server.exitCode,
+				exitListeners: server.listenerCount('exit'),
+			}, {
+				calls: [
+					`kill:${server.pid}:true`,
+					'server:exit',
+					identityCheck,
+					...(identityChecks[0] ? [`kill:${descendant.pid}:true`, identityCheck] : []),
+				],
+				exitCode: 0,
+				exitListeners: 0,
+			});
+		}));
+	}
+
+	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[]): Promise<{ error: Error | undefined; calls: string[] }> {
+		const descendant = { pid: 123, name: 'node.exe', commandLine: 'node child.js' };
+		const server = spawn(process.execPath, ['-e', `
+			process.stdin.resume();
+			process.stdout.write('ready');
+			process.stdin.once('end', () => process.exit(0));
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
 		});
-	}));
+		const calls: string[] = [];
+		const killError = new Error('taskkill failed');
+		let identityCheckIndex = 0;
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => [descendant], 5_000, {
+				killTree: async (pid, forceful) => {
+					calls.push(`kill:${pid}:${forceful}`);
+					throw killError;
+				},
+				isSameProcessRunning: async process => {
+					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
+					const result = isSameProcessRunningResults[identityCheckIndex++];
+					if (result === undefined) {
+						throw new Error('Unexpected process identity check');
+					}
+					return result;
+				},
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			return { error, calls };
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	}
 
 	test('a stalled descendant snapshot still sends EOF and reaches forced shutdown', async function () {
 		this.timeout(15_000);
@@ -145,7 +222,7 @@ suite('Agent Host test server cleanup', () => {
 			stdio: ['pipe', 'pipe', 'pipe'],
 			windowsHide: true,
 		});
-		const snapshot = new DeferredPromise<number[]>();
+		const snapshot = new DeferredPromise<[]>();
 		let stopped: Promise<Error | undefined> | undefined;
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
@@ -170,6 +247,60 @@ suite('Agent Host test server cleanup', () => {
 			await stopped;
 			await killServer({ process: server, port: 0 });
 		}
+	});
+
+	test('prunes unreadable stale-PPID branches from the descendant snapshot', () => {
+		assert.deepStrictEqual(collectServerDescendants(100, [
+			{ pid: 100, ppid: 1, name: 'node.exe', commandLine: 'node server.js' },
+			{ pid: 200, ppid: 100, name: 'node.exe', commandLine: 'node child.js' },
+			{ pid: 201, ppid: 200, name: 'node.exe', commandLine: 'node grandchild.js' },
+			{ pid: 300, ppid: 100, name: 'critical.exe' },
+			{ pid: 301, ppid: 300, name: 'unrelated.exe', commandLine: 'unrelated.exe' },
+		]), [
+			{ pid: 200, name: 'node.exe', commandLine: 'node child.js' },
+			{ pid: 201, name: 'node.exe', commandLine: 'node grandchild.js' },
+		]);
+	});
+
+	test('ignores a failed descendant kill when the process identity is no longer present', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: ['isSameProcessRunning:123:node.exe:node child.js'],
+		});
+	});
+
+	test('ignores a failed descendant kill when the process exits during taskkill', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
+	test('preserves a failed descendant kill when the same process identity is still present', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true]);
+
+		assert.deepStrictEqual({
+			error: result.error?.message,
+			calls: result.calls,
+		}, {
+			error: 'taskkill failed',
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
 	});
 
 	(isWindows ? test : test.skip)('stops owned descendants after the server exits gracefully', async function () {

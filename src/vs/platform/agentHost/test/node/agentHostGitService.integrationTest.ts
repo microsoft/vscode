@@ -28,7 +28,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { CheckoutBlockedByLocalChangesError } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, GitRefType } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -105,6 +105,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const result = await svc!.getSessionGitState(URI.file(dir));
 		assert.ok(result, 'expected git state');
 		assert.strictEqual(result.branchName, 'main');
+		assert.strictEqual(result.hasGitRemote, true);
 		assert.strictEqual(result.hasGitHubRemote, true);
 		assert.strictEqual(result.uncommittedChanges, 0);
 		// No upstream configured for the fresh local branch.
@@ -121,17 +122,22 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		cp.execFileSync('git', ['branch', '--set-upstream-to', 'fork/feature'], { cwd: dir, stdio: 'pipe' });
 
 		const result = await svc!.getSessionGitState(URI.file(dir));
+		const branch = await svc!.getBranch(URI.file(dir), 'feature');
 
 		assert.deepStrictEqual({
 			githubOwner: result?.githubOwner,
 			githubHeadOwner: result?.githubHeadOwner,
 			githubRepo: result?.githubRepo,
 			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRef: branch?.kind === GitRefType.Head
+				? branch.upstream?.name
+				: undefined,
 		}, {
 			githubOwner: 'base-owner',
 			githubHeadOwner: 'fork-owner',
 			githubRepo: 'repo',
 			upstreamBranchName: 'fork/feature',
+			upstreamRef: 'fork/feature',
 		});
 	});
 
@@ -197,7 +203,15 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const result = await svc!.getSessionGitState(URI.file(dir));
 		assert.ok(result);
 		assert.strictEqual(result.uncommittedChanges, 2);
+		assert.strictEqual(result.hasGitRemote, true);
 		assert.strictEqual(result.hasGitHubRemote, false);
+	});
+
+	(hasGit ? test : test.skip)('reports when a repository has no remote', async () => {
+		const dir = initRepo();
+		const result = await svc!.getSessionGitState(URI.file(dir));
+		assert.ok(result);
+		assert.strictEqual(result.hasGitRemote, false);
 	});
 
 	(hasGit ? test : test.skip)('reports no state at all when the status probe fails', async () => {
@@ -905,7 +919,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('addWorktree automatically tracks a remote branch when creating its local branch', async () => {
+	(hasGit ? test : test.skip)('addWorktree tracks an explicitly selected remote when creating its local branch', async () => {
 		const dir = initRepo();
 		const remotePath = join(dir, 'remote.git');
 		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
@@ -919,10 +933,9 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		try {
 			await svc!.addWorktree(URI.file(dir), {
 				path: URI.file(wtPath),
-				commitish: 'feature',
+				commitish: 'origin/feature',
 				newBranchName: 'feature',
 				track: true,
-				preferRemoteBranch: true,
 			});
 
 			assert.deepStrictEqual({
@@ -1095,7 +1108,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		);
 	});
 
-	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
+	(hasGit ? test : test.skip)('addWorktree uses the selected local branch when its origin ref is newer', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: dir, env, stdio: 'pipe' });
@@ -1111,17 +1124,21 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			await svc!.addWorktree(URI.file(dir), {
 				path: URI.file(wtPath),
 				commitish: 'main',
-				newBranchName: 'agents/test-origin-start-point',
-				preferRemoteBranch: true,
+				newBranchName: 'agents/test-local-start-point',
 				track: false,
 			});
-			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
-			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
+			assert.deepStrictEqual({
+				worktreeCommit: cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				hasUpstreamFile: existsSync(join(wtPath, 'upstream.txt')),
+			}, {
+				worktreeCommit: cp.execFileSync('git', ['rev-parse', 'main'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				hasUpstreamFile: false,
+			});
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
-			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-local-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 
