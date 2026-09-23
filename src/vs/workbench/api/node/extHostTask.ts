@@ -173,13 +173,26 @@ export class ExtHostTask extends ExtHostTaskBase {
 			}
 			const processName = await resolver.resolveAsync(ws, toResolve.process.name);
 			const cwd = toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined;
-			const foundExecutable = await findExecutable(processName, cwd, paths);
-			if (foundExecutable) {
-				result.process = foundExecutable;
-			} else if (path.isAbsolute(processName)) {
+			// If the process name still contains a `${...}` placeholder it is a
+			// variable that the extension host's resolver cannot expand (for
+			// example `${command:...}` or `${input:...}`). In that case, do not
+			// run `findExecutable` against the literal placeholder and do not
+			// prefix it with the cwd, otherwise the resulting string contains a
+			// concatenation of the cwd and the (later) resolved path
+			// (microsoft/vscode#160891). Pass the unresolved name through so it
+			// can be resolved later by the task system, which has access to the
+			// command/input value mappings.
+			if (/\$\{.+?\}/.test(processName)) {
 				result.process = processName;
 			} else {
-				result.process = path.join(cwd ?? '', processName);
+				const foundExecutable = await findExecutable(processName, cwd, paths);
+				if (foundExecutable) {
+					result.process = foundExecutable;
+				} else if (path.isAbsolute(processName)) {
+					result.process = processName;
+				} else {
+					result.process = path.join(cwd ?? '', processName);
+				}
 			}
 		}
 		return result;
