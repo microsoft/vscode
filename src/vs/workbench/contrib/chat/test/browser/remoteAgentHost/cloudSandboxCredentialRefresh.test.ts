@@ -20,13 +20,13 @@ import {
 	credentialRefreshDelayMs,
 	MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 	type ICloudSandboxCreds,
-} from '../../browser/cloudSandboxCredentialRefresh.js';
+} from '../../../browser/remoteAgentHost/cloudSandboxCredentialRefresh.js';
 import type {
 	CloudSandboxRefreshStopReason,
 	CloudSandboxRequestAction,
 	CloudSandboxRequestOutcome,
 	ICloudSandboxTelemetryService,
-} from '../../browser/cloudSandboxTelemetry.js';
+} from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 const START_TIME = Date.parse('2026-01-01T00:00:00Z');
 

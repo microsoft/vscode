@@ -14,13 +14,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
-import { CloudSandboxApiService } from '../../browser/cloudSandboxApiService.js';
-import { ICloudSandboxTelemetryService } from '../../browser/cloudSandboxTelemetry.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -191,6 +192,29 @@ suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('preserves the bound session activity independently of the task state', async () => {
+		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];
+		const { service } = createService(store, {
+			tasks: states.map(state => ({
+				...task(state, state, undefined, `session-${state}`, `environment-${state}`),
+				state: 'idle',
+				sessions: [{ id: `session-${state}`, environment_id: `environment-${state}`, state }],
+			})),
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => [session.name, session.status]), [
+			['queued', SessionStatus.InProgress],
+			['in_progress', SessionStatus.InProgress],
+			['waiting_for_user', SessionStatus.InputNeeded],
+			['idle', SessionStatus.Idle],
+			['completed', SessionStatus.Idle],
+			['failed', SessionStatus.Error],
+			['timed_out', SessionStatus.Error],
+			['cancelled', SessionStatus.Error],
+		]);
+	});
+
 	test('resolves the repository name from its numeric id', async () => {
 		const { service } = createService(store, {
 			tasks: [task('task-1', 'Change port to 5555', 290012776, 'sess-1', 'env-1')],
@@ -209,6 +233,33 @@ suite('CloudSandboxApiService repository resolution', () => {
 				repoName: 'osortega/simple-server',
 				updatedAt: undefined,
 			}],
+		});
+	});
+
+	test('retains activity in cached task details and refreshes it when an incremental scan changes the task', async () => {
+		const current = {
+			...task('activity-cache', 'Question', undefined, 'original-session', 'original-environment'),
+			updated_at: '2026-07-01T00:01:00.000Z',
+			state: 'in_progress',
+			sessions: [{ id: 'original-session', environment_id: 'original-environment', state: 'waiting_for_user' }],
+		};
+		const h = createService(store, {
+			tasks: [current],
+			repositories: new Map(),
+			discoveryDate: () => '2026-07-01T00:01:00.000Z',
+		});
+		const initial = await h.service.listSessions(CancellationToken.None);
+		const cached = await h.service.listSessions(CancellationToken.None, { incremental: true });
+		current.updated_at = '2026-07-01T00:02:00.000Z';
+		current.sessions[0].state = 'completed';
+		const refreshed = await h.service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			statuses: [initial, cached, refreshed].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.status)),
+			detailReads: h.requestedUrls.filter(url => url.endsWith('/tasks/activity-cache')).length,
+		}, {
+			statuses: [[SessionStatus.InputNeeded], [SessionStatus.InputNeeded], [SessionStatus.Idle]],
+			detailReads: 2,
 		});
 	});
 

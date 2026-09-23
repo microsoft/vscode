@@ -42,6 +42,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
+import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { TestChatEntitlementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -49,7 +51,7 @@ import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
-import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
+import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
@@ -108,6 +110,10 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	override getCachedSession(rawId: string): ISession | undefined {
 		const meta = this.seeded.find(seen => AgentSession.id(seen.session) === rawId);
 		return meta ? this._toSession(meta) : undefined;
+	}
+
+	override getSessionModifiedTime(rawId: string): number | undefined {
+		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
 	}
 
 	override publishWithheldSession(rawId: string): void {
@@ -340,6 +346,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
 	});
 	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IStorageService, options?.storageService ?? store.add(new InMemoryStorageService()));
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanges.event;

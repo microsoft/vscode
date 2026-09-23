@@ -669,6 +669,8 @@ export interface IAgentHostAdapterOptions {
 	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 	/** Connection state from the backing remote provider, when there is one. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Keeps reported activity separate from connection availability for remotely discoverable sessions. */
+	readonly preserveStatusWhenDisconnected?: boolean;
 }
 
 /**
@@ -1327,7 +1329,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			workspace: defaultChatWorkspace,
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
-			status: toPresentedSessionStatus(this, defaultChatStatus, connectionStatus),
+			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
 			changes: this.changes,
 			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			customizations: sessionOutput.getChatCustomizations(URI.parse(buildDefaultChatUri(this.backendUri))),
@@ -1584,7 +1586,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.isArchived,
 			output,
 			this._options.readOnly,
-			this._options.connectionStatus
+			this._options.preserveStatusWhenDisconnected ? undefined : this._options.connectionStatus
 		);
 		const selection = this._chatModelSelections.get(chatId);
 		if (selection) {
@@ -3397,7 +3399,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or

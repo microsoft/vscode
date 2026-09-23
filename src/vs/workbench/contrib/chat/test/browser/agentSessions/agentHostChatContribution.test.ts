@@ -1050,7 +1050,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
-	return disposables.add(instantiationService.createInstance(AgentHostSessionListStore, connection));
+	return disposables.add(instantiationService.createInstance(AgentHostSessionListStore, connection, undefined));
 }
 
 function createSessionListController(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection, sessionType = 'agent-host-copilot', provider = 'copilot', description: string | undefined = undefined): AgentHostSessionListController {

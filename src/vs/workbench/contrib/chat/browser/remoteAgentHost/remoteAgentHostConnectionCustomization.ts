@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAgentHostAuthenticateRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 
 /** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
 export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
