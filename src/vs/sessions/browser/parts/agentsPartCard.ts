@@ -25,11 +25,12 @@ export const AgentsPartCard = {
 	BORDER_WIDTH: 1,
 } as const;
 
-/**
- * Content box of a card part, i.e. its grid-allocated size minus the card's
- * visual margins and border.
- */
-export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean): { readonly width: number; readonly height: number } {
+/** Content box of a card part, excluding desktop margins and borders or filling the grid on phone. */
+export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean): { readonly width: number; readonly height: number } {
+	if (phoneLayout) {
+		return { width, height };
+	}
+
 	const borderTotal = AgentsPartCard.BORDER_WIDTH * 2;
 	const marginLeft = sidebarVisible ? AgentsPartCard.MARGIN_LEFT : AgentsPartCard.MARGIN_LEFT_NO_SIDEBAR;
 	const marginRight = editorPaneVisible ? AgentsPartCard.MARGIN_RIGHT : AgentsPartCard.MARGIN_RIGHT_NO_EDITOR_PANE;

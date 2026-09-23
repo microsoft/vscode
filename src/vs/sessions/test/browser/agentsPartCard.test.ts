@@ -10,7 +10,10 @@ import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { getAgentsPartCardContentSize } from '../../browser/parts/agentsPartCard.js';
+import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
+import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 
 suite('Sessions - Agents Part Card', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,7 +48,7 @@ suite('Sessions - Agents Part Card', () => {
 				leftGap: cardBounds.left - containerBounds.left,
 				rightGap: containerBounds.right - cardBounds.right,
 				renderedContentWidth: card.clientWidth,
-				contentSize: getAgentsPartCardContentSize(800, 600, editorPaneVisible, sidebarVisible),
+				contentSize: getAgentsPartCardContentSize(800, 600, editorPaneVisible, sidebarVisible, false),
 			}, {
 				leftGap: sidebarVisible ? 0 : 4,
 				rightGap: editorPaneVisible ? 4 : 0,
@@ -64,10 +67,55 @@ suite('Sessions - Agents Part Card', () => {
 			leftGap: cardBounds.left - containerBounds.left,
 			rightGap: containerBounds.right - cardBounds.right,
 			contentWidth: card.clientWidth,
+			contentSize: getAgentsPartCardContentSize(800, 600, false, false, true),
 		}, {
 			leftGap: 0,
 			rightGap: 0,
 			contentWidth: 800,
+			contentSize: { width: 800, height: 600 },
 		});
 	});
+
+	for (const partConstructor of [SessionsPart, CustomViewGridPart]) {
+		test(`${partConstructor.name} uses full phone content dimensions after a desktop-to-phone transition`, () => {
+			const { container } = createCard(false, false);
+			const contentLayouts: { width: number; height: number }[] = [];
+			const gridLayouts: { width: number; height: number }[] = [];
+			const layoutGrid = (width: number, height: number) => {
+				gridLayouts.push({ width, height });
+			};
+			const part = {
+				layoutService: {
+					mainContainer: container,
+					isVisible: (partId: Parts) => partId !== Parts.SIDEBAR_PART,
+				},
+				agentWorkbenchLayoutService: {
+					isEditorPaneVisible: () => false,
+				},
+				layoutContents: (width: number, height: number) => {
+					contentLayouts.push({ width, height });
+					return { contentSize: { width, height } };
+				},
+				_gridWidget: { layout: layoutGrid },
+				_layoutNode: layoutGrid,
+			};
+			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+
+			layout.call(part, 800, 600, 36, 0);
+			container.classList.add('phone-layout');
+			layout.call(part, 390, 796, 48, 0);
+			container.classList.remove('phone-layout');
+			layout.call(part, 800, 600, 36, 0);
+
+			const expectedLayouts = [
+				{ width: 794, height: 598 },
+				{ width: 390, height: 796 },
+				{ width: 794, height: 598 },
+			];
+			assert.deepStrictEqual({ contentLayouts, gridLayouts }, {
+				contentLayouts: expectedLayouts,
+				gridLayouts: expectedLayouts,
+			});
+		});
+	}
 });

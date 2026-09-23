@@ -34,6 +34,7 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
@@ -459,7 +460,8 @@ export class SessionsPart extends Part {
 			width,
 			height,
 			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
-			this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			this.layoutService.isVisible(Parts.SIDEBAR_PART),
+			isPhoneLayout(this.layoutService)
 		);
 
 		// Size the content area with the reduced dimensions.

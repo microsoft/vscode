@@ -16,6 +16,7 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
 import { CustomViewNode } from './customViewNode.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 
 /**
@@ -121,7 +122,8 @@ export class CustomViewGridPart extends Part {
 			width,
 			height,
 			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
-			this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			this.layoutService.isVisible(Parts.SIDEBAR_PART),
+			isPhoneLayout(this.layoutService)
 		);
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 		this._layoutNode(contentSize.width, contentSize.height);
