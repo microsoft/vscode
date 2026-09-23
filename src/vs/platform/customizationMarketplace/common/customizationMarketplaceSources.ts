@@ -13,13 +13,13 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
-	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled',
+	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicGitHubFeed.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
-		displayName: localize('customizationMarketplace.publicFeed', "Public Feed"),
+		displayName: localize('customizationMarketplace.publicGitHubFeed', "Public GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;

@@ -1641,7 +1641,7 @@ suite('CustomizationMarketplaceWidget', () => {
 				names: getCardNames(container),
 				status: getElement(container, '.customization-marketplace-status').textContent,
 				warning: getElement(container, '.customization-marketplace-source-warning').textContent,
-				accessibleWarning: widget.getAccessibilityContent().includes('Public Feed: Feed unavailable'),
+				accessibleWarning: widget.getAccessibilityContent().includes('Public GitHub Feed: Feed unavailable'),
 				retryLabel: retry.getAttribute('aria-label'),
 			};
 			failing = false;
@@ -1664,9 +1664,9 @@ suite('CustomizationMarketplaceWidget', () => {
 				initial: {
 					names: ['Healthy'],
 					status: '1 resources loaded. Some sources are unavailable.',
-					warning: 'Public Feed: Feed unavailableRetry',
+					warning: 'Public GitHub Feed: Feed unavailableRetry',
 					accessibleWarning: true,
-					retryLabel: 'Retry Public Feed. Reload all sources from the first page.',
+					retryLabel: 'Retry Public GitHub Feed. Reload all sources from the first page.',
 				},
 				pending: { names: ['Healthy'], disabled: 'true', reloading: true },
 				cursors: [undefined, undefined],
