@@ -353,7 +353,7 @@
 	border-inline-width: 0;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tab-actions .action-label:hover {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tab-actions .action-label:hover:where(:not(.disabled)) {
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
