@@ -55,6 +55,9 @@ suite('ProjectBoardNewSessionDialog', () => {
 			override readonly mode = constObservable(undefined);
 			override readonly status = constObservable(SessionStatus.Untitled);
 			override readonly interactivity = constObservable(ChatInteractivity.Full);
+			override readonly workspace = workspace;
+			override readonly changes = constObservable([]);
+			override readonly changesets = constObservable([]);
 		}();
 		return new class extends mock<ISession>() {
 			override readonly sessionId = `test:${id}`;
