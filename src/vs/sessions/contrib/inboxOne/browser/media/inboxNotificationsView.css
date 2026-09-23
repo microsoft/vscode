@@ -357,18 +357,6 @@
 	outline-offset: -1px;
 }
 
-.inbox-notifications-item.priority-0 {
-	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-errorForeground);
-}
-
-.inbox-notifications-item.priority-1 {
-	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-notificationsWarningIcon-foreground);
-}
-
-.inbox-notifications-item.priority-2 {
-	border-inline-start: var(--vscode-spacing-size20) solid var(--vscode-notificationsInfoIcon-foreground);
-}
-
 .inbox-notifications-section-header {
 	display: flex;
 	align-items: center;

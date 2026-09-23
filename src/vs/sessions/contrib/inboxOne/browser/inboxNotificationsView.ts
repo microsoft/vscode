@@ -591,7 +591,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private renderItem(item: IInboxNotificationItem): HTMLElement {
 		const card = $('.inbox-notifications-item');
-		card.classList.add(`priority-${item.priority}`);
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
