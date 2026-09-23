@@ -27,7 +27,7 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		label: { type: 'string', description: 'Short label shown to the user.' },
 		isArtifact: {
 			type: 'boolean',
-			description: 'Required. `true` for an artifact, `false` for a reference; follow the tool description\'s classification.',
+			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report the user asked for. References are existing resources the user should look at because of this task.`,
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
@@ -91,26 +91,10 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	},
 ];
 
-const originalArtifactServerToolDefinitions = artifactServerToolDefinitions.map(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference ? {
-	...definition,
-	inputSchema: createAddArtifactInputSchema({
-		...artifactInputSchema,
-		properties: {
-			...artifactInputSchema.properties,
-			isArtifact: {
-				type: 'boolean',
-				description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report the user asked for. References are existing resources the user should look at because of this task.`,
-			},
-		},
-	}),
-} : definition);
-
 /** Host services the artifact tools need beyond the session state. */
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
-	/** Whether the compact prompt treatment is enabled. */
-	readonly useCompactPrompts: () => boolean;
 	/** Persists a session's artifacts and references so they survive a host restart. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 }
@@ -148,10 +132,7 @@ function describeArtifact(artifact: ISessionArtifact): string {
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
 	const isEnabled = () => accessor?.isEnabled() === true;
 	return {
-		definitions: originalArtifactServerToolDefinitions,
-		getDefinitions() {
-			return accessor?.useCompactPrompts() ? artifactServerToolDefinitions : originalArtifactServerToolDefinitions;
-		},
+		definitions: artifactServerToolDefinitions,
 		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
 		isEnabled,
 		isEnabledForSession: isEnabled,
@@ -250,11 +231,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 
 const artifactToolDiscoveryInstruction = `List/remove (discover if needed): \`${ArtifactServerToolName.ListArtifactsAndReferences}\`, \`${ArtifactServerToolName.RemoveArtifactOrReference}\`.`;
 
-/** Compact first-turn guidance for the prompt treatment. */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Artifact registration is optional; default to none. Follow \`${ArtifactServerToolName.AddArtifactOrReference}\` eligibility rules and batch related entries. ${artifactToolDiscoveryInstruction}`;
-
-const ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. ${artifactToolDiscoveryInstruction}`;
-
-export function getArtifactToolsInstruction(useCompactPrompts: boolean): string {
-	return useCompactPrompts ? ARTIFACT_TOOLS_INSTRUCTION : ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION;
-}
+export const ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. ${artifactToolDiscoveryInstruction}`;

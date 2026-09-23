@@ -13470,7 +13470,7 @@ Use the attached image as context.
 		});
 
 		test('discovers and executes deferred artifact tools in new and restored chats', async () => {
-			for (const [resume, useCompactPrompts] of [[false, false], [false, true], [true, false], [true, true]]) {
+			for (const resume of [false, true]) {
 				const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
 				const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 				stateManager.createSession({
@@ -13484,7 +13484,6 @@ Use the attached image as context.
 				let enabled = true;
 				const serverToolHost = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 					isEnabled: () => enabled,
-					useCompactPrompts: () => useCompactPrompts,
 					persist: () => { },
 				})]);
 				const clientSnapshot: IActiveClientSnapshot = {

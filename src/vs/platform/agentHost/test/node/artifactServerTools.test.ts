@@ -12,7 +12,7 @@ import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type I
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
-import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup, getArtifactToolsInstruction, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
+import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
@@ -35,7 +35,6 @@ suite('Artifact Server Tools', () => {
 		const persisted: (readonly ISessionArtifact[])[] = [];
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => true,
-			useCompactPrompts: () => true,
 			persist: (_session, artifacts) => { persisted.push(artifacts); },
 			...accessor,
 		})]);
@@ -45,42 +44,6 @@ suite('Artifact Server Tools', () => {
 			execute: async (name: string, args?: unknown) => host.executeTool(buildDefaultChatUri(sessionUri), name, args),
 		};
 	}
-
-	test('does not read prompt configuration while registering tool names', () => {
-		let reads = 0;
-		const { host, sessionUri } = createHarness({ useCompactPrompts: () => { reads++; return false; } });
-		const readsDuringConstruction = reads;
-		host.getDefinitionsForSession(sessionUri);
-		assert.deepStrictEqual({ readsDuringConstruction, readsAfterLookup: reads }, { readsDuringConstruction: 0, readsAfterLookup: 1 });
-	});
-
-	test('selects original or compact wording without changing tool metadata or deferral', () => {
-		let useCompactPrompts = false;
-		const { host, sessionUri } = createHarness({ useCompactPrompts: () => useCompactPrompts });
-		const originalDefinitions = host.getDefinitionsForSession(sessionUri);
-		useCompactPrompts = true;
-		const compactDefinitions = host.getDefinitionsForSession(sessionUri);
-
-		assert.deepStrictEqual({
-			defaultDefinitions: createArtifactServerToolGroup().definitions,
-			originalMetadata: originalDefinitions.map(({ inputSchema: _inputSchema, ...definition }) => definition),
-			compactDefinitions,
-			repeatedClassification: [originalDefinitions, compactDefinitions].map(definitions => JSON.stringify(definitions[0].inputSchema).includes('attempt to fix, change, or unblock')),
-			instructions: [false, true].map(compact => ({
-				repeatedClassification: getArtifactToolsInstruction(compact).includes('attempt to fix, change, or unblock'),
-				toolMentions: compactDefinitions.map(tool => getArtifactToolsInstruction(compact).split(`\`${tool.name}\``).length - 1),
-			})),
-		}, {
-			defaultDefinitions: originalDefinitions,
-			originalMetadata: compactDefinitions.map(({ inputSchema: _inputSchema, ...definition }) => definition),
-			compactDefinitions: artifactServerToolDefinitions,
-			repeatedClassification: [true, false],
-			instructions: [
-				{ repeatedClassification: true, toolMentions: [1, 1, 1] },
-				{ repeatedClassification: false, toolMentions: [1, 1, 1] },
-			],
-		});
-	});
 
 	test('names what was recorded, from the isArtifact flag', () => {
 		assert.deepStrictEqual({
@@ -156,7 +119,7 @@ suite('Artifact Server Tools', () => {
 		});
 	});
 
-	test('uses concise pointers to classification and the registered discovery tools', () => {
+	test('keeps classification guidance in the input schema and names the registered discovery tools', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
 		const items = addDefinition?.inputSchema?.properties?.items as {
 			readonly items?: { readonly properties?: Record<string, { readonly type?: string; readonly description?: string }> };
@@ -165,17 +128,17 @@ suite('Artifact Server Tools', () => {
 
 		assert.deepStrictEqual({
 			inputType: classificationInput?.type,
-			classificationPointer: classificationInput?.description?.includes('tool description\'s classification'),
-			repeatedClassification: [classificationInput?.description, ARTIFACT_TOOLS_INSTRUCTION].some(description => description?.includes('attempt to fix')),
+			inputClassification: classificationInput?.description?.includes('attempt to fix, change, or unblock'),
+			instructionClassification: ARTIFACT_TOOLS_INSTRUCTION.includes('attempt to fix, change, or unblock'),
 			toolMentions: artifactServerToolDefinitions.map(tool => ARTIFACT_TOOLS_INSTRUCTION.split(`\`${tool.name}\``).length - 1),
 			discovery: ARTIFACT_TOOLS_INSTRUCTION.includes('discover if needed'),
-			optional: ARTIFACT_TOOLS_INSTRUCTION.includes('optional; default to none'),
+			optional: ARTIFACT_TOOLS_INSTRUCTION.includes('default to no registration'),
 			batch: ARTIFACT_TOOLS_INSTRUCTION.includes('batch related entries'),
 			endOnly: ARTIFACT_TOOLS_INSTRUCTION.includes('at the end'),
 		}, {
 			inputType: 'boolean',
-			classificationPointer: true,
-			repeatedClassification: false,
+			inputClassification: true,
+			instructionClassification: true,
 			toolMentions: [1, 1, 1],
 			discovery: true,
 			optional: true,
@@ -242,7 +205,6 @@ suite('Artifact Server Tools', () => {
 		let persistCalls = 0;
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
-			useCompactPrompts: () => true,
 			persist: () => { persistCalls++; },
 		});
 
@@ -398,7 +360,6 @@ suite('Artifact Server Tools', () => {
 		let persisted = false;
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
-			useCompactPrompts: () => true,
 			persist: () => { persisted = true; },
 		});
 

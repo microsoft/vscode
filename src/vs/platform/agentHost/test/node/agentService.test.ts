@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -1345,8 +1345,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		for (const [removeArtifacts, useCompactPrompts] of [[false, false], [false, true], [true, false], [true, true]]) {
-			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} with ${useCompactPrompts ? 'compact' : 'original'} prompts persist centrally and list after restart without local database reads`, async () => {
+		for (const removeArtifacts of [false, true]) {
+			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} persist centrally and list after restart without local database reads`, async () => {
 				class ArtifactAgent extends MockAgent {
 					serverToolHost: IAgentServerToolHost | undefined;
 					setServerToolHost(host: IAgentServerToolHost): void {
@@ -1377,7 +1377,6 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 				getConfigurationService(svc).updateRootConfig({
 					[AgentHostArtifactToolsConfigKey]: true,
-					[AgentHostArtifactToolsCompactPromptsConfigKey]: useCompactPrompts,
 				});
 				const session = await svc.createSession({ provider: 'copilot' });
 				const addDefinition = agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference);
@@ -1410,7 +1409,7 @@ suite('AgentService (node dispatcher)', () => {
 					restarted: readSessionArtifacts(listed._meta),
 					databaseOpens,
 				}, {
-					repeatedClassification: !useCompactPrompts,
+					repeatedClassification: true,
 					items,
 					legacy: expectedArtifacts,
 					central: expectedArtifacts,
