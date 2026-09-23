@@ -176,6 +176,28 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	for (const query of ['', '@type:plugin demo']) {
+		test(`does not display Cursor plugins in ${query ? 'search' : 'browse'}`, async () => {
+			const fixture = createPage();
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({
+				items: [
+					resource('demo Cursor plugin', { mediaType: CustomizationMarketplaceMediaType.CursorPlugin }),
+					resource('demo Copilot plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+				],
+			});
+			await timeout(0);
+			const content = fixture.page.getAccessibilityContent();
+			assert.deepStrictEqual({
+				cursor: content.includes('demo Cursor plugin'),
+				copilot: content.includes('demo Copilot plugin'),
+			}, { cursor: false, copilot: true });
+		});
+	}
+
 	test('changing source enablement clears available pages but keeps installed search', async () => {
 		const fixture = createPage(['agentFinder']);
 		fixture.page.setSearchQuery('mail');
@@ -250,12 +272,14 @@ suite('AICustomizationDiscoveryPage', () => {
 			let failing = true;
 			const marketplace = new CustomizationMarketplaceService([
 				{ id: 'agentFinder', query: async () => ({ items: [resource('public-mail', { score: 50 })], total: 1 }) },
-				{ id: 'other', query: async () => {
-					if (failing) {
-						throw new Error('Other Feed unavailable');
+				{
+					id: 'other', query: async () => {
+						if (failing) {
+							throw new Error('Other Feed unavailable');
+						}
+						return { items: [resource('other-mail', { score: 100 })], total: 1 };
 					}
-					return { items: [resource('other-mail', { score: 100 })], total: 1 };
-				} },
+				},
 			]);
 			if (query) {
 				fixture.page.setSearchQuery(query);

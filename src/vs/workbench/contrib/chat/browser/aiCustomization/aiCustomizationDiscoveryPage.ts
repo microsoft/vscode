@@ -143,7 +143,6 @@ function getCatalogType(resource: ICustomizationMarketplaceResource): 'skill' | 
 		case CustomizationMarketplaceMediaType.McpServer: return 'mcp';
 		case CustomizationMarketplaceMediaType.CopilotPlugin:
 		case CustomizationMarketplaceMediaType.ClaudePlugin:
-		case CustomizationMarketplaceMediaType.CursorPlugin:
 			return 'plugin';
 		default:
 			return undefined;
@@ -1034,6 +1033,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			};
 			const seen = new Set<string>();
 			this.catalogItems = this.catalogPage.items.filter(item => {
+				if (item.mediaType === CustomizationMarketplaceMediaType.CursorPlugin) {
+					return false;
+				}
 				const key = getCustomizationMarketplaceResourceKey(item);
 				if (seen.has(key)) {
 					return false;
@@ -1080,7 +1082,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		return this.loadingMore
 			? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
 			: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
-			: localize('customizationDiscovery.loading', "Loading customizations...");
+				: localize('customizationDiscovery.loading', "Loading customizations...");
 	}
 
 	private renderSearchResults(): void {
@@ -1288,11 +1290,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			? localize('customizationDiscovery.installed', "Installed")
 			: state.kind === 'uninstalling'
 				? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-			: state.kind === 'installing'
-				? localize('customizationDiscovery.installing', "Installing...")
-				: installError
-					? localize('customizationDiscovery.retryInstall', "Retry Install")
-					: localize('customizationDiscovery.install', "Install");
+				: state.kind === 'installing'
+					? localize('customizationDiscovery.installing', "Installing...")
+					: installError
+						? localize('customizationDiscovery.retryInstall', "Retry Install")
+						: localize('customizationDiscovery.install', "Install");
 		install.enabled = state.kind === 'available';
 		install.setAriaLabel(state.kind === 'unavailable'
 			? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
