@@ -12,10 +12,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CopilotConnectorsMarketplaceSource, ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorsMarketplaceProvider, ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
-suite('CopilotConnectorsMarketplaceSource', () => {
+suite('CopilotConnectorsMarketplaceProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function connector(name: string, overrides: Partial<ICopilotConnector> = {}): ICopilotConnector {
@@ -38,7 +38,7 @@ suite('CopilotConnectorsMarketplaceSource', () => {
 				return { connectors: this.connectors, cacheToken: this.cacheToken };
 			}
 		}();
-		return { source: new CopilotConnectorsMarketplaceSource(service, configuration), service, calls, configuration };
+		return { source: new CopilotConnectorsMarketplaceProvider(service, configuration), service, calls, configuration };
 	}
 
 	test('ranks exact names, prefixes, substrings, fuzzy names, keywords, and descriptions in distinct bands', async () => {
@@ -302,7 +302,7 @@ suite('CopilotConnectorsMarketplaceSource', () => {
 		const service = new class extends mock<ICopilotConnectorsService>() {
 			override async getConnectorsSnapshot() { return { connectors: await response.p, cacheToken: CancellationToken.None }; }
 		}();
-		const source = new CopilotConnectorsMarketplaceSource(service, configuration);
+		const source = new CopilotConnectorsMarketplaceProvider(service, configuration);
 		const cancellation = store.add(new CancellationTokenSource());
 		const result = source.query({ query: 'mail' }, cancellation.token);
 		const cancelled = assert.rejects(result, isCancellationError);

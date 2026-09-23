@@ -109,13 +109,10 @@ export interface ICustomizationMarketplaceSourcePage {
 	readonly cacheToken?: CancellationToken;
 }
 
-/** Owns transport, response validation, and normalization, including any installation provenance. */
+/** A feed with a stable ID that owns transport, response validation, and installation provenance. */
 export interface ICustomizationMarketplaceProvider {
-	query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
-}
-
-export interface ICustomizationMarketplaceSource extends ICustomizationMarketplaceProvider {
 	readonly id: string;
+	query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 }
 
 export interface ICustomizationMarketplaceSourceInfo {
@@ -130,7 +127,7 @@ export interface ICustomizationMarketplaceSourceRecoveryAction {
 	run(token: CancellationToken): Promise<void>;
 }
 
-export function createLazyCustomizationMarketplaceSource(id: string, createProvider: () => ICustomizationMarketplaceProvider): ICustomizationMarketplaceSource {
+export function createLazyCustomizationMarketplaceProvider(id: string, createProvider: () => ICustomizationMarketplaceProvider): ICustomizationMarketplaceProvider {
 	const provider = new Lazy(createProvider);
 	return {
 		id,
@@ -138,7 +135,11 @@ export function createLazyCustomizationMarketplaceSource(id: string, createProvi
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return provider.value.query(options, token);
+			const instance = provider.value;
+			if (instance.id !== id) {
+				throw new Error(`Marketplace provider '${id}' has an unexpected identifier '${instance.id}'.`);
+			}
+			return instance.query(options, token);
 		},
 	};
 }
@@ -186,7 +187,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 
 	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(32);
 
-	constructor(private readonly sources: readonly ICustomizationMarketplaceSource[]) {
+	constructor(private readonly sources: readonly ICustomizationMarketplaceProvider[]) {
 		if (sources.some(source => !source.id) || new Set(sources.map(source => source.id)).size !== sources.length) {
 			throw new Error('Marketplace sources must have unique, nonempty identifiers.');
 		}

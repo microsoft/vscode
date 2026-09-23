@@ -25,7 +25,7 @@ import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { CopilotConnectorsMarketplaceSource, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
@@ -174,7 +174,7 @@ suite('CopilotConnectorsService', () => {
 
 	test('validates catalog metadata and exposes an MCP marketplace source', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
-		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 
 		const first = await source.query({ query: 'connector', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 1 }, CancellationToken.None);
 		const second = await source.query({ query: 'connector', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
@@ -199,7 +199,7 @@ suite('CopilotConnectorsService', () => {
 			name: 'service',
 			metadata: { displayName: 'Entry', keywords: ['inbox'], representativeQueries: ['Schedule a meeting'] },
 		}] } }]);
-		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 		const keywords = await source.query({ query: 'inbox' }, CancellationToken.None);
 		const examples = await source.query({ query: 'schedule meeting' }, CancellationToken.None);
 		assert.deepStrictEqual({
@@ -246,7 +246,7 @@ suite('CopilotConnectorsService', () => {
 		const fixture = createFixture([]);
 		fixture.setAccount(null);
 		fixture.setSessions([]);
-		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 		await assert.rejects(source.query({}, CancellationToken.None), /Sign in to view connectors/);
 		assert.deepStrictEqual({
 			authorizationRequired: fixture.service.authorizationRequired,
@@ -440,7 +440,7 @@ suite('CopilotConnectorsService', () => {
 					{ name: 'description', metadata: { displayName: 'Mail' } },
 				] } },
 			]);
-			const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+			const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 			const options = { query: 'mail', pageSize: 1 };
 			const first = await source.query(options, CancellationToken.None);
 			await timeout(60_001);
@@ -467,7 +467,7 @@ suite('CopilotConnectorsService', () => {
 	for (const change of ['account', 'session', 'source']) {
 		test(`${change} changes invalidate native snapshots and the catalog cache`, async () => {
 			const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }, { body: catalogResponse('available', ['fresh']) }]);
-			const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+			const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 			const first = await source.query({ pageSize: 1 }, CancellationToken.None);
 			if (change === 'account') {
 				fixture.setAccount({ ...fixture.initialAccount, accountName: 'another-account', sessionId: 'another-session' });
@@ -493,7 +493,7 @@ suite('CopilotConnectorsService', () => {
 
 	test('sign-out refuses a continuation instead of exposing the previous account catalog', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
-		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 		const first = await source.query({ pageSize: 1 }, CancellationToken.None);
 		fixture.setAccount(null);
 		await assert.rejects(source.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
@@ -508,7 +508,7 @@ suite('CopilotConnectorsService', () => {
 
 	test('unchanged account identity and unrelated authentication events preserve snapshots', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
-		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 		const first = await source.query({ pageSize: 1 }, CancellationToken.None);
 		fixture.setAccount({ ...fixture.initialAccount });
 		fixture.sessionsChanged.fire({ providerId: 'other-provider', label: 'Other', event: { added: undefined, removed: undefined, changed: [fixture.initialSession] } });

@@ -7,12 +7,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { localize } from '../../../../../nls.js';
 import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
-import { AgentFinderSource } from '../../../../../platform/agentFinder/common/agentFinderSource.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceService, IAgentFinderMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, IAgentFinderMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { CopilotConnectorsMarketplaceSource, ICopilotConnectorsService } from './copilotConnectorsService.js';
+import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 
 export class AgentFinderMarketplaceWorkbenchService implements IAgentFinderMarketplaceService {
 	declare readonly _serviceBrand: undefined;
@@ -24,10 +23,7 @@ export class AgentFinderMarketplaceWorkbenchService implements IAgentFinderMarke
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => {
-				const provider = instantiationService.createInstance(AgentFinderRestProvider);
-				return new AgentFinderSource(provider, provider);
-			}),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		]));
 	}
 
@@ -39,7 +35,7 @@ export class AgentFinderMarketplaceWorkbenchService implements IAgentFinderMarke
 	}
 }
 
-class AgentFinderMarketplaceSource implements ICustomizationMarketplaceSource {
+class AgentFinderMarketplaceProvider implements ICustomizationMarketplaceProvider {
 	readonly id = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
 
 	constructor(private readonly service: IAgentFinderMarketplaceService) { }
@@ -80,8 +76,8 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.service = new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => new AgentFinderMarketplaceSource(agentFinderService)),
-			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceSource(copilotConnectorsService, configurationService)),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => new AgentFinderMarketplaceProvider(agentFinderService)),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(copilotConnectorsService, configurationService)),
 		]);
 	}
 

@@ -14,6 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IRequestService } from '../../request/common/request.js';
 
 const endpoint = 'https://agentfinder.github.com/api/v1';
@@ -37,6 +38,8 @@ const maxGitRefLength = 1024;
 class AgentFinderError extends Error { }
 
 export class AgentFinderRestProvider implements ICustomizationMarketplaceProvider {
+	readonly id = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
+
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
 	) { }

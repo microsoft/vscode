@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { CopilotConnectorsError, CopilotConnectorsRequest, copilotConnectorsScope, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -488,7 +488,7 @@ interface IConnectorContinuation {
 	readonly cacheToken: CancellationToken;
 }
 
-export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketplaceSource {
+export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarketplaceProvider {
 	readonly id = CustomizationMarketplaceSources.CopilotConnectors.id;
 	private readonly continuations = new LRUCache<string, IConnectorContinuation>(32);
 
