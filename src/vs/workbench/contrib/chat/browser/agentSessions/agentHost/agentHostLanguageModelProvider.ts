@@ -13,7 +13,7 @@ import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentH
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
-import { readAgentModelIsDefault } from '../../../../../../platform/agentHost/common/agentModelDefaultMeta.js';
+import { readAgentModelIsDefault } from '../../../../../../platform/agentHost/common/meta/agentModelDefaultMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';

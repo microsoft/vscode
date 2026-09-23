@@ -39,7 +39,6 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
-import { createAgentModelDefaultMeta } from '../../common/agentModelDefaultMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
@@ -49,7 +48,7 @@ import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParam
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { applyManagedContextTier, applyManagedLock, managedAutoModeTier, readCopilotManagedModelFields, type ICopilotManagedModelDefault, type ICopilotManagedModelDefaults } from './copilotManagedModelDefaults.js';
+import { applyCopilotManagedModelPolicy, fetchCopilotManagedModelPolicy, type ICopilotManagedModelPolicy } from './copilotManagedModelDefaults.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -570,12 +569,6 @@ export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
 
 type CopilotModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['models'][number];
 
-/** Combines model `_meta` fragments, returning `undefined` when none carries anything. */
-function mergeModelMeta(...fragments: (Record<string, unknown> | undefined)[]): Record<string, unknown> | undefined {
-	const present = fragments.filter((fragment): fragment is Record<string, unknown> => fragment !== undefined);
-	return present.length > 0 ? Object.assign({}, ...present) : undefined;
-}
-
 interface ISerializedModelSelection {
 	id?: unknown;
 	config?: unknown;
@@ -799,6 +792,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _byokModels: readonly IAgentModelInfo[] = [];
+
+	/**
+	 * Managed model defaults from the runtime's `managedSettings.get`, and the token they were
+	 * resolved for. Fetched after each model refresh, off the startup path, and applied when models
+	 * are published, so the picker never waits on managed policy.
+	 */
+	private _managedModelPolicy: { readonly token: string; readonly policy: ICopilotManagedModelPolicy | undefined } | undefined;
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
@@ -2151,6 +2151,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
 				this._publishModels();
+				void this._refreshManagedModelPolicy(tokenAtRefreshStart, generation);
 			}
 		} catch (err) {
 			// Token rotated mid-flight — a newer refresh owns the result — or
@@ -2181,6 +2182,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Fetches the managed model defaults after the model list has been published and republishes
+	 * the list when they change. Runs off the startup path: the picker shows the catalog first and
+	 * picks up the managed defaults when this resolves. Runtimes without `managedSettings.get` keep
+	 * the built-in defaults.
+	 */
+	private async _refreshManagedModelPolicy(gitHubToken: string, generation: number): Promise<void> {
+		if (this._shutdownPromise) {
+			return;
+		}
+		let policy: ICopilotManagedModelPolicy | undefined;
+		try {
+			const client = await this._ensureClient();
+			policy = await fetchCopilotManagedModelPolicy(client.rpc, gitHubToken);
+		} catch (err) {
+			this._logService.trace('[Copilot] Managed model defaults unavailable', err);
+			return;
+		}
+		if (this._githubCredentials.token !== gitHubToken || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
+			return;
+		}
+		const previous = this._managedModelPolicy?.token === gitHubToken ? this._managedModelPolicy.policy : undefined;
+		this._managedModelPolicy = { token: gitHubToken, policy };
+		if (!structuralEquals(previous, policy)) {
+			this._publishModels();
+		}
+	}
+
+	/**
 	 * Re-emit the merged CAPI + BYOK model list to the picker. A fresh array is
 	 * allocated each call so the observable always notifies its consumers.
 	 */
@@ -2192,7 +2221,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: true,
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
-		this._models.set([...this._capiModels, ...hydraFusionModels, ...this._byokModels], undefined);
+		// Managed defaults resolved for another account never apply.
+		const managedPolicy = this._managedModelPolicy?.token === this._githubCredentials.token ? this._managedModelPolicy.policy : undefined;
+		this._models.set(applyCopilotManagedModelPolicy([...this._capiModels, ...hydraFusionModels, ...this._byokModels], managedPolicy, this.id), undefined);
 	}
 
 	/**
@@ -2562,24 +2593,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Synthesizes the Auto model's routing-profile picker, surfaced as the "Optimize for" button.
-	 * A managed Auto tier from the runtime replaces the built-in default, and locks the picker
-	 * when policy does not let users override it.
 	 */
-	private _createAutoTierConfigSchemaProperty(modelId: string, managed: ICopilotManagedModelDefault | undefined): ConfigPropertySchema | undefined {
+	private _createAutoTierConfigSchemaProperty(modelId: string): ConfigPropertySchema | undefined {
 		if (!isAutoModel(modelId)) {
 			return undefined;
 		}
-		const managedTier = managedAutoModeTier(managed);
-		const property: ConfigPropertySchema = {
+		return {
 			type: 'string',
 			title: localize('copilot.modelAutoTier.title', "Optimize for"),
 			description: localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to."),
-			default: managedTier ?? defaultAutoModeTier,
+			default: defaultAutoModeTier,
 			enum: [...autoModeTiers],
 			enumLabels: autoModeTiers.map(getAutoModeTierLabel),
 			enumDescriptions: autoModeTiers.map(tier => getAutoModeTierDescription(tier) ?? ''),
 		};
-		return managedTier ? applyManagedLock(property, managed) : property;
 	}
 
 	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
@@ -2588,24 +2615,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return pricing || notices ? { ...pricing, ...notices } : undefined;
 	}
 
-	/**
-	 * Builds the model's picker schema. Managed defaults the runtime overlays on the listing (an
-	 * organization-chosen thinking level, context tier, or Auto tier) replace the built-in defaults,
-	 * and lock their picker when policy does not let users override them.
-	 */
-	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined, managed: ICopilotManagedModelDefaults | undefined): ConfigSchema | undefined {
+	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
-		const managedEffort = managed?.reasoningEffort;
-		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, managedEffort?.value, m.id);
+		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, undefined, m.id);
 		if (thinkingLevel) {
-			// Lock only a level the picker actually offers; an unsupported one falls back to the built-in default.
-			properties[ThinkingLevelConfigKey] = thinkingLevel.default === managedEffort?.value ? applyManagedLock(thinkingLevel, managedEffort) : thinkingLevel;
+			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextSize = applyManagedContextTier(createContextSizeConfigSchemaProperty(billing), managed?.contextTier);
+		const contextSize = createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
-		const autoTier = this._createAutoTierConfigSchemaProperty(m.id, managed?.autoTier);
+		const autoTier = this._createAutoTierConfigSchemaProperty(m.id);
 		if (autoTier) {
 			properties[AutoTierConfigKey] = autoTier;
 		}
@@ -3085,15 +3105,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._freeLongContextModels.clear();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
-			const overlay = readCopilotManagedModelFields(m);
-			const configSchema = this._createModelConfigSchema(m, billing, overlay.managed);
+			const configSchema = this._createModelConfigSchema(m, billing);
 			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
-			// A managed context tier is the default instead, so the free long-context fallback must not override it.
-			if (hasLargerLongContext && !hasLongContextSurcharge(billing) && !overlay.managed?.contextTier) {
+			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
 				this._freeLongContextModels.add(m.id);
 			}
 			return {
@@ -3108,7 +3126,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				supportsVision: !!m.capabilities?.supports?.vision,
 				configSchema,
 				policyState: m.policy?.state as PolicyState | undefined,
-				_meta: mergeModelMeta(this._createModelPickerMeta(m, billing), createAgentModelDefaultMeta(overlay.isDefault)),
+				_meta: this._createModelPickerMeta(m, billing),
 			};
 		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);

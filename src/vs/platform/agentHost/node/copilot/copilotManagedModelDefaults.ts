@@ -4,100 +4,112 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { createAgentModelDefaultMeta } from '../../common/meta/agentModelDefaultMeta.js';
+import type { IAgentModelInfo } from '../../common/agent.js';
 import type { ConfigPropertySchema } from '../../common/state/protocol/state.js';
+import { isAutoModel } from './modelIdentifiers.js';
+import { AutoTierConfigKey } from './copilotSessionLauncher.js';
 
 /**
- * One enterprise-managed default the Copilot runtime overlays on a `models.list` entry
- * (github/copilot-agent-runtime#22675).
- *
- * Declared locally until the bundled `@github/copilot-sdk` publishes these fields. Runtimes
- * that predate the overlay omit them, and every reader falls back to today's behavior.
+ * One managed model default from the Copilot runtime's `managedSettings.get`
+ * (github/copilot-agent-runtime#22675), already resolved across managed-settings channels.
  */
 export interface ICopilotManagedModelDefault {
-	/** Effective value a new session applies when the caller does not choose one. */
+	/** Value a new session applies when the caller does not choose one. */
 	readonly value: string;
 	/** `false` when policy locks the value. */
 	readonly overridable: boolean;
-	/** Managed-settings channel that supplied the value (`device`, `server`, or `policyHelper`). */
+	/** Managed-settings channel that supplied the value. */
 	readonly source: string;
-	/** Policy value before the runtime resolved or adjusted it, present only when different. */
-	readonly requested?: string;
 }
 
-/** Enterprise-managed defaults for one listed model. */
-export interface ICopilotManagedModelDefaults {
+/** Managed model defaults for the model picker. */
+export interface ICopilotManagedModelPolicy {
+	/** The managed default model identifier, as configured. */
 	readonly model?: ICopilotManagedModelDefault;
-	readonly reasoningEffort?: ICopilotManagedModelDefault;
-	readonly contextTier?: ICopilotManagedModelDefault;
+	/** The managed default Auto routing preference. */
 	readonly autoTier?: ICopilotManagedModelDefault;
 }
 
-/** The overlay fields a runtime may add to a `models.list` entry. */
-export interface ICopilotManagedModelFields {
-	/** The model a new session uses when the caller does not choose one. */
-	readonly isDefault?: boolean;
-	readonly managed?: ICopilotManagedModelDefaults;
-}
-
-/** Reads the overlay fields from an SDK `models.list` entry, ignoring malformed values. */
-export function readCopilotManagedModelFields(model: object): ICopilotManagedModelFields {
-	const { isDefault, managed } = model as { readonly isDefault?: unknown; readonly managed?: unknown };
-	const defaults = managed && typeof managed === 'object' ? managed as Record<string, unknown> : undefined;
-	const read = (key: keyof ICopilotManagedModelDefaults) => readManagedDefault(defaults?.[key]);
-	const entries: ICopilotManagedModelDefaults = {
-		model: read('model'),
-		reasoningEffort: read('reasoningEffort'),
-		contextTier: read('contextTier'),
-		autoTier: read('autoTier'),
-	};
-	const hasManaged = Object.values(entries).some(entry => entry !== undefined);
-	return {
-		...(isDefault === true ? { isDefault: true } : {}),
-		...(hasManaged ? { managed: entries } : {}),
-	};
-}
-
-function readManagedDefault(candidate: unknown): ICopilotManagedModelDefault | undefined {
-	if (!candidate || typeof candidate !== 'object') {
-		return undefined;
-	}
-	const { value, overridable, source, requested } = candidate as Record<string, unknown>;
-	if (typeof value !== 'string' || typeof overridable !== 'boolean') {
-		return undefined;
-	}
-	return {
-		value,
-		overridable,
-		source: typeof source === 'string' ? source : 'unknown',
-		...(typeof requested === 'string' ? { requested } : {}),
-	};
-}
-
-/** Marks a synthesized picker property read-only when policy locks its managed default. */
-export function applyManagedLock(property: ConfigPropertySchema, managed: ICopilotManagedModelDefault | undefined): ConfigPropertySchema {
-	return managed && !managed.overridable ? { ...property, readOnly: true } : property;
+interface IManagedSettingsGetRpc {
+	readonly managedSettings?: { readonly get?: (params: { readonly gitHubToken: string }) => Promise<unknown> };
 }
 
 /**
- * Sets the context-size picker's default from a managed context tier: `long_context` selects the
- * largest offered window and `default` the smallest. Unknown tiers leave the property unchanged.
+ * Fetches the managed model defaults for an account. Returns `undefined` when the bundled SDK
+ * predates `managedSettings.get` (declared locally until the SDK publishes it) or when policy sets
+ * no model defaults. Callers run this off the startup path: it can fetch server policy.
  */
-export function applyManagedContextTier(property: ConfigPropertySchema | undefined, managed: ICopilotManagedModelDefault | undefined): ConfigPropertySchema | undefined {
-	if (!property || !managed) {
-		return property;
+export async function fetchCopilotManagedModelPolicy(rpc: object, gitHubToken: string): Promise<ICopilotManagedModelPolicy | undefined> {
+	const managedSettings = (rpc as IManagedSettingsGetRpc).managedSettings;
+	if (typeof managedSettings?.get !== 'function') {
+		return undefined;
 	}
-	const sizes = property.enum?.filter((size): size is number => typeof size === 'number');
-	if (!sizes?.length) {
-		return property;
+	return readCopilotManagedModelPolicy(await managedSettings.get({ gitHubToken }));
+}
+
+/** Reads `modelPolicy` from a `managedSettings.get` result, ignoring malformed values. */
+export function readCopilotManagedModelPolicy(result: unknown): ICopilotManagedModelPolicy | undefined {
+	const modelPolicy = isObject(result) ? result['modelPolicy'] : undefined;
+	if (!isObject(modelPolicy)) {
+		return undefined;
 	}
-	const size = managed.value === 'long_context' ? Math.max(...sizes)
-		: managed.value === 'default' ? Math.min(...sizes)
-			: undefined;
-	return size === undefined ? property : applyManagedLock({ ...property, default: size }, managed);
+	const model = readManagedDefault(modelPolicy['model']);
+	const autoTier = readManagedDefault(modelPolicy['autoTier']);
+	if (!model && !autoTier) {
+		return undefined;
+	}
+	return { ...(model ? { model } : {}), ...(autoTier ? { autoTier } : {}) };
+}
+
+function readManagedDefault(candidate: unknown): ICopilotManagedModelDefault | undefined {
+	if (!isObject(candidate)) {
+		return undefined;
+	}
+	const { value, overridable, source } = candidate;
+	if (typeof value !== 'string' || value.length === 0 || typeof overridable !== 'boolean') {
+		return undefined;
+	}
+	return { value, overridable, source: typeof source === 'string' ? source : 'unknown' };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** The picker profile for a managed Auto tier, or `undefined` when the picker does not offer it. */
 export function managedAutoModeTier(managed: ICopilotManagedModelDefault | undefined): AutoModeTier | undefined {
 	const tier = normalizeAutoModeTier(managed?.value);
 	return isAutoModeTier(tier) ? tier : undefined;
+}
+
+/**
+ * Applies managed model defaults to the Copilot models published to the picker:
+ * - the managed Auto tier becomes the Auto model's "Optimize for" default, locked when policy
+ *   does not let users override it;
+ * - the managed default model, matched by identifier among this provider's models, is marked
+ *   as the default.
+ * Returns the input unchanged when there is no policy.
+ */
+export function applyCopilotManagedModelPolicy(models: readonly IAgentModelInfo[], policy: ICopilotManagedModelPolicy | undefined, provider: string): readonly IAgentModelInfo[] {
+	if (!policy) {
+		return models;
+	}
+	const tier = managedAutoModeTier(policy.autoTier);
+	const defaultModelId = policy.model?.value;
+	return models.map(model => {
+		if (model.provider !== provider) {
+			return model;
+		}
+		let result = model;
+		const tierProperty = model.configSchema?.properties[AutoTierConfigKey];
+		if (tier && isAutoModel(model.id) && tierProperty && model.configSchema) {
+			const property: ConfigPropertySchema = { ...tierProperty, default: tier, ...(policy.autoTier?.overridable === false ? { readOnly: true } : {}) };
+			result = { ...result, configSchema: { ...model.configSchema, properties: { ...model.configSchema.properties, [AutoTierConfigKey]: property } } };
+		}
+		if (defaultModelId !== undefined && model.id === defaultModelId) {
+			result = { ...result, _meta: { ...result._meta, ...createAgentModelDefaultMeta(true) } };
+		}
+		return result;
+	});
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionModelInfo } from './state/protocol/state.js';
-import type { IAgentModelInfo } from './agent.js';
+import type { SessionModelInfo } from '../state/protocol/state.js';
+import type { IAgentModelInfo } from '../agent.js';
 
 /**
  * Well-known key marking the model a new session uses when the caller does not choose one,

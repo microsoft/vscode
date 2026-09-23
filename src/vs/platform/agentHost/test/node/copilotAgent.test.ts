@@ -86,7 +86,7 @@ import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
-import type { ICopilotManagedModelDefaults } from '../../node/copilot/copilotManagedModelDefaults.js';
+import { readAgentModelIsDefault } from '../../common/meta/agentModelDefaultMeta.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -527,9 +527,6 @@ interface ITestCopilotModelInfo {
 	readonly infoMessages?: CopilotModelInfo['infoMessages'];
 	readonly warningMessages?: CopilotModelInfo['warningMessages'];
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
-	/** Runtime overlay fields not yet in the published SDK types; see `copilotManagedModelDefaults.ts`. */
-	readonly isDefault?: boolean;
-	readonly managed?: ICopilotManagedModelDefaults;
 }
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
@@ -542,6 +539,8 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 			readonly list: CopilotClient['rpc']['sessions']['list'];
 		};
 		readonly models: { readonly list: CopilotModelsList };
+		/** Not yet in the published SDK types; see `copilotManagedModelDefaults.ts`. */
+		readonly managedSettings: { readonly get: (params: { readonly gitHubToken: string }) => Promise<unknown> };
 	};
 }
 
@@ -554,7 +553,7 @@ interface ITestCopilotSessionOptions {
 }
 
 function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
-	const sdkModel: CopilotModelInfo = {
+	return {
 		id: model.id,
 		name: model.name,
 		capabilities: {
@@ -577,11 +576,6 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 		...(model.warningMessages ? { warningMessages: model.warningMessages } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
 	};
-	// The runtime's managed-default overlay is not in the published SDK types yet, so attach it untyped.
-	return Object.assign(sdkModel, {
-		...(model.isDefault !== undefined ? { isDefault: model.isDefault } : {}),
-		...(model.managed ? { managed: model.managed } : {}),
-	});
 }
 
 class TestCopilotClient implements ITestCopilotClient {
@@ -655,7 +649,25 @@ class TestCopilotClient implements ITestCopilotClient {
 				return { models: models.map(toSdkModelInfo) };
 			}
 		},
+		managedSettings: {
+			get: async params => {
+				this.managedSettingsRequests.push(params);
+				try {
+					if (this.managedSettingsError) {
+						throw this.managedSettingsError;
+					}
+					return this.managedSettingsResult;
+				} finally {
+					this.managedSettingsRequested.complete();
+				}
+			},
+		},
 	};
+	/** Result of `managedSettings.get`; `undefined` models a runtime that reports no managed model defaults. */
+	managedSettingsResult: unknown;
+	managedSettingsError: Error | undefined;
+	readonly managedSettingsRequests: { readonly gitHubToken: string }[] = [];
+	readonly managedSettingsRequested = new DeferredPromise<void>();
 	startCallCount = 0;
 	stopCallCount = 0;
 	readonly startCalled = new DeferredPromise<void>();
@@ -7275,57 +7287,63 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema applies runtime-managed model defaults and marks the default model', async () => {
-		const agent = createTestAgent(disposables, {
-			copilotClient: new TestCopilotClient([], [{
-				id: 'auto',
-				name: 'Auto',
-				managed: { autoTier: { value: 'efficiency', overridable: false, source: 'server' } },
-			}, {
-				id: 'claude-sonnet',
-				name: 'Claude Sonnet',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: { multiplier: 1, tokenPrices: { contextMax: 200_000, longContext: { contextMax: 1_000_000, inputPrice: 2 } } },
-				supportedReasoningEfforts: ['low', 'medium', 'high'],
-				isDefault: true,
-				managed: {
-					model: { value: 'claude-sonnet', overridable: true, source: 'server' },
-					reasoningEffort: { value: 'low', overridable: false, source: 'device' },
-					contextTier: { value: 'long_context', overridable: true, source: 'server' },
-				},
-			}, {
-				id: 'gpt-5',
-				name: 'GPT-5',
-				capabilities: { limits: { max_context_window_tokens: 128_000 } },
-				supportedReasoningEfforts: ['low', 'medium', 'high'],
-				// A level the picker does not offer keeps the built-in default and stays unlocked.
-				managed: { reasoningEffort: { value: 'max', overridable: false, source: 'server' } },
-			}]),
-		});
+	test('applies runtime-managed model defaults after the model list is published', async () => {
+		const client = new TestCopilotClient([], [
+			{ id: 'auto', name: 'Auto' },
+			{ id: 'claude-sonnet', name: 'Claude Sonnet', capabilities: { limits: { max_context_window_tokens: 200_000 } } },
+			{ id: 'gpt-5', name: 'GPT-5', capabilities: { limits: { max_context_window_tokens: 128_000 } } },
+		]);
+		client.managedSettingsResult = {
+			resolved: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['model', 'autoTier'] },
+			modelPolicy: {
+				model: { value: 'claude-sonnet', overridable: true, source: 'server' },
+				autoTier: { value: 'efficiency', overridable: false, source: 'server' },
+			},
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			const models = await waitForState(agent.models, models => models.length === 3);
-			const byId = new Map(models.map(model => [model.id, model]));
-			const pick = (id: string, key: string) => {
-				const property = byId.get(id)?.configSchema?.properties[key];
-				return { default: property?.default, readOnly: property?.readOnly };
-			};
+			const models = await waitForState(agent.models, models => models.some(model => readAgentModelIsDefault(model)));
+			const tier = models.find(model => model.id === 'auto')?.configSchema?.properties.tier;
 
 			assert.deepStrictEqual({
-				autoTier: pick('auto', 'tier'),
-				sonnetThinking: pick('claude-sonnet', 'thinkingLevel'),
-				sonnetContext: pick('claude-sonnet', 'contextSize'),
-				gptThinking: pick('gpt-5', 'thinkingLevel'),
-				defaults: models.map(model => [model.id, model._meta?.isDefault]),
+				requests: client.managedSettingsRequests,
+				tier: { default: tier?.default, readOnly: tier?.readOnly },
+				defaults: models.map(model => [model.id, readAgentModelIsDefault(model)]),
 			}, {
-				autoTier: { default: 'efficiency', readOnly: true },
-				sonnetThinking: { default: 'low', readOnly: true },
-				sonnetContext: { default: 1_000_000, readOnly: undefined },
-				gptThinking: { default: 'medium', readOnly: undefined },
-				defaults: [['auto', undefined], ['claude-sonnet', true], ['gpt-5', undefined]],
+				requests: [{ gitHubToken: 'token' }],
+				tier: { default: 'efficiency', readOnly: true },
+				defaults: [['auto', false], ['claude-sonnet', true], ['gpt-5', false]],
 			});
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('keeps built-in model defaults when managedSettings.get fails or reports no model policy', async () => {
+		for (const configure of [
+			(client: TestCopilotClient) => { client.managedSettingsError = new Error('Unhandled method managedSettings.get'); },
+			(client: TestCopilotClient) => { client.managedSettingsResult = { resolved: { source: 'none' }, modelPolicy: { autoTier: { value: 'turbo' } } }; },
+		]) {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
+			configure(client);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await client.managedSettingsRequested.p;
+				const models = await waitForState(agent.models, models => models.length === 2);
+				const tier = models.find(model => model.id === 'auto')?.configSchema?.properties.tier;
+
+				assert.deepStrictEqual({
+					tier: { default: tier?.default, readOnly: tier?.readOnly },
+					defaults: models.map(model => readAgentModelIsDefault(model)),
+				}, {
+					tier: { default: 'balance', readOnly: undefined },
+					defaults: [false, false],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		}
 	});
 
@@ -7711,25 +7729,6 @@ suite('CopilotAgent', () => {
 			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
-		});
-
-		test('a managed context tier replaces the free long-context fallback', async () => {
-			const managedDefaultModel: ITestCopilotModelInfo = {
-				id: 'free-long-ctx',
-				name: 'Free Long Ctx',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000 },
-					},
-				},
-				managed: { contextTier: { value: 'default', overridable: true, source: 'server' } },
-			};
-			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [managedDefaultModel]);
-			assert.ok(config);
-			assert.strictEqual(config.contextTier, undefined);
 		});
 	});
 
