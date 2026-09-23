@@ -199,14 +199,19 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			return undefined;
 		}
 
-		const result = shellExit?.result ?? parseCompletedShell(toolOutput);
-		if (!result) {
+		const completionResult = shellExit?.result ?? parseCompletedShell(toolOutput);
+		if (!completionResult) {
 			if (!stream.created) {
 				this._streams.delete(toolCallId);
 				return undefined;
 			}
 			return { uri: stream.uri, shouldRetire: false };
 		}
+		const result = completionResult.preview === undefined ? {
+			...completionResult,
+			preview: this._terminalManager.getTerminalState(stream.uri)?.content.map(part => part.type === 'command' ? part.output : part.value).join('')
+				?? (completionResult.truncated ? '' : toolOutput ?? ''),
+		} : completionResult;
 		const created = !stream.created;
 		if (created) {
 			this._createTerminal(toolCallId, stream);
@@ -232,30 +237,11 @@ export class NonPtyShellTerminalStreams extends Disposable {
 				artifact: URI.file(shellExit.outputFilePath),
 			});
 			stream.retained = true;
-		} else if (result.preview !== undefined && result.truncated !== true) {
-			this._terminalManager.retainTerminalState(stream.uri, {
-				title: stream.title,
-				claim,
-				exitCode: result.exitCode,
-				content: [{ type: 'unclassified', value: result.preview }],
-			});
-			stream.retained = true;
-		} else if (result.truncated === true) {
-			const state = this._terminalManager.getTerminalState(stream.uri);
-			if (state) {
-				this._terminalManager.retainTerminalState(stream.uri, {
-					title: stream.title,
-					claim,
-					exitCode: result.exitCode,
-					content: state.content,
-				});
-				stream.retained = true;
-			}
 		}
 		return {
 			uri: stream.uri,
 			result,
-			shouldRetire: stream.finalized && result.preview !== undefined && stream.retained,
+			shouldRetire: stream.finalized,
 		};
 	}
 

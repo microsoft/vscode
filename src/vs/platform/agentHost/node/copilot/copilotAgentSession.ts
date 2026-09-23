@@ -3634,7 +3634,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const path = artifacts.get(part.toolCall.toolCallId);
 				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
-				if (!terminal) {
+				if (!terminal || terminal.isPty !== false || !path) {
 					continue;
 				}
 				const retained = {
@@ -3642,18 +3642,10 @@ export class CopilotAgentSession extends Disposable {
 					claim: buildNonPtyShellTerminalClaim(this._ownerSessionUri, this._chatChannelUri, part.toolCall.toolCallId),
 					exitCode: terminal.result?.exitCode,
 				};
-				if (path) {
-					this._terminalManager.retainTerminalState(terminal.resource, {
-						...retained,
-						artifact: URI.file(path),
-					});
-				} else if (terminal.isPty === false && terminal.result?.preview !== undefined && terminal.result.truncated !== true) {
-					// A truncated preview is not the full output, and the live transcript does not survive a restart.
-					this._terminalManager.retainTerminalState(terminal.resource, {
-						...retained,
-						content: [{ type: 'unclassified', value: terminal.result.preview }],
-					});
-				}
+				this._terminalManager.retainTerminalState(terminal.resource, {
+					...retained,
+					artifact: URI.file(path),
+				});
 			}
 		}
 	}
@@ -3754,6 +3746,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
 		await this._wrapper.disconnect();
+		this._terminalManager.removeRetainedTerminalsForOwner(this._chatChannelUri);
 		await this._disposeShellInitScript();
 	}
 

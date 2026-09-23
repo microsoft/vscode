@@ -26,6 +26,55 @@ suite('NonPtyShellTerminalStreams', () => {
 		return manager.outputTerminalData.map(d => d.data).join('');
 	}
 
+	suite('completed output cleanup', () => {
+		for (const preview of ['short output\n', '', undefined]) {
+			test(`retires settled short output without retaining or reviving it (${JSON.stringify(preview)})`, () => {
+				const disposed: string[] = [];
+				for (let i = 0; i < 20; i++) {
+					const toolCallId = `short-${i}`;
+					streams.track(toolCallId, 'shell');
+					streams.append(toolCallId, 'streamed output\n');
+					const completion = streams.completeToolCall(toolCallId, undefined, {
+						shellId: String(i),
+						result: { exitCode: i % 2 ? 127 : 0, preview },
+					});
+					ok(completion);
+					strictEqual(completion.result?.preview, preview ?? 'streamed output\n');
+					strictEqual(completion.shouldRetire, true);
+					streams.retire(toolCallId);
+					streams.retire(toolCallId);
+					disposed.push(completion.uri);
+					deepStrictEqual({
+						live: manager.getTerminalState(completion.uri),
+						lateOutput: streams.append(toolCallId, 'late output'),
+						retained: manager.retainedTerminalStates.size,
+					}, { live: undefined, lateOutput: undefined, retained: 0 });
+				}
+				streams.dispose();
+				deepStrictEqual(manager.disposedTerminals, disposed);
+			});
+		}
+
+		test('keeps only an artifact descriptor after retiring a spilled command', () => {
+			streams.track('spilled', 'shell');
+			streams.append('spilled', 'partial output');
+			const artifact = URI.file('/tmp/copilot-output.txt');
+			const completion = streams.completeToolCall('spilled', undefined, {
+				shellId: '1',
+				result: { exitCode: 0, preview: 'preview', truncated: true },
+				outputFilePath: artifact.fsPath,
+			});
+			ok(completion);
+			streams.retire('spilled');
+			streams.dispose();
+			deepStrictEqual({
+				live: manager.getTerminalState(completion.uri),
+				artifact: manager.retainedTerminalStates.get(completion.uri)?.artifact.toString(),
+				disposed: manager.disposedTerminals,
+			}, { live: undefined, artifact: artifact.toString(), disposed: [] });
+		});
+	});
+
 	suite('rolling-tail snapshot stitching', () => {
 		test('appends only the unseen suffix when the snapshot is a rolling tail, without resetting', () => {
 			streams.track('call-1', 'shell');
@@ -52,9 +101,9 @@ suite('NonPtyShellTerminalStreams', () => {
 			deepStrictEqual(manager.outputTerminalResets, []);
 			strictEqual(channelContent(), 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n');
 			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri: completion.uri, exitCode: 0 }]);
-			deepStrictEqual(manager.retainedTerminalStates.get(completion.uri)?.content, [
-				{ type: 'unclassified', value: 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n' },
-			]);
+			strictEqual(manager.retainedTerminalStates.has(completion.uri), false);
+			streams.retire('call-2');
+			strictEqual(manager.getTerminalState(completion.uri), undefined);
 		});
 
 		test('preserves the transcript across truncation marker rewrites and disjoint rolling tails', () => {

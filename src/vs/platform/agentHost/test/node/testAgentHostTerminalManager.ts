@@ -6,8 +6,9 @@
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
-import { TerminalLifecycleStatus, type TerminalClaim, type TerminalInfo, type TerminalState } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalClaim, type TerminalInfo, type TerminalState } from '../../common/state/protocol/state.js';
 import type { IAgentHostTerminalManager, ICommandFinishedEvent, IRetainedTerminalState } from '../../node/agentHostTerminalManager.js';
 
 /**
@@ -68,11 +69,19 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(uri: string): TerminalState | undefined { return this._outputTerminalStates.get(uri); }
 	async resolveRetainedTerminalState(): Promise<TerminalState | undefined> { return undefined; }
+	async statRetainedTerminalOutput(): Promise<undefined> { return undefined; }
+	async readRetainedTerminalOutput(): Promise<undefined> { return undefined; }
 	retainTerminalState(uri: string, state: IRetainedTerminalState): void {
 		this.retainedTerminalStates.set(uri, state);
 		this._outputTerminalStates.delete(uri);
 	}
-	removeRetainedTerminalsForOwner(): void { }
+	removeRetainedTerminalsForOwner(owner: URI): void {
+		for (const [uri, retained] of this.retainedTerminalStates) {
+			if (retained.claim.kind === TerminalClaimKind.Session && (retained.claim.session === owner.toString() || retained.claim.chat === owner.toString())) {
+				this.retainedTerminalStates.delete(uri);
+			}
+		}
+	}
 	async getDefaultShell(): Promise<string> { return this.defaultShell; }
 	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void {
 		this.outputTerminalsCreated.push({ uri, title: options.title, claim: options.claim });

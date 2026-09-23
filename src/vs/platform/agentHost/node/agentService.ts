@@ -8203,6 +8203,14 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resourceRead(uri: URI, encoding: ContentEncoding = ContentEncoding.Utf8): Promise<ResourceReadResult> {
+		const retainedOutput = await this._terminalManager.readRetainedTerminalOutput(uri.toString());
+		if (retainedOutput) {
+			return {
+				data: encoding === ContentEncoding.Base64 ? encodeBase64(retainedOutput) : retainedOutput.toString(),
+				encoding,
+				contentType: 'text/plain',
+			};
+		}
 		const editAttributionRequest = parseEditAttributionResource(uri);
 		if (editAttributionRequest?.kind === 'prepare') {
 			const prepared = await this.prepareEditAttributionFlush(editAttributionRequest.params);
@@ -8495,6 +8503,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		const retainedOutput = await this._terminalManager.statRetainedTerminalOutput(uri.toString());
+		if (retainedOutput) {
+			return { uri: uri.toString(), type: ResourceType.File, size: retainedOutput.size };
+		}
 		try {
 			const stat = await this._fileService.stat(uri);
 			let type: ResourceType;

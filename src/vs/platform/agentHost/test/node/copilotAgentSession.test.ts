@@ -2480,7 +2480,7 @@ suite('CopilotAgentSession', () => {
 	});
 
 	for (const outputTruncated of [false, true]) {
-		test(`replay ${outputTruncated ? 'does not retain a truncated preview as full output' : 'restores a retained terminal resource from its complete preview'}`, async () => {
+		test(`replay does not retain output without an artifact (truncated: ${outputTruncated})`, async () => {
 			const { session, terminalManager } = await createAgentSession(disposables, {
 				resume: true,
 				configureMockSession: mock => {
@@ -2506,17 +2506,7 @@ suite('CopilotAgentSession', () => {
 			await session.getMessages();
 
 			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-replay-output';
-			assert.deepStrictEqual(terminalManager.retainedTerminalStates.get(terminalUri), outputTruncated ? undefined : {
-				title: 'Run Shell Command',
-				claim: {
-					kind: TerminalClaimKind.Session,
-					session: AgentSession.uri('copilot', 'test-session-1').toString(),
-					chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-					toolCallId: 'tc-replay-output',
-				},
-				exitCode: 0,
-				content: [{ type: 'unclassified', value: 'preview only\n' }],
-			});
+			assert.strictEqual(terminalManager.retainedTerminalStates.get(terminalUri), undefined);
 		});
 	}
 
@@ -9646,12 +9636,12 @@ Use the attached image as context.
 					resource,
 					preview: `output ${i + 1}\n`,
 				})),
-				disposed: [],
-				retained: terminalUris,
+				disposed: terminalUris,
+				retained: [],
 			});
 
 			session.dispose();
-			assert.deepStrictEqual(terminalManager.disposedTerminals, []);
+			assert.deepStrictEqual(terminalManager.disposedTerminals, terminalUris);
 		});
 
 		test('emits todo store telemetry for successful built-in Copilot SQL', async () => {
@@ -9792,10 +9782,10 @@ Use the attached image as context.
 			assert.deepStrictEqual(terminalManager.outputTerminalsFinalized, [{ uri: terminalUri, exitCode: 0 }]);
 			assert.deepStrictEqual({
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri)?.content,
+				retained: terminalManager.retainedTerminalStates.get(terminalUri),
 			}, {
-				disposed: [],
-				retained: [{ type: 'unclassified', value: 'tick 1\ntick 2\n' }],
+				disposed: [terminalUri],
+				retained: undefined,
 			});
 
 			// shell_exit completion data lands on the streamed terminal block.
@@ -9885,9 +9875,11 @@ Use the attached image as context.
 				},
 				retainedArtifact: URI.file('/tmp/artifact-a.txt').toString(),
 			});
+			await session.destroySession();
+			assert.strictEqual(terminalManager.retainedTerminalStates.size, 0);
 		});
 
-		test('truncated shell output without an artifact keeps its exited terminal resource', async () => {
+		test('truncated shell output without an artifact disposes its exited terminal resource', async () => {
 			const { session, mockSession, terminalManager } = await createAgentSession(disposables);
 			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-truncated-no-artifact';
 			mockSession.fire('tool.execution_start', {
@@ -9911,14 +9903,14 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri)?.content,
+				retained: terminalManager.retainedTerminalStates.get(terminalUri),
 			}, {
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
-				disposed: [],
-				retained: [{ type: 'unclassified', value: 'streamed output\n' }],
+				disposed: [terminalUri],
+				retained: undefined,
 			});
 			session.dispose();
-			assert.deepStrictEqual(terminalManager.disposedTerminals, []);
+			assert.deepStrictEqual(terminalManager.disposedTerminals, [terminalUri]);
 		});
 
 		test('zero-partial shell completion creates, seeds, and finalizes the output channel', async () => {
@@ -9939,20 +9931,19 @@ Use the attached image as context.
 				},
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
-			// Completion creates, seeds, and finalizes the channel before the
-			// static result is published and the live state is replaced by its retained state.
+			// Publish the static result before disposing the live channel.
 			assert.deepStrictEqual({
 				created: terminalManager.outputTerminalsCreated.map(t => t.uri),
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri)?.content,
+				retained: terminalManager.retainedTerminalStates.get(terminalUri),
 			}, {
 				created: [terminalUri],
 				data: [{ uri: terminalUri, data: 'ok\n' }],
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
-				disposed: [],
-				retained: [{ type: 'unclassified', value: 'ok\n' }],
+				disposed: [terminalUri],
+				retained: undefined,
 			});
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.ok(completed.result.content?.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri));
@@ -9979,11 +9970,11 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri)?.content,
+				retained: terminalManager.retainedTerminalStates.get(terminalUri),
 			}, {
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
-				disposed: [],
-				retained: [{ type: 'unclassified', value: '' }],
+				disposed: [terminalUri],
+				retained: undefined,
 			});
 		});
 
@@ -10064,11 +10055,11 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri)?.content,
+				retained: terminalManager.retainedTerminalStates.get(terminalUri),
 			}, {
 				finalized: [{ uri: terminalUri, exitCode: 127 }],
-				disposed: [],
-				retained: [{ type: 'unclassified', value: '/bin/bash: eci: command not found\n' }],
+				disposed: [terminalUri],
+				retained: undefined,
 			});
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.ok(completed.result.content?.some(content =>
@@ -10277,12 +10268,11 @@ Use the attached image as context.
 						resource: 'agenthost-terminal://shell/test-session-1/tc-shell-exit',
 						title: 'Run Shell Command',
 						isPty: false,
-						result: { exitCode: 127 },
+						result: { exitCode: 127, preview: 'command not found\n' },
 					},
 				]);
 			}
-			// The advertised channel exists and is terminated; with no preview
-			// there is nothing to seed.
+			// Preserve the completion text before retiring the settled channel.
 			assert.deepStrictEqual({
 				created: terminalManager.outputTerminalsCreated.map(t => t.uri),
 				data: terminalManager.outputTerminalData,
@@ -10290,9 +10280,9 @@ Use the attached image as context.
 				disposed: terminalManager.disposedTerminals,
 			}, {
 				created: ['agenthost-terminal://shell/test-session-1/tc-shell-exit'],
-				data: [],
+				data: [{ uri: 'agenthost-terminal://shell/test-session-1/tc-shell-exit', data: 'command not found\n' }],
 				finalized: [{ uri: 'agenthost-terminal://shell/test-session-1/tc-shell-exit', exitCode: 127 }],
-				disposed: [],
+				disposed: ['agenthost-terminal://shell/test-session-1/tc-shell-exit'],
 			});
 			session.dispose();
 			assert.deepStrictEqual(terminalManager.disposedTerminals, ['agenthost-terminal://shell/test-session-1/tc-shell-exit']);

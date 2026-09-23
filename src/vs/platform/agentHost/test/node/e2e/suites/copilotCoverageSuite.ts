@@ -16,7 +16,7 @@ import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationCon
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { CompletionItemKind, ContentEncoding, type CompletionsResult, type ResourceReadResult, type ResourceResolveResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { McpServerStatus, TerminalLifecycleStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
@@ -518,6 +518,9 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			.find(action => action.toolCallId === shellStart.toolCallId);
 		const terminalContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal);
 		assert.ok(terminalContent);
+		const metadata = await context.client.call<ResourceResolveResult>('resourceResolve', { channel: ROOT_STATE_URI, uri: terminalContent.resource });
+		const output = await context.client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: terminalContent.resource, encoding: ContentEncoding.Utf8 });
+		assert.deepStrictEqual({ size: metadata.size, output: output.data }, { size: Buffer.byteLength(expected), output: expected });
 		const firstSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
 		const firstState = firstSubscription.snapshot?.state as TerminalState;
 		context.client.notify('unsubscribe', { channel: terminalContent.resource });

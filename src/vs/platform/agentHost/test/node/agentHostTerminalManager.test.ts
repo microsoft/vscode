@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { appendFileSync, mkdtempSync, promises, rmSync, writeFileSync } from 'fs';
 import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
 import { tmpdir } from 'os';
+import { stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -1007,49 +1008,60 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		}
 	});
 
-	test('preserves rich retained parts without sharing mutable content', async () => {
+	test('reports artifact byte size and rejects reads above a tiny byte limit', async () => {
 		const { manager } = createManager();
 		const uri = 'agenthost-terminal://shell/copilot/session/rich-tool-call';
 		const claim: TerminalClaim = { kind: TerminalClaimKind.Client, clientId: 'test-client' };
-		const content: TerminalContentPart[] = [{
-			type: 'command',
-			commandId: 'command-1',
-			commandLine: 'npm test',
-			output: 'passing output',
-			timestamp: 123,
-			isComplete: true,
-			exitCode: 0,
-			durationMs: 45,
-		}];
-		manager.retainTerminalState(uri, {
-			title: 'Rich terminal',
-			claim,
-			exitCode: 0,
-			content,
-		});
-		content[0] = { type: 'unclassified', value: 'mutated source' };
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-output-limit-'));
+		try {
+			const artifact = URI.file(join(directory, 'output.txt'));
+			const text = '\u00e9'.repeat(5);
+			writeFileSync(artifact.fsPath, text);
+			manager.retainTerminalState(uri, { title: 'Output', claim, artifact });
 
-		const first = await manager.resolveRetainedTerminalState(uri);
-		assert.ok(first?.content[0].type === 'command');
-		first.content[0].output = 'mutated result';
-		const second = await manager.resolveRetainedTerminalState(uri);
+			assert.deepStrictEqual({
+				size: (await manager.statRetainedTerminalOutput(uri))?.size,
+				text: (await manager.readRetainedTerminalOutput(uri, 10))?.toString(),
+			}, { size: 10, text });
+			await assert.rejects(() => manager.readRetainedTerminalOutput(uri, 8), /8-byte read limit/);
+			manager.disposeTerminal(uri);
+			assert.deepStrictEqual([
+				await manager.statRetainedTerminalOutput(uri),
+				await manager.readRetainedTerminalOutput(uri),
+			], [undefined, undefined]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
 
-		assert.deepStrictEqual(second, {
-			title: 'Rich terminal',
-			content: [{
-				type: 'command',
-				commandId: 'command-1',
-				commandLine: 'npm test',
-				output: 'passing output',
-				timestamp: 123,
-				isComplete: true,
-				exitCode: 0,
-				durationMs: 45,
-			}],
-			lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
-			claim,
-			isPty: false,
+	test('bounds a growing artifact and closes its handle on failure', async () => {
+		const { manager } = createManager();
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-growing-output-'));
+		const artifact = URI.file(join(directory, 'output.txt'));
+		writeFileSync(artifact.fsPath, 'small');
+		const handle = await promises.open(artifact.fsPath, 'r');
+		const initialStat = await handle.stat();
+		const open = stub(promises, 'open').resolves(handle);
+		const stat = stub(handle, 'stat').callsFake(async () => {
+			appendFileSync(artifact.fsPath, ' now too large');
+			return initialStat;
 		});
+		try {
+			const uri = 'agenthost-terminal://shell/copilot/session/growing';
+			manager.retainTerminalState(uri, {
+				title: 'Output',
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				artifact,
+			});
+			await assert.rejects(() => manager.readRetainedTerminalOutput(uri, 8), /8-byte read limit/);
+			stat.restore();
+			await assert.rejects(() => handle.stat(), { code: 'EBADF' });
+		} finally {
+			stat.restore();
+			open.restore();
+			await handle.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('removes retained terminals with their owning chat or session', async () => {
@@ -1058,20 +1070,29 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const sessionTerminal = 'agenthost-terminal://shell/copilot/session/tool-call';
 		const clientTerminal = 'agenthost-terminal://shell/client/tool-call';
-		manager.retainTerminalState(sessionTerminal, {
-			title: 'Session terminal',
-			claim: { kind: TerminalClaimKind.Session, session: session.toString(), chat: chat.toString(), toolCallId: 'tool-call' },
-			content: [{ type: 'unclassified', value: 'session output' }],
-		});
-		manager.retainTerminalState(clientTerminal, {
-			title: 'Client terminal',
-			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
-			content: [{ type: 'unclassified', value: 'client output' }],
-		});
+		const directory = mkdtempSync(join(tmpdir(), 'agent-host-output-owner-'));
+		const artifact = URI.file(join(directory, 'output.txt'));
+		writeFileSync(artifact.fsPath, 'output');
+		try {
+			manager.retainTerminalState(sessionTerminal, {
+				title: 'Session terminal',
+				claim: { kind: TerminalClaimKind.Session, session: session.toString(), chat: chat.toString(), toolCallId: 'tool-call' },
+				artifact,
+			});
+			manager.retainTerminalState(clientTerminal, {
+				title: 'Client terminal',
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				artifact,
+			});
 
-		manager.removeRetainedTerminalsForOwner(chat);
-		assert.strictEqual(await manager.resolveRetainedTerminalState(sessionTerminal), undefined);
-		assert.ok(await manager.resolveRetainedTerminalState(clientTerminal));
+			manager.removeRetainedTerminalsForOwner(chat);
+			assert.strictEqual(await manager.resolveRetainedTerminalState(sessionTerminal), undefined);
+			assert.ok(await manager.resolveRetainedTerminalState(clientTerminal));
+			manager.dispose();
+			assert.strictEqual(await manager.resolveRetainedTerminalState(clientTerminal), undefined);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('reports a missing retained artifact as NotFound', async () => {
@@ -1089,6 +1110,7 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 				() => manager.resolveRetainedTerminalState(uri),
 				(error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound,
 			);
+			assert.strictEqual(await manager.statRetainedTerminalOutput(uri), undefined);
 		} finally {
 			rmSync(directory, { recursive: true, force: true });
 		}
