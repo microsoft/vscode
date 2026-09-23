@@ -830,7 +830,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (migration && pane instanceof AICustomizationManagementEditor) {
-					await pane.showCustomizationMigrationPage(migrationCategory);
+					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 				} else if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 					if (revealUri) {

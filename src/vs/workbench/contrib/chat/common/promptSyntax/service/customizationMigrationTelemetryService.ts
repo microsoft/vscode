@@ -31,7 +31,7 @@ type CustomizationMigrationAction =
 type CustomizationMigrationEvent = {
 	action: CustomizationMigrationAction;
 	category?: CustomizationMigrationType;
-	hintId?: string;
+	migrationFlowId?: string;
 	count?: number;
 	requestedCount?: number;
 	migratedCount?: number;
@@ -42,7 +42,7 @@ type CustomizationMigrationEvent = {
 type CustomizationMigrationClassification = {
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The customization migration impression or action.' };
 	category?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The category of customization migration.' };
-	hintId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier that correlates impressions and actions for one customization migration hint.' };
+	migrationFlowId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier that correlates events for one customization migration flow.' };
 	count?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of customizations represented by the hint.' };
 	requestedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations selected for migration.' };
 	migratedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations successfully migrated.' };
@@ -53,13 +53,13 @@ type CustomizationMigrationClassification = {
 };
 
 type CustomizationMigrationAssessmentEvent = {
-	hintId: string;
+	migrationFlowId: string;
 	category: CustomizationMigrationType;
 	count: number;
 };
 
 type CustomizationMigrationAssessmentClassification = {
-	hintId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier that correlates this finding with its customization migration hint.' };
+	migrationFlowId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier that correlates this finding with its customization migration flow.' };
 	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The category of customization migration finding.' };
 	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations in the finding.' };
 	owner: 'digitarald';
@@ -74,8 +74,8 @@ export interface ICustomizationMigrationTelemetryService {
 	hintClicked(hint: ICustomizationMigrationHint, action: 'review' | 'dismiss'): void;
 	pageShown(category?: CustomizationMigrationType): void;
 	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', category?: CustomizationMigrationType): void;
-	migrationClicked(category: CustomizationMigrationType, requestedCount: number): void;
-	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[]): void;
+	migrationClicked(category: CustomizationMigrationType, requestedCount: number, migrationFlowId?: string): void;
+	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string): void;
 }
 
 export class CustomizationMigrationTelemetryService implements ICustomizationMigrationTelemetryService {
@@ -87,7 +87,7 @@ export class CustomizationMigrationTelemetryService implements ICustomizationMig
 
 	hintComputed(hint: ICustomizationMigrationHint): void {
 		for (const { type, count } of hint.counts) {
-			this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', { hintId: hint.hintId, category: type, count });
+			this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', { migrationFlowId: hint.migrationFlowId, category: type, count });
 		}
 	}
 
@@ -107,11 +107,16 @@ export class CustomizationMigrationTelemetryService implements ICustomizationMig
 		this.send({ action, category });
 	}
 
-	migrationClicked(category: CustomizationMigrationType, requestedCount: number): void {
-		this.send({ action: 'migrationClicked', category, requestedCount });
+	migrationClicked(category: CustomizationMigrationType, requestedCount: number, migrationFlowId?: string): void {
+		this.send({
+			action: 'migrationClicked',
+			category,
+			requestedCount,
+			...(migrationFlowId ? { migrationFlowId } : {}),
+		});
 	}
 
-	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[]): void {
+	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string): void {
 		const migrationFailedReasons = Array.from(new Set(failureReasons)).sort().join(';');
 		this.send({
 			action: 'migrationCompleted',
@@ -119,6 +124,7 @@ export class CustomizationMigrationTelemetryService implements ICustomizationMig
 			requestedCount,
 			migratedCount,
 			failedCount,
+			...(migrationFlowId ? { migrationFlowId } : {}),
 			...(migrationFailedReasons ? { migrationFailedReasons } : {}),
 		});
 	}
@@ -130,7 +136,7 @@ export class CustomizationMigrationTelemetryService implements ICustomizationMig
 	private sendHintAction(action: 'hintShown' | 'hintReviewClicked' | 'hintDismissClicked', hint: ICustomizationMigrationHint): void {
 		this.send({
 			action,
-			hintId: hint.hintId,
+			migrationFlowId: hint.migrationFlowId,
 			count: hint.counts.reduce((total, { count }) => total + count, 0),
 		});
 	}

@@ -181,7 +181,7 @@ export function isMcpServerCustomizationMigrationCandidate(candidate: Customizat
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
 export interface ICustomizationMigrationHint {
-	readonly hintId: string;
+	readonly migrationFlowId: string;
 	readonly message: string;
 	readonly counts: readonly ICustomizationMigrationCount[];
 }

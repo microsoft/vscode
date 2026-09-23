@@ -130,7 +130,9 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationShortcutCount: HTMLElement | undefined;
 		layoutSidebar(width: number, height: number): void;
 		updateSidebarMigrationShortcut(): void;
+		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
 		showCustomizationMigrationDashboard(): void;
+		showCustomizationMigrationPage(categoryId?: CustomizationMigrationCategoryId, storage?: PromptsStorage): Promise<void>;
 		storageService: IStorageService;
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
@@ -159,6 +161,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationFooter: HTMLElement | undefined;
 		migrationTitleElement: HTMLElement | undefined;
 		migrationFirstFocusableElement: HTMLElement | undefined;
+		migrationFlowId: string | undefined;
 		migrationDescriptionElement: HTMLElement | undefined;
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
@@ -259,6 +262,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.explicitlySelectedCustomizationMigrationTargets = new Set();
 		editor.activeMigrationCategoryId = undefined;
 		editor.activeMigrationStorage = undefined;
+		editor.migrationFlowId = undefined;
 		editor.migrationWorkspaceSkipped = false;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -1776,6 +1780,29 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('keeps migration hint attribution within its originating flow', async () => {
+		const editor = createTestEditor();
+		const shownCategories: (CustomizationMigrationCategoryId | undefined)[] = [];
+		editor.showCustomizationMigrationPage = async category => {
+			shownCategories.push(category);
+		};
+
+		await editor.startCustomizationMigration(CustomizationMigrationCategoryId.PromptFiles, 'migration-flow-id');
+		const attributedMigrationFlowId = editor.migrationFlowId;
+		await editor.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers);
+
+		assert.deepStrictEqual({
+			shownCategories,
+			attributedMigrationFlowId,
+			resetMigrationFlowId: editor.migrationFlowId,
+		}, {
+			shownCategories: [CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.McpServers],
+			attributedMigrationFlowId: 'migration-flow-id',
+			resetMigrationFlowId: undefined,
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
 	test('returns to the migration homepage after a successful file migration', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -1792,17 +1819,21 @@ suite('aiCustomizationManagementEditor', () => {
 			source: PromptsStorage.local,
 		});
 		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
-		editor.runCustomizationMigration = async () => ({
-			migratedCount: 1,
-			failedCustomizationFileNames: [],
-			failureReasons: [],
-			unsupportedHeaderKeys: [],
-			migratedCustomizations: [{ uri: URI.file('/workspace/.github/skills/review/SKILL.md'), type: PromptsType.skill }],
-			migratedSources: [{ uri: prompt.uri, storage: prompt.storage }],
-		});
+		editor.runCustomizationMigration = async () => {
+			editor.migrationFlowId = 'new-migration-flow-id';
+			return {
+				migratedCount: 1,
+				failedCustomizationFileNames: [],
+				failureReasons: [],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [{ uri: URI.file('/workspace/.github/skills/review/SKILL.md'), type: PromptsType.skill }],
+				migratedSources: [{ uri: prompt.uri, storage: prompt.storage }],
+			};
+		};
 		editor.refreshCustomizationMigrationInfo = async () => { };
 		let dashboardShown = 0;
 		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
+		editor.migrationFlowId = 'migration-flow-id';
 		const migrationCompleted: unknown[][] = [];
 		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
 
@@ -1813,7 +1844,7 @@ suite('aiCustomizationManagementEditor', () => {
 			migrationCompleted,
 		}, {
 			dashboardShown: 1,
-			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, []]],
+			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, [], 'migration-flow-id']],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -1901,8 +1932,10 @@ suite('aiCustomizationManagementEditor', () => {
 		const failed = { ...server, id: 'failed', name: 'failed' };
 		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
 		editor.refreshCustomizationMigrationInfo = async () => { };
+		editor.migrationFlowId = 'migration-flow-id';
 		editor.customizationMigrationService = {
 			migrateMcpServers: async () => {
+				editor.migrationFlowId = 'new-migration-flow-id';
 				editor.workspaceService.activeProjectRoot.set(URI.file('/other'), undefined);
 				return {
 					migratedCount: 1,
@@ -1924,7 +1957,7 @@ suite('aiCustomizationManagementEditor', () => {
 			currentWorkspace: [],
 			profile: [],
 			reopenedWorkspace: [['server']],
-			migrationCompleted: [[CustomizationMigrationType.McpServers, 2, 1, 1, [McpServerCustomizationMigrationFailureReason.TargetConflict]]],
+			migrationCompleted: [[CustomizationMigrationType.McpServers, 2, 1, 1, [McpServerCustomizationMigrationFailureReason.TargetConflict], 'migration-flow-id']],
 		});
 		reopened.editorPreviewDisposables.dispose();
 		editor.editorPreviewDisposables.dispose();
