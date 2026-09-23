@@ -193,15 +193,21 @@ export class GitHubApiClient extends Disposable {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { silent: true }), token);
+		let sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { silent: true }), token);
+		if (!scopes && sessions.length === 0 && createIfNone) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true }), token);
+		}
 		const matchingSessions = sessions.filter(session => session.accessToken && (!scopes || scopes.every(scope => session.scopes.includes(scope))));
 		let session = matchingSessions.find(session => session.scopes.includes('repo')) ?? matchingSessions[0];
-		if (!session && createIfNone) {
+		if (!session && scopes && createIfNone) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			try {
-				session = await raceCancellationError(this._authenticationService.createSession(authenticationProviderId, scopes ?? ['repo'], { activateImmediate: true }), token);
+				session = await raceCancellationError(this._authenticationService.createSession(authenticationProviderId, scopes, { activateImmediate: true }), token);
 			} catch (error) {
 				if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
 					throw new CancellationError();

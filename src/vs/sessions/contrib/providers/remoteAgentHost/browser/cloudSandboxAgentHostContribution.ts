@@ -38,6 +38,7 @@ import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId }
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -176,6 +177,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -204,19 +206,20 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			this._updateConnectionStatuses();
 		}));
 
-		// React to the feature toggles at runtime: (re)discover when enabled, tear everything down
-		// when disabled, so enabling the setting doesn't require a reload and disabling it doesn't
-		// leave stale providers, connections, or credential refreshers behind.
+		const updateEnablement = () => {
+			this._updateHostGroupRegistration();
+			if (this._isEnabled()) {
+				void this._discoverAndSeed();
+			} else {
+				this._teardownAll();
+			}
+		};
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(CloudSandboxEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration(ChatAIDisabledSettingId)) {
-				this._updateHostGroupRegistration();
-				if (this._isEnabled()) {
-					void this._discoverAndSeed();
-				} else {
-					this._teardownAll();
-				}
+				updateEnablement();
 			}
 		}));
+		this._register(this._chatEntitlementService.onDidChangeSentiment(updateEnablement));
 
 		this._updateHostGroupRegistration();
 
@@ -670,7 +673,9 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	}
 
 	private _isEnabled(): boolean {
-		return isCloudSandboxEnabled(this._configurationService) && !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+		return isCloudSandboxEnabled(this._configurationService)
+			&& !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId)
+			&& !this._chatEntitlementService.sentiment.hidden;
 	}
 
 	/**

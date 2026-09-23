@@ -249,6 +249,29 @@ suite('GitHubApiClient', () => {
 		}, { created: [], authorization: 'token token-123' });
 	});
 
+	for (const kind of ['REST', 'GraphQL']) {
+		test(`does not request repository consent for a signed-out unscoped ${kind} caller`, async () => {
+			authenticationService.sessions = [];
+
+			await assert.rejects(
+				kind === 'REST'
+					? client.request('GET', '/repos/o/r/issues', 'test')
+					: client.graphql('query Test { viewer { login } }', 'test'),
+				GitHubAuthenticationError,
+			);
+
+			assert.deepStrictEqual({
+				lookups: authenticationService.getSessionsOptions,
+				created: authenticationService.createSessionCalls,
+				request: requestService.lastOptions,
+			}, {
+				lookups: [{ silent: true }, { createIfNone: true }],
+				created: [],
+				request: undefined,
+			});
+		});
+	}
+
 	test('routes REST requests through GitHub Enterprise Server authentication and endpoints', async () => {
 		defaultAccountService.authenticationProvider = {
 			id: 'github-enterprise',
