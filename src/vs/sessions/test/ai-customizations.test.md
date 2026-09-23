@@ -24,7 +24,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.marketplace.sources.publicFeed.enabled` for the Public GitHub Feed, `chat.customizations.marketplace.sources.pluginMarketplaces.enabled` for configured Plugin marketplaces, or both. Each is disabled by default and independently enables Discover.
+- Enable `chat.customizations.marketplace.sources.publicFeed.enabled` for the GitHub Feed, `chat.customizations.marketplace.sources.pluginMarketplaces.enabled` for configured Plugin marketplaces, or both. Each is disabled by default and independently enables Discover.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results

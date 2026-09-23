@@ -18,7 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -52,7 +52,7 @@ const destinationDirectory = URI.file('/workspace/.github/skills');
 const skillDestination = joinPath(destinationDirectory, 'demo-skill');
 const skillContent = '# Demo skill\n';
 const sources = [
-	{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+	{ id: 'testSource', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
 	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
 	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
 	CustomizationMarketplaceSources.PluginMarketplaces,
@@ -756,7 +756,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 			const disabled = fixture.service.getInstallState(candidate);
 			await assert.rejects(fixture.service.install(candidate), /Enable this resource/);
-			await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 			const available = fixture.service.getInstallState(candidate);
 			await fixture.service.install(candidate);
 			fixture.installedPlugins.set([plugin], undefined);
@@ -776,7 +776,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('rejects stale configured marketplace entries rather than guessing a repository', async () => {
 			const fixture = await createFixture();
-			await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 			const candidate = resource({
 				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
 				identifier: 'stale',

@@ -10,6 +10,7 @@ import { LRUCache } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -39,7 +40,7 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 		this._register(marketplaceService.onDidChangeMarketplaces(() => this.invalidate()));
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-				event.affectsConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled)) {
+				event.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled)) {
 				this.invalidate();
 			}
 		}));

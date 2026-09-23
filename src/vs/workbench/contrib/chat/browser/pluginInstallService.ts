@@ -26,6 +26,8 @@ import { ChatConfiguration } from '../common/constants.js';
 import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind, readConfiguredMarketplaces } from '../common/plugins/pluginMarketplaceService.js';
 
+const maxPluginSubdirectoryLength = 8192;
+
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
 
@@ -72,7 +74,7 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
-		if (options?.path !== undefined && (options.path.length > 8192 || options.path.startsWith('/') || /[:\\\u0000-\u001f\u007f]/.test(options.path) || options.path.split('/').some(segment => segment === '.' || segment === '..' || segment.toLowerCase() === '.git' || (!segment && options.path !== '')))) {
+		if (options?.path !== undefined && (options.path.length > maxPluginSubdirectoryLength || options.path.startsWith('/') || /[:\\\u0000-\u001f\u007f]/.test(options.path) || options.path.split('/').some(segment => segment === '.' || segment === '..' || segment.toLowerCase() === '.git' || (!segment && options.path !== '')))) {
 			return { success: false, message: localize('invalidPluginSubdirectory', "The plugin's repository directory is invalid.") };
 		}
 		const reference = parseMarketplaceReference(source);

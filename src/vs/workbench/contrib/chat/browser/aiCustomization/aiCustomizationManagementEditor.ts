@@ -109,6 +109,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
@@ -3851,7 +3852,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private showPluginDiscovery(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
 		if (section !== AICustomizationManagementSection.Plugins || !options?.showMarketplace ||
-			this.configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) !== true) {
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) !== true) {
 			return false;
 		}
 		this.showWelcomePage();

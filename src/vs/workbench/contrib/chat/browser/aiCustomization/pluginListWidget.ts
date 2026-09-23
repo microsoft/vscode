@@ -38,6 +38,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
@@ -100,7 +101,7 @@ export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: Plu
 }
 
 export function shouldShowLegacyPluginMarketplace(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) !== true;
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) !== true;
 }
 
 export function isCurrentPluginMarketplaceRequest(
@@ -807,7 +808,7 @@ export class PluginListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled)) {
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled)) {
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceSnapshotCts?.dispose(true);
 				this.marketplaceSnapshot.reset();

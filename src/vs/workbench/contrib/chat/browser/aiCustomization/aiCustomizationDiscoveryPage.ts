@@ -26,7 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -560,7 +560,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
 				this.updateSources();
 				this.handleAvailabilityChanged();
-			} else if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) === true &&
+			} else if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) === true &&
 				[ChatConfiguration.StrictMarketplaces, ChatConfiguration.PluginMarketplaces, ChatConfiguration.ExtraMarketplaces, ChatConfiguration.PluginsEnabled]
 					.some(setting => event.affectsConfiguration(setting))) {
 				this.handleAvailabilityChanged(true);
@@ -662,7 +662,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
 				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => {
-					if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) === true) {
+					if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) === true) {
 						this.callbacks.selectSection(AICustomizationManagementSection.Plugins);
 					} else {
 						this.callbacks.selectSectionWithMarketplace(AICustomizationManagementSection.Plugins);

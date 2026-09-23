@@ -10,12 +10,12 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('pluginListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -117,7 +117,7 @@ suite('pluginListWidget', () => {
 
 	test('legacy Available discovery remains unless the independent plugin feed is enabled', () => {
 		assert.deepStrictEqual([undefined, false, true].map(enabled =>
-			shouldShowLegacyPluginMarketplace(new TestConfigurationService({ [ChatConfiguration.PluginMarketplacesFeedEnabled]: enabled }))),
+			shouldShowLegacyPluginMarketplace(new TestConfigurationService({ [CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: enabled }))),
 		[true, true, false]);
 	});
 

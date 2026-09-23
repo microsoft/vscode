@@ -18,13 +18,12 @@ import { AgentFinderRestProvider } from '../../../../../../platform/agentFinder/
 import { IPublicCustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { CustomizationMarketplaceWorkbenchService, PublicCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,10 +54,10 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled', true);
 		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.publicGitHubFeed.enabled', true);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
@@ -66,7 +65,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			await service.query({}, CancellationToken.None),
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
@@ -81,7 +80,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('plugin-only Discover does not query the public feed', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		await configuration.setUserConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 		const reference = parseMarketplaceReference('owner/catalog')!;
 		let publicCalls = 0;
 		let pluginCalls = 0;
@@ -121,8 +120,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('enabled public and plugin feeds start together and retain source selection', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
-		await configuration.setUserConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 		const publicResult = new DeferredPromise<Awaited<ReturnType<ICustomizationMarketplaceService['query']>>>();
 		const pluginResult = new DeferredPromise<IMarketplacePlugin[]>();
 		const calls: string[] = [];
