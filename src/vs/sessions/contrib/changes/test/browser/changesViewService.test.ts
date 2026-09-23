@@ -19,13 +19,13 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { ChangesViewService } from '../../browser/changesViewService.js';
-import { ChangesViewMode } from '../../common/changes.js';
+import { ActiveSessionContextKeys, ChangesViewMode } from '../../common/changes.js';
 
 suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+	function createSession(id: string, options?: { readonly loading?: IObservable<boolean>; readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
 		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
@@ -55,7 +55,7 @@ suite('ChangesViewService', () => {
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
 			providerId: 'local-agent-host',
 			sessionType: 'test',
-			loading: constObservable(false),
+			loading: options?.loading ?? constObservable(false),
 			changes: constObservable([]),
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
@@ -114,16 +114,17 @@ suite('ChangesViewService', () => {
 				return constObservable({ kind: PRReviewStateKind.None } as const);
 			}
 		}();
+		const contextKeyService = disposables.add(new MockContextKeyService());
 		const service = disposables.add(new ChangesViewService(
 			agentFeedbackService,
 			codeReviewService,
-			disposables.add(new MockContextKeyService()),
+			contextKeyService,
 			sessionsService,
 			storageService,
 			sessionsManagementService,
 		));
 
-		return { activeSession, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
+		return { activeSession, contextKeyService, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -386,6 +387,39 @@ suite('ChangesViewService', () => {
 			{ additions: 11, deletions: 10, files: 2 },
 			{ additions: 11, deletions: 10, files: 2 },
 			undefined,
+		]);
+	});
+
+	test('keeps title bar changes actions visible while switching to a loading session', () => {
+		const changeset = createChangeset([], {
+			changes: constObservable([
+				upcastPartial<ISessionFileChange>({ insertions: 5, deletions: 7 }),
+			]),
+		});
+		const loading = observableValue('loading', true);
+		const sessionA = createSession('a', { changesets: [changeset] });
+		const sessionB = createSession('b', { loading });
+		const { activeSession, contextKeyService, service } = createHarness(sessionA);
+
+		const states = [{
+			summary: service.activeSessionChangesSummaryObs.get(),
+			hasChanges: ActiveSessionContextKeys.HasChanges.getValue(contextKeyService),
+		}];
+		activeSession.set(sessionB, undefined);
+		states.push({
+			summary: service.activeSessionChangesSummaryObs.get(),
+			hasChanges: ActiveSessionContextKeys.HasChanges.getValue(contextKeyService),
+		});
+		loading.set(false, undefined);
+		states.push({
+			summary: service.activeSessionChangesSummaryObs.get(),
+			hasChanges: ActiveSessionContextKeys.HasChanges.getValue(contextKeyService),
+		});
+
+		assert.deepStrictEqual(states, [
+			{ summary: { additions: 5, deletions: 7, files: 1 }, hasChanges: true },
+			{ summary: { additions: 5, deletions: 7, files: 1 }, hasChanges: true },
+			{ summary: undefined, hasChanges: false },
 		]);
 	});
 

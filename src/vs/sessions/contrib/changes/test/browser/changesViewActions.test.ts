@@ -34,7 +34,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
@@ -588,7 +588,7 @@ suite('Changes View Actions', () => {
 		context.setValue(CustomViewVisibleContext.key, false);
 		context.setValue(SinglePaneLayoutEnabledContext.key, true);
 		context.setValue(SessionIsCreatedContext.key, true);
-		context.setValue(SessionHasChangesContext.key, true);
+		context.setValue(ActiveSessionContextKeys.HasChanges.key, true);
 		const visibleForSession = item.when?.evaluate(context) ?? false;
 		context.setValue(CustomViewVisibleContext.key, true);
 		assert.deepStrictEqual({
@@ -599,7 +599,7 @@ suite('Changes View Actions', () => {
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
-			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasChangesGate: when.includes(ActiveSessionContextKeys.HasChanges.key),
 			visibleForSession,
 			visibleForCustomView: item.when?.evaluate(context) ?? false,
 		}, {

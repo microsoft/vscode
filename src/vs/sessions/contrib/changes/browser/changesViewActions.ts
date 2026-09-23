@@ -33,7 +33,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -72,21 +72,10 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
-
-		// Bind context key: true when the active session has changes
-		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const changes = activeSession.changes.read(reader);
-			return changes.length > 0;
-		}));
 
 		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
 			return changesViewService.viewModeObs.read(reader);
@@ -370,7 +359,7 @@ class ChangesHeaderActionsAction extends Action2 {
 					CustomViewVisibleContext.negate(),
 					SinglePaneLayoutEnabledContext,
 					SessionIsCreatedContext,
-					SessionHasChangesContext
+					ActiveSessionContextKeys.HasChanges
 				)
 			},
 		});

@@ -19,7 +19,7 @@ import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, 
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
-import { ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { ActiveSessionContextKeys, ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
@@ -495,6 +495,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	}
 
 	private _bindContextKeys(): void {
+		this._register(bindContextKey<boolean>(ActiveSessionContextKeys.HasChanges, this.contextKeyService, reader => {
+			return this.activeSessionChangesSummaryObs.read(reader) !== undefined;
+		}));
+
 		this._register(bindContextKey<boolean>(ChangesetReviewSupportContext, this.contextKeyService, reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			return changeset?.capabilities?.review === true;
