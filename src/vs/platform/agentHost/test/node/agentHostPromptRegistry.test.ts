@@ -200,6 +200,53 @@ suite('AgentHostPromptRegistry', () => {
 		});
 	});
 
+	suite('Sol/Astra contributor (registered via allPrompts)', () => {
+		const guidance = '\n' + [
+			'Do not automatically reread edited files or review the full diff after a successful edit.',
+			'When a check fails, tool output is ambiguous, or a concrete correctness question remains, inspect only the relevant code or diff hunks.',
+			'Still perform required validation, and honor explicit requests for a broader review.',
+		].join('\n');
+
+		for (const id of ['gpt-5.6-sol', 'gpt-5.6-sol-high', 'gpt-5.6-sol-2026-09-22', 'gpt-6-astra', 'gpt-6-astra-high', 'gpt-6-astra-2026-09-22']) {
+			test(`${id} appends only targeted review guidance without a setting`, () => {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions({
+						mode: 'customize',
+						sections: {
+							identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+							code_change_rules: { action: 'append', content: guidance },
+						},
+					})
+				);
+			});
+		}
+
+		test('does not affect unrelated models or prefix collisions', () => {
+			for (const id of ['gpt-5.6', 'gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-solar', 'gpt-6', 'gpt-6-codex', 'gpt-6-astral', 'claude-opus-4-8', 'unknown']) {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				);
+			}
+			assert.deepStrictEqual(
+				agentHostPromptRegistry.resolveSystemMessageConfig(undefined, context()),
+				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			);
+		});
+
+		test('preserves tool-gated, tool-search and workspaceless layers', () => {
+			const model = { id: 'gpt-5.6-sol' };
+			const tools = [BrowserChatToolReferenceName.OpenBrowserPage, CLIENT_TOOL_SEARCH_REFERENCE_NAME];
+			const baseline = new AgentHostPromptRegistry().resolveSystemMessageConfig(model, context({}, tools, true, true));
+			const enabled = agentHostPromptRegistry.resolveSystemMessageConfig(model, context({}, tools, true, true));
+			assert.ok(enabled.mode === 'customize');
+			const { code_change_rules, ...sections } = enabled.sections ?? {};
+			assert.deepStrictEqual(code_change_rules, { action: 'append', content: guidance });
+			assert.deepStrictEqual({ ...enabled, sections }, baseline);
+		});
+	});
+
 	suite('model capability overrides (family alias)', () => {
 		// Mirrors the launcher's composition in `_buildSessionConfig`: the
 		// resolved family becomes the effective model id handed to the registry.
