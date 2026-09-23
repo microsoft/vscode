@@ -57,7 +57,7 @@ const $ = DOM.$;
 const searchDelay = 300;
 const catalogPageSize = 24;
 const leadingBrowseItemCount = 4;
-const resultRowHeight = 64;
+const resultRowHeight = 56;
 const searchInputHeight = 20;
 
 type DiscoveryItemType = 'agent' | 'skill' | 'instructions' | 'prompt' | 'hook' | 'mcp' | 'plugin';
@@ -232,9 +232,10 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const icon = DOM.append(root, $('.customization-discovery-result-icon'));
 		const identity = DOM.append(root, $('.customization-discovery-result-identity'));
-		const name = DOM.append(identity, $('a.customization-discovery-result-name'));
+		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
+		const name = DOM.append(heading, $('a.customization-discovery-result-name'));
+		const detail = DOM.append(heading, $('.customization-discovery-result-detail'));
 		const description = DOM.append(identity, $('.customization-discovery-result-description'));
-		const detail = DOM.append(identity, $('.customization-discovery-result-detail'));
 		const aside = DOM.append(root, $('.customization-discovery-result-aside'));
 		const stats = DOM.append(aside, $('.customization-discovery-result-stats'));
 		const actions = DOM.append(aside, $('.customization-discovery-result-actions'));
@@ -1247,8 +1248,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			image.src = item.icon.toString(true);
 		}
 		const body = DOM.append(card, $('.customization-discovery-card-body'));
+		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
 		const resource = item.externalUrl ?? item.url;
-		const name = DOM.append(body, resource ? $('a.customization-discovery-card-name') : $('.customization-discovery-card-name'));
+		const name = DOM.append(heading, resource ? $('a.customization-discovery-card-name') : $('.customization-discovery-card-name'));
 		name.textContent = item.displayName;
 		if (resource) {
 			const link = name as HTMLAnchorElement;
@@ -1259,13 +1261,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				void this.openExternal(resource);
 			}));
 		}
-		const description = DOM.append(body, $('.customization-discovery-card-description'));
-		description.textContent = item.description;
-		const metadata = DOM.append(body, $('.customization-discovery-card-metadata'));
+		const metadata = DOM.append(heading, $('.customization-discovery-card-metadata'));
 		metadata.textContent = [
 			type ? getTypeLabel(type) : undefined,
 			this.getMarketplaceSourceLabel(item.sourceId),
 		].filter(Boolean).join(' · ');
+		const description = DOM.append(body, $('.customization-discovery-card-description'));
+		description.textContent = item.description;
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(name, { content: item.displayName }));
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
 		const actions = DOM.append(card, $('.customization-discovery-card-actions'));
