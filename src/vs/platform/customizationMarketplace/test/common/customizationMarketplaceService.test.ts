@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
 
 suite('CustomizationMarketplaceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,7 +27,7 @@ suite('CustomizationMarketplaceService', () => {
 
 	test('aggregates registered sources without conflating identifiers or mutating their entries', async () => {
 		const calls: { source: string; options: ICustomizationMarketplaceSourceQuery }[] = [];
-		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceSource => ({
+		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceProvider => ({
 			id,
 			query: async options => {
 				calls.push({ source: id, options });
@@ -51,7 +51,7 @@ suite('CustomizationMarketplaceService', () => {
 
 	test('continues each source with its own opaque cursor and retains exhausted source totals', async () => {
 		const calls: { source: string; cursor: string | undefined }[] = [];
-		const source = (id: string, hasMore: boolean): ICustomizationMarketplaceSource => ({
+		const source = (id: string, hasMore: boolean): ICustomizationMarketplaceProvider => ({
 			id,
 			query: async options => {
 				calls.push({ source: id, cursor: options.cursor });
@@ -92,7 +92,7 @@ suite('CustomizationMarketplaceService', () => {
 
 	test('pagination and totals include only the selected sources', async () => {
 		const calls: { source: string; cursor: string | undefined }[] = [];
-		const sources = ['disabled', 'enabled'].map((id): ICustomizationMarketplaceSource => ({
+		const sources = ['disabled', 'enabled'].map((id): ICustomizationMarketplaceProvider => ({
 			id,
 			query: async options => {
 				calls.push({ source: id, cursor: options.cursor });
@@ -133,7 +133,7 @@ suite('CustomizationMarketplaceService', () => {
 
 	test('rejects continuation after the query, type, page size, or source set changes', async () => {
 		const calls: string[] = [];
-		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceSource => ({
+		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceProvider => ({
 			id, query: async () => {
 				calls.push(id);
 				return { items: [entry], nextCursor: id };
@@ -153,7 +153,7 @@ suite('CustomizationMarketplaceService', () => {
 
 	test('merges ranked sources into globally bounded pages without losing buffered results', async () => {
 		const calls: { id: string; cursor: string | undefined; pageSize: number | undefined }[] = [];
-		const source = (id: string, scores: readonly number[]): ICustomizationMarketplaceSource => ({
+		const source = (id: string, scores: readonly number[]): ICustomizationMarketplaceProvider => ({
 			id,
 			query: async options => {
 				calls.push({ id, cursor: options.cursor, pageSize: options.pageSize });
@@ -191,7 +191,7 @@ suite('CustomizationMarketplaceService', () => {
 	});
 
 	test('a 24-entry page remains globally capped across several native page boundaries', async () => {
-		const sources = ['first', 'second', 'third'].map((id, index): ICustomizationMarketplaceSource => ({
+		const sources = ['first', 'second', 'third'].map((id, index): ICustomizationMarketplaceProvider => ({
 			id, query: async options => {
 				const offset = Number(options.cursor ?? 0);
 				const items = Array.from({ length: Math.min(options.pageSize!, 35 - offset) }, (_, itemIndex) => ({
@@ -252,7 +252,7 @@ suite('CustomizationMarketplaceService', () => {
 	});
 
 	test('browsing interleaves feeds across page boundaries and backfills after one exhausts', async () => {
-		const sources = ['first', 'second'].map((id, index): ICustomizationMarketplaceSource => ({
+		const sources = ['first', 'second'].map((id, index): ICustomizationMarketplaceProvider => ({
 			id, query: async options => {
 				const total = index ? 3 : 5;
 				const offset = Number(options.cursor ?? 0);
@@ -409,7 +409,7 @@ suite('CustomizationMarketplaceService', () => {
 	});
 
 	test('rejects duplicate and empty source IDs at registration', () => {
-		const source: ICustomizationMarketplaceSource = { id: 'source', query: async () => ({ items: [] }) };
+		const source: ICustomizationMarketplaceProvider = { id: 'source', query: async () => ({ items: [] }) };
 		assert.throws(() => new CustomizationMarketplaceService([source, source]), /unique, nonempty identifiers/);
 		assert.throws(() => new CustomizationMarketplaceService([{ ...source, id: '' }]), /unique, nonempty identifiers/);
 	});
@@ -425,7 +425,7 @@ suite('CustomizationMarketplaceService', () => {
 		const cancellation = store.add(new CancellationTokenSource());
 		const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
 		const tokens: CancellationToken[] = [];
-		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceSource => ({
+		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceProvider => ({
 			id, query: (_options, token) => {
 				tokens.push(token);
 				return pending.p;
@@ -443,7 +443,7 @@ suite('CustomizationMarketplaceService', () => {
 		const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
 		const calls: string[] = [];
 		const tokens: CancellationToken[] = [];
-		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceSource => ({
+		const sources = ['first', 'second'].map((id): ICustomizationMarketplaceProvider => ({
 			id, query: async (_options, token) => {
 				calls.push(id);
 				tokens.push(token);
@@ -473,9 +473,9 @@ suite('CustomizationMarketplaceService', () => {
 	test('only constructs and queries sources selected by the calling window', async () => {
 		const creations: string[] = [];
 		const calls: string[] = [];
-		const sources = ['first', 'second'].map(id => createLazyCustomizationMarketplaceSource(id, () => {
+		const sources = ['first', 'second'].map(id => createLazyCustomizationMarketplaceProvider(id, () => {
 			creations.push(id);
-			return { query: async () => { calls.push(id); return { items: [entry], total: 1 }; } };
+			return { id, query: async () => { calls.push(id); return { items: [entry], total: 1 }; } };
 		}));
 		const service = new CustomizationMarketplaceService(sources);
 		await assert.rejects(service.query({ sourceIds: [] }, CancellationToken.None), isCancellationError);
@@ -618,5 +618,13 @@ suite('CustomizationMarketplaceService', () => {
 			await pending.complete({ items: [entry] });
 			assert.strictEqual(siblingToken.isCancellationRequested, true);
 		});
+	});
+
+	test('rejects a lazy provider whose ID differs from its registration', async () => {
+		const provider = createLazyCustomizationMarketplaceProvider('registered', () => ({
+			id: 'unexpected',
+			query: async () => ({ items: [entry] }),
+		}));
+		await assert.rejects(provider.query({}, CancellationToken.None), /unexpected identifier/);
 	});
 });

@@ -6,9 +6,8 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
-import { AgentFinderSource } from '../../../../../platform/agentFinder/common/agentFinderSource.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -22,10 +21,7 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => {
-				const provider = instantiationService.createInstance(AgentFinderRestProvider);
-				return new AgentFinderSource(provider, provider);
-			}),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		]));
 	}
 

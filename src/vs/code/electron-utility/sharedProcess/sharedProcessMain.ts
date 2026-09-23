@@ -19,13 +19,12 @@ import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
 import { AgentFinderRestProvider } from '../../../platform/agentFinder/common/agentFinderRestProvider.js';
-import { AgentFinderSource } from '../../../platform/agentFinder/common/agentFinderSource.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../platform/configuration/common/configurationService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel } from '../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
-import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceService } from '../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService } from '../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDiagnosticsService } from '../../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsService } from '../../../platform/diagnostics/node/diagnosticsService.js';
@@ -445,10 +444,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		this.server.registerChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, new CustomizationMarketplaceChannel(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => {
-				const provider = instantiationService.createInstance(AgentFinderRestProvider);
-				return new AgentFinderSource(provider, provider);
-			}),
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		])));
 
 		// Extensions Management

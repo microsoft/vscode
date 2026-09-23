@@ -103,11 +103,13 @@ suite('AgentFinderRestProvider', () => {
 		const page = await service.query({ mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 1 }, CancellationToken.None);
 
 		assert.deepStrictEqual({
+			id: service.id,
 			items: page.items.map(resourceSnapshot),
 			total: page.total,
 			nextCursor: page.nextCursor,
 			requests: requests.requests,
 		}, {
+			id: 'agentFinder',
 			items: [{
 				identifier: skill.identifier,
 				displayName: skill.displayName,

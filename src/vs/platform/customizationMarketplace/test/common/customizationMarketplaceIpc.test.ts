@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient } from '../../common/customizationMarketplaceIpc.js';
-import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourceInfo } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from '../../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceIpc', () => {
@@ -320,7 +320,7 @@ suite('CustomizationMarketplaceIpc', () => {
 
 		test('serializes source warnings with healthy pages without exposing continuation state or inventing totals', async () => {
 			let failedCalls = 0;
-			const sources: ICustomizationMarketplaceSource[] = [
+			const sources: ICustomizationMarketplaceProvider[] = [
 				{ id: 'agentFinder', query: async options => ({
 					items: [{
 						identifier: options.cursor ? 'last' : 'first', displayName: 'Example', description: '',
