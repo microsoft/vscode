@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IActivityService } from '../../../services/activity/common/activity.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IActivityService } from '../../../services/activity/common/activity.js';
 import { ISCMHistoryProvider } from '../../../scm/common/history.js';
 import { ISCMProvider, ISCMRepository, ISCMResource, ISCMResourceGroup, ISCMService } from '../../../scm/common/scm.js';
 import { ScmMultiDiffSourceResolver, ScmHistoryItemResolver } from '../../browser/scmMultiDiffSourceResolver.js';
