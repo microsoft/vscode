@@ -157,6 +157,51 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
+.inbox-notifications-detail-evidence {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+}
+
+.inbox-notifications-detail-loading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.inbox-notifications-detail-list {
+	margin: 0;
+	padding-inline-start: var(--vscode-spacing-size200);
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-detail-list li {
+	color: var(--vscode-editor-foreground);
+}
+
+.inbox-notifications-detail-evidence-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-detail-evidence-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.inbox-notifications-detail-evidence-link:hover,
+.inbox-notifications-detail-evidence-link:focus-visible {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .inbox-notifications-toolbar {
 	display: flex;
 	align-items: center;

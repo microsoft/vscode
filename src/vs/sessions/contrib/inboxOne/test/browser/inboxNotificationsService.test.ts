@@ -20,7 +20,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { cleanPreviewText, InboxNotificationsService } from '../../browser/inboxNotificationsService.js';
+import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
@@ -829,6 +829,59 @@ suite('InboxNotificationsService', () => {
 			assert.ok(result);
 			assert.ok(result!.length <= 60);
 			assert.ok(result!.endsWith('…'));
+		});
+	});
+
+	suite('parseDetailSummary', () => {
+		const artifacts = [
+			{ kind: 'session' as const, label: 'My session' },
+			{ kind: 'file' as const, label: 'foo.ts', uri: URI.parse('file:///repo/foo.ts') },
+		];
+
+		test('parses status, decisions and grounded evidence', () => {
+			const raw = JSON.stringify({
+				status: 'Added pagination to the users API.',
+				decisions: ['Used cursor pagination', 'Kept the old offset param'],
+				evidence: [
+					{ text: 'Edited the users controller', artifact: 'A1' },
+					{ text: 'See the full run', artifact: 'A0' },
+				],
+			});
+			const result = parseDetailSummary(raw, artifacts);
+			assert.ok(result);
+			assert.strictEqual(result!.status, 'Added pagination to the users API.');
+			assert.deepStrictEqual(result!.decisions, ['Used cursor pagination', 'Kept the old offset param']);
+			assert.strictEqual(result!.evidence.length, 2);
+			assert.strictEqual(result!.evidence[0].artifact.label, 'foo.ts');
+			assert.strictEqual(result!.evidence[1].artifact.kind, 'session');
+		});
+
+		test('drops evidence that cites an unknown or missing artifact', () => {
+			const raw = JSON.stringify({
+				status: 'Did the thing.',
+				decisions: [],
+				evidence: [
+					{ text: 'grounded', artifact: 'A1' },
+					{ text: 'ungrounded', artifact: 'A9' },
+					{ text: 'no ref' },
+				],
+			});
+			const result = parseDetailSummary(raw, artifacts);
+			assert.ok(result);
+			assert.strictEqual(result!.evidence.length, 1);
+			assert.strictEqual(result!.evidence[0].text, 'grounded');
+		});
+
+		test('extracts JSON embedded in prose or code fences', () => {
+			const raw = 'Sure! ```json\n{"status":"Done.","decisions":[],"evidence":[]}\n``` hope that helps';
+			const result = parseDetailSummary(raw, artifacts);
+			assert.ok(result);
+			assert.strictEqual(result!.status, 'Done.');
+		});
+
+		test('returns undefined for malformed or empty output', () => {
+			assert.strictEqual(parseDetailSummary('not json at all', artifacts), undefined);
+			assert.strictEqual(parseDetailSummary(JSON.stringify({ status: '', decisions: [], evidence: [] }), artifacts), undefined);
 		});
 	});
 });

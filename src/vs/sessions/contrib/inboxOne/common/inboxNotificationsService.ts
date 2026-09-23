@@ -148,6 +148,13 @@ export interface IInboxNotificationsService {
 	 */
 	readonly previews: IObservable<ReadonlyMap<string, string>>;
 
+	/**
+	 * Map from a completed item's id to its structured, model-generated evidence pack.
+	 * Generation is focus-triggered via {@link requestDetailSummary}; an entry is absent
+	 * until it has been generated.
+	 */
+	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
+
 	/** A request to reveal and focus a notification card in the view, or `undefined`. */
 	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
 
@@ -159,12 +166,38 @@ export interface IInboxNotificationsService {
 
 	/** Ask the inbox view to reveal and focus the notification with the given id. */
 	requestReveal(id: string): void;
+
+	/**
+	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
+	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
+	 */
+	requestDetailSummary(item: IInboxNotificationItem): void;
 }
 
 export interface IInboxNotificationRevealRequest {
 	readonly id: string;
 	/** Increments on every request so repeated reveals of the same id retrigger. */
 	readonly token: number;
+}
+
+/** A concrete, session-produced artifact an evidence claim is grounded in and links to. */
+export interface IInboxEvidenceArtifact {
+	readonly kind: 'file' | 'session';
+	readonly label: string;
+	readonly uri?: URI;
+}
+
+/** A single grounded claim in a detail evidence pack. Every claim links to a real artifact. */
+export interface IInboxDetailEvidence {
+	readonly text: string;
+	readonly artifact: IInboxEvidenceArtifact;
+}
+
+/** A structured, model-generated evidence pack shown in the detail pane for a completed session. */
+export interface IInboxDetailSummary {
+	readonly status: string;
+	readonly decisions: readonly string[];
+	readonly evidence: readonly IInboxDetailEvidence[];
 }
 
 export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNotificationItem): number {

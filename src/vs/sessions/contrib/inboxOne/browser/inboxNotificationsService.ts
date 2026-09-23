@@ -12,6 +12,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -30,6 +31,9 @@ import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
 	IExternalInboxNotification,
+	IInboxDetailEvidence,
+	IInboxDetailSummary,
+	IInboxEvidenceArtifact,
 	IInboxNotificationAction,
 	IInboxNotificationConfirmationPart,
 	IInboxNotificationItem,
@@ -126,6 +130,129 @@ export function cleanPreviewText(raw: string): string | undefined {
 	return s || undefined;
 }
 
+/** Detail evidence-pack generation limits. */
+const DETAIL_MAX_INPUT_CHARS = 6000;
+const DETAIL_CACHE_SIZE = 50;
+
+/** Published when generation finishes without a usable pack, so the view stops loading and falls back. */
+const EMPTY_DETAIL_SUMMARY: IInboxDetailSummary = { status: '', decisions: [], evidence: [] };
+
+/**
+ * System prompt for the completed-session evidence pack. It must produce STRICT JSON with a
+ * short status, the key decisions, and evidence claims that are each grounded in one of the
+ * enumerated, session-produced artifacts (cited by id) so the UI can link the user to it.
+ */
+const DETAIL_SYSTEM_PROMPT = [
+	'You summarize what a completed background coding-agent session did, for a reviewer reading an inbox detail pane.',
+	'You are given the session transcript and a numbered list of concrete Artifacts (files it touched, plus the session itself), each with an id like A0, A1.',
+	'',
+	'Reply with STRICT JSON only (no prose, no markdown fences) of the exact shape:',
+	'{"status": string, "decisions": string[], "evidence": [{"text": string, "artifact": string}]}',
+	'',
+	'- status: 1 sentence (2 at most) stating what the session accomplished or its final result, concretely.',
+	'- decisions: up to 3 short bullet strings naming the key decisions the agent made. May be empty.',
+	'- evidence: up to 4 claims. Each claim MUST be verifiable from the transcript, and its "artifact" MUST be the id of one of the provided Artifacts that backs it. Never invent artifact ids or cite ids that were not provided.',
+	'- Ground every statement in the transcript/artifacts; do not speculate or add generic filler. Prefer the session\'s own nouns and file names.',
+	'- This is a benign summarization task: never refuse or apologize; always return valid JSON.',
+].join('\n');
+
+/** Extracts the first balanced-looking JSON object from a model response (tolerates code fences/prose). */
+function extractJsonObject(raw: string): string | undefined {
+	const start = raw.indexOf('{');
+	const end = raw.lastIndexOf('}');
+	if (start === -1 || end === -1 || end <= start) {
+		return undefined;
+	}
+	return raw.slice(start, end + 1);
+}
+
+/** Resolves an "A<n>" artifact reference to one of the provided artifacts, enforcing grounding. */
+function resolveEvidenceArtifact(ref: unknown, artifacts: readonly IInboxEvidenceArtifact[]): IInboxEvidenceArtifact | undefined {
+	if (typeof ref !== 'string') {
+		return undefined;
+	}
+	const match = /^A(\d+)$/i.exec(ref.trim());
+	if (!match) {
+		return undefined;
+	}
+	return artifacts[Number(match[1])];
+}
+
+/**
+ * Parses the model's JSON evidence pack, keeping only evidence whose claim cites a real
+ * provided artifact so every rendered claim is grounded and linkable. Returns `undefined`
+ * when nothing usable remains.
+ *
+ * Exported for unit testing.
+ */
+export function parseDetailSummary(raw: string, artifacts: readonly IInboxEvidenceArtifact[]): IInboxDetailSummary | undefined {
+	const json = extractJsonObject(raw);
+	if (!json) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	const record = parsed as Record<string, unknown>;
+	const status = typeof record.status === 'string' ? record.status.replace(/\s+/g, ' ').trim() : '';
+	const decisions = Array.isArray(record.decisions)
+		? record.decisions
+			.filter((decision): decision is string => typeof decision === 'string' && decision.trim().length > 0)
+			.map(decision => decision.trim())
+			.slice(0, 3)
+		: [];
+	const evidence: IInboxDetailEvidence[] = [];
+	if (Array.isArray(record.evidence)) {
+		for (const entry of record.evidence) {
+			if (!entry || typeof entry !== 'object') {
+				continue;
+			}
+			const entryRecord = entry as Record<string, unknown>;
+			const text = typeof entryRecord.text === 'string' ? entryRecord.text.trim() : '';
+			const artifact = resolveEvidenceArtifact(entryRecord.artifact, artifacts);
+			if (!text || !artifact) {
+				continue;
+			}
+			evidence.push({ text, artifact });
+			if (evidence.length >= 4) {
+				break;
+			}
+		}
+	}
+	if (!status && evidence.length === 0) {
+		return undefined;
+	}
+	return { status, decisions, evidence };
+}
+
+/** Defensively extracts a file URI from a chat response part (edits, code blocks, inline references). */
+function getResponsePartFileUri(part: unknown): URI | undefined {
+	if (!part || typeof part !== 'object') {
+		return undefined;
+	}
+	const record = part as Record<string, unknown>;
+	if (URI.isUri(record.uri)) {
+		return record.uri;
+	}
+	const reference = record.inlineReference;
+	if (URI.isUri(reference)) {
+		return reference;
+	}
+	if (reference && typeof reference === 'object') {
+		const referenceRecord = reference as Record<string, unknown>;
+		if (URI.isUri(referenceRecord.uri)) {
+			return referenceRecord.uri;
+		}
+	}
+	return undefined;
+}
+
 
 interface IPullRequestNotificationCandidate {
 	readonly ref: IGitHubPullRequestRef;
@@ -164,6 +291,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _previewInFlight = new Set<string>();
 	private readonly _previewCancellationSources = new Set<CancellationTokenSource>();
 
+	private readonly _detailSummaries: ISettableObservable<ReadonlyMap<string, IInboxDetailSummary>>;
+	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
+	private readonly _detailSummaryCache = new LRUCache<string, IInboxDetailSummary>(DETAIL_CACHE_SIZE);
+	private readonly _detailSummaryInFlight = new Set<string>();
+
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 
@@ -179,6 +311,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		this._previews = observableValue('sessionsInboxNotificationsPreviews', new Map<string, string>());
 		this.previews = this._previews;
+
+		this._detailSummaries = observableValue('sessionsInboxNotificationsDetailSummaries', new Map<string, IInboxDetailSummary>());
+		this.detailSummaries = this._detailSummaries;
 
 		this._dismissedIds = observableValue('sessionsInboxNotificationsDismissed', this.loadDismissedIds());
 		this._externalItems = observableValue('sessionsInboxNotificationsExternal', []);
@@ -218,6 +353,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			this._previewCancellationSources.clear();
 			this._previewInFlight.clear();
+			this._detailSummaryInFlight.clear();
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
@@ -454,6 +590,162 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	requestReveal(id: string): void {
 		this._revealRequest.set({ id, token: ++this._revealToken }, undefined);
+	}
+
+	requestDetailSummary(item: IInboxNotificationItem): void {
+		if (item.kind !== InboxNotificationKind.Completed || !item.sessionResource) {
+			return;
+		}
+		const key = item.id;
+		if (this._detailSummaries.get().has(key) || this._detailSummaryInFlight.has(key)) {
+			return;
+		}
+		const cached = this._detailSummaryCache.get(key);
+		if (cached) {
+			this.publishDetailSummary(key, cached);
+			return;
+		}
+		void this.generateDetailSummary(key, item);
+	}
+
+	private publishDetailSummary(key: string, summary: IInboxDetailSummary): void {
+		const current = this._detailSummaries.get();
+		if (current.get(key) === summary) {
+			return;
+		}
+		const next = new Map(current);
+		next.set(key, summary);
+		this._detailSummaries.set(next, undefined);
+	}
+
+	private async generateDetailSummary(key: string, item: IInboxNotificationItem): Promise<void> {
+		this._detailSummaryInFlight.add(key);
+		const cts = new CancellationTokenSource();
+		this._previewCancellationSources.add(cts);
+		let summary: IInboxDetailSummary | undefined;
+		try {
+			const transcript = this.getSessionTranscript(item);
+			if (transcript) {
+				const artifacts = this.collectSessionArtifacts(item);
+				summary = await this.invokeDetailModel(item, transcript, artifacts, cts.token);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		} finally {
+			const cancelled = cts.token.isCancellationRequested;
+			this._previewCancellationSources.delete(cts);
+			cts.dispose();
+			this._detailSummaryInFlight.delete(key);
+			if (!cancelled) {
+				const result = summary ?? EMPTY_DETAIL_SUMMARY;
+				this._detailSummaryCache.set(key, result);
+				this.publishDetailSummary(key, result);
+			}
+		}
+	}
+
+	private async invokeDetailModel(item: IInboxNotificationItem, transcript: string, artifacts: readonly IInboxEvidenceArtifact[], token: CancellationToken): Promise<IInboxDetailSummary | undefined> {
+		const models = await this.languageModelsService.selectLanguageModels(PREVIEW_MODEL_SELECTOR);
+		if (!models.length || token.isCancellationRequested) {
+			return undefined;
+		}
+		const artifactsBlock = artifacts
+			.map((artifact, index) => `A${index}: ${artifact.kind === 'session' ? 'the full session' : `file ${artifact.label}`}`)
+			.join('\n');
+		const userText = [
+			`Session: ${item.title}`,
+			'',
+			'Artifacts:',
+			artifactsBlock,
+			'',
+			'Transcript:',
+			transcript,
+		].join('\n');
+
+		const response = await this.languageModelsService.sendChatRequest(
+			models[0],
+			undefined,
+			[
+				{ role: ChatMessageRole.System, content: [{ type: 'text', value: DETAIL_SYSTEM_PROMPT }] },
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: userText }] },
+			],
+			{},
+			token,
+		);
+
+		let text = '';
+		for await (const part of response.stream) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parts = Array.isArray(part) ? part : [part];
+			for (const chunk of parts) {
+				if (chunk.type === 'text') {
+					text += chunk.value;
+				}
+			}
+		}
+		await response.result;
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return parseDetailSummary(text, artifacts);
+	}
+
+	private collectSessionArtifacts(item: IInboxNotificationItem): IInboxEvidenceArtifact[] {
+		const artifacts: IInboxEvidenceArtifact[] = [{ kind: 'session', label: item.title }];
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return artifacts;
+		}
+		const seen = new Set<string>();
+		for (const request of chatModel.getRequests()) {
+			const response = request.response;
+			if (!response) {
+				continue;
+			}
+			for (const part of response.response.value) {
+				const uri = getResponsePartFileUri(part);
+				if (uri && !seen.has(uri.toString())) {
+					seen.add(uri.toString());
+					artifacts.push({ kind: 'file', label: basename(uri), uri });
+				}
+			}
+		}
+		return artifacts;
+	}
+
+	private getSessionTranscript(item: IInboxNotificationItem): string | undefined {
+		const chatModel = this.getSessionChatModel(item);
+		if (!chatModel) {
+			return undefined;
+		}
+		const parts: string[] = [];
+		for (const request of chatModel.getRequests()) {
+			const response = request.response;
+			if (!response || response.isCanceled) {
+				continue;
+			}
+			for (const part of response.response.value) {
+				if (part.kind === 'markdownContent') {
+					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+				}
+			}
+		}
+		const text = parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		if (!text) {
+			return undefined;
+		}
+		return text.length > DETAIL_MAX_INPUT_CHARS ? `${text.slice(0, DETAIL_MAX_INPUT_CHARS)}…[truncated]` : text;
+	}
+
+	private getSessionChatModel(item: IInboxNotificationItem) {
+		if (!item.sessionResource) {
+			return undefined;
+		}
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		const chatResource = session?.mainChat.get().resource;
+		return chatResource ? this.chatService.getSession(chatResource) : undefined;
 	}
 
 	publishExternalNotification(notification: IExternalInboxNotification): void {

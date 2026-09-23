@@ -5,7 +5,7 @@
 
 import './media/inboxNotificationsView.css';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { $, addDisposableListener, clearNode, EventType, getActiveElement, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -14,7 +14,7 @@ import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/brows
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { clamp } from '../../../../base/common/numbers.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -50,6 +50,8 @@ import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboar
 import { IOnboardingScenario } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import {
+	IInboxDetailSummary,
+	IInboxEvidenceArtifact,
 	IInboxNotificationAction,
 	IInboxNotificationItem,
 	IInboxNotificationConfirmationPart,
@@ -57,11 +59,13 @@ import {
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	InboxNotificationActionKind,
+	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
+import { pickFunWorkingMessage } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatThinkingContentPart.js';
 
 function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carousel is IChatQuestionCarousel & { dismiss(answers: Record<string, IChatQuestionAnswerValue> | undefined): void } {
 	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
@@ -1366,6 +1370,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const body = this.detailContentElement.appendChild($('.inbox-notifications-detail-body'));
 		if (item.needsInputPart) {
 			this.renderNeedsInputPart(body, item, this.detailDisposables);
+		} else if (item.kind === InboxNotificationKind.Completed) {
+			this.renderCompletedEvidence(body, item);
 		} else {
 			const summaryEl = body.appendChild($('.inbox-notifications-detail-summary', undefined, item.description));
 			if (item.previewSignature) {
@@ -1403,6 +1409,89 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		this.detailScrollableElement.scanDomNode();
+	}
+
+	private renderCompletedEvidence(body: HTMLElement, item: IInboxNotificationItem): void {
+		this.inboxNotificationsService.requestDetailSummary(item);
+		const container = body.appendChild($('.inbox-notifications-detail-evidence'));
+		const runStore = this.detailDisposables.add(new DisposableStore());
+		this.detailDisposables.add(autorun(reader => {
+			const summary = this.inboxNotificationsService.detailSummaries.read(reader).get(item.id);
+			runStore.clear();
+			clearNode(container);
+			if (!summary) {
+				this.renderEvidenceLoading(container, runStore);
+			} else if (!summary.status && summary.evidence.length === 0) {
+				this.renderEvidenceFallback(container, item);
+			} else {
+				this.renderEvidencePack(container, item, summary, runStore);
+			}
+			this.detailScrollableElement.scanDomNode();
+		}));
+	}
+
+	private renderEvidenceLoading(container: HTMLElement, store: DisposableStore): void {
+		const loading = container.appendChild($('.inbox-notifications-detail-loading'));
+		const spinner = loading.appendChild($('span.codicon.codicon-loading.codicon-modifier-spin'));
+		spinner.setAttribute('aria-hidden', 'true');
+		const label = loading.appendChild($('span.inbox-notifications-detail-loading-label', undefined, `${pickFunWorkingMessage()}…`));
+		const win = getWindow(container);
+		const handle = win.setInterval(() => { label.textContent = `${pickFunWorkingMessage()}…`; }, 2200);
+		store.add(toDisposable(() => win.clearInterval(handle)));
+	}
+
+	private renderEvidenceFallback(container: HTMLElement, item: IInboxNotificationItem): void {
+		const preview = (item.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) : undefined) ?? item.description;
+		container.appendChild($('.inbox-notifications-detail-summary', undefined, preview));
+		const transcript = this.getLatestResponseText(item);
+		if (transcript) {
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
+			container.appendChild($('.inbox-notifications-detail-transcript', undefined, transcript));
+		}
+	}
+
+	private renderEvidencePack(container: HTMLElement, item: IInboxNotificationItem, summary: IInboxDetailSummary, store: DisposableStore): void {
+		if (summary.status) {
+			container.appendChild($('.inbox-notifications-detail-summary', undefined, summary.status));
+		}
+		if (summary.decisions.length) {
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.decisions', "Decisions")));
+			const list = container.appendChild($('ul.inbox-notifications-detail-list'));
+			for (const decision of summary.decisions) {
+				list.appendChild($('li', undefined, decision));
+			}
+		}
+		if (summary.evidence.length) {
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.evidence', "Evidence")));
+			const list = container.appendChild($('ul.inbox-notifications-detail-list'));
+			for (const evidence of summary.evidence) {
+				const entry = list.appendChild($('li.inbox-notifications-detail-evidence-item'));
+				entry.appendChild($('span.inbox-notifications-detail-evidence-text', undefined, evidence.text));
+				const link = entry.appendChild($('a.inbox-notifications-detail-evidence-link', undefined, evidence.artifact.label));
+				link.setAttribute('role', 'button');
+				link.setAttribute('tabindex', '0');
+				link.setAttribute('title', localize('inboxNotifications.detail.evidence.open', "Open {0}", evidence.artifact.label));
+				const open = () => this.openEvidenceArtifact(item, evidence.artifact);
+				store.add(addDisposableListener(link, EventType.CLICK, event => { event.stopPropagation(); open(); }));
+				store.add(addDisposableListener(link, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+					if (event.key === 'Enter' || event.key === ' ') {
+						event.preventDefault();
+						event.stopPropagation();
+						open();
+					}
+				}));
+			}
+		}
+	}
+
+	private openEvidenceArtifact(item: IInboxNotificationItem, artifact: IInboxEvidenceArtifact): void {
+		if (artifact.kind === 'file' && artifact.uri) {
+			void this.openerService.open(artifact.uri).catch(onUnexpectedError);
+			return;
+		}
+		if (item.sessionResource) {
+			void this.sessionsService.openSession(item.sessionResource, { source: 'notification' }).catch(onUnexpectedError);
+		}
 	}
 
 	private getLatestResponseText(item: IInboxNotificationItem): string | undefined {
