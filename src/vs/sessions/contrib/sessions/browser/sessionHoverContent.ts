@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDelayedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { IReader } from '../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -47,6 +49,31 @@ export function getSessionSummaryHoverData(
 		createdBy,
 		externalSession: getExternalSession(session, preferencesService),
 		providerLabel: getProviderLabel(session, sessionsProvidersService),
+	};
+}
+
+/** Owns live external status for each display of the hover, including cached reopens. */
+export function createSessionSummaryHover(session: ISession, data: ISessionSummaryHoverData, preferencesService: IPreferencesService): Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'> {
+	const widget = new SessionSummaryHoverWidget(data);
+	let external = session.isExternal?.get();
+	let hoverDisposables: DisposableStore | undefined;
+	return {
+		content: widget.domNode,
+		onDidShow: () => {
+			hoverDisposables?.dispose();
+			hoverDisposables = new DisposableStore();
+			hoverDisposables.add(autorun(reader => {
+				const current = session.isExternal?.read(reader);
+				if (current !== external) {
+					external = current;
+					widget.updateExternalSession(getExternalSession(session, preferencesService));
+				}
+			}));
+		},
+		onDidHide: () => {
+			hoverDisposables?.dispose();
+			hoverDisposables = undefined;
+		},
 	};
 }
 
@@ -99,11 +126,7 @@ function getPullRequests(session: ISession, openerService: IOpenerService): read
 		: undefined;
 }
 
-/**
- * A session created in another application is listed only because
- * {@link ChatConfiguration.ShowExternalAgentSessions} says such sessions are
- * shown, so the row both names that origin and leads to the setting behind it.
- */
+/** Links a session still treated as external to its visibility setting. */
 function getExternalSession(session: ISession, preferencesService: IPreferencesService): ISessionSummaryHoverData['externalSession'] {
 	if (session.isExternal?.get() !== true) {
 		return undefined;

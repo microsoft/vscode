@@ -817,6 +817,18 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
+		this._register(this._sessionRegistry.onDidAdoptSession(session => {
+			const key = session.toString();
+			const state = this._stateManager.getSessionState(key);
+			if (state) {
+				this._stateManager.setSessionMeta(key, withSessionExternal(state._meta, false));
+				this._stateManager.setSessionSummaryPublished(key, true);
+			}
+			this._externalReconciliationModifiedAt.delete(key);
+			this._recordRecentLocalSessionUpdate(session, Date.now());
+			this._invalidateSessionList();
+			this._queueSessionListReconciliation();
+		}));
 		// A notice raised mid-turn waits for the agent to finish so it can own a
 		// turn of its own and survive restore.
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
@@ -3864,13 +3876,18 @@ export class AgentService extends Disposable implements IAgentService {
 			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
 			: await this.listSessions();
 		const visible = new Set<string>();
+		const visibleExternal = new Set<string>();
 		let published = 0;
 		for (const metadata of listed) {
-			if (!readSessionExternal(metadata._meta)) {
+			const key = metadata.session.toString();
+			const external = readSessionExternal(metadata._meta);
+			if (!external && !previouslyExposed.has(key)) {
 				continue;
 			}
-			const key = metadata.session.toString();
 			visible.add(key);
+			if (external) {
+				visibleExternal.add(key);
+			}
 			if (!previouslyBroadcast.has(key)) {
 				published++;
 			}
@@ -3886,6 +3903,10 @@ export class AgentService extends Disposable implements IAgentService {
 		let retracted = 0;
 		for (const key of previouslyExposed) {
 			if (!visible.has(key)) {
+				const summary = this._stateManager.getSessionSummary(key) ?? this._stateManager.getSurfacedSessionSummary(key);
+				if (summary && !readSessionExternal(summary._meta)) {
+					continue;
+				}
 				retracted++;
 				if (this._stateManager.getSessionState(key)) {
 					this._stateManager.setSessionSummaryPublished(key, false);
@@ -3896,11 +3917,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._broadcastExternalSessions.clear();
-		for (const key of visible) {
+		for (const key of visibleExternal) {
 			this._broadcastExternalSessions.add(key);
 		}
 		const duration = Date.now() - startedAt;
-		const message = `[AgentService] External session reconciliation done in ${duration}ms (mode: '${this._getExternalSessionsMode()}'${previousMode !== undefined ? `, previous: '${previousMode}'` : ''}): ${published} published, ${retracted} retracted, ${visible.size} visible`;
+		const message = `[AgentService] External session reconciliation done in ${duration}ms (mode: '${this._getExternalSessionsMode()}'${previousMode !== undefined ? `, previous: '${previousMode}'` : ''}): ${published} published, ${retracted} retracted, ${visibleExternal.size} visible`;
 		// A prompt no-op pass is steady-state noise.
 		if (published > 0 || retracted > 0 || duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);

@@ -2082,6 +2082,72 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('External session hover', () => {
+		for (const flat of [false, true]) {
+			test(`updates ${flat ? 'flat' : 'grouped'} external session hovers while visible and when reopened`, async () => {
+				const external = createTestSession('External', { isExternal: true });
+				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+				const harness = createListHarness(disposables, [external.session], instantiationService => {
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (target, options) => {
+							hovers.set(target, typeof options === 'function' ? options : () => options);
+							return toDisposable(() => hovers.delete(target));
+						},
+					});
+				});
+				const container = harness.createContainer();
+				if (flat) {
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }));
+					list.setSessions([external.session]);
+					list.layout(300, 400);
+				} else {
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => SessionsGrouping.Date,
+						sorting: () => SessionsSorting.Created,
+						onSessionOpen: () => { },
+					}));
+					list.layout(300, 400);
+				}
+				const row = container.querySelector<HTMLElement>('.session-item');
+				assert.ok(row);
+				const hover = hovers.get(row)?.();
+				assert.ok(hover);
+				const content = hover.content;
+				assert.ok(content instanceof HTMLElement);
+				harness.store.add(toDisposable(() => hover.onDidHide?.()));
+				const hasExternal = () => !!content.querySelector('.session-summary-hover-external-session:not(.hidden)');
+				const title = content.querySelector('.session-summary-hover-title-text');
+				hover.onDidShow?.();
+				const initial = hasExternal();
+				external.isExternal.set(false, undefined);
+				const adopted = hasExternal();
+				await timeout(0);
+				const titlePreserved = content.querySelector('.session-summary-hover-title-text') === title;
+				hover.onDidHide?.();
+				external.isExternal.set(true, undefined);
+				const hidden = hasExternal();
+				hover.onDidShow?.();
+				const reopened = hasExternal();
+				hover.onDidHide?.();
+				external.isExternal.set(false, undefined);
+				hover.onDidShow?.();
+				const reopenedAfterAdoption = hasExternal();
+				harness.store.dispose();
+				external.isExternal.set(true, undefined);
+				assert.deepStrictEqual({
+					initial, adopted, titlePreserved, hidden, reopened, reopenedAfterAdoption,
+					disposed: hasExternal(),
+					remainingHovers: hovers.size,
+				}, {
+					initial: true, adopted: false, titlePreserved: true, hidden: false, reopened: true, reopenedAfterAdoption: false,
+					disposed: false,
+					remainingHovers: 0,
+				});
+			});
+		}
+	});
+
 	suite('workspace badge on custom-group rows', () => {
 		const group = { id: 'group-1', name: 'My Group', createdAt: 1 };
 

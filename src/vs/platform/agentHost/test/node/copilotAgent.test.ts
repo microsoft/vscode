@@ -8474,8 +8474,8 @@ suite('CopilotAgent', () => {
 			const logService = new RecordingLogService();
 			const client = new TestCopilotClient([
 				sdkSession('external-cli-log', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date() }),
-				sdkSession('external-autopilot-log', workingDirectory, { clientName: 'github/autopilot', repository: 'owner/repository', modifiedTime: new Date() }),
-				sdkSession('rejected-external-log', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('external-autopilot-log', workingDirectory, { clientName: 'github/autopilot', modifiedTime: new Date() }),
+				sdkSession('rejected-external-log', workingDirectory, { clientName: 'other/client', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, logService });
 			try {
@@ -8500,8 +8500,8 @@ suite('CopilotAgent', () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/unsupported-client-discovery-cwd-`);
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([
-				sdkSession('unknown-client', workingDirectory, { clientName: 'other/client', repository: 'owner/repository', modifiedTime: new Date() }),
-				sdkSession('missing-client', workingDirectory, { repository: 'owner/repository', modifiedTime: new Date() }),
+				sdkSession('unknown-client', workingDirectory, { clientName: 'other/client', modifiedTime: new Date() }),
+				sdkSession('missing-client', workingDirectory, { modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
@@ -8520,8 +8520,8 @@ suite('CopilotAgent', () => {
 			const now = Date.UTC(2026, 7, 17, 12);
 			const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 			const client = new TestCopilotClient([
-				sdkSession('at-boundary', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date(sevenDaysAgo) }),
-				sdkSession('outside-boundary', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date(sevenDaysAgo - 1) }),
+				sdkSession('at-boundary', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date(sevenDaysAgo) }),
+				sdkSession('outside-boundary', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date(sevenDaysAgo - 1) }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, now: () => now });
 			try {
@@ -8535,16 +8535,20 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not surface a session with missing repository metadata', async () => {
+		test('surfaces sessions with missing repository metadata', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/missing-repository-discovery-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/missing-repository-discovery-cwd-`);
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([
-				sdkSession('missing-repository', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('missing-repository-cli', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('missing-repository-autopilot', workingDirectory, { clientName: 'github/autopilot', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
-				assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
+					{ id: 'missing-repository-cli', external: true, adoptable: false },
+					{ id: 'missing-repository-autopilot', external: true, adoptable: false },
+				]);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
@@ -8552,7 +8556,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not surface a repository-less session', async () => {
+		test('surfaces a repository-less session', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/repository-less-discovery-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/repository-less-discovery-cwd-`);
 			const sessionDataService = disposables.add(new TestSessionDataService());
@@ -8561,7 +8565,9 @@ suite('CopilotAgent', () => {
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
-				assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
+					{ id: 'repository-less', external: true, adoptable: false },
+				]);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
@@ -8622,8 +8628,8 @@ suite('CopilotAgent', () => {
 			ownedDb.dispose();
 			// `workspaceless` has no SDK working directory, so resuming it would throw.
 			const client = new TestCopilotClient([
-				sdkSession('owned', workingDirectory),
-				sdkSession('workspaceless'),
+				sdkSession('owned', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('workspaceless', undefined, { clientName: 'github/cli', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {

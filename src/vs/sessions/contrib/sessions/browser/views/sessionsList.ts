@@ -97,8 +97,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfer
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
-import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { createSessionSummaryHover, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -1443,7 +1442,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element), this.options.compact())).domNode,
+				...createSessionSummaryHover(element, getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element), this.options.compact()), this.preferencesService),
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },

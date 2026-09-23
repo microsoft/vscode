@@ -2881,8 +2881,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * - a non-adoptable chat is external only when its persisted `clientName`
 	 *   identifies the standalone CLI or GitHub Copilot app. This value records
 	 *   the runtime client that created or last resumed the chat, not immutable
-	 *   creator provenance. External chats must also have repository metadata
-	 *   and have been modified within the last seven days.
+	 *   creator provenance. External chats must also have been modified within
+	 *   the last seven days.
 	 *
 	 * Registered chats are filtered by the host, with stored metadata as a
 	 * fallback when no host filter is installed. A chat the SDK reports
@@ -2917,7 +2917,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let withoutWorkingDirectory = 0;
 		let unsupportedClientName = 0;
 		let outsideImportWindow = 0;
-		let withoutRepository = 0;
 		let suppressedAdoptable = 0;
 		let suppressedArchived = 0;
 		let failed = 0;
@@ -2964,10 +2963,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 						outsideImportWindow++;
 						return undefined;
 					}
-					if (typeof s.context?.repository !== 'string' || s.context.repository.trim().length === 0) {
-						withoutRepository++;
-						return undefined;
-					}
 					externalClientName = clientName;
 				}
 				const discoveredChat = {
@@ -3007,7 +3002,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				publish(chats);
 			}
 		}
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
 		return true;
 	}
 

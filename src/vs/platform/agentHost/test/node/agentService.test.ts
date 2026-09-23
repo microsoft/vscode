@@ -327,6 +327,8 @@ class TestCopilotApiService implements ICopilotApiService {
 }
 
 class TransientRegistryWriteDatabase implements IAgentHostDatabase {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
@@ -807,6 +809,8 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
@@ -2350,7 +2354,7 @@ suite('AgentService (node dispatcher)', () => {
 			overridden: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(overridden.toString())?._meta),
 		}, {
 			// The client's single GitHub state seeds the session folder.
-			state: { [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot },
+			state: withSessionExternal({ [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot }, false),
 			persisted: JSON.stringify(override),
 			github,
 			overridden: override,
@@ -4458,7 +4462,7 @@ suite('AgentService (node dispatcher)', () => {
 				meta: getStateManager(service).getSessionState(session.toString())?._meta,
 			}, {
 				provider: 'copilot',
-				meta: { workspaceless: true },
+				meta: withSessionExternal({ workspaceless: true }, false),
 			});
 		});
 
@@ -7198,6 +7202,144 @@ suite('AgentService (node dispatcher)', () => {
 				source: entry.source,
 			})), [{ session: external.toString(), external: true, source: 'discovery' }]);
 		});
+
+		async function createExternalSessionForAdoption() {
+			const database = new AgentHostDatabase(':memory:');
+			const svc = createCentralCatalogService(createSessionDataService(new TestSessionDatabase()), database);
+			getConfigurationService(svc).updateRootConfig({
+				[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
+				[AgentHostActiveAgentTitleGenerationConfigKey]: false,
+				[AgentHostDeferredTitleGenerationConfigKey]: false,
+			});
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const session = agent.addSession('external-adoption', Date.now(), { 'test.keep': 'preserved' }, 'External session');
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			await svc.restoreSession(session);
+			await waitForSessionListReconciliation(svc);
+			return { svc, agent, session, database, stateManager: getStateManager(svc), chat: buildDefaultChatUri(session) };
+		}
+
+		for (const { outcome, hidden } of [
+			{ outcome: 'complete', hidden: false },
+			{ outcome: 'error', hidden: false },
+			{ outcome: 'cancelled', hidden: false },
+			{ outcome: 'complete', hidden: true },
+		] as const) {
+			test(`adopts an external session before provider send and stays owned after ${outcome}${hidden ? ' while hidden' : ''}`, async () => {
+				const { svc, agent, session, database, stateManager, chat } = await createExternalSessionForAdoption();
+				const key = session.toString();
+				const externalWhenOpened = readSessionExternal(stateManager.getSessionState(key)?._meta);
+				if (hidden) {
+					setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
+					await waitForSessionListReconciliation(svc);
+				}
+				const duringSend: { external: boolean; active: boolean }[] = [];
+				let wireMetadata: string | undefined;
+				const removed: string[] = [];
+				disposables.add(agent.onDidSendMessage(() => duringSend.push({
+					external: readSessionExternal(stateManager.getSessionState(key)?._meta),
+					active: stateManager.getChatState(chat)?.activeTurn !== undefined,
+				})));
+				disposables.add(svc.onDidAction(envelope => {
+					if (envelope.channel === key && envelope.action.type === ActionType.SessionMetaChanged && !readSessionExternal(envelope.action._meta)) {
+						wireMetadata = JSON.stringify({
+							external: envelope.action._meta?.['vscode.external'],
+							kept: envelope.action._meta?.['test.keep'],
+						});
+					}
+				}));
+				disposables.add(svc.onDidNotification(notification => {
+					if (notification.type === NotificationType.SessionRemoved && notification.session === key) {
+						removed.push(notification.session);
+					}
+				}));
+				const sent = Event.toPromise(agent.onDidSendMessage);
+				const ended = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.channel === chat
+					&& (envelope.action.type === ActionType.ChatTurnComplete || envelope.action.type === ActionType.ChatTurnCancelled || envelope.action.type === ActionType.ChatError)));
+				if (outcome === 'error') {
+					agent.sendMessageError = new Error('Provider send failed');
+				}
+				svc.dispatchAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'adopting-turn',
+					startedAt: new Date().toISOString(),
+					message: { text: 'Continue this session', origin: { kind: MessageKind.User } },
+				}, 'test-client', 2);
+				await sent;
+				if (outcome !== 'error') {
+					agent.fireProgress({
+						kind: 'action',
+						resource: URI.parse(chat),
+						action: {
+							type: outcome === 'complete' ? ActionType.ChatTurnComplete : ActionType.ChatTurnCancelled,
+							turnId: 'adopting-turn',
+							duration: 1,
+						},
+					});
+				}
+				await ended;
+				await svc.whenCatalogReconciliationIdle();
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 3);
+				await waitForSessionListReconciliation(svc);
+				const registered = await database.getSessionV2Registration(key);
+				assert.deepStrictEqual({
+					externalWhenOpened,
+					duringSend,
+					wireMetadata,
+					registered: { external: registered?.external, source: registered?.source },
+					externalAfterTurn: readSessionExternal(stateManager.getSessionState(key)?._meta),
+					listedWithExternalHidden: (await svc.listSessions()).map(metadata => metadata.session.toString()),
+					published: stateManager.getExposedSessionKeys().includes(key),
+					removed,
+				}, {
+					externalWhenOpened: true,
+					duringSend: [{ external: false, active: true }],
+					wireMetadata: JSON.stringify({ external: false, kept: 'preserved' }),
+					registered: { external: false, source: 'explicit' },
+					externalAfterTurn: false,
+					listedWithExternalHidden: [key],
+					published: true,
+					removed: [],
+				});
+			});
+		}
+
+		for (const kind of ['rejected', 'localCommand', 'system'] as const) {
+			test(`does not adopt an external session for a ${kind} turn`, async () => {
+				const { svc, agent, session, database, stateManager, chat } = await createExternalSessionForAdoption();
+				if (kind === 'rejected') {
+					stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+				}
+				const ended = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.channel === chat
+					&& (envelope.action.type === ActionType.ChatTurnComplete || envelope.action.type === ActionType.ChatError)));
+				const sent = kind === 'system' ? Event.toPromise(agent.onDidSendMessage) : undefined;
+				svc.dispatchAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'non-adopting-turn',
+					startedAt: new Date().toISOString(),
+					message: {
+						text: kind === 'localCommand' ? '/rename Renamed session' : 'A notification',
+						origin: { kind: kind === 'system' ? MessageKind.SystemNotification : MessageKind.User },
+					},
+				}, 'test-client', 1);
+				if (sent) {
+					await sent;
+					agent.fireProgress({
+						kind: 'action',
+						resource: URI.parse(chat),
+						action: { type: ActionType.ChatTurnComplete, turnId: 'non-adopting-turn', duration: 1 },
+					});
+				}
+				await ended;
+				const registered = await database.getSessionV2Registration(session.toString());
+				assert.deepStrictEqual({
+					external: readSessionExternal((await svc.listSessions()).find(metadata => metadata.session.toString() === session.toString())?._meta),
+					registered: { external: registered?.external, source: registered?.source },
+					sends: agent.sendMessageCalls.length,
+				}, { external: true, registered: { external: true, source: 'discovery' }, sends: kind === 'system' ? 1 : 0 });
+			});
+		}
 
 		test('discovery keeps a host-created session internal when the provider reports it as external', async () => {
 			const sessionData = createPerSessionDataService();
@@ -11878,7 +12020,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
+			assert.deepStrictEqual(sessions[0]._meta, withSessionExternal({ workspaceless: true }, false));
 		});
 
 		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {
@@ -12727,7 +12869,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 
 			// A normal session passes an input workingDirectory, so it is not
-			// inferred workspace-less; `_meta` carries only the git overlay.
+			// inferred workspace-less.
 			const session = await localService.createSession({ provider: 'copilot', workingDirectories: workingDirectory ? [workingDirectory] : undefined });
 
 			// _attachGitState is fire-and-forget; drain microtasks until the
@@ -12741,7 +12883,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				{ git: gitState },
+				withSessionExternal({ git: gitState }, false),
 			);
 		});
 
@@ -12844,7 +12986,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			// No input workingDirectory → inferred workspace-less (tagged), and no
 			// git overlay because there is no working directory to probe.
-			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, { workspaceless: true });
+			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionExternal({ workspaceless: true }, false));
 		});
 
 		test.skip('createSession strips git-only catalogue entries for non-git working directory', async () => {
@@ -14388,7 +14530,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			assert.deepStrictEqual(getStateManager(localService).getSessionState(sessionResource.toString())?._meta, { workspaceless: true });
+			assert.deepStrictEqual(getStateManager(localService).getSessionState(sessionResource.toString())?._meta, withSessionExternal({ workspaceless: true }, false));
 		});
 
 		test('restores persisted multi-root metadata', async () => {
