@@ -279,12 +279,14 @@ suite('CustomizationMarketplaceIpc', () => {
 			id,
 			query: async () => {
 				calls++;
-				return { items: (index ? [90, 80] : [100, 70]).map(score => ({
-					identifier: String(score), displayName: id, description: '', score,
-					mediaType: CustomizationMarketplaceMediaType.Skill,
-					tags: [], capabilities: [], representativeQueries: [],
-					repository: URI.parse('https://github.com/owner/repository'),
-				})), total: 2 };
+				return {
+					items: (index ? [90, 80] : [100, 70]).map(score => ({
+						identifier: String(score), displayName: id, description: '', score,
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [], capabilities: [], representativeQueries: [],
+						repository: URI.parse('https://github.com/owner/repository'),
+					})), total: 2
+				};
 			},
 		}));
 		const client = createClient(new CustomizationMarketplaceService(sources), sources.map(source => ({
@@ -336,11 +338,17 @@ suite('CustomizationMarketplaceIpc', () => {
 				throw new Error('The customization catalog is receiving too many requests. Try again later.');
 			},
 		});
+		await assert.rejects(client.query({}, CancellationToken.None), {
+			message: 'The customization catalog is receiving too many requests. Try again later.',
+		});
+		assert.strictEqual(calls, 1);
+	});
 
-		test('serializes source warnings with healthy pages without exposing continuation state or inventing totals', async () => {
-			let failedCalls = 0;
-			const sources: ICustomizationMarketplaceProvider[] = [
-				{ id: 'agentFinder', query: async options => ({
+	test('serializes source warnings with healthy pages without exposing continuation state or inventing totals', async () => {
+		let failedCalls = 0;
+		const sources: ICustomizationMarketplaceProvider[] = [
+			{
+				id: 'agentFinder', query: async options => ({
 					items: [{
 						identifier: options.cursor ? 'last' : 'first', displayName: 'Example', description: '',
 						mediaType: CustomizationMarketplaceMediaType.Skill, tags: [], capabilities: [], representativeQueries: [],
@@ -348,35 +356,31 @@ suite('CustomizationMarketplaceIpc', () => {
 					}],
 					total: 2,
 					nextCursor: options.cursor ? undefined : 'next',
-				}) },
-				{ id: 'other', query: async () => { failedCalls++; throw new Error('Other feed unavailable'); } },
-			];
-			const service = new CustomizationMarketplaceService(sources);
-			const client = createClient(service, sources.map(source => ({ id: source.id, enablementSetting: `test.${source.id}.enabled` })));
-			const first = await client.query({ pageSize: 1 }, CancellationToken.None);
-			const last = await client.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
-			assert.deepStrictEqual({
-				ids: [first, last].flatMap(page => page.items.map(item => item.identifier)),
-				errors: [first, last].map(page => page.sourceErrors),
-				totals: [first.total, last.total],
-				cursorKeys: Object.keys(first.nextCursor!),
-				revived: last.items[0].repository instanceof URI,
-				lastCursor: last.nextCursor,
-				failedCalls,
-			}, {
-				ids: ['first', 'last'],
-				errors: Array.from({ length: 2 }, () => [{ sourceId: 'other', message: 'Other feed unavailable' }]),
-				totals: [undefined, undefined],
-				cursorKeys: ['token'],
-				revived: true,
-				lastCursor: undefined,
-				failedCalls: 1,
-			});
+				})
+			},
+			{ id: 'other', query: async () => { failedCalls++; throw new Error('Other feed unavailable'); } },
+		];
+		const service = new CustomizationMarketplaceService(sources);
+		const client = createClient(service, sources.map(source => ({ id: source.id, enablementSetting: `test.${source.id}.enabled` })));
+		const first = await client.query({ pageSize: 1 }, CancellationToken.None);
+		const last = await client.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			ids: [first, last].flatMap(page => page.items.map(item => item.identifier)),
+			errors: [first, last].map(page => page.sourceErrors),
+			totals: [first.total, last.total],
+			cursorKeys: Object.keys(first.nextCursor!),
+			revived: last.items[0].repository instanceof URI,
+			lastCursor: last.nextCursor,
+			failedCalls,
+		}, {
+			ids: ['first', 'last'],
+			errors: Array.from({ length: 2 }, () => [{ sourceId: 'other', message: 'Other feed unavailable' }]),
+			totals: [undefined, undefined],
+			cursorKeys: ['token'],
+			revived: true,
+			lastCursor: undefined,
+			failedCalls: 1,
 		});
-		await assert.rejects(client.query({}, CancellationToken.None), {
-			message: 'The customization catalog is receiving too many requests. Try again later.',
-		});
-		assert.strictEqual(calls, 1);
 	});
 
 	test('rejects unsupported commands and events without invoking the service', () => {
