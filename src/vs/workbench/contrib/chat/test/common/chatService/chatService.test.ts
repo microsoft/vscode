@@ -16,6 +16,7 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -59,7 +60,7 @@ import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInp
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
@@ -1703,6 +1704,141 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(actual, {
 			invokedMessages: [],
 			pendingMessages: ['queued message'],
+		});
+	});
+
+	for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+		for (const { actor, reject } of [
+			...Object.values(MessageKind).map(actor => ({ actor, reject: false })),
+			{ actor: MessageKind.SystemNotification, reject: true },
+			{ actor: MessageKind.Automation, reject: true },
+		]) {
+			test(`remote ${kind} ${actor} routing and provenance survive ${reject ? 'requeue after rejected resend' : 'immediate resend'}`, async () => {
+				const sessionType = 'agent-host-copilot';
+				const sessionResource = URI.from({ scheme: sessionType, path: '/remote-send-immediately' });
+				const mockSessionsService = new MockChatSessionsService();
+				mockSessionsService.setContributions([{
+					type: sessionType, name: 'Agent Host', displayName: 'Agent Host', description: 'Agent Host', agentHostProviderId: 'copilot',
+				}]);
+				testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+					provideChatSessionContent: resource => Promise.resolve({
+						sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { },
+					}),
+				}));
+				instantiationService.stub(IChatSessionsService, mockSessionsService);
+				const invoked = new DeferredPromise<IChatAgentRequest>();
+				const implementation: IChatAgentImplementation = {
+					async invoke(request) {
+						invoked.complete(request);
+						return {};
+					},
+				};
+				testDisposables.add(chatAgentService.registerAgent('fallbackAgent', { ...getAgentData('fallbackAgent'), isDefault: true }));
+				testDisposables.add(chatAgentService.registerAgentImplementation('fallbackAgent', implementation));
+				testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+				testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, implementation));
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed', 'test.request': { enabled: true } };
+				const isSystemInitiated = actor === MessageKind.SystemNotification;
+				service.syncPendingRequestsFromRemote(sessionResource, [{
+					id: 'remote-1', kind, message: 'remote message',
+					agentHostMessageOrigin: { kind: actor }, metadata, isSystemInitiated, systemInitiatedLabel: 'Background task completed',
+				}]);
+				const pending = ref.object.getPendingRequests()[0];
+				const pendingPresentation = { isSystemInitiated: pending.request.isSystemInitiated, label: pending.request.systemInitiatedLabel };
+
+				if (reject) {
+					instantiationService.stub(IChatAgentService, 'getDefaultAgent', () => undefined);
+				}
+				await service.sendPendingRequestImmediately(sessionResource, pending.request.id);
+				if (reject) {
+					const requeued = ref.object.getPendingRequests()[0];
+					assert.deepStrictEqual({
+						kind: requeued.kind,
+						agentIdSilent: requeued.sendOptions.agentIdSilent,
+						origin: requeued.sendOptions.agentHostMessageOrigin,
+						metadata: requeued.sendOptions.metadata,
+						isSystemInitiated: requeued.request.isSystemInitiated,
+						label: requeued.request.systemInitiatedLabel,
+					}, {
+						kind, agentIdSilent: sessionType, origin: { kind: actor }, metadata, isSystemInitiated, label: 'Background task completed',
+					});
+					return;
+				}
+				const request = await invoked.p;
+
+				assert.deepStrictEqual({
+					pendingPresentation,
+					agentId: request.agentId,
+					message: request.message,
+					origin: request.agentHostMessageOrigin,
+					metadata: request.metadata,
+					isSystemInitiated: request.isSystemInitiated,
+					pendingCount: ref.object.getPendingRequests().length,
+				}, {
+					pendingPresentation: { isSystemInitiated, label: 'Background task completed' },
+					agentId: sessionType,
+					message: 'remote message',
+					origin: { kind: actor },
+					metadata,
+					isSystemInitiated,
+					pendingCount: 0,
+				});
+			});
+		}
+	}
+
+	test('remote pending requests reconcile provenance-only changes and clear removed metadata', () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const remote = { id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'same text' };
+		const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed' };
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, [remote]);
+		const system = { ...remote, agentHostMessageOrigin: { kind: MessageKind.SystemNotification }, metadata, isSystemInitiated: true, systemInitiatedLabel: 'Background task completed' };
+		service.syncPendingRequestsFromRemote(model.sessionResource, [system]);
+		const systemRequest = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...system, metadata: { ...metadata } }]);
+		const unchanged = model.getPendingRequests()[0] === systemRequest;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...remote, message: 'legacy text update' }]);
+		const legacyUpdate = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{
+			...remote, agentHostMessageOrigin: { kind: MessageKind.User }, isSystemInitiated: false,
+		}]);
+		const userRequest = model.getPendingRequests()[0];
+		const automated = { ...remote, agentHostMessageOrigin: { kind: MessageKind.Automation }, isSystemInitiated: false };
+		service.syncPendingRequestsFromRemote(model.sessionResource, [automated]);
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...automated, metadata }]);
+		const metadataUpdate = model.getPendingRequests()[0];
+
+		assert.deepStrictEqual({
+			changes,
+			unchanged,
+			legacyOrigin: legacyUpdate.sendOptions.agentHostMessageOrigin,
+			legacyMetadata: legacyUpdate.sendOptions.metadata,
+			legacySystem: legacyUpdate.request.isSystemInitiated,
+			origin: userRequest.sendOptions.agentHostMessageOrigin,
+			metadata: userRequest.sendOptions.metadata,
+			label: userRequest.request.systemInitiatedLabel,
+			isSystemInitiated: userRequest.request.isSystemInitiated,
+			updatedOrigin: metadataUpdate.sendOptions.agentHostMessageOrigin,
+			updatedMetadata: metadataUpdate.sendOptions.metadata,
+		}, {
+			changes: 6,
+			unchanged: true,
+			legacyOrigin: { kind: MessageKind.SystemNotification },
+			legacyMetadata: metadata,
+			legacySystem: true,
+			origin: { kind: MessageKind.User },
+			metadata: undefined,
+			label: undefined,
+			isSystemInitiated: false,
+			updatedOrigin: { kind: MessageKind.Automation },
+			updatedMetadata: metadata,
 		});
 	});
 
