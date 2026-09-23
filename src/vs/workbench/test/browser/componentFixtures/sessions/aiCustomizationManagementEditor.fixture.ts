@@ -1452,6 +1452,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.selectedSection === AICustomizationManagementSection.McpServers) {
+		assert(ctx.container.querySelector('.available-mcp-servers-section') === null, 'The MCP Servers page must not render an Available section.');
+	}
+	if (options.selectedSection === AICustomizationManagementSection.Plugins) {
+		assert(ctx.container.querySelector('.available-plugins-section') === null, 'The Plugins page must not render an Available section.');
+	}
 	if (!agentFinderPublicFeedEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
@@ -1465,6 +1471,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
+		assert(ctx.container.querySelector('.customization-discovery-migration') === null, 'Discover must not render migration notices.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
@@ -1478,11 +1485,33 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const featuredName = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-name');
 		const featuredMetadata = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-metadata');
 		const featuredDescription = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-description');
+		const fallbackCardIcon = featured?.querySelector<HTMLElement>('.customization-discovery-card-icon.is-fallback');
+		const fallbackCardIconStyle = fallbackCardIcon && DOM.getWindow(fallbackCardIcon).getComputedStyle(fallbackCardIcon);
+		const browseSectionWithShowAll = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')]
+			.find(section => section.querySelector('.customization-discovery-show-all'));
+		const browseSectionHeader = browseSectionWithShowAll?.querySelector<HTMLElement>('.customization-discovery-section-header');
+		const showAll = browseSectionHeader?.querySelector<HTMLElement>('.customization-discovery-show-all');
+		assert(
+			!browseSectionWithShowAll
+			|| !!browseSectionHeader
+			&& !!showAll
+			&& showAll.getBoundingClientRect().right === browseSectionHeader.getBoundingClientRect().right
+			&& DOM.getWindow(showAll).getComputedStyle(showAll).fontSize === DOM.getWindow(description).getComputedStyle(description).fontSize,
+			'Browse section Show All actions must appear at the top right of their section header using the page description text size.',
+		);
 		assert(
 			!featuredCard || !featuredName || !featuredMetadata || !featuredDescription
 			|| featuredName.parentElement === featuredMetadata.parentElement
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
+		);
+		assert(
+			!fallbackCardIconStyle
+			||
+			fallbackCardIconStyle.borderTopStyle === 'solid'
+			&& fallbackCardIconStyle.borderTopWidth !== '0px'
+			&& fallbackCardIconStyle.borderTopColor !== 'rgba(0, 0, 0, 0)',
+			'Fallback card artwork must have a visible border in every theme.',
 		);
 	}
 
@@ -1495,6 +1524,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultName = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-name');
 		const resultDetail = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-detail');
 		const resultDescription = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-description');
+		const fallbackResultIcon = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-icon.is-fallback');
+		const fallbackResultIconStyle = fallbackResultIcon && DOM.getWindow(fallbackResultIcon).getComputedStyle(fallbackResultIcon);
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
@@ -1503,6 +1534,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			|| resultName.parentElement === resultDetail.parentElement
 			&& resultDescription.getBoundingClientRect().top > resultName.getBoundingClientRect().top,
 			'Discover results must place source metadata beside the name and the description on the next line.',
+		);
+		assert(
+			!!fallbackResultIconStyle
+			&& fallbackResultIconStyle.borderTopStyle === 'solid'
+			&& fallbackResultIconStyle.borderTopWidth !== '0px'
+			&& fallbackResultIconStyle.borderTopColor !== 'rgba(0, 0, 0, 0)',
+			'Fallback result artwork must have a visible border in every theme.',
 		);
 		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
 		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
@@ -2366,10 +2404,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
-	// Agent-host welcome page variant that highlights local prompt files which
-	// need to be migrated because the active harness only consumes skills.
+	// Agent-host welcome page variant with migration candidates available through
+	// the editor's migration shortcut rather than a Discover banner.
 	AgentHostPromptMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Discover does not show a migration banner when the active agent-host harness has customization migration candidates.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 		}),
@@ -2429,7 +2468,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with workspace-relative configuration paths beneath installed server names and no Featured section.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows only the Installed section, with workspace-relative configuration paths beneath installed server names and no Available or Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2752,7 +2791,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The Plugins page shows only the Installed section, with no Available or Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -2884,7 +2923,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The Plugins page shows only the Installed section, with no Available or Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 
@@ -2981,6 +3020,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The narrow Plugins page shows only the Installed section, with no Available or Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,

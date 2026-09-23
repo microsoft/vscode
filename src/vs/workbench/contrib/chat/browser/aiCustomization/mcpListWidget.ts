@@ -30,7 +30,7 @@ import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -966,10 +966,6 @@ export function updateMcpCardRuntimePresentation(
 	description.textContent = descriptionText;
 }
 
-export function shouldLoadMcpGallerySnapshot(visible: boolean, query: string, itemCount: number, failed: boolean, loading: boolean, accessEnabled: boolean): boolean {
-	return accessEnabled && visible && !query.trim() && itemCount === 0 && !failed && !loading;
-}
-
 export function hasSameMcpMembership(previous: string, current: string): boolean {
 	return previous === current;
 }
@@ -1353,13 +1349,12 @@ export class McpListWidget extends Disposable {
 	private gallerySnapshotServers: IWorkbenchMcpServer[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
-	private gallerySnapshotFailed = false;
 	private gallerySnapshotLoading = false;
-	private gallerySearchLoading = false;
 	private visible = false;
 	private mcpAccessEnabled = false;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private availableSection: HTMLElement | undefined;
+	private showAvailableOnHome = false;
 	private narrowLayout = false;
 	private wideLayout = false;
 	private lastHeight: number = 0;
@@ -1375,7 +1370,6 @@ export class McpListWidget extends Disposable {
 	private sectionLists: IMcpSectionList[] = [];
 	private collapsedSections: Set<string> | undefined = new Set<string>();
 	private readonly delayedFilter = new Delayer<void>(200);
-	private readonly delayedGallerySearch = new Delayer<void>(400);
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
 	private readonly mcpServerCompatibility = observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(this, new Map());
 	private readonly mcpServerCompatibilityScope = this._register(new MutableDisposable<DisposableStore>());
@@ -1417,13 +1411,8 @@ export class McpListWidget extends Disposable {
 			this.galleryCts = undefined;
 			this.gallerySnapshotServers = [];
 			this.galleryServers = [];
-			this.gallerySnapshotFailed = false;
 			this.gallerySnapshotLoading = false;
-			if (this.searchQuery.trim()) {
-				void this.queryMcpSearch();
-			} else {
-				void this.refresh();
-			}
+			void this.refresh();
 		}));
 		void mcpGalleryManifestService.getMcpGalleryManifest();
 		void this.refresh();
@@ -1435,7 +1424,6 @@ export class McpListWidget extends Disposable {
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
-				this.delayedGallerySearch.cancel();
 				this.galleryCts?.dispose(true);
 			}
 		});
@@ -1496,30 +1484,12 @@ export class McpListWidget extends Disposable {
 		}));
 
 		this._register(this.searchInput.onDidChange(() => {
+			this.showAvailableOnHome = false;
 			this.searchQuery = this.searchInput.value;
 			this.galleryCts?.dispose(true);
 			this.galleryCts = undefined;
 			this.searchInput.hideMessage();
-			const query = this.searchQuery.toLowerCase().trim();
-			this.galleryServers = query
-				? this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query))
-				: [...this.gallerySnapshotServers];
 			this.delayedFilter.trigger(() => this.filterServers());
-			if (!this.mcpAccessEnabled) {
-				this.gallerySearchLoading = false;
-				this.delayedGallerySearch.cancel();
-				return;
-			}
-			if (query) {
-				this.gallerySearchLoading = true;
-				this.delayedGallerySearch.trigger(() => this.queryMcpSearch());
-			} else {
-				this.gallerySearchLoading = false;
-				this.delayedGallerySearch.cancel();
-				if (this.visible && this.gallerySnapshotServers.length === 0) {
-					this.delayedGallerySearch.trigger(() => this.queryGallerySnapshot());
-				}
-			}
 		}));
 
 		// Empty state
@@ -1585,9 +1555,6 @@ export class McpListWidget extends Disposable {
 
 	private async refresh(): Promise<void> {
 		this.filterServers();
-		if (shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
-			await this.queryGallerySnapshot();
-		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -1599,6 +1566,7 @@ export class McpListWidget extends Disposable {
 			this.updateMcpServerCompatibilityScope();
 			void this.refresh();
 		} else {
+			this.showAvailableOnHome = false;
 			this.clearMcpServerCompatibilityScope();
 		}
 	}
@@ -1640,11 +1608,9 @@ export class McpListWidget extends Disposable {
 		this.element.classList.toggle('access-disabled', disabled);
 
 		if (disabled) {
-			this.delayedGallerySearch.cancel();
 			this.galleryCts?.dispose(true);
 			this.galleryCts = undefined;
 			this.gallerySnapshotLoading = false;
-			this.gallerySearchLoading = false;
 			this.searchInput.hideMessage();
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
@@ -1665,11 +1631,7 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} else if (accessChanged && this.visible) {
-			if (this.searchQuery.trim()) {
-				void this.queryMcpSearch();
-			} else {
-				void this.refresh();
-			}
+			void this.refresh();
 		}
 	}
 
@@ -1679,6 +1641,7 @@ export class McpListWidget extends Disposable {
 		}
 		this.searchInput.value = '';
 		this.searchQuery = '';
+		this.showAvailableOnHome = true;
 		void this.queryGallerySnapshot(true);
 	}
 
@@ -1701,7 +1664,6 @@ export class McpListWidget extends Disposable {
 
 			this.gallerySnapshotServers = pager.firstPage.items;
 			this.galleryServers = [...this.gallerySnapshotServers];
-			this.gallerySnapshotFailed = false;
 			this.gallerySnapshotLoading = false;
 			this.renderMcpHome();
 			if (revealMarketplace) {
@@ -1711,45 +1673,12 @@ export class McpListWidget extends Disposable {
 			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled) {
 				this.gallerySnapshotServers = [];
 				this.galleryServers = [];
-				this.gallerySnapshotFailed = true;
 				this.gallerySnapshotLoading = false;
 				this.renderMcpHome();
 			}
 		} finally {
 			if (this.galleryCts === cts) {
 				this.gallerySnapshotLoading = false;
-			}
-		}
-	}
-
-	private async queryMcpSearch(): Promise<void> {
-		const query = this.searchQuery.trim();
-		if (!query || !this.mcpAccessEnabled) {
-			return;
-		}
-
-		this.galleryCts?.dispose(true);
-		const cts = this.galleryCts = new CancellationTokenSource();
-		this.gallerySearchLoading = true;
-		try {
-			const pager = await this.mcpWorkbenchService.queryGallery({ text: query }, cts.token);
-			if (this.galleryCts !== cts || cts.token.isCancellationRequested || !this.mcpAccessEnabled || this.searchQuery.trim() !== query) {
-				return;
-			}
-			this.galleryServers = pager.firstPage.items;
-			this.searchInput.hideMessage();
-		} catch {
-			if (this.galleryCts === cts && !cts.token.isCancellationRequested && this.mcpAccessEnabled && this.searchQuery.trim() === query) {
-				this.galleryServers = this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query.toLowerCase()));
-				this.searchInput.showMessage({
-					content: localize('mcpSearchMarketplaceUnavailable', "Marketplace results are unavailable. Showing installed MCP servers only."),
-					type: MessageType.WARNING,
-				});
-			}
-		} finally {
-			if (this.galleryCts === cts && this.mcpAccessEnabled && this.searchQuery.trim() === query) {
-				this.gallerySearchLoading = false;
-				this.filterServers();
 			}
 		}
 	}
@@ -2084,7 +2013,9 @@ export class McpListWidget extends Disposable {
 			this.createMcpSectionList(installedList, localize('installedMcpServersSection', "Installed"), this.installedEntries.map(presentation => presentation.entry));
 		}
 
-		this.renderAvailableServers(content, this.getAvailableGalleryServers(), true);
+		if (this.showAvailableOnHome) {
+			this.renderAvailableServers(content, this.getAvailableGalleryServers(), true);
+		}
 		this.scheduleMcpSectionLayout();
 	}
 
@@ -2320,12 +2251,6 @@ export class McpListWidget extends Disposable {
 		);
 	}
 
-	private matchesGalleryServerQuery(server: IWorkbenchMcpServer, query: string): boolean {
-		return server.label.toLowerCase().includes(query)
-			|| server.description.toLowerCase().includes(query)
-			|| server.publisherDisplayName?.toLowerCase().includes(query) === true;
-	}
-
 	private getInstalledEntryDescription(entry: IMcpInstalledEntry): string {
 		const description = entry.type === 'server-item'
 			? entry.server.description
@@ -2361,13 +2286,10 @@ export class McpListWidget extends Disposable {
 	}
 
 	private updateSearchResults(): void {
-		const available = this.getAvailableGalleryServers();
-		if (this.installedEntries.length === 0 && available.length === 0) {
+		if (this.installedEntries.length === 0) {
 			this.showEmptySurface(
-				this.gallerySearchLoading
-					? localize('searchingMcpMarketplace', "Searching the MCP marketplace...")
-					: localize('noMatchingServers', "No servers match '{0}'", this.searchQuery),
-				this.gallerySearchLoading ? '' : localize('tryDifferentSearch', "Try a different search term"),
+				localize('noMatchingServers', "No servers match '{0}'", this.searchQuery),
+				localize('tryDifferentSearch', "Try a different search term"),
 			);
 			return;
 		}
@@ -2385,9 +2307,6 @@ export class McpListWidget extends Disposable {
 			const installedList = this.renderCardSection(content, localize('installedSearchHeader', "Installed"), undefined, 'installed-mcp-servers-section', this.installedEntries.length);
 			installedList.classList.add('plugin-inventory-list');
 			this.createMcpSectionList(installedList, localize('installedSearchHeader', "Installed"), this.installedEntries.map(presentation => presentation.entry));
-		}
-		if (available.length > 0) {
-			this.renderAvailableServers(content, available, false);
 		}
 		this.scheduleMcpSectionLayout();
 	}

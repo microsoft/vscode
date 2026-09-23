@@ -31,10 +31,10 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 
 1. Open Discover. Browse available resources without signing in or starting a chat session.
 2. Check that the leading section and data-backed Skills, MCP servers, and Plugins sections show names, descriptions, publisher information, resource types, and available star metadata. Repository owner images have a fallback icon when absent or unavailable.
-3. Search for a generic topic such as `postgres`, then combine the Installed, MCPs, Plugins, and Skills quick filters. Typed `@installed` and `@type:` tokens must stay synchronized with the filters.
-4. Verify that search replaces browse cards with one virtualized list grouped into Installed and Available. Only the latest search is displayed, even if an earlier request finishes later.
-5. Choose **Load More**. Existing cards remain visible with placeholders for the next page, then results append without duplicates. Change the query or type and verify pagination resets.
-6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
+3. Search for a generic topic such as `postgres`, then combine Installed, MCPs, Plugins, and Skills filters from the filter toolbar. Typed `@installed` and `@type:` tokens must stay synchronized with the toolbar state.
+4. Verify that search replaces browse cards with one flat virtualized list containing installed and available results. Only the latest search is displayed, even if an earlier request finishes later.
+5. Scroll near the end of the list. Existing rows remain visible while the next page loads and results append without duplicates or a Load More control. Change the query or type and verify pagination resets.
+6. Open the MCP Servers and Plugins management pages and verify that they show installed resources only. Invoke their marketplace entry points and verify Discover opens with the corresponding type filter.
 7. Simulate offline, rate-limited, malformed, and oversized-metadata responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards. Metadata lists must not exceed 32 entries or 512 characters per entry; scalar card text must not exceed 4,096 characters. URLs and pagination tokens retain their separate limits.
 8. Use Tab and Shift+Tab on controls, arrow keys in results, and Enter to open an installed item. Open Accessibility Help and Accessible View, verify that groups, install actions, resource links, and filters have distinct labels, then close the view and verify focus returns.
 9. Open a resource or repository. It opens externally; browsing alone never installs or enables anything. Switch harnesses and confirm the tab remains usable.

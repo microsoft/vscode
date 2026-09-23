@@ -48,7 +48,7 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
 import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery, CustomizationDiscoveryType } from './aiCustomizationQuery.js';
-import { IAICustomizationWelcomePageImplementation, ICustomizationMigrationCategorySummary, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
+import { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -367,8 +367,6 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 export class AICustomizationDiscoveryPage extends Disposable implements IAICustomizationWelcomePageImplementation {
 	readonly container: HTMLElement;
 	private readonly header: HTMLElement;
-	private readonly migrationContainer: HTMLElement;
-	private readonly migrationLabel: HTMLElement;
 	private readonly titleDescription: HTMLElement;
 	private readonly searchWidget: SuggestEnabledInput;
 	private readonly searchActionsContainer: HTMLElement;
@@ -441,16 +439,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.createAddButton(titleRow);
 		this.titleDescription = DOM.append(header, $('p.customization-discovery-description'));
 		this.updateDescription();
-
-		this.migrationContainer = DOM.append(header, $('.customization-discovery-migration'));
-		this.migrationContainer.hidden = true;
-		const migrationIcon = DOM.append(this.migrationContainer, $('.codicon'));
-		migrationIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
-		migrationIcon.setAttribute('aria-hidden', 'true');
-		this.migrationLabel = DOM.append(this.migrationContainer, $('span.customization-discovery-migration-label'));
-		const reviewMigrationsButton = this._register(new Button(this.migrationContainer, { ...defaultButtonStyles, secondary: true, small: true }));
-		reviewMigrationsButton.label = localize('customizationDiscovery.reviewMigrations', "Review");
-		this._register(reviewMigrationsButton.onDidClick(() => this.callbacks.reviewMigrations()));
 
 		const searchRow = DOM.append(header, $('.customization-discovery-search-row'));
 		const searchContainer = DOM.append(searchRow, $('.customization-discovery-search'));
@@ -669,7 +657,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSectionWithMarketplace(AICustomizationManagementSection.Plugins))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.showMarketplace(AICustomizationManagementSection.Plugins))));
 			}
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
@@ -1195,16 +1183,17 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
 		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
 		section.classList.toggle('featured', elevated);
-		DOM.append(section, $('h3.customization-discovery-section-title')).textContent = label;
-		const grid = DOM.append(section, $('.customization-discovery-grid'));
-		for (const item of items) {
-			this.renderBrowseCard(grid, item);
-		}
+		const header = DOM.append(section, $('.customization-discovery-section-header'));
+		DOM.append(header, $('h3.customization-discovery-section-title')).textContent = label;
 		if (type) {
-			const showAll = DOM.append(section, $('button.customization-discovery-show-all')) as HTMLButtonElement;
+			const showAll = DOM.append(header, $('button.customization-discovery-show-all')) as HTMLButtonElement;
 			showAll.type = 'button';
 			showAll.textContent = localize('customizationDiscovery.showAll', "Show All");
 			this.browseDisposables.add(DOM.addDisposableListener(showAll, DOM.EventType.CLICK, () => this.setQuery(this.query.withType(type, true))));
+		}
+		const grid = DOM.append(section, $('.customization-discovery-grid'));
+		for (const item of items) {
+			this.renderBrowseCard(grid, item);
 		}
 	}
 
@@ -1426,15 +1415,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	setHarnessLabel(_label: string): void {
 		this.refreshInstalledItems();
-	}
-
-	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void {
-		const count = categories.reduce((sum, category) => sum + category.count, 0);
-		this.migrationContainer.hidden = count === 0;
-		this.migrationLabel.textContent = count === 1
-			? localize('customizationDiscovery.oneMigration', "1 customization needs migration.")
-			: localize('customizationDiscovery.migrations', "{0} customizations need migration.", count);
-		this.layout(this.lastDimension);
 	}
 
 	setVisible(visible: boolean): void {

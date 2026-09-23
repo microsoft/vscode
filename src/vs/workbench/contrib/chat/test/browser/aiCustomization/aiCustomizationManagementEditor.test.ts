@@ -35,7 +35,6 @@ import { AICustomizationManagementSection, AICustomizationSources } from '../../
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { IMigratedCustomizationsResult } from '../../../browser/aiCustomization/customizationMigration.js';
-import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -65,6 +64,30 @@ suite('aiCustomizationManagementEditor', () => {
 			['Agent Customizations', '(Copilot · vscode)'],
 			['Agent Customizations', undefined],
 		]);
+	});
+
+	test('routes marketplace entry points to typed Discover searches', () => {
+		const editor = createTestEditor();
+		const queries: string[] = [];
+		let welcomePageShows = 0;
+		Object.assign(editor, {
+			welcomePage: {
+				setSearchQuery: (value: string) => queries.push(value),
+			},
+			showWelcomePage: () => welcomePageShows++,
+		});
+
+		editor.showMarketplace(AICustomizationManagementSection.Plugins);
+		editor.showMarketplace(AICustomizationManagementSection.McpServers);
+
+		assert.deepStrictEqual({
+			welcomePageShows,
+			queries,
+		}, {
+			welcomePageShows: 2,
+			queries: ['@type:plugin', '@type:mcp'],
+		});
+		editor.editorPreviewDisposables.dispose();
 	});
 
 	test('rejects stale plugin contribution navigation', () => {
@@ -182,11 +205,17 @@ suite('aiCustomizationManagementEditor', () => {
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
 		getActiveHarnessLabel(): string;
-		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
+		welcomePage: {
+			container?: HTMLElement;
+			rebuildCards?(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
+			setSearchQuery?(value: string): void;
+			setVisible?(visible: boolean): void;
+		} | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		contributedSectionWidgets: Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>;
 		getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined;
+		showMarketplace(section: AICustomizationManagementSection): void;
 		selectSection(section: AICustomizationManagementSection): void;
 		setInput: AICustomizationManagementEditor['setInput'];
 		clearInput(): void;
@@ -838,59 +867,6 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.strictEqual(editor.editorDisplayMode, 'raw');
 		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
 
-		editor.editorPreviewDisposables.dispose();
-	});
-
-	test('gates each migration category on its own experimental setting', () => {
-		const welcomePageCalls: ICustomizationMigrationCategorySummary[][] = [];
-		const configurationService = createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: false,
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: false,
-		}) as IConfigurationService & { setValue(key: string, value: unknown): void };
-		const editor = createTestEditor(undefined, configurationService);
-		editor.customizationsByMigrationCategory = new Map([
-			[CustomizationMigrationCategoryId.PromptFiles, [{
-				uri: URI.file('/workspace/.github/prompts/prompt.prompt.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.prompt,
-				source: PromptFileSource.GitHubWorkspace,
-			} as MigratableConfiguration]],
-			[CustomizationMigrationCategoryId.UserData, [{
-				uri: URI.file('/user-data/prompts/legacy.agent.md'),
-				storage: PromptsStorage.user,
-				type: PromptsType.agent,
-				source: PromptFileSource.UserData,
-			} as MigratableConfiguration]],
-			[CustomizationMigrationCategoryId.ConfiguredLocations, [{
-				uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.skill,
-				source: PromptFileSource.ConfigWorkspace,
-			} as MigratableConfiguration]],
-		]);
-		editor.welcomePage = {
-			setMigrationCategories: categories => welcomePageCalls.push([...categories as readonly ICustomizationMigrationCategorySummary[]]),
-		};
-
-		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled, true);
-		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
-		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled, true);
-		configurationService.setValue('chat.agentFilesLocations', { '/workspace/custom-agents': true });
-		editor.refreshCustomizationMigrationUi();
-		editor.migrationWorkspaceSkipped = true;
-		editor.refreshCustomizationMigrationUi();
-
-		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
-			[],
-			[CustomizationMigrationCategoryId.UserData],
-			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
-			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
-			[CustomizationMigrationCategoryId.UserData],
-		]);
 		editor.editorPreviewDisposables.dispose();
 	});
 

@@ -7,31 +7,17 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 import { IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationDiscoveryPage } from './aiCustomizationDiscoveryPage.js';
 
 const $ = DOM.$;
 
-/**
- * A migration flow offered on the overview, already resolved to display copy.
- */
-export interface ICustomizationMigrationCategorySummary {
-	readonly id: CustomizationMigrationCategoryId;
-	readonly label: string;
-	readonly description: string;
-	readonly actionLabel: string;
-	readonly actionAriaLabel: string;
-	readonly count: number;
-}
-
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
-	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
+	showMarketplace(section: AICustomizationManagementSection): void;
 	openInstalled?(section: AICustomizationManagementSection, uri: URI | undefined): void;
 	closeEditor(): void;
-	reviewMigrations(): void;
 	/**
 	 * Prefill the chat input with a query. In the sessions window this
 	 * uses the sessions chat widget; in core VS Code it opens the chat view.
@@ -46,7 +32,6 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	readonly container: HTMLElement;
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
 	setHarnessLabel(label: string): void;
-	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void;
 	focus(): void;
 	setVisible?(visible: boolean): void;
 	layout?(dimension: DOM.Dimension | undefined): void;
@@ -85,10 +70,6 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	setHarnessLabel(label: string): void {
 		this.implementation.setHarnessLabel(label);
-	}
-
-	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void {
-		this.implementation.setMigrationCategories(categories);
 	}
 
 	focus(): void {

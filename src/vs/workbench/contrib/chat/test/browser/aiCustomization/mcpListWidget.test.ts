@@ -61,7 +61,6 @@ import {
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
 	setPrimaryMcpServerEnablement,
-	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
 
@@ -154,20 +153,15 @@ type McpAccessTestWidget = {
 	access: McpAccessValue;
 	policyAccess: McpAccessValue | undefined;
 	configurationService: IConfigurationService;
-	delayedGallerySearch: { cancel(): void };
-	delayedCancelCount: number;
 	galleryCts: { dispose(cancel?: boolean): void } | undefined;
 	requestCancelCount: number;
 	gallerySnapshotLoading: boolean;
-	gallerySearchLoading: boolean;
 	searchInput: { hideMessage(): void };
 	disabledIcon: HTMLElement;
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
-	queryCount: number;
 	refreshCount: number;
-	queryMcpSearch(): Promise<void>;
 	refresh(): Promise<void>;
 	updateAccessState(): void;
 };
@@ -187,20 +181,15 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 			policyValue: widget.policyAccess,
 		} : undefined,
 	} as unknown as IConfigurationService;
-	widget.delayedCancelCount = 0;
-	widget.delayedGallerySearch = { cancel: () => widget.delayedCancelCount++ };
 	widget.galleryCts = undefined;
 	widget.requestCancelCount = 0;
 	widget.gallerySnapshotLoading = false;
-	widget.gallerySearchLoading = false;
 	widget.searchInput = { hideMessage() { } };
 	widget.disabledIcon = document.createElement('div');
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
-	widget.queryCount = 0;
 	widget.refreshCount = 0;
-	widget.queryMcpSearch = async () => { widget.queryCount++; };
 	widget.refresh = async () => { widget.refreshCount++; };
 	return widget;
 }
@@ -418,16 +407,6 @@ suite('mcpListWidget', () => {
 		});
 	});
 
-	test('loads gallery snapshots only for visible MCP sections', () => {
-		assert.deepStrictEqual([
-			shouldLoadMcpGallerySnapshot(false, '', 0, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
-		], [false, true, false, false, false]);
-	});
-
 	test('shows access-disabled UI before gallery work starts', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
 
@@ -444,32 +423,27 @@ suite('mcpListWidget', () => {
 		});
 	});
 
-	test('cancels delayed and in-flight gallery work when access is revoked', () => {
+	test('cancels in-flight gallery work when access is revoked', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
 		widget.updateAccessState();
 		widget.galleryCts = { dispose: cancel => widget.requestCancelCount += cancel ? 1 : 0 };
 		widget.gallerySnapshotLoading = true;
-		widget.gallerySearchLoading = true;
 
 		widget.access = McpAccessValue.None;
 		widget.updateAccessState();
 
 		assert.deepStrictEqual({
 			accessEnabled: widget.mcpAccessEnabled,
-			delayedCancelCount: widget.delayedCancelCount,
 			requestCancelCount: widget.requestCancelCount,
 			gallerySnapshotLoading: widget.gallerySnapshotLoading,
-			gallerySearchLoading: widget.gallerySearchLoading,
 		}, {
 			accessEnabled: false,
-			delayedCancelCount: 1,
 			requestCancelCount: 1,
 			gallerySnapshotLoading: false,
-			gallerySearchLoading: false,
 		});
 	});
 
-	test('restarts a retained marketplace search when access is restored', () => {
+	test('refreshes installed servers when access is restored', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables);
 		widget.searchQuery = 'github';
 		widget.visible = true;
@@ -478,13 +452,7 @@ suite('mcpListWidget', () => {
 		widget.access = McpAccessValue.All;
 		widget.updateAccessState();
 
-		assert.deepStrictEqual({
-			queryCount: widget.queryCount,
-			refreshCount: widget.refreshCount,
-		}, {
-			queryCount: 1,
-			refreshCount: 0,
-		});
+		assert.strictEqual(widget.refreshCount, 1);
 	});
 
 	test('uses durable enablement for the primary MCP switch', () => {

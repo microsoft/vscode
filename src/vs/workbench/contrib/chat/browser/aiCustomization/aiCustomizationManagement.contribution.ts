@@ -841,7 +841,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 		}));
 
-		// Open Marketplace (hidden command for deep-linking into browse mode)
+		// Open Marketplace (hidden command for deep-linking into Discover)
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({

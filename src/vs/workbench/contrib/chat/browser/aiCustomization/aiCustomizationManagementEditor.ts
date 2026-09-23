@@ -109,7 +109,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
+import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
@@ -1108,7 +1108,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.workspaceService.welcomePageFeatures,
 			{
 				selectSection: (section) => this.selectSection(section),
-				selectSectionWithMarketplace: (section) => this.selectSection(section, { showMarketplace: true }),
+				showMarketplace: section => this.showMarketplace(section),
 				openInstalled: (section, uri) => {
 					this.selectSection(section);
 					if (uri) {
@@ -1119,10 +1119,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 					if (this.input) {
 						this.group.closeEditor(this.input);
 					}
-				},
-				reviewMigrations: () => {
-					this.customizationMigrationTelemetryService.actionClicked('migrationOverviewClicked');
-					this.showCustomizationMigrationDashboard();
 				},
 				prefillChat: async (query, options) => {
 					try {
@@ -1152,7 +1148,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.getActiveHarnessLabel(),
 		));
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
-		this.welcomePage.setMigrationCategories(this.getMigrationCategorySummaries());
 	}
 
 	private createBackArrowButton(
@@ -1809,30 +1804,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate));
 	}
 
-	private getMigrationCategorySummaries(): readonly ICustomizationMigrationCategorySummary[] {
-		const harnessLabel = this.getActiveHarnessLabel();
-		const summaries: ICustomizationMigrationCategorySummary[] = [];
-		for (const id of homepageMigrationCategories) {
-			const category = getCustomizationMigrationCategory(id);
-			const candidates = this.getMigrationCandidates(category)
-				.filter(candidate => !this.migrationWorkspaceSkipped || this.getMigrationCandidateStorage(candidate) !== PromptsStorage.local);
-			if (candidates.length === 0) {
-				continue;
-			}
-			summaries.push({
-				id: category.id,
-				label: category.cardLabel,
-				description: category.getCardDescription(candidates, harnessLabel),
-				actionLabel: category.cardActionLabel,
-				actionAriaLabel: category.cardActionAriaLabel,
-				count: candidates.length,
-			});
-		}
-		return summaries;
-	}
-
 	private refreshCustomizationMigrationUi(): void {
-		this.welcomePage?.setMigrationCategories(this.getMigrationCategorySummaries());
 		this.updateSidebarMigrationShortcut();
 		this.renderCustomizationMigrationPage();
 	}
@@ -3170,8 +3142,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage?.focus();
 	}
 
-	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
-		if (this.selectedSection === section && !options?.showMarketplace) {
+	private selectSection(section: AICustomizationManagementSection): void {
+		if (this.selectedSection === section) {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
 		}
@@ -3219,15 +3191,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		this.ensureSectionsListReflectsActiveSection(section);
-
-		// Activate marketplace browse mode if requested
-		if (options?.showMarketplace) {
-			if (section === AICustomizationManagementSection.McpServers) {
-				this.mcpListWidget?.showBrowseMarketplace();
-			} else if (section === AICustomizationManagementSection.Plugins) {
-				this.pluginListWidget?.showBrowseMarketplace();
-			}
-		}
 
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
@@ -3643,6 +3606,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (options?.showMarketplace) {
+			this.showMarketplace(sectionId);
+			return;
+		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
 			// Directly update state and UI, bypassing the early-return guard in selectSection
@@ -3677,15 +3644,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this.ensureSectionsListReflectsActiveSection(sectionId);
 
-			// Activate marketplace browse mode if requested
-			if (options?.showMarketplace) {
-				if (sectionId === AICustomizationManagementSection.McpServers) {
-					this.mcpListWidget?.showBrowseMarketplace();
-				} else if (sectionId === AICustomizationManagementSection.Plugins) {
-					this.pluginListWidget?.showBrowseMarketplace();
-				}
-			}
 		}
+	}
+
+	private showMarketplace(section: AICustomizationManagementSection): void {
+		this.showWelcomePage();
+		const query = section === AICustomizationManagementSection.Plugins ? '@type:plugin'
+			: section === AICustomizationManagementSection.McpServers ? '@type:mcp'
+				: '';
+		this.welcomePage?.setSearchQuery(query);
 	}
 
 	private prepareCustomizationMigrationView(): void {

@@ -18,7 +18,7 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, getB
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -47,7 +47,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -55,49 +55,6 @@ const $ = DOM.$;
 
 const PLUGIN_ITEM_HEIGHT = 66;
 const PLUGIN_MARKETPLACE_ITEM_HEIGHT = 68;
-
-type PluginMarketplaceSnapshotState = 'uninitialized' | 'loading' | 'loaded' | 'failed';
-
-export class PluginMarketplaceSnapshotModel {
-
-	private _state: PluginMarketplaceSnapshotState = 'uninitialized';
-	private _items: readonly IMarketplacePluginItem[] = [];
-
-	get state(): PluginMarketplaceSnapshotState {
-		return this._state;
-	}
-
-	get items(): readonly IMarketplacePluginItem[] {
-		return this._items;
-	}
-
-	beginLoading(): boolean {
-		if (this._state !== 'uninitialized') {
-			return false;
-		}
-		this._state = 'loading';
-		return true;
-	}
-
-	complete(items: readonly IMarketplacePluginItem[]): void {
-		this._items = items;
-		this._state = 'loaded';
-	}
-
-	fail(): void {
-		this._items = [];
-		this._state = 'failed';
-	}
-
-	reset(): void {
-		this._items = [];
-		this._state = 'uninitialized';
-	}
-}
-
-export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: PluginMarketplaceSnapshotState, marketplaceAvailable: boolean): boolean {
-	return visible && state === 'uninitialized' && marketplaceAvailable;
-}
 
 export function isCurrentPluginMarketplaceRequest(
 	requestQuery: string,
@@ -752,7 +709,6 @@ export class PluginListWidget extends Disposable {
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
 	private marketplaceItems: IMarketplacePluginItem[] = [];
-	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
 	private visible = false;
@@ -767,7 +723,6 @@ export class PluginListWidget extends Disposable {
 	private readonly collapsedGroups = new Set<string>();
 	private readonly sectionScrollPositions = new Map<string, number>();
 	private marketplaceCts: CancellationTokenSource | undefined;
-	private marketplaceSnapshotCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedMarketplaceSearch = new Delayer<void>(400);
 	private filterGeneration = 0;
@@ -810,8 +765,6 @@ export class PluginListWidget extends Disposable {
 				this.delayedMarketplaceSearch.cancel();
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceCts = undefined;
-				this.marketplaceSnapshotCts?.dispose(true);
-				this.marketplaceSnapshotCts = undefined;
 			}
 		});
 	}
@@ -895,8 +848,6 @@ export class PluginListWidget extends Disposable {
 			this.marketplaceCts = undefined;
 			if (this.browseMode) {
 				this.delayedMarketplaceSearch.trigger(() => this.queryMarketplace());
-			} else if (this.searchQuery.trim()) {
-				this.delayedMarketplaceSearch.trigger(() => this.queryPluginSearch());
 			} else {
 				this.delayedMarketplaceSearch.cancel();
 				this.marketplaceItems = [];
@@ -1091,8 +1042,6 @@ export class PluginListWidget extends Disposable {
 		}));
 		this._register(this.pluginMarketplaceService.onDidChangeMarketplaces(() => {
 			this.marketplaceItems = [];
-			this.marketplaceSnapshotCts?.dispose(true);
-			this.marketplaceSnapshot.reset();
 			void this.refresh();
 		}));
 		this._register(autorun(reader => {
@@ -1138,8 +1087,6 @@ export class PluginListWidget extends Disposable {
 	private async refresh(): Promise<void> {
 		if (this.browseMode) {
 			await this.queryMarketplace();
-		} else if (this.searchQuery.trim()) {
-			await this.queryPluginSearch();
 		} else {
 			this.filterPlugins();
 		}
@@ -1273,10 +1220,6 @@ export class PluginListWidget extends Disposable {
 
 	private async runCreatePluginAction(): Promise<void> {
 		await this.commandService.executeCommand('workbench.action.chat.createPlugin');
-	}
-
-	private async runInstallFromSourceAction(): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.chat.installPluginFromSource');
 	}
 
 	private async runUpdatePluginsAction(button = this.updatePluginsButton): Promise<void> {
@@ -1579,10 +1522,6 @@ export class PluginListWidget extends Disposable {
 		const installedPlugins = this.installedItems;
 		const hasMarketplaceInstalledPlugins = this.pluginMarketplaceService.installedPlugins.get().length > 0;
 
-		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
-			void this.queryMarketplaceSnapshot();
-		}
-
 		const installedList = this.renderCardSection(
 			content,
 			localize('installedPluginsSection', "Installed"),
@@ -1613,7 +1552,6 @@ export class PluginListWidget extends Disposable {
 			this.createPluginSectionList(remoteList, localize('remotePluginsSection', "Remote session plugins"), remoteItems.map(item => ({ type: 'remote-item', item })));
 		}
 
-		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
 		this.schedulePluginSectionLayout();
 	}
 
@@ -1638,7 +1576,6 @@ export class PluginListWidget extends Disposable {
 	private renderAvailablePlugins(
 		parent: HTMLElement,
 		items: readonly IMarketplacePluginItem[],
-		showActions: boolean,
 		title = localize('availablePluginsSection', "Available"),
 		description: string | undefined = localize('availablePluginsSectionDescription', "Browse and install plugins from your marketplaces."),
 	): void {
@@ -1648,50 +1585,15 @@ export class PluginListWidget extends Disposable {
 			description,
 			'available-plugins-section',
 			items.length,
-			showActions ? header => this.renderAvailableSectionActions(header) : undefined,
 		);
 		availableList.classList.add('plugin-inventory-list');
 		if (items.length === 0) {
-			if (this.marketplaceSnapshot.state === 'loading') {
-				renderVirtualizedSectionLoadingPlaceholder(availableList, localize('loadingMarketplace', "Loading marketplace..."), PLUGIN_MARKETPLACE_ITEM_HEIGHT);
-			} else {
-				const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
-				empty.textContent = localize('noAvailablePlugins', "No marketplace plugins are available.");
-			}
+			const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
+			empty.textContent = localize('noAvailablePlugins', "No marketplace plugins are available.");
 			this.cardListControllers.get(availableList)?.finalize();
 			return;
 		}
 		this.createPluginSectionList(availableList, title, items.map(item => ({ type: 'marketplace-item', item })));
-	}
-
-	private renderAvailableSectionActions(header: HTMLElement): void {
-		const actions = DOM.append(header, $('.plugin-card-section-actions'));
-		const installLabel = localize('installFromSourceShort', "Install from Source");
-		const installTooltip = localize('installFromSource', "Install Plugin from Source");
-		if (this.pluginActions.length > 0) {
-			const install = this.cardDisposables.add(new ButtonWithDropdown(actions, {
-				...defaultButtonStyles,
-				secondary: true,
-				contextMenuProvider: this.contextMenuService,
-				addPrimaryActionToDropdown: false,
-				actions: {
-					getActions: () => {
-						this.addDropdownActions.clear();
-						return this.pluginActions.map((action, index) => this.addDropdownActions.add(new Action(`plugin_provider_add_${index}`, this.formatActionLabel(action), undefined, action.enabled !== false, () => this.runPluginAction(action))));
-					}
-				},
-				title: installTooltip,
-				ariaLabel: installTooltip,
-			}));
-			install.element.classList.add('plugin-available-action');
-			install.label = installLabel;
-			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
-		} else {
-			const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, title: installTooltip, ariaLabel: installTooltip }));
-			install.element.classList.add('plugin-available-action');
-			install.label = installLabel;
-			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
-		}
 	}
 
 	protected appendInstalledPluginRow(parent: HTMLElement, item: IInstalledPluginItem): void {
@@ -1926,35 +1828,6 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private async queryMarketplaceSnapshot(): Promise<void> {
-		if (!this.marketplaceSnapshot.beginLoading()) {
-			return;
-		}
-		this.marketplaceSnapshotCts?.dispose(true);
-		const cts = this.marketplaceSnapshotCts = new CancellationTokenSource();
-		try {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
-			if (this.marketplaceSnapshotCts !== cts) {
-				return;
-			}
-			if (cts.token.isCancellationRequested) {
-				this.marketplaceSnapshot.reset();
-				return;
-			}
-			this.marketplaceSnapshot.complete(plugins.map(marketplacePluginToItem));
-			if (!this.browseMode && !this.searchQuery.trim()) {
-				this.renderPluginHome();
-			}
-		} catch {
-			if (this.marketplaceSnapshotCts === cts && !cts.token.isCancellationRequested) {
-				this.marketplaceSnapshot.fail();
-				if (!this.browseMode && !this.searchQuery.trim()) {
-					this.renderPluginHome();
-				}
-			}
-		}
-	}
-
 	public showBrowseMarketplace(): void {
 		if (!this.isBrowseMarketplaceAvailable()) {
 			return;
@@ -2062,67 +1935,6 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private async queryPluginSearch(): Promise<void> {
-		if (!this.isBrowseMarketplaceAvailable()) {
-			this.marketplaceItems = [];
-			await this.filterPlugins();
-			return;
-		}
-
-		const query = this.searchQuery.toLowerCase().trim();
-		if (!query || this.browseMode) {
-			return;
-		}
-		this.marketplaceCts?.dispose(true);
-		const cts = this.marketplaceCts = new CancellationTokenSource();
-		try {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
-				return;
-			}
-			const installedItems = this.agentPluginService.plugins.get()
-				.map(p => installedPluginToItem(p, this.labelService))
-				.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
-				.sort(compareInstalledPluginItems);
-			const remoteItems = [...await this.getRemotePluginItems(query)];
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
-				return;
-			}
-			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
-				: plugins;
-			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
-			const marketplaceItems = filtered
-				.filter(p => {
-					const expectedUri = this.pluginInstallService.getPluginInstallUri(p);
-					return !installedUris.has(expectedUri.toString());
-				})
-				.map(marketplacePluginToItem);
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
-				return;
-			}
-			this.installedItems = installedItems;
-			this.remoteItems = remoteItems;
-			this.marketplaceItems = marketplaceItems;
-			this.searchInput.hideMessage();
-		} catch {
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
-				return;
-			}
-			this.marketplaceItems = [];
-			this.searchInput.showMessage({
-				content: localize('pluginSearchMarketplaceUnavailable', "Marketplace results are unavailable. Showing installed plugins only."),
-				type: MessageType.WARNING,
-			});
-			await this.filterPlugins();
-			return;
-		}
-		if (this.isCurrentMarketplaceRequest(cts, query, false)) {
-			this.updateSearchResultsList();
-			this._onDidChangeItemCount.fire(this.itemCount);
-		}
-	}
-
 	private isCurrentMarketplaceRequest(cts: CancellationTokenSource, query: string, browseMode: boolean): boolean {
 		return isCurrentPluginMarketplaceRequest(
 			query,
@@ -2187,7 +1999,7 @@ export class PluginListWidget extends Disposable {
 			]);
 		}
 		if (this.marketplaceItems.length > 0) {
-			this.renderAvailablePlugins(content, this.marketplaceItems, false, localize('availableSearchHeader', "Available to install"), undefined);
+			this.renderAvailablePlugins(content, this.marketplaceItems, localize('availableSearchHeader', "Available to install"), undefined);
 		}
 		this.schedulePluginSectionLayout();
 		this.list.splice(0, this.list.length, []);

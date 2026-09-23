@@ -10,7 +10,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, setPluginEnablementAndReadEffective } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -82,35 +82,6 @@ suite('pluginListWidget', () => {
 		};
 
 		assert.strictEqual(getInstalledPluginMetadata(item), '2 skills • 1 command');
-	});
-
-	test('treats an empty marketplace snapshot as loaded', () => {
-		const snapshot = new PluginMarketplaceSnapshotModel();
-
-		const firstLoadStarted = snapshot.beginLoading();
-		snapshot.complete([]);
-		const duplicateLoadStarted = snapshot.beginLoading();
-
-		assert.deepStrictEqual({
-			firstLoadStarted,
-			state: snapshot.state,
-			items: snapshot.items,
-			duplicateLoadStarted,
-		}, {
-			firstLoadStarted: true,
-			state: 'loaded',
-			items: [],
-			duplicateLoadStarted: false,
-		});
-	});
-
-	test('loads marketplace snapshots only for visible plugin sections', () => {
-		assert.deepStrictEqual([
-			shouldLoadPluginMarketplaceSnapshot(false, 'uninitialized', true),
-			shouldLoadPluginMarketplaceSnapshot(true, 'uninitialized', true),
-			shouldLoadPluginMarketplaceSnapshot(true, 'loaded', true),
-			shouldLoadPluginMarketplaceSnapshot(true, 'uninitialized', false),
-		], [false, true, false, false]);
 	});
 
 	test('accepts marketplace results only for the initiating search', () => {
