@@ -122,9 +122,11 @@ export function isCurrentPluginMarketplaceRequest(
 	currentBrowseMode: boolean,
 	isActiveRequest: boolean,
 	isCancellationRequested: boolean,
+	isSameSession: boolean,
 ): boolean {
 	return isActiveRequest
 		&& !isCancellationRequested
+		&& isSameSession
 		&& requestQuery === currentQuery
 		&& requestBrowseMode === currentBrowseMode;
 }
@@ -1142,12 +1144,13 @@ export class PluginListWidget extends Disposable {
 			this.harnessService.activeHarness.read(reader);
 			this.harnessService.activeSessionResource.read(reader);
 			this.marketplaceItems = [];
+			this.marketplaceCts?.dispose(true);
+			this.marketplaceCts = undefined;
+			this.delayedMarketplaceSearch.cancel();
 			this.marketplaceSnapshotCts?.dispose(true);
 			this.marketplaceSnapshot.reset();
 			this.updateToolbarActions();
-			if (!this.browseMode) {
-				void this.refresh();
-			}
+			void this.refresh();
 		}));
 
 		// Re-render when the active harness's remote item provider reports changes
@@ -2112,6 +2115,7 @@ export class PluginListWidget extends Disposable {
 		const cts = this.marketplaceCts = new CancellationTokenSource();
 		const query = this.searchQuery.toLowerCase().trim();
 		const browseMode = this.browseMode;
+		const sessionResource = this.harnessService.activeSessionResource.get();
 
 		// Show loading state
 		this.showEmptySurface();
@@ -2121,7 +2125,7 @@ export class PluginListWidget extends Disposable {
 		try {
 			const plugins = await this.fetchMarketplacePlugins(cts.token);
 
-			if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, browseMode, sessionResource)) {
 				return;
 			}
 
@@ -2132,7 +2136,7 @@ export class PluginListWidget extends Disposable {
 					.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
 					.sort(compareInstalledPluginItems);
 				const remoteItems = [...await this.getRemotePluginItems(query)];
-				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
+				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode, sessionResource)) {
 					return;
 				}
 				this.installedItems = installedItems;
@@ -2151,7 +2155,7 @@ export class PluginListWidget extends Disposable {
 				this.updateMarketplaceList();
 			}
 		} catch {
-			if (this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
+			if (this.isCurrentMarketplaceRequest(cts, query, browseMode, sessionResource)) {
 				this.marketplaceItems = [];
 				this.showEmptySurface();
 				this.emptyText.textContent = localize('marketplaceError', "Unable to load marketplace");
@@ -2173,9 +2177,10 @@ export class PluginListWidget extends Disposable {
 		}
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
+		const sessionResource = this.harnessService.activeSessionResource.get();
 		try {
 			const plugins = await this.fetchMarketplacePlugins(cts.token);
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, false, sessionResource)) {
 				return;
 			}
 			const installedItems = this.agentPluginService.plugins.get()
@@ -2183,7 +2188,7 @@ export class PluginListWidget extends Disposable {
 				.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
 				.sort(compareInstalledPluginItems);
 			const remoteItems = [...await this.getRemotePluginItems(query)];
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, false, sessionResource)) {
 				return;
 			}
 			const filtered = query
@@ -2191,7 +2196,7 @@ export class PluginListWidget extends Disposable {
 				: plugins;
 			const marketplaceItems = filtered
 				.filter(plugin => !this.isMarketplacePluginInstalled(plugin));
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, false, sessionResource)) {
 				return;
 			}
 			this.installedItems = installedItems;
@@ -2199,7 +2204,7 @@ export class PluginListWidget extends Disposable {
 			this.marketplaceItems = marketplaceItems;
 			this.searchInput.hideMessage();
 		} catch {
-			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
+			if (!this.isCurrentMarketplaceRequest(cts, query, false, sessionResource)) {
 				return;
 			}
 			this.marketplaceItems = [];
@@ -2210,13 +2215,13 @@ export class PluginListWidget extends Disposable {
 			await this.filterPlugins();
 			return;
 		}
-		if (this.isCurrentMarketplaceRequest(cts, query, false)) {
+		if (this.isCurrentMarketplaceRequest(cts, query, false, sessionResource)) {
 			this.updateSearchResultsList();
 			this._onDidChangeItemCount.fire(this.itemCount);
 		}
 	}
 
-	private isCurrentMarketplaceRequest(cts: CancellationTokenSource, query: string, browseMode: boolean): boolean {
+	private isCurrentMarketplaceRequest(cts: CancellationTokenSource, query: string, browseMode: boolean, sessionResource: URI): boolean {
 		return isCurrentPluginMarketplaceRequest(
 			query,
 			this.searchQuery.toLowerCase().trim(),
@@ -2224,6 +2229,7 @@ export class PluginListWidget extends Disposable {
 			this.browseMode,
 			this.marketplaceCts === cts,
 			cts.token.isCancellationRequested,
+			isEqual(sessionResource, this.harnessService.activeSessionResource.get()),
 		);
 	}
 

@@ -115,12 +115,13 @@ suite('pluginListWidget', () => {
 
 	test('accepts marketplace results only for the initiating search', () => {
 		assert.deepStrictEqual([
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, false),
-			isCurrentPluginMarketplaceRequest('agent', '', false, false, true, false),
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, true, true, false),
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, false, false),
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, true),
-		], [true, false, false, false, false]);
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, false, true),
+			isCurrentPluginMarketplaceRequest('agent', '', false, false, true, false, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, true, true, false, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, false, false, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, true, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', true, true, true, false, false),
+		], [true, false, false, false, false, false]);
 	});
 
 	test('merges local fallback only for runtime marketplace failures', () => {
