@@ -119,12 +119,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		}
 
 		// Pull request already exists for the currently checked out branch.
-		// Lifecycle status is tracked for the session's pull request only, so
-		// other folders offer no lifecycle operations yet.
 		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return ownerKey === undefined || resolveGitHubStateFolder(this._stateManager, ownerKey).isSessionFolder
-				? this._getPullRequestLifecycleOperations(sessionKey)
-				: undefined;
+			return this._getPullRequestLifecycleOperations(sessionKey, ownerKey ?? sessionKey);
 		}
 
 		const hasBranchChanges = gitState?.hasBaseBranchChanges ?? (gitState?.outgoingChanges ?? 0) > 0;
@@ -172,8 +168,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	 * the button bar stays hidden rather than flashing the wrong action, and
 	 * once the pull request is merged or closed, when nothing is left to do.
 	 */
-	private _getPullRequestLifecycleOperations(sessionKey: string): ChangesetOperation[] | undefined {
-		const status = this._pullRequestStatusService.getPullRequestStatus(sessionKey);
+	private _getPullRequestLifecycleOperations(sessionKey: string, ownerKey: string): ChangesetOperation[] | undefined {
+		const status = this._pullRequestStatusService.getPullRequestStatus(ownerKey);
 		if (!status) {
 			this._logService.trace(`[AgentHostPullRequestOperationContribution] No pull request operations: session=${sessionKey}, reason=pull request state has not resolved yet`);
 			return undefined;
@@ -185,7 +181,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		const operations: ChangesetOperation[] = [];
 		if (status.draft) {
-			const agentMergeRunning = this._isAgentMergeRunning(sessionKey);
+			// Agent Merge follows the session folder's pull request.
+			const agentMergeRunning = resolveGitHubStateFolder(this._stateManager, ownerKey).isSessionFolder && this._isAgentMergeRunning(sessionKey);
 			const operationId = agentMergeRunning && status.agentMergeReadyForReview !== true
 				? AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY_WITH_AGENT_MERGE
 				: AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY;
