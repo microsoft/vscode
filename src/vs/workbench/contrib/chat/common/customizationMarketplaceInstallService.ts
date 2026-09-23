@@ -8,7 +8,7 @@ import { ICustomizationMarketplaceResource } from '../../../../platform/customiz
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export type CustomizationMarketplaceInstallState =
-	| { readonly kind: 'available' | 'installing' | 'installed' }
+	| { readonly kind: 'available' | 'installing' | 'installed' | 'uninstalling' }
 	| { readonly kind: 'unavailable'; readonly message: string };
 
 export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
@@ -19,4 +19,6 @@ export interface ICustomizationMarketplaceInstallService {
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
+	/** Removes a previously installed marketplace resource through its owning service. */
+	uninstall(resource: ICustomizationMarketplaceResource): Promise<void>;
 }

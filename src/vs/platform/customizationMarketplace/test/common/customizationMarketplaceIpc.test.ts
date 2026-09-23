@@ -95,6 +95,24 @@ suite('CustomizationMarketplaceIpc', () => {
 		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
 	});
 
+	test('forwards only the selected enabled source', async () => {
+		const secondSetting = 'test.marketplace.second.enabled';
+		const calls: ICustomizationMarketplaceRequest[] = [];
+		const client = createClient({
+			async query(options) {
+				calls.push(options);
+				return { items: [] };
+			},
+		}, [
+			{ id: 'agentFinder', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
+			{ id: 'second', enablementSetting: secondSetting },
+		]);
+
+		await client.query({ sourceIds: ['second'] }, CancellationToken.None);
+
+		assert.deepStrictEqual(calls, [{ sourceIds: ['second'] }]);
+	});
+
 	test('each window sends only its enabled source IDs and cancels its own requests', async () => {
 		const secondSetting = 'test.marketplace.second.enabled';
 		const requests: { options: ICustomizationMarketplaceRequest; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];

@@ -36,6 +36,7 @@ import { CustomizationMarketplaceInstallService } from '../../../browser/aiCusto
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IMarketplaceInstalledPlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -172,6 +173,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 				return installedPlugins;
 			}
 		}();
+		const agentPlugins = observableValue<readonly IAgentPlugin[]>('agentPlugins', []);
+		const agentPluginService = new class extends mock<IAgentPluginService>() {
+			override readonly plugins = agentPlugins;
+		}();
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
 			result: IInstallPluginFromSourceResult = { success: true };
@@ -196,6 +201,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly lookups: string[] = [];
 			readonly eligibilityChecks: IWorkbenchMcpServer[] = [];
 			readonly installs: IWorkbenchMcpServer[] = [];
+			readonly uninstalls: IWorkbenchMcpServer[] = [];
 			galleryServer: IWorkbenchMcpServer | undefined = mcpServer();
 			eligibility: true | IMarkdownString = true;
 			installError: Error | undefined;
@@ -217,6 +223,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 				this.local = [installed];
 				mcpChanges.fire(installed);
 				return installed;
+			}
+			override async uninstall(server: IWorkbenchMcpServer): Promise<void> {
+				this.uninstalls.push(server);
+				this.local = this.local.filter(candidate => candidate !== server);
+				mcpChanges.fire(undefined);
 			}
 		}();
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
@@ -302,6 +313,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		instantiationService.stub(IPluginInstallService, pluginService);
 		instantiationService.stub(IPluginMarketplaceService, marketplaceService);
+		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
@@ -319,7 +331,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(ILogService, logService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
-			service, fileService, provider, installedPlugins, marketplaceService, pluginService, repositoryService, mcpService, mcpChanges,
+			service, fileService, provider, installedPlugins, marketplaceService, agentPlugins, pluginService, repositoryService, mcpService, mcpChanges,
 			harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
 	}
@@ -875,6 +887,28 @@ suite('CustomizationMarketplaceInstallService', () => {
 			states.push(fixture.service.getInstallState(candidate).kind);
 			assert.deepStrictEqual(states, ['installed', 'installed', 'available', 'available', 'available']);
 		});
+
+		test('uninstalls through the installed agent plugin', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const installed = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+			let removeCalls = 0;
+			fixture.installedPlugins.set([installed], undefined);
+			fixture.agentPlugins.set([
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = installed.pluginUri;
+					override async remove(): Promise<boolean> {
+						removeCalls++;
+						fixture.installedPlugins.set([], undefined);
+						return true;
+					}
+				}(),
+			], undefined);
+
+			await fixture.service.uninstall(candidate);
+
+			assert.deepStrictEqual({ removeCalls, state: fixture.service.getInstallState(candidate).kind }, { removeCalls: 1, state: 'available' });
+		});
 	});
 
 	suite('MCP servers', () => {
@@ -967,6 +1001,16 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: fixture.service.getInstallState(mcpResource()),
 			}, { checks: [], installs: [], state: { kind: 'available' } });
 		});
+
+		test('uninstalls the matching registry server', async () => {
+			const fixture = await createFixture();
+			const installed = mcpServer('io.example/demo', McpServerInstallState.Installed);
+			fixture.mcpService.local = [installed];
+
+			await fixture.service.uninstall(mcpResource());
+
+			assert.deepStrictEqual(fixture.mcpService.uninstalls, [installed]);
+		});
 	});
 
 	suite('skills', () => {
@@ -1028,6 +1072,19 @@ suite('CustomizationMarketplaceInstallService', () => {
 				progressLocation: ProgressLocation.Notification,
 				states: ['installing', 'installed'],
 			});
+		});
+
+		test('removes the installed skill directory', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+
+			await fixture.service.uninstall(candidate);
+
+			assert.deepStrictEqual({
+				exists: await fixture.fileService.exists(skillDestination),
+				state: fixture.service.getInstallState(candidate).kind,
+			}, { exists: false, state: 'available' });
 		});
 
 		test('supports a repository-root skill and the harness user source location', async () => {

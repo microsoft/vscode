@@ -35,7 +35,10 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	token: CancellationToken,
 	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken) => Promise<ICustomizationMarketplacePage>,
 ): Promise<ICustomizationMarketplacePage> {
-	const sourceIds = getEnabledCustomizationMarketplaceSources(configurationService, sources).map(source => source.id);
+	const getSourceIds = () => getEnabledCustomizationMarketplaceSources(configurationService, sources)
+		.filter(source => !options.sourceIds || options.sourceIds.includes(source.id))
+		.map(source => source.id);
+	const sourceIds = getSourceIds();
 	if (token.isCancellationRequested || sourceIds.length === 0) {
 		throw new CancellationError();
 	}
@@ -43,7 +46,7 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	const cancellation = store.add(new CancellationTokenSource(token));
 	store.add(configurationService.onDidChangeConfiguration(event => {
 		if (sources.some(source => event.affectsConfiguration(source.enablementSetting)) &&
-			!equals(sourceIds, getEnabledCustomizationMarketplaceSources(configurationService, sources).map(source => source.id))) {
+			!equals(sourceIds, getSourceIds())) {
 			cancellation.cancel();
 		}
 	}));

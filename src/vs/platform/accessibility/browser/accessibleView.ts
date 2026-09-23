@@ -21,7 +21,7 @@ export const enum AccessibleViewProviderId {
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	CustomizationMigrations = 'customizationMigrations',
-	CustomizationMarketplace = 'customizationMarketplace',
+	CustomizationDiscovery = 'customizationDiscovery',
 	ChatTerminalOutput = 'chatTerminalOutput',
 	ChatThinking = 'chatThinking',
 	InlineChat = 'inlineChat',

@@ -84,7 +84,6 @@ import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCu
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
@@ -837,10 +836,12 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
-	readonly staleSavedSection?: string;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
+	readonly discoveryQuery?: string;
+	readonly clearDiscoveryQuery?: boolean;
+	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
@@ -879,7 +880,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const savedSection = options.staleSavedSection ?? (!agentFinderPublicFeedEnabled ? AICustomizationManagementSection.Marketplace : undefined);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -890,7 +890,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
-		AICustomizationManagementSection.Marketplace,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const availableHarnesses = options.availableHarnesses ?? [
@@ -976,15 +975,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
-			if (savedSection) {
-				reg.defineInstance(IStorageService, ctx.disposableStore.add(new InMemoryStorageService()));
-			}
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
-				override readonly sources = [{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled }];
+				override readonly sources = [
+					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(agentFinderPublicFeedEnabled, 'A disabled Marketplace fixture must not query the catalog.');
@@ -1002,6 +1001,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					const text = query.query?.toLowerCase() ?? '';
 					const resources = customizationMarketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
+						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.token ?? 0);
 					return {
@@ -1026,6 +1026,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
 					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed' });
+					customizationMarketplaceInstallChanged.fire();
+				}
+				override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+					assert(agentFinderPublicFeedEnabled, 'A disabled Marketplace fixture must not uninstall resources.');
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling' });
+					customizationMarketplaceInstallChanged.fire();
+					await Promise.resolve();
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
 					customizationMarketplaceInstallChanged.fire();
 				}
 			}());
@@ -1377,6 +1385,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
+				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 				override readonly local = allMcpServers;
 				override async queryLocal() { return allMcpServers; }
 				override async queryGallery(options?: { text?: string }): Promise<IIterativePager<IWorkbenchMcpServer>> {
@@ -1451,11 +1460,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
-	if (savedSection) {
-		const storageService = instantiationService.get(IStorageService);
-		storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, savedSection, StorageScope.PROFILE, StorageTarget.USER);
-		assert(storageService.get(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE) === savedSection, 'The fixture must start with its persisted section selection.');
-	}
 	const editor = ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())
 	);
@@ -1468,59 +1472,92 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
 	}
-	if (options.staleSavedSection) {
-		editor.setVisible(true);
+	editor.setVisible(true);
+	if (!agentFinderPublicFeedEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(overview !== null && overview.style.display !== 'none', 'An unrecognized saved section must fall back to the overview.');
-		assert(ctx.container.querySelector('.customization-marketplace-widget') === null && editor.getActiveSectionWidget() === undefined, 'An unrecognized saved section must not be treated as a Marketplace alias.');
-		assert(customizationMarketplaceQueryCount === 0, 'Restoring an unrecognized saved section must not query the marketplace.');
-	} else if (!agentFinderPublicFeedEnabled) {
-		editor.setVisible(true);
-		editor.selectSectionById(AICustomizationManagementSection.Marketplace);
-		await Promise.resolve();
-		const sidebar = ctx.container.querySelector<HTMLElement>('.management-sidebar');
-		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(sidebar !== null && !sidebar.textContent?.includes('Marketplace'), 'Disabled Marketplace must be absent from the sidebar.');
-		assert(overview !== null && overview.style.display !== 'none' && !overview.textContent?.includes('Marketplace'), 'A disabled saved selection must show the overview without Marketplace.');
-		assert(ctx.container.querySelector('.customization-marketplace-widget') === null && editor.getActiveSectionWidget() === undefined, 'Restoring or selecting disabled Marketplace must not create its widget.');
+		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave installed discovery available.');
+		assert(editor.getActiveSectionWidget() === undefined, 'Disabled Marketplace must not create a separate section widget.');
 		assert(customizationMarketplaceQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
-	} else if (options.selectedSection === AICustomizationManagementSection.Marketplace) {
-		const queriesBeforeVisible = customizationMarketplaceQueryCount;
-		editor.setVisible(true);
+	} else if (!options.selectedSection) {
 		await Promise.resolve();
-		assert(queriesBeforeVisible === 0 && customizationMarketplaceQueryCount === 1, 'The catalog must make one mock query only after its selected editor becomes visible.');
-		const marketplace = ctx.container.querySelector<HTMLElement>('.customization-marketplace-widget');
-		assert(marketplace !== null && marketplace.style.display !== 'none', 'The Marketplace section must be visible.');
-		assert(marketplace.querySelectorAll('img').length === 0, 'Marketplace fixtures must not request remote images.');
-		const search = marketplace.querySelector<HTMLElement>('.customization-marketplace-search .monaco-inputbox');
-		const filter = marketplace.querySelector<HTMLElement>('.customization-marketplace-type-filter .monaco-select-box');
-		const refresh = marketplace.querySelector<HTMLElement>('.customization-marketplace-controls > .monaco-button');
-		assert(search !== null && filter !== null && refresh !== null, 'The Marketplace toolbar must provide all three controls.');
-		const refreshBounds = refresh.getBoundingClientRect();
-		assert(refreshBounds.height > 0 && [search, filter].every(control => Math.abs(control.getBoundingClientRect().height - refreshBounds.height) < 1), 'Marketplace controls must share the same height.');
-		assert(Math.abs(filter.getBoundingClientRect().top - refreshBounds.top) < 1, 'The resource filter must align with the Refresh button when the toolbar wraps.');
+		assert(customizationMarketplaceQueryCount === 1, 'Visible Discover must query the catalog once for browse mode.');
+		assert(ctx.container.querySelector('.customization-discovery') !== null, 'The customization overview must render Discover.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
+		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
+		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
+		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
+		assert(
+			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
+			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
+			'Discover must link each customization type from its description.',
+		);
+		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
+		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
+		const featuredName = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-name');
+		const featuredMetadata = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-metadata');
+		const featuredDescription = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-description');
+		assert(
+			!featuredCard || !featuredName || !featuredMetadata || !featuredDescription
+			|| featuredName.parentElement === featuredMetadata.parentElement
+			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
+			'Featured cards must place source metadata beside the name and the description on the next line.',
+		);
+	}
+
+	if (options.discoveryQuery) {
+		editor.getWelcomePage()?.setSearchQuery(options.discoveryQuery);
+		await new Promise(resolve => setTimeout(resolve, 350));
+		const resultList = ctx.container.querySelector<HTMLElement>('.customization-discovery-results');
+		const resultRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-row');
+		const resultIdentity = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-identity');
+		const resultName = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-name');
+		const resultDetail = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-detail');
+		const resultDescription = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-description');
+		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
+		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
+		assert(
+			!resultName || !resultDetail || !resultDescription
+			|| resultName.parentElement === resultDetail.parentElement
+			&& resultDescription.getBoundingClientRect().top > resultName.getBoundingClientRect().top,
+			'Discover results must place source metadata beside the name and the description on the next line.',
+		);
+		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
+		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
+		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
+		const availableRows = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+			.filter(row => row.querySelector('.customization-discovery-result-actions .monaco-button')?.textContent === 'Install');
+		assert(availableRows.every(row => {
+			const detail = row.querySelector('.customization-discovery-result-detail')?.textContent;
+			return detail?.includes('Marketplace 1') || detail?.includes('Marketplace 2');
+		}), 'Marketplace results must show their source name.');
+		if (options.selectDiscoveryResult) {
+			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
+			resultRows[resultRows.length - 1]?.click();
+			await Promise.resolve();
+		}
+		if (options.discoveryQuery.includes('@installed')) {
+			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
+			const resultActions = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
+			assert(resultActions.every(action => action.textContent !== 'Install'), 'The Installed filter must hide available catalog actions.');
+		}
 		if (options.customizationMarketplaceState === 'loadingMore') {
-			const more = Array.from(marketplace.querySelectorAll<HTMLElement>('.customization-marketplace-footer .monaco-button')).find(button => button.textContent === 'Load More');
-			assert(more !== undefined, 'The loading-more fixture must expose pagination.');
-			more.click();
+			const scrollable = resultList.querySelector<HTMLElement>('.monaco-scrollable-element');
+			if (scrollable) {
+				scrollable.scrollTop = scrollable.scrollHeight;
+				scrollable.dispatchEvent(new (DOM.getWindow(scrollable).Event)('scroll'));
+				await Promise.resolve();
+			}
+			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
+		}
+		if (options.clearDiscoveryQuery) {
+			editor.getWelcomePage()?.setSearchQuery('');
 			await Promise.resolve();
-			assert(marketplace.querySelectorAll('.customization-marketplace-card').length === 2, 'Loading more must preserve existing results.');
-		}
-		if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
-			const loading = marketplace.querySelector<HTMLElement>('.customization-marketplace-loading');
-			assert(loading !== null && loading.getAttribute('aria-hidden') === 'true' && loading.children.length === (options.customizationMarketplaceState === 'loading' ? 6 : 2), 'Pending requests must show decorative skeleton cards.');
-		}
-		if (!options.customizationMarketplaceState || options.customizationMarketplaceState === 'ready') {
-			assert(marketplace.querySelectorAll('.customization-marketplace-card').length === customizationMarketplaceResources.length, 'The catalog must render deterministic mock resources.');
-		}
-		if (options.customizationMarketplaceInstallationState === 'error') {
-			const install = marketplace.querySelector<HTMLElement>('.customization-marketplace-install-button');
-			assert(install !== null, 'The resource must provide an Install action.');
-			install.click();
-			await Promise.resolve();
-			const error = marketplace.querySelector<HTMLElement>('.customization-marketplace-install-error');
-			assert(error !== null && !error.hidden && install.textContent === 'Retry Install', 'A failed mock installation must show an inline error and retry action.');
+			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
+			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
 		}
 	}
 
@@ -1728,6 +1765,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
+				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 				override readonly local: IWorkbenchMcpServer[] = [];
 				override async queryLocal() { return []; }
 				override canInstall() { return true as const; }
@@ -2025,6 +2063,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
+				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 				override readonly local: IWorkbenchMcpServer[] = [];
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
@@ -2158,6 +2197,7 @@ function renderEmbeddedMcpDetail(
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
+				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
 				override async open() { /* no-op in fixture */ }
 			}());
@@ -2334,11 +2374,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
 	}),
 
@@ -2754,108 +2796,100 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	MarketplaceTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Marketplace shows a search field, a resource type filter, and cards with metadata, tags, Details, neutral secondary Install buttons, and external source links. Installation uses existing VS Code prompts and destination choices.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
-		}),
-	}),
-
-	MarketplaceDisabled: defineComponentFixture({
+	DiscoverLocalOnly: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agent Customizations overview and sidebar omit Marketplace when its experiment is disabled, even when the previous selection was Marketplace.'],
+		expectedVisualDescriptions: ['Discover remains available for installed customization search while the customization marketplace experiment is disabled.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
 			agentFinderPublicFeedEnabled: false,
 		}),
 	}),
 
-	MarketplaceStaleSelection: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A former saved section opens the overview without starting marketplace discovery. The Marketplace entry is available but not selected.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			staleSavedSection: 'agentFinder',
-		}),
-	}),
-
-	MarketplaceTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The narrow Marketplace section wraps its controls and shows a single card column without horizontal overflow.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
-			width: 550,
-			height: 500,
-		}),
-	}),
-
-	MarketplaceSessionsTab: defineComponentFixture({
+	SessionsDiscover: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
-			selectedSection: AICustomizationManagementSection.Marketplace,
 		}),
 	}),
 
-	MarketplaceEmpty: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+	DiscoverSearchResults: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
-			customizationMarketplaceState: 'empty',
+			discoveryQuery: 'review',
 		}),
 	}),
 
-	MarketplaceError: defineComponentFixture({
+	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
-			customizationMarketplaceState: 'error',
+			discoveryQuery: 'review',
+			clearDiscoveryQuery: true,
 		}),
 	}),
 
-	MarketplaceLoading: defineComponentFixture({
+	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Six decorative card-shaped shimmer placeholders replace visible loading text. The search toolbar remains available.'],
+		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
-			customizationMarketplaceState: 'loading',
+			discoveryQuery: 'correctness',
+			selectDiscoveryResult: true,
 		}),
 	}),
 
-	MarketplaceLoadingMore: defineComponentFixture({
+	DiscoverInfiniteScroll: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Existing catalog cards and their result count remain visible while decorative loading placeholders are appended for the next page.'],
+		expectedVisualDescriptions: ['The flat virtualized Discover results list keeps loaded rows visible while the next marketplace page loads automatically near the scroll boundary, without a Load More footer.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
+			discoveryQuery: 'review',
 			customizationMarketplaceState: 'loadingMore',
 		}),
 	}),
 
-	MarketplaceInstallStates: defineComponentFixture({
+	DiscoverInstalledFilter: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The first resource shows Installing and the second shows Installed. Remaining resources have neutral Install actions, with unsupported resources disabled and explained through accessibility labels and hovers.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
+			discoveryQuery: '@installed',
+		}),
+	}),
+
+	DiscoverError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			customizationMarketplaceState: 'error',
+		}),
+	}),
+
+	DiscoverLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			customizationMarketplaceState: 'loading',
+		}),
+	}),
+
+	DiscoverInstallStates: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
 			customizationMarketplaceInstallationState: 'mixed',
 		}),
 	}),
 
-	MarketplaceInstallError: defineComponentFixture({
+	DiscoverInstallError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The first resource has an inline installation error and Retry Install action. Resource cards, search controls, and external source links remain available.'],
+		expectedVisualDescriptions: ['The first resource has an installation error and Retry Install action while the remaining Discover results stay available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.Marketplace,
+			discoveryQuery: 'review',
 			customizationMarketplaceInstallationState: 'error',
 		}),
 	}),

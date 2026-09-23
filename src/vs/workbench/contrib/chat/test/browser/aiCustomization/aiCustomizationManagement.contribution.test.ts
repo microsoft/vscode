@@ -18,7 +18,6 @@ import {
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('AI customization management contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,17 +30,8 @@ suite('AI customization management contribution', () => {
 		'aiCustomizationManagement.installChatCustomizationExtension',
 	]);
 
-	test('Marketplace declares its source gates and source-neutral label before any widget is created', () => {
-		const section = aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace);
-		assert.deepStrictEqual({
-			id: section?.id,
-			label: section?.label,
-			enablementSettings: section?.enablementSettings,
-		}, {
-			id: 'marketplace',
-			label: 'Marketplace',
-			enablementSettings: [ChatConfiguration.AgentFinderPublicFeedEnabled],
-		});
+	test('Marketplace is not registered as a separate management section', () => {
+		assert.strictEqual(aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace), undefined);
 	});
 
 	test('isolates synthetic items from extension-contributed item actions', () => {
