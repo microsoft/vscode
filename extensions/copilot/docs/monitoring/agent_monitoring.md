@@ -174,36 +174,6 @@ does not enable identity or forward account/OS/host values.
 
 ### Activation
 
-When late enterprise OTel settings turn on external export after Copilot's telemetry service
-started without it, Copilot can restart the extension hosts for that window to recover. It shows
-a progress notification before requesting the restart; that notice clears automatically when
-the host restarts or the attempt ends. Successful recovery is logged without another toast.
-Restarting also interrupts other extensions in the window. If the restart is unavailable,
-vetoed, or fails to apply the settings,
-a warning offers **Reload Window** instead. User changes and policy withdrawal remain
-opt-in reloads, except that identity denial is enforced before subsequent exports.
-Existing exporter selection and legacy environment-variable precedence are unchanged.
-It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
-signal, without a new API. Normal personal settings changes do not change those defaults.
-If a recognizable enterprise OTel block was already present at initialization, later changes
-only offer a reload, including enabling a previously disabled managed configuration.
-Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
-those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
-still redirected by environment variables to a different collector or file do not qualify.
-Policy edits indistinguishable from schema defaults cannot be identified as new policy and retain
-the opt-in reload behavior. Conflicting environment variables can still prevent recovery, and this
-does not enforce precedence over environment variables or guarantee telemetry produced before
-the restart. The default-value signal cannot distinguish a policy consisting entirely of
-schema-default values from no policy.
-
-There is no periodic polling or restart loop. A startup check and configuration events trigger
-checks, coalesced by a 500 ms debounce. At most one automatic off-to-on recovery is attempted per
-workspace and editor session, identified by `vscode.env.sessionId`. The attempt remains recorded
-even after success or failure. Later policy updates only offer a reload, deduplicated while stale.
-If policy first arrives after a later sign-in, that single recovery can happen then rather than
-immediately at launch. A one-off 15-second grace period allows a requested restart to finish
-before a still-running host shows the reload fallback.
-
 OTel is **off by default** with zero overhead. It activates when:
 
 - an applied enterprise policy makes `github.copilot.chat.otel.enabled` true, or
@@ -211,6 +181,10 @@ OTel is **off by default** with zero overhead. It activates when:
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is set, or
 - `github.copilot.chat.otel.enabled` is `true`, or
 - `github.copilot.chat.otel.dbSpanExporter.enabled` is `true` (the SDK pipeline must be active to feed the SQLite store).
+
+OTel configuration is read at startup, so most changes need a window reload. Copilot shows a **Reload Window** prompt for them. There is one exception: enterprise policy that turns on OTLP export after Copilot has already started without it. For that case, Copilot restarts the window's extension hosts once per editor session to apply the policy. This also interrupts other extensions. If the restart doesn't apply the policy, Copilot shows a warning with **Reload Window**. An identity-capture denial takes effect for subsequent exports without a reload.
+
+Automatic recovery does not happen when environment variables redirect export to a different collector or file. It also doesn't enforce policy over environment variables, and it doesn't recover telemetry produced before the restart.
 
 ### Commands
 
