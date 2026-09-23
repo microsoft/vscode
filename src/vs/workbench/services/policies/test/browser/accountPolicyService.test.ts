@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -438,6 +438,41 @@ suite('AccountPolicyService', () => {
 			policy: false,
 			source: PolicyValueSource.NativeMdm,
 			sandbox: true,
+		});
+	});
+
+	test('Auto defaults discard the previous account value while new policy is unresolved and when removed', async () => {
+		const changed = disposables.add(new Emitter<IPolicyData | null>());
+		const accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangePolicyData = changed.event;
+			override readonly onDidChangeDefaultAccount = accountChanged.event;
+			override defaultAccount = BASE_DEFAULT_ACCOUNT;
+			override policyData: IPolicyData | null = { managedSettings: { [COPILOT_AUTO_TIER_KEY]: 'intelligence' } };
+		}(BASE_DEFAULT_ACCOUNT);
+		defaultAccountService.setDefaultAccountProvider(provider);
+		await defaultAccountService.refresh();
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService));
+		await policyService.updatePolicyDefinitions({});
+		const initial = policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY);
+		provider.defaultAccount = { ...BASE_DEFAULT_ACCOUNT, accountName: 'second-account', sessionId: 'second-session' };
+		provider.policyData = null;
+		accountChanged.fire(provider.defaultAccount);
+		changed.fire(null);
+		await defaultAccountService.refresh();
+		await policyService.updatePolicyDefinitions({});
+		const unresolved = policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY);
+		const loaded = Event.toPromise(policyService.onDidChangeManagedSettings);
+		provider.policyData = { managedSettings: { [COPILOT_AUTO_TIER_KEY]: 'efficiency' } };
+		changed.fire(provider.policyData);
+		await loaded;
+		const nextAccount = policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY);
+		const cleared = Event.toPromise(policyService.onDidChangeManagedSettings);
+		provider.policyData = {};
+		changed.fire(provider.policyData);
+		await cleared;
+		assert.deepStrictEqual({ initial, unresolved, nextAccount, removed: policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY) }, {
+			initial: 'intelligence', unresolved: undefined, nextAccount: 'efficiency', removed: undefined,
 		});
 	});
 

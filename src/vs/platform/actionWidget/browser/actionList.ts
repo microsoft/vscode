@@ -707,6 +707,9 @@ export interface IActionListOptions {
 	/** Preserve the open submenu while the pointer travels diagonally toward it. */
 	readonly submenuPointerIntent?: boolean;
 
+	/** Delay in milliseconds before showing a submenu on pointer hover. Defaults to 500. */
+	readonly submenuHoverDelay?: number;
+
 	/**
 	 * Controls the gutter kept for the submenu chevron on items that have none.
 	 * - `true` (default): kept while some item shows a chevron.
@@ -819,6 +822,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _imeSessionInProgress = false;
 	private _isMeasuringWidth = false;
 	private _suppressHover = false;
+	private _hoverEnabled = true;
 	private _ignoreInitialHover = true;
 	private _keyboardNavigation: boolean | undefined;
 	private _hasLaidOut = false;
@@ -1633,6 +1637,22 @@ export class ActionListWidget<T> extends Disposable {
 		return undefined;
 	}
 
+	/** Suspends hover panels while their anchor is hidden or moving, restoring persistent previews when enabled. */
+	setHoverEnabled(enabled: boolean): void {
+		if (this._hoverEnabled === enabled) {
+			return;
+		}
+		this._hoverEnabled = enabled;
+		if (!enabled) {
+			this._hideSubmenu();
+		} else if (this._options?.persistentHover) {
+			const [index] = this._list.getFocus();
+			if (index !== undefined) {
+				this._showHoverForElement(this._list.element(index), index);
+			}
+		}
+	}
+
 	/** Shows the checked item's hover, falling back to the focused item for persistent previews. */
 	showHoverForCheckedItem(): void {
 		const element = this._allMenuItems.find(item => item.kind === ActionListItemKind.Action && (item.item as { checked?: boolean } | undefined)?.checked)
@@ -2416,7 +2436,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showSubmenuForElement(element: IActionListItem<T>, anchor: HTMLElement): void {
-		if (this._currentSubmenuElement === element) {
+		if (!this._hoverEnabled || this._currentSubmenuElement === element) {
 			return;
 		}
 
@@ -2876,7 +2896,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _scheduleSubmenuShow(element: IActionListItem<T>, pointer: MouseEvent): void {
 		this._cancelSubmenuShow();
-		let delay = 500;
+		let delay = this._options?.submenuHoverDelay ?? 500;
 		if (this._usesSubmenuPointerIntent()) {
 			delay = 0;
 			const origin = this._submenuPointerOrigin;
@@ -3116,6 +3136,10 @@ export class ActionList<T> extends Disposable {
 
 	showHoverForCheckedItem(): void {
 		this._widget.showHoverForCheckedItem();
+	}
+
+	setHoverEnabled(enabled: boolean): void {
+		this._widget.setHoverEnabled(enabled);
 	}
 
 	hide(didCancel?: boolean, hideContextView = true): void {

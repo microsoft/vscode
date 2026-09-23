@@ -55,6 +55,8 @@ export interface IAgentHostFilterEntry {
 	 * control over nothing.
 	 */
 	readonly connectable: boolean;
+	/** Provider for new sessions in this group, independent of its existing environments. */
+	readonly sessionCreationProviderId?: string;
 }
 
 export const IAgentHostFilterService = createDecorator<IAgentHostFilterService>('agentHostFilterService');

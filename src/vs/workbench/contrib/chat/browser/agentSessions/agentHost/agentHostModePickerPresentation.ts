@@ -35,7 +35,6 @@ export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
 	TerminalContribSettingId.IgnoreDefaultAutoApproveRules,
 	TerminalContribSettingId.BlockDetectedFileWrites,
 	'chat.agent.sandbox.*',
-	'chat.agentHost.sdkSandbox.*',
 ].join(',')}`;
 
 export interface IModePickerPermissions {

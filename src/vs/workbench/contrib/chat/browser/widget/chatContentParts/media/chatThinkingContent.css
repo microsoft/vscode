@@ -125,7 +125,8 @@
 
 		> .chat-tool-invocation-part,
 		> .chat-codeblock-pill-container,
-		> .chat-markdown-part.rendered-markdown {
+		> .chat-markdown-part.rendered-markdown,
+		> .chat-used-context {
 			padding-block: 0;
 		}
 
@@ -194,6 +195,7 @@
 	}
 
 	> .chat-persistent-reasoning,
+	.chat-tool-chain .chat-thinking-tool-wrapper > .chat-used-context,
 	.chat-tool-call-with-icon :is(.chat-terminal-thinking-collapsible, .chat-confirmation-widget-collapsible) {
 		gap: 0;
 

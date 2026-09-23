@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -16,15 +19,19 @@ import { IAccessibleViewService } from '../../../../../../platform/accessibility
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatAccessibilityService } from '../../../browser/chat.js';
+import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
@@ -34,6 +41,7 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -77,6 +85,12 @@ suite('ChatListWidget', () => {
 		row.appendChild(content);
 		const contentChild = mainWindow.document.createElement('div');
 		content.appendChild(contentChild);
+		const link = mainWindow.document.createElement('a');
+		link.href = 'https://fallback.example.com';
+		link.dataset.href = 'https://example.com/docs';
+		const linkChild = mainWindow.document.createElement('span');
+		link.appendChild(linkChild);
+		content.appendChild(link);
 		const katexContainer = mainWindow.document.createElement('span');
 		katexContainer.className = katexContainerClassName;
 		content.appendChild(katexContainer);
@@ -92,6 +106,7 @@ suite('ChatListWidget', () => {
 			rowGutter: isChatBackgroundContextMenuTarget(rowGutter),
 			content: isChatBackgroundContextMenuTarget(content),
 			contentChild: isChatBackgroundContextMenuTarget(contentChild),
+			linkChild: getChatContextMenuTargetContext(linkChild),
 			svgPath: getChatContextMenuTargetContext(svgPath),
 			scrollbar: isChatBackgroundContextMenuTarget(scrollbar),
 			missing: isChatBackgroundContextMenuTarget(undefined),
@@ -100,6 +115,11 @@ suite('ChatListWidget', () => {
 			rowGutter: true,
 			content: false,
 			contentChild: false,
+			linkChild: {
+				isKatexElement: false,
+				isBackground: false,
+				linkTarget: 'https://example.com/docs',
+			},
 			svgPath: {
 				isKatexElement: true,
 				isBackground: false,
@@ -109,7 +129,86 @@ suite('ChatListWidget', () => {
 		});
 	});
 
-	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false) {
+	test('provides registered menu commands with the link context', async () => {
+		let contextMenuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+		const contextMenuService: IContextMenuService = {
+			_serviceBrand: undefined,
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+			showContextMenu: delegate => contextMenuDelegate = delegate,
+		};
+		const editorResolverService = upcastPartial<IEditorResolverService>({
+			getEditors: () => [{
+				id: 'test.editor',
+				label: 'Test Editor',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option,
+				},
+			}],
+		});
+		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const requestText = 'Show documentation';
+		const request = model.addRequest({
+			text: requestText,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, requestText.length), new Range(1, 1, 1, requestText.length + 1), requestText)]
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, {
+			kind: 'markdownContent',
+			content: new MarkdownString('[Documentation](file:///workspace/README.md)'),
+		});
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const link = container.querySelector('a[data-href="file:///workspace/README.md"]');
+		assert.ok(link);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+
+		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const actionContext = menuDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(actionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		assert.deepStrictEqual({
+			linkTarget: actionContext.linkTarget,
+			itemKind: isResponseVM(actionContext.item) ? 'response' : 'other',
+		}, {
+			linkTarget: 'file:///workspace/README.md',
+			itemKind: 'response',
+		});
+	});
+
+	test('shows Open With only for resources backed by a file system provider', () => {
+		const editorResolverService = upcastPartial<IEditorResolverService>({
+			getEditors: () => [{
+				id: 'test.editor',
+				label: 'Test Editor',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option,
+				},
+			}],
+		});
+		const fileService = upcastPartial<IFileService>({
+			hasProvider: () => true,
+		});
+
+		assert.deepStrictEqual({
+			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
+			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
+			http: shouldShowChatLinkOpenWith(URI.parse('http://example.com'), fileService, editorResolverService),
+		}, {
+			file: true,
+			https: false,
+			http: false,
+		});
+	});
+
+	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -121,6 +220,13 @@ suite('ChatListWidget', () => {
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		if (contextMenuService) {
+			instantiationService.stub(IContextMenuService, contextMenuService);
+		}
+		if (editorResolverService) {
+			instantiationService.stub(IEditorResolverService, editorResolverService);
+		}
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());

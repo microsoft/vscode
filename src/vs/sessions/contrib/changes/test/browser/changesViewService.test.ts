@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
@@ -62,15 +62,18 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createChangeset(operations: readonly ISessionChangesetOperation[]): ISessionChangeset {
+	function createChangeset(operations: readonly ISessionChangesetOperation[], options?: {
+		readonly isLoadingChanges?: IObservable<boolean>;
+		readonly changes?: IObservable<readonly ISessionFileChange[]>;
+	}): ISessionChangeset {
 		return upcastPartial<ISessionChangeset>({
 			id: 'branch',
 			label: 'Branch Changes',
 			isDefault: constObservable(true),
 			isEnabled: constObservable(true),
-			isLoadingChanges: constObservable(false),
+			isLoadingChanges: options?.isLoadingChanges ?? constObservable(false),
 			operations: constObservable(operations),
-			changes: constObservable([]),
+			changes: options?.changes ?? constObservable([]),
 		});
 	}
 
@@ -315,6 +318,75 @@ suite('ChangesViewService', () => {
 				selected: 'branch',
 			},
 		});
+	});
+
+	test('surfaces cached changes while the changeset recomputes', () => {
+		const cachedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/cached.ts'),
+		});
+		const isLoadingChanges = observableValue('isLoadingChanges', true);
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', [cachedChange]);
+		const changeset = createChangeset([], { isLoadingChanges, changes });
+		const { service } = createHarness(createSession('cached', { changesets: [changeset] }));
+
+		const withCachedChanges = {
+			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
+			sessionLoading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		};
+		changes.set([], undefined);
+		const withoutCachedChanges = {
+			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
+			sessionLoading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		};
+		isLoadingChanges.set(false, undefined);
+		const afterRecompute = {
+			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
+			sessionLoading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		};
+
+		assert.deepStrictEqual({ withCachedChanges, withoutCachedChanges, afterRecompute }, {
+			withCachedChanges: {
+				changesetLoading: true,
+				sessionLoading: false,
+				changes: ['file:///repo/cached.ts'],
+			},
+			withoutCachedChanges: {
+				changesetLoading: true,
+				sessionLoading: true,
+				changes: [],
+			},
+			afterRecompute: {
+				changesetLoading: false,
+				sessionLoading: false,
+				changes: [],
+			},
+		});
+	});
+
+	test('preserves the changes summary while changes are loading', () => {
+		const isLoadingChanges = observableValue('isLoadingChanges', false);
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', [
+			upcastPartial<ISessionFileChange>({ insertions: 5, deletions: 7 }),
+			upcastPartial<ISessionFileChange>({ insertions: 6, deletions: 3 }),
+		]);
+		const changeset = createChangeset([], { isLoadingChanges, changes });
+		const { service } = createHarness(createSession('summary', { changesets: [changeset] }));
+
+		const summaries = [service.activeSessionChangesSummaryObs.get()];
+		isLoadingChanges.set(true, undefined);
+		changes.set([], undefined);
+		summaries.push(service.activeSessionChangesSummaryObs.get());
+		isLoadingChanges.set(false, undefined);
+		summaries.push(service.activeSessionChangesSummaryObs.get());
+
+		assert.deepStrictEqual(summaries, [
+			{ additions: 11, deletions: 10, files: 2 },
+			{ additions: 11, deletions: 10, files: 2 },
+			undefined,
+		]);
 	});
 
 	test('hides checkout from generic changeset operations', () => {
