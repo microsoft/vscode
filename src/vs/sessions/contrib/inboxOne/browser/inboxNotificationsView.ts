@@ -18,10 +18,11 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -50,6 +51,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../work
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
 import {
 	IInboxDetailSummary,
 	IInboxEvidenceArtifact,
@@ -70,6 +72,12 @@ import { pickFunWorkingMessage } from '../../../../workbench/contrib/chat/browse
 
 function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carousel is IChatQuestionCarousel & { dismiss(answers: Record<string, IChatQuestionAnswerValue> | undefined): void } {
 	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
+}
+
+type InboxMergedSessionCleanupActionKind = InboxNotificationActionKind.ArchiveSession | InboxNotificationActionKind.DeleteSession;
+
+function isInboxMergedSessionCleanupActionKind(actionKind: InboxNotificationActionKind): actionKind is InboxMergedSessionCleanupActionKind {
+	return actionKind === InboxNotificationActionKind.ArchiveSession || actionKind === InboxNotificationActionKind.DeleteSession;
 }
 
 const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSections';
@@ -93,12 +101,19 @@ const TIER_SECTIONS: readonly IInboxTierSpec[] = [
 	{ key: 'later', priority: InboxNotificationPriority.Later },
 ];
 
+const ALWAYS_MERGED_SESSION_CLEANUP_AFTER_DAYS = 15;
+
 type InboxInteractionTelemetryEvent = {
 	interaction: string;
 	trigger: string;
+	result: string;
 	notificationKind: string;
 	notificationActionKind: string;
 	hasSession: string;
+	commandId: string;
+	viewInstanceId: string;
+	sequence: number;
+	durationMs: number | undefined;
 };
 
 type InboxInteractionTelemetryClassification = {
@@ -106,10 +121,31 @@ type InboxInteractionTelemetryClassification = {
 	comment: 'Tracks user interactions taken directly from the Sessions Inbox notifications view.';
 	interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded inbox interaction identifier.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded inbox surface where the interaction originated.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded interaction outcome such as attempt, success, failure, or skipped.' };
 	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind when the interaction came from a card, otherwise none.' };
 	notificationActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification action kind when the interaction came from an action button, otherwise none.' };
 	hasSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification had an associated session resource.' };
+	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Command identifier for command-backed inbox actions, or none for other interactions.' };
+	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate interaction trajectories inside a single view instance.' };
+	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic interaction sequence number within the inbox view instance.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration in milliseconds for interaction outcomes that complete asynchronously, including dwell time when applicable.' };
 };
+
+type InboxInteractionResult = 'attempt' | 'success' | 'failure' | 'skipped';
+
+interface ISelectionTelemetryState {
+	readonly notificationKind: string;
+	readonly hasSession: string;
+	readonly selectedAt: number;
+}
+
+interface IInboxInteractionTelemetryOptions {
+	readonly result?: InboxInteractionResult;
+	readonly durationMs?: number;
+	readonly commandId?: string;
+	readonly notificationKind?: string;
+	readonly hasSession?: string;
+}
 
 export class InboxNotificationsView extends AbstractCustomView {
 
@@ -156,6 +192,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}));
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private readonly selectedItemId = observableValue<string | undefined>('inboxNotificationsSelected', undefined);
+	private readonly inboxViewInstanceId = generateUuid();
+	private interactionSequence = 0;
+	private selectionTelemetryState: ISelectionTelemetryState | undefined;
 	private detailSash: Sash | undefined;
 	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
 	private layoutWidth = 0;
@@ -198,6 +237,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	override dispose(): void {
+		this.endSelectionTelemetry('viewDispose');
 		if (InboxNotificationsView.activeInstance === this) {
 			InboxNotificationsView.activeInstance = undefined;
 		}
@@ -217,7 +257,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const items = this.inboxNotificationsService.notifications.get();
 		for (const item of items) {
 			for (const actionKind of preferredActionKinds) {
-				if (!item.actions.some(action => action.kind === actionKind) || !this.canShowAgentMergeAlwaysDropdown(item, actionKind)) {
+				if (!item.actions.some(action => action.kind === actionKind) || !this.canShowAlwaysDropdown(item, actionKind)) {
 					continue;
 				}
 
@@ -499,6 +539,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.renderSection(list, COMPLETED_SECTION_KEY, localize('inboxNotifications.section.completed', "Completed"), completedItems, undefined);
 		}
 
+		const selectedId = this.selectedItemId.get();
+		if (selectedId && !this.renderedCards.some(card => card.dataset.notificationId === selectedId)) {
+			this.clearSelectedItem('itemRemoved');
+		}
+
 		const revealTarget = this.pendingRevealId
 			? this.renderedCards.find(card => card.dataset.notificationId === this.pendingRevealId)
 			: undefined;
@@ -551,12 +596,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private toggleSection(key: string): void {
-		if (this.collapsedSections.has(key)) {
+		const willExpand = this.collapsedSections.has(key);
+		if (willExpand) {
 			this.collapsedSections.delete(key);
 		} else {
 			this.collapsedSections.add(key);
 		}
 		this.persistCollapsedSections();
+		this.logInboxInteraction(willExpand ? 'section.expand' : 'section.collapse', 'sectionHeader');
 		this.renderList(this.renderedItems);
 	}
 
@@ -629,11 +676,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (this.selectedItemId.get() === item.id) {
 			card.classList.add('selected');
 		}
-		this.renderedListDisposables.add(addDisposableListener(card, EventType.CLICK, () => this.selectItem(item.id)));
+		this.renderedListDisposables.add(addDisposableListener(card, EventType.CLICK, () => this.selectItem(item.id, 'cardClick')));
 		this.renderedListDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			if ((event.key === 'Enter' || event.key === ' ') && !isEditableElement(event.target as HTMLElement) && event.target === card) {
 				event.preventDefault();
-				this.selectItem(item.id);
+				this.selectItem(item.id, 'cardKeyboard');
 			}
 		}));
 
@@ -785,13 +832,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 		buttonLabel: string,
 		buttonIndex: number,
 	): Promise<void> {
+		const startTime = Date.now();
 		const requestContext = this.getNeedsInputRequestContext(part.chatResource, part.requestId);
 		if (!requestContext) {
+			this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.confirmation.chatMissing', "Unable to find the session for this confirmation. Open the session and try again."));
 			return;
 		}
 		const confirmationPart = this.getPendingConfirmationPart(requestContext.response, part.data);
 		if (!confirmationPart) {
+			this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.confirmation.missing', "This confirmation is no longer available. Open the session for the latest state."));
 			return;
 		}
@@ -811,9 +861,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (ChatSendResult.isSent(sendResult)) {
 			confirmationPart.isUsed = true;
 			await this.completeNeedsInputNotification(item);
+			this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
 			return;
 		}
 
+		this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 		this.notificationService.error(localize('inboxNotifications.confirmation.sendFailed', "Unable to submit this confirmation. Open the session and try again."));
 	}
 
@@ -822,8 +874,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 		part: IInboxNotificationToolConfirmationPart,
 		buttonIndex: number,
 	): Promise<void> {
+		const startTime = Date.now();
 		const chatModel = this.chatService.getSession(part.chatResource);
 		if (!chatModel) {
+			this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.toolConfirmation.chatMissing', "Unable to find the session for this confirmation. Open the session and try again."));
 			return;
 		}
@@ -832,12 +886,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const response = request?.response;
 		const toolInvocation = response?.response.value.find(candidate => candidate.kind === 'toolInvocation' && candidate.toolCallId === part.toolCallId);
 		if (!toolInvocation || toolInvocation.kind !== 'toolInvocation') {
+			this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.toolConfirmation.invocationMissing', "This confirmation is no longer available. Open the session for the latest state."));
 			return;
 		}
 
 		const button = part.buttons[buttonIndex] ?? part.buttons[0];
 		if (!button) {
+			this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.toolConfirmation.buttonMissing', "Unable to resolve the selected confirmation option."));
 			return;
 		}
@@ -850,10 +906,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 			: { type: ToolConfirmKind.Skipped as const };
 		const didConfirm = IChatToolInvocation.confirmWith(toolInvocation, reason);
 		if (!didConfirm) {
+			this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.toolConfirmation.staleState', "This confirmation changed before your action was applied. Open the session and try again."));
 			return;
 		}
 		await this.completeNeedsInputNotification(item);
+		this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
 	}
 
 	private async submitQuestionCarouselPart(
@@ -861,18 +919,22 @@ export class InboxNotificationsView extends AbstractCustomView {
 		part: IInboxNotificationQuestionCarouselPart,
 		answers: Map<string, IChatQuestionAnswerValue> | undefined,
 	): Promise<void> {
+		const startTime = Date.now();
 		if (!part.resolveId) {
+			this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.questionCarousel.resolveIdMissing', "Unable to submit this question yet. Open the session to continue."));
 			return;
 		}
 
 		const requestContext = this.getNeedsInputRequestContext(part.chatResource, part.requestId);
 		if (!requestContext) {
+			this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.questionCarousel.chatMissing', "Unable to find the session for these questions. Open the session and try again."));
 			return;
 		}
 		const carouselPart = requestContext.response.response.value.find(candidate => candidate.kind === 'questionCarousel' && candidate.resolveId === part.resolveId && !candidate.isUsed);
 		if (!carouselPart || carouselPart.kind !== 'questionCarousel') {
+			this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.questionCarousel.missing', "These questions are no longer available. Open the session for the latest state."));
 			return;
 		}
@@ -886,6 +948,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 		this.chatService.notifyQuestionCarouselAnswer(part.requestId, part.resolveId, answersRecord);
 		await this.completeNeedsInputNotification(item);
+		this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
 	}
 
 	private getNeedsInputRequestContext(chatResource: URI, requestId: string): { request: IChatRequestModel; response: IChatResponseModel } | undefined {
@@ -1062,34 +1125,60 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement, enableAlways = false): Promise<void> {
+		const startTime = Date.now();
+		const commandId = action.commandId ?? 'none';
+		const logResult = (result: InboxInteractionResult): void => {
+			this.logInboxInteraction('runAction.result', 'actionExecution', item, action.kind, {
+				result,
+				commandId,
+				durationMs: Date.now() - startTime,
+			});
+		};
+
 		try {
 			switch (action.kind) {
 				case InboxNotificationActionKind.OpenSession: {
 					if (!item.sessionResource) {
+						logResult('skipped');
 						return;
 					}
 					await this.sessionsService.openSession(item.sessionResource, { source: 'notification' });
+					logResult('success');
 					return;
 				}
 				case InboxNotificationActionKind.AgentMergeFixCI:
 				case InboxNotificationActionKind.AgentMergeAddressReviews:
-				case InboxNotificationActionKind.AgentMergeMergePullRequest:
-					await this.runAgentMergeInboxAction(item, action.kind, enableAlways, sourceElement);
+				case InboxNotificationActionKind.AgentMergeMergePullRequest: {
+					const result = await this.runAgentMergeInboxAction(item, action.kind, enableAlways, sourceElement);
+					logResult(result);
 					return;
+				}
+				case InboxNotificationActionKind.ArchiveSession:
+				case InboxNotificationActionKind.DeleteSession: {
+					const result = await this.runMergedSessionCleanupAction(item, action.kind, enableAlways);
+					logResult(result);
+					return;
+				}
 				case InboxNotificationActionKind.MarkDone: {
 					await this.markDone(item, sourceElement);
+					logResult('success');
 					return;
 				}
 				case InboxNotificationActionKind.Dismiss:
 					this.inboxNotificationsService.dismissNotification(item.id);
+					logResult('success');
 					return;
 				case InboxNotificationActionKind.Command:
 					if (action.commandId) {
 						await this.commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
+						logResult('success');
+					} else {
+						logResult('skipped');
 					}
 					return;
 			}
 		} catch (error) {
+			logResult('failure');
 			onUnexpectedError(error);
 			this.notificationService.error(localize('inboxNotifications.actionError', "Unable to run inbox action."));
 		}
@@ -1103,7 +1192,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
 			ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
 		};
-		const canShowAlwaysDropdown = this.canShowAgentMergeAlwaysDropdown(item, action.kind);
+		const canShowAlwaysDropdown = this.canShowAlwaysDropdown(item, action.kind);
 		const button = canShowAlwaysDropdown
 			? this.renderedListDisposables.add(new ButtonWithDropdown(container, {
 				...baseOptions,
@@ -1113,7 +1202,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 					id: `${action.id}.always`,
 					label: localize('inboxNotifications.action.always', "Always {0}", action.label),
 					run: () => {
-						this.logInboxInteraction('runActionAlways', 'actionDropdown', item, action.kind);
+						this.logInboxInteraction('runActionAlways', 'actionDropdown', item, action.kind, { commandId: action.commandId ?? 'none' });
 						return this.runAction(item, action, undefined, true);
 					},
 				})],
@@ -1127,7 +1216,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 		this.renderedListDisposables.add(button.onDidClick(() => {
-			this.logInboxInteraction('runAction', 'actionButton', item, action.kind);
+			this.logInboxInteraction('runAction', 'actionButton', item, action.kind, { commandId: action.commandId ?? 'none' });
 			void this.runAction(item, action, button.element);
 		}));
 		return button;
@@ -1138,28 +1227,82 @@ export class InboxNotificationsView extends AbstractCustomView {
 		trigger: string,
 		item?: IInboxNotificationItem,
 		actionKind: InboxNotificationActionKind | 'none' = 'none',
+		options?: IInboxInteractionTelemetryOptions,
 	): void {
+		const notificationKind = options?.notificationKind ?? item?.kind ?? 'none';
+		const hasSession = options?.hasSession ?? (item?.sessionResource ? 'yes' : 'no');
+		const sequence = ++this.interactionSequence;
 		this.telemetryService.publicLog2<InboxInteractionTelemetryEvent, InboxInteractionTelemetryClassification>('agents/inboxInteraction', {
 			interaction,
 			trigger,
-			notificationKind: item?.kind ?? 'none',
+			result: options?.result ?? 'attempt',
+			notificationKind,
 			notificationActionKind: actionKind,
-			hasSession: item?.sessionResource ? 'yes' : 'no',
+			hasSession,
+			commandId: options?.commandId ?? 'none',
+			viewInstanceId: this.inboxViewInstanceId,
+			sequence,
+			durationMs: options?.durationMs,
 		});
 	}
 
-	private canShowAgentMergeAlwaysDropdown(item: IInboxNotificationItem, actionKind: InboxNotificationActionKind): actionKind is InboxAgentMergeActionKind {
-		if (!isInboxAgentMergeActionKind(actionKind)) {
-			return false;
+	private canShowAlwaysDropdown(item: IInboxNotificationItem, actionKind: InboxNotificationActionKind): actionKind is InboxAgentMergeActionKind | InboxMergedSessionCleanupActionKind {
+		if (isInboxAgentMergeActionKind(actionKind)) {
+			return !this.agentMergeAlwaysOptInService.isAlwaysEnabled(actionKind);
 		}
-
-		return !this.agentMergeAlwaysOptInService.isAlwaysEnabled(actionKind);
+		if (isInboxMergedSessionCleanupActionKind(actionKind)) {
+			return !!item.sessionResource && !this.isMergedSessionCleanupAlwaysEnabled(actionKind);
+		}
+		return false;
 	}
 
-	private async runAgentMergeInboxAction(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, enableAlways: boolean, sourceElement: HTMLElement | undefined): Promise<void> {
+	private isMergedSessionCleanupAlwaysEnabled(actionKind: InboxMergedSessionCleanupActionKind): boolean {
+		const archiveAfterDays = this.configurationService.getValue<number>(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING) ?? 0;
+		const deleteAfterDays = this.configurationService.getValue<number>(AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING) ?? 0;
+		switch (actionKind) {
+			case InboxNotificationActionKind.ArchiveSession:
+				return archiveAfterDays > 0;
+			case InboxNotificationActionKind.DeleteSession:
+				return archiveAfterDays > 0 && deleteAfterDays > 0;
+		}
+	}
+
+	private async runMergedSessionCleanupAction(item: IInboxNotificationItem, actionKind: InboxMergedSessionCleanupActionKind, enableAlways: boolean): Promise<InboxInteractionResult> {
+		if (enableAlways) {
+			await this.enableMergedSessionCleanupAlways(actionKind);
+			return 'success';
+		}
+
+		if (!item.sessionResource) {
+			return 'skipped';
+		}
+
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		if (!session) {
+			return 'skipped';
+		}
+
+		switch (actionKind) {
+			case InboxNotificationActionKind.ArchiveSession:
+				await this.sessionsManagementService.archiveSession(session);
+				return 'success';
+			case InboxNotificationActionKind.DeleteSession:
+				await this.sessionsManagementService.deleteSession(session);
+				return 'success';
+		}
+	}
+
+	private async enableMergedSessionCleanupAlways(actionKind: InboxMergedSessionCleanupActionKind): Promise<void> {
+		await this.configurationService.updateValue(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, ALWAYS_MERGED_SESSION_CLEANUP_AFTER_DAYS, ConfigurationTarget.USER);
+		if (actionKind === InboxNotificationActionKind.DeleteSession) {
+			await this.configurationService.updateValue(AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, ALWAYS_MERGED_SESSION_CLEANUP_AFTER_DAYS, ConfigurationTarget.USER);
+		}
+	}
+
+	private async runAgentMergeInboxAction(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, enableAlways: boolean, sourceElement: HTMLElement | undefined): Promise<InboxInteractionResult> {
 		if (enableAlways) {
 			await this.agentMergeAlwaysOptInService.enableAlways(actionKind);
-			return;
+			return 'success';
 		}
 
 		const promptDecision = this.agentMergeAlwaysOptInService.recordUsage(actionKind);
@@ -1175,10 +1318,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		const didApplyAction = await this.runAgentMergeAction(item, this.getAgentMergeActionOverrides(actionKind));
-		if (!didApplyAction) {
-			return;
-		}
+		return this.runAgentMergeAction(item, this.getAgentMergeActionOverrides(actionKind));
 	}
 
 	private resolveAgentMergeAlwaysSpotlightTarget(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, sourceElement: HTMLElement | undefined): HTMLElement | undefined {
@@ -1267,20 +1407,20 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	private async runAgentMergeAction(item: IInboxNotificationItem, overrides: AgentMergeSessionOverrides): Promise<boolean> {
+	private async runAgentMergeAction(item: IInboxNotificationItem, overrides: AgentMergeSessionOverrides): Promise<InboxInteractionResult> {
 		if (!item.sessionResource) {
-			return false;
+			return 'skipped';
 		}
 
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
 		if (!session) {
-			return false;
+			return 'skipped';
 		}
 
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			await this.sessionsService.openSession(item.sessionResource);
-			return false;
+			return 'success';
 		}
 
 		await provider.setAgentMergeEnabled(session.sessionId, true);
@@ -1289,7 +1429,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			...currentOverrides,
 			...overrides,
 		});
-		return true;
+		return 'success';
 	}
 
 	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
@@ -1340,7 +1480,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.hasSplit = hasItems;
 		this.contentElement.classList.toggle('no-detail', !hasItems);
 		if (!hasItems && this.selectedItemId.get() !== undefined) {
-			this.selectedItemId.set(undefined, undefined);
+			this.clearSelectedItem('listEmpty');
 		}
 		this.layoutPanes();
 	}
@@ -1371,14 +1511,53 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.storageService.store(LIST_PANE_WIDTH_STORAGE_KEY, Math.round(this.listPaneWidth), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
-	private selectItem(id: string): void {
+	private selectItem(id: string, trigger: 'cardClick' | 'cardKeyboard'): void {
 		if (this.selectedItemId.get() === id) {
 			return;
 		}
+
+		this.endSelectionTelemetry('selectionChanged');
 		this.selectedItemId.set(id, undefined);
 		for (const card of this.renderedCards) {
 			card.classList.toggle('selected', card.dataset.notificationId === id);
 		}
+
+		const item = this.getItemById(id);
+		if (!item) {
+			return;
+		}
+
+		this.selectionTelemetryState = {
+			notificationKind: item.kind,
+			hasSession: item.sessionResource ? 'yes' : 'no',
+			selectedAt: Date.now(),
+		};
+		this.logInboxInteraction('item.select', trigger, item, 'none', { result: 'success' });
+	}
+
+	private clearSelectedItem(trigger: string): void {
+		this.endSelectionTelemetry(trigger);
+		this.selectedItemId.set(undefined, undefined);
+	}
+
+	private endSelectionTelemetry(trigger: string): void {
+		const telemetryState = this.selectionTelemetryState;
+		if (!telemetryState) {
+			return;
+		}
+
+		this.selectionTelemetryState = undefined;
+		this.logInboxInteraction('item.deselect', trigger, undefined, 'none', {
+			result: 'success',
+			durationMs: Date.now() - telemetryState.selectedAt,
+			notificationKind: telemetryState.notificationKind,
+			hasSession: telemetryState.hasSession,
+		});
+	}
+
+	private getItemById(id: string): IInboxNotificationItem | undefined {
+		return this.inboxNotificationsService.notifications.get().find(candidate => candidate.id === id)
+			?? this.inboxNotificationsService.dismissedNotifications.get().find(candidate => candidate.id === id);
 	}
 
 	private selectedItem(): IInboxNotificationItem | undefined {
@@ -1386,8 +1565,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (!id) {
 			return undefined;
 		}
-		return this.inboxNotificationsService.notifications.get().find(candidate => candidate.id === id)
-			?? this.inboxNotificationsService.dismissedNotifications.get().find(candidate => candidate.id === id);
+		return this.getItemById(id);
 	}
 
 	private renderDetailIfChanged(): void {
@@ -1440,7 +1618,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const openButton = this.detailDisposables.add(new Button(meta, { ...defaultButtonStyles, secondary: true, small: true }));
 			openButton.label = localize('inboxNotifications.detail.openSession', "Open full session");
 			this.detailDisposables.add(openButton.onDidClick(() => {
-				void this.sessionsService.openSession(sessionResource, { source: 'notification' }).catch(onUnexpectedError);
+				const startTime = Date.now();
+				this.logInboxInteraction('detail.openSession', 'detailMeta', item);
+				void this.sessionsService.openSession(sessionResource, { source: 'notification' }).then(() => {
+					this.logInboxInteraction('detail.openSession.result', 'detailMeta', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+				}, error => {
+					this.logInboxInteraction('detail.openSession.result', 'detailMeta', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
+					onUnexpectedError(error);
+				});
 			}));
 		}
 
@@ -1474,6 +1659,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 					const link = this.detailDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, small: true }));
 					link.label = state.label;
 					this.detailDisposables.add(link.onDidClick(() => {
+						this.logInboxInteraction('detail.openPullRequestState', 'detailPullRequestState', item);
 						void this.openerService.open(uri).catch(onUnexpectedError);
 					}));
 				} else {
@@ -1564,13 +1750,28 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private openEvidenceArtifact(item: IInboxNotificationItem, artifact: IInboxEvidenceArtifact): void {
+		this.logInboxInteraction('detail.openEvidence', 'detailEvidence', item);
 		if (artifact.kind === 'file' && artifact.uri) {
-			void this.openerService.open(artifact.uri).catch(onUnexpectedError);
+			const startTime = Date.now();
+			void this.openerService.open(artifact.uri).then(() => {
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+			}, error => {
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
+				onUnexpectedError(error);
+			});
 			return;
 		}
 		if (item.sessionResource) {
-			void this.sessionsService.openSession(item.sessionResource, { source: 'notification' }).catch(onUnexpectedError);
+			const startTime = Date.now();
+			void this.sessionsService.openSession(item.sessionResource, { source: 'notification' }).then(() => {
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+			}, error => {
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
+				onUnexpectedError(error);
+			});
+			return;
 		}
+		this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'skipped' });
 	}
 
 	private renderConversationThread(body: HTMLElement, item: IInboxNotificationItem): void {

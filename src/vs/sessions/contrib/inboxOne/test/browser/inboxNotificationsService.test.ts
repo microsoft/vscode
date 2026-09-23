@@ -625,6 +625,36 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('surfaces merged pull request notifications with session cleanup actions', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'merged-pr',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
+		})], undefined, gitHubService);
+
+		gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46', {
+			state: GitHubPullRequestState.Merged,
+			mergedAt: '2026-09-21T16:06:00Z',
+		}));
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			priority: item.priority,
+			repositoryLabel: item.repositoryLabel,
+			pullRequestStates: item.pullRequestStates?.map(state => ({ label: state.label, statusLabel: state.statusLabel })),
+			actions: item.actions.map(action => action.kind),
+		})), [{
+			kind: InboxNotificationKind.PullRequestMerged,
+			priority: InboxNotificationPriority.Next,
+			repositoryLabel: 'owner/repo',
+			pullRequestStates: [{ label: '#46', statusLabel: 'Merged' }],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.ArchiveSession, InboxNotificationActionKind.DeleteSession, InboxNotificationActionKind.MarkDone],
+		}]);
+	});
+
 	test('aggregates pull request notifications by kind and lists pull request states', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
@@ -888,12 +918,18 @@ suite('InboxNotificationsService', () => {
 	});
 });
 
-function openPullRequest(number: number, headSha: string): IGitHubPullRequest {
+function openPullRequest(number: number, headSha: string, options?: {
+	readonly state?: GitHubPullRequestState;
+	readonly mergedAt?: string;
+	readonly updatedAt?: string;
+}): IGitHubPullRequest {
 	return upcastPartial<IGitHubPullRequest>({
 		number,
 		headSha,
 		isDraft: false,
-		state: GitHubPullRequestState.Open,
+		state: options?.state ?? GitHubPullRequestState.Open,
+		mergedAt: options?.mergedAt,
+		updatedAt: options?.updatedAt ?? options?.mergedAt,
 	});
 }
 

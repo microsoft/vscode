@@ -23,6 +23,7 @@ export const enum InboxNotificationKind {
 	NeedsInput = 'needsInput',
 	FailingCI = 'failingCi',
 	PassingCI = 'passingCi',
+	PullRequestMerged = 'pullRequestMerged',
 	ReviewComments = 'reviewComments',
 	Completed = 'completed',
 	External = 'external',
@@ -39,6 +40,8 @@ export const enum InboxNotificationActionKind {
 	AgentMergeFixCI = 'agentMergeFixCI',
 	AgentMergeAddressReviews = 'agentMergeAddressReviews',
 	AgentMergeMergePullRequest = 'agentMergeMergePullRequest',
+	ArchiveSession = 'archiveSession',
+	DeleteSession = 'deleteSession',
 	Dismiss = 'dismiss',
 	Command = 'command',
 }

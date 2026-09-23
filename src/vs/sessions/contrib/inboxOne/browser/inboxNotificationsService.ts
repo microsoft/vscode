@@ -1017,6 +1017,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	): void {
 		const failingCandidates: IPullRequestNotificationCandidate[] = [];
 		const passingCandidates: IPullRequestNotificationCandidate[] = [];
+		const mergedCandidates: IPullRequestNotificationCandidate[] = [];
 		const reviewCommentCandidates: IPullRequestNotificationCandidate[] = [];
 
 		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader)) {
@@ -1027,7 +1028,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			));
 			const pullRequest = pullRequestModelRef.object.pullRequest.read(reader);
 			const effectiveState = pullRequest?.state ?? pullRequestRef.liveState ?? pullRequestRef.state;
-			if (effectiveState !== GitHubPullRequestState.Open || pullRequest?.isDraft) {
+			if ((effectiveState !== GitHubPullRequestState.Open && effectiveState !== GitHubPullRequestState.Merged) || pullRequest?.isDraft) {
 				continue;
 			}
 
@@ -1081,6 +1082,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				});
 			}
 
+			if (effectiveState === GitHubPullRequestState.Merged) {
+				const mergedTimestamp = parseTimestamp(pullRequest?.mergedAt) ?? parseTimestamp(pullRequest?.updatedAt) ?? sessionUpdatedAt;
+				mergedCandidates.push({
+					...candidateBase,
+					timestamp: mergedTimestamp,
+					identity: pullRequest?.mergedAt ?? String(mergedTimestamp),
+				});
+			}
+
 			if (unresolvedCopilotThreads.length > 0) {
 				const reviewCommentsTimestamp = latestReviewCommentsTimestamp(unresolvedCopilotThreads, sessionUpdatedAt);
 				reviewCommentCandidates.push({
@@ -1093,6 +1103,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.FailingCI, failingCandidates);
 		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.PassingCI, passingCandidates);
+		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.PullRequestMerged, mergedCandidates);
 		this.createPullRequestNotification(itemsById, session, sessionTitle, InboxNotificationKind.ReviewComments, reviewCommentCandidates);
 	}
 
@@ -1100,7 +1111,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		itemsById: Map<string, IInboxNotificationItem>,
 		session: ISession,
 		sessionTitle: string,
-		kind: InboxNotificationKind.FailingCI | InboxNotificationKind.PassingCI | InboxNotificationKind.ReviewComments,
+		kind: InboxNotificationKind.FailingCI | InboxNotificationKind.PassingCI | InboxNotificationKind.PullRequestMerged | InboxNotificationKind.ReviewComments,
 		candidates: readonly IPullRequestNotificationCandidate[],
 	): void {
 		if (candidates.length === 0) {
@@ -1175,11 +1186,43 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					actions: this.pullRequestActions(session, kind),
 				});
 				return;
+			case InboxNotificationKind.PullRequestMerged:
+				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
+					id: `${session.sessionId}:${kind}:${idSuffix}`,
+					kind,
+					priority: InboxNotificationPriority.Next,
+					title: pullRequestCount === 1
+						? localize('inboxNotifications.pullRequestMerged.title.single', "Pull Request Merged: {0}", singularPullRequestLabel)
+						: localize('inboxNotifications.pullRequestMerged.title.multiple', "{0} Pull Requests Merged", pullRequestCount),
+					description: pullRequestCount === 1
+						? localize('inboxNotifications.pullRequestMerged.description.single', "{0} has merged. Archive or delete {1} when you're done with it.", singularPullRequestLabel, sessionTitle)
+						: localize('inboxNotifications.pullRequestMerged.description.multiple', "{0} pull requests have merged. Archive or delete {1} when you're done with it.", pullRequestCount, sessionTitle),
+					repositoryLabel,
+					pullRequestStates,
+					timestamp,
+					sessionResource: session.resource,
+					actions: this.pullRequestActions(session, kind),
+				});
+				return;
 		}
 	}
 
 	private pullRequestActions(_session: ISession, kind: InboxNotificationKind): readonly IInboxNotificationAction[] {
 		const agentMergeAction = this.agentMergeActionForNotificationKind(kind);
+		if (kind === InboxNotificationKind.PullRequestMerged) {
+			return this.sessionActions(true, [
+				{
+					id: 'archive-session',
+					label: localize('inboxNotifications.action.archiveSession', "Archive Session"),
+					kind: InboxNotificationActionKind.ArchiveSession,
+				},
+				{
+					id: 'delete-session',
+					label: localize('inboxNotifications.action.deleteSession', "Delete Session"),
+					kind: InboxNotificationActionKind.DeleteSession,
+				},
+			]);
+		}
 		return this.sessionActions(true, agentMergeAction ? [agentMergeAction] : undefined);
 	}
 
