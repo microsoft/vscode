@@ -6702,6 +6702,38 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('defers managed permission tightening until an active turn ends', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, managedSettingsService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				const chat = busyChatStub();
+				setDefaultSessionStub(agent, 'busy', chat);
+				managedSettingsService.setClientPermissions('client', { ask: ['Shell(echo)'] });
+				await timeout(0);
+				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
+
+				chat.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					duringTurn,
+					afterTurn: { stopCount: client.stopCount, disposed: chat.disposed },
+					permissions: managedSettingsService.permissions,
+				}, {
+					duringTurn: { stopCount: 0, disposed: false },
+					afterTurn: { stopCount: 1, disposed: true },
+					permissions: { ask: ['Shell(echo)'] },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('re-enumerates models after a startup-config restart', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });

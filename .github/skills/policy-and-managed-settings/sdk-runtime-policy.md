@@ -51,7 +51,7 @@ VS Code has a narrow declarative bridge for settings whose explicitly configured
 
 Bridge invariants:
 
-- the bridge is guarded by its own false-by-default experimental compatibility setting;
+- the bridge is unconditional; it is not guarded by an opt-in setting, and the former `chat.agentHost.copilot.mapLegacySettingsToManagedSettings` gate has been removed from the settings registry;
 - add mappings only for legacy settings that already exist; never create a new setting for this bridge;
 - mappings select one VS Code setting and use a callback typed against the host-owned managed permissions DTO;
 - mappings contribute only fields that can be flattened restrictively (`disable`, `deny`, and `ask`); do not flatten independent `allow` lists in VS Code;
@@ -75,6 +75,8 @@ Do not log raw enterprise rules or values.
 - Runtime: schema, parsing, matching, composition, revalidation, and pre-side-effect deny.
 - SDK: create/resume serialization, events, handler safety, and cloud rejection.
 - Agent Host E2E: generated grammar, managed asks, removal/resume, and diagnostics.
+
+`src/vs/platform/agentHost/test/node/providerIntegration/copilotManagedPermissions.integrationTest.ts` exercises the bundled Copilot runtime's native tool pipeline with bridge-generated restrictions, including cold resume and removal. Its local synthetic model only seeds persisted history; it does not replace permission evaluation. This is SDK/runtime evidence, not full AHP or external managed-policy coverage.
 
 Start with:
 
