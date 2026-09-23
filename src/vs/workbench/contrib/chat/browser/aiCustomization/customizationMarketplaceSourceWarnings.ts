@@ -79,8 +79,8 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 				retry.setAriaLabel(signIn
 					? localize('customizationMarketplace.signInSourceLabel', "{0} to view {1}.", action.label, this.getSourceName(error))
 					: action
-					? localize('customizationMarketplace.recoverSourceLabel', "{0} for {1}. Reload all sources from the first page.", action.label, this.getSourceName(error))
-					: localize('customizationMarketplace.retrySourceLabel', "Retry {0}. Reload all sources from the first page.", this.getSourceName(error)));
+						? localize('customizationMarketplace.recoverSourceLabel', "{0} for {1}. Reload all sources from the first page.", action.label, this.getSourceName(error))
+						: localize('customizationMarketplace.retrySourceLabel', "Retry {0}. Reload all sources from the first page.", this.getSourceName(error)));
 				this.rows.add(retry.onDidClick(() => this.retry(error.sourceId, action)));
 				this.buttons.push(retry);
 			}

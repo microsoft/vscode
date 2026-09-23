@@ -140,6 +140,7 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 	beforeWrite: ((resource: URI) => Promise<void>) | undefined;
 	afterWrite: ((resource: URI) => Promise<void>) | undefined;
 	beforeMove: (() => Promise<void>) | undefined;
+	afterMove: (() => Promise<void>) | undefined;
 
 	override async stat(resource: URI): Promise<IStat> {
 		const stat = await super.stat(resource);
@@ -162,6 +163,7 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 		this.moves.push({ source, target, overwrite: options.overwrite });
 		await this.beforeMove?.();
 		await super.rename(source, target, options);
+		await this.afterMove?.();
 	}
 }
 
@@ -800,7 +802,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				const states: string[] = [];
 				store.add(fixture.service.onDidChange(() => states.push(fixture.service.getInstallState(candidate).kind)));
 				await fixture.service.install(candidate);
-				fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path })], undefined);
+				fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path })], undefined);
 				await fixture.service.install(candidate);
 				assert.deepStrictEqual({
 					calls: fixture.pluginService.calls,
@@ -837,7 +839,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const duplicate = fixture.service.install({ ...candidate });
 			const pendingState = fixture.service.getInstallState(candidate);
 			subscription.dispose();
-			fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path: 'plugins/demo' })], undefined);
+			fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' })], undefined);
 			await result.complete({ success: true });
 			await Promise.all([first, duplicate]);
 			assert.deepStrictEqual({
@@ -933,7 +935,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const fixture = await createFixture();
 			const candidate = pluginResource();
 			const plugins = [
-				installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'OWNER/CATALOG', path: 'plugins/demo' }),
+				installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'OWNER/CATALOG', ref: 'release', path: 'plugins/demo' }),
 				installedPlugin({ kind: PluginSourceKind.RelativePath, path: './plugins/demo/' }, './plugins/demo/'),
 				installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path: 'plugins/other' }),
 				installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'different/catalog', path: 'plugins/demo' }),
@@ -945,6 +947,32 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.installedPlugins.set([], undefined);
 			states.push(fixture.service.getInstallState(candidate).kind);
 			assert.deepStrictEqual(states, ['installed', 'installed', 'available', 'available', 'available']);
+		});
+
+		test('does not treat another plugin revision or version at the same repository path as installed', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'v1', path: 'plugins/demo' })], undefined);
+			const v1 = { ...candidate, installation: { kind: 'plugin' as const, repository: 'owner/catalog', ref: 'v1', path: 'plugins/demo' } };
+			const v2 = { ...candidate, version: '2.0', installation: { kind: 'plugin' as const, repository: 'owner/catalog', ref: 'v2', path: 'plugins/demo' } };
+			const sameRefNewVersion = { ...v1, version: '2.0' };
+			const states = [v1, v2, sameRefNewVersion].map(item => fixture.service.getInstallState(item).kind);
+			await fixture.service.install(v2);
+			assert.deepStrictEqual({ states, installs: fixture.pluginService.calls }, {
+				states: ['installed', 'available', 'available'],
+				installs: [{ source: 'owner/catalog#v2', options: { path: 'plugins/demo' } }],
+			});
+		});
+
+		test('matches an immutable plugin SHA only when the requested revision is that SHA', async () => {
+			const fixture = await createFixture();
+			const sha = 'a'.repeat(40);
+			fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', sha, path: 'plugins/demo' })], undefined);
+			const candidate = pluginResource();
+			assert.deepStrictEqual({
+				sha: fixture.service.getInstallState({ ...candidate, installation: { kind: 'plugin', repository: 'owner/catalog', ref: sha, path: 'plugins/demo' } }).kind,
+				tag: fixture.service.getInstallState(candidate).kind,
+			}, { sha: 'installed', tag: 'available' });
 		});
 
 		test('uninstalls through the installed agent plugin', async () => {
@@ -1569,6 +1597,42 @@ suite('CustomizationMarketplaceInstallService', () => {
 					staging: await stagingDirectories(fixture.fileService),
 					state: fixture.service.getInstallState(resource()),
 				}, { cancelled: true, targetExists: false, moves: [], staging: [], state: { kind: 'available' } });
+			});
+		}
+
+		for (const change of ['source disabled', 'harness', 'session', 'project', 'AI features', 'progress cancellation', 'service disposal']) {
+			test(`removes a committed skill after ${change} during the final move`, async () => {
+				const fixture = await createFixture();
+				const paused = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				fixture.provider.afterMove = async () => {
+					await paused.complete();
+					await resume.p;
+				};
+				const outcome = Promise.allSettled([fixture.service.install(resource())]);
+				await Promise.race([paused.p, outcome]);
+				switch (change) {
+					case 'source disabled': await setSourcesEnabled(fixture.configurationService, false, ['testSource']); break;
+					case 'harness': fixture.harnessService.activeHarness.set('other-harness', undefined); break;
+					case 'session': fixture.harnessService.activeSessionResource.set(URI.parse('test-harness:///different-session'), undefined); break;
+					case 'project': fixture.workspaceService.activeProjectRoot.set(URI.file('/different-project'), undefined); break;
+					case 'AI features': fixture.entitlementService.sentiment.hidden = true; break;
+					case 'progress cancellation': fixture.progressService.cancel?.(); break;
+					case 'service disposal': fixture.service.dispose(); break;
+				}
+				await resume.complete();
+				const [result] = await outcome;
+				fixture.entitlementService.sentiment.hidden = false;
+				if (change === 'source disabled') {
+					await setSourcesEnabled(fixture.configurationService, true, ['testSource']);
+				}
+				assert.deepStrictEqual({
+					cancelled: result.status === 'rejected' && isCancellationError(result.reason),
+					targetExists: await fixture.fileService.exists(skillDestination),
+					moves: fixture.provider.moves.length,
+					staging: await stagingDirectories(fixture.fileService),
+					state: fixture.service.getInstallState(resource()),
+				}, { cancelled: true, targetExists: false, moves: 1, staging: [], state: { kind: 'available' } });
 			});
 		}
 

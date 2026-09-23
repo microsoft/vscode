@@ -15,6 +15,7 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -29,6 +30,7 @@ import { IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
 import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/aiCustomizationDiscoveryPage.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
+import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -69,6 +71,17 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const deletions: DeferredPromise<void>[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<R = unknown>(commandId: string, ..._args: unknown[]): Promise<R | undefined> {
+				if (commandId === DELETE_AI_CUSTOMIZATION_ID) {
+					const result = new DeferredPromise<void>();
+					deletions.push(result);
+					return result.p as Promise<R | undefined>;
+				}
+				return Promise.resolve(undefined);
+			}
+		}());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const notifications: Parameters<INotificationService['error']>[0][] = [];
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
@@ -136,7 +149,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 		}
 		return {
-			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents,
+			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents, deletions,
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
@@ -310,6 +323,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const cursor = { token: 'opaque+/=&continuation' };
 		await fixture.requests[0].result.complete({ items, nextCursor: cursor });
 		await timeout(0);
+		const hasLoadMoreAction = fixture.container.querySelector('.customization-discovery-results .customization-discovery-state .monaco-button') !== null;
 		loadMore(fixture);
 		await fixture.requests[1].result.complete({
 			items: [
@@ -322,6 +336,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: fixture.requests.map(request => request.options),
 			visibleOrder: fixture.page.getAccessibilityContent().match(/^mail-\d+/gm),
 			hasLoadMoreFooter: fixture.container.querySelector('.customization-discovery-footer') !== null,
+			hasLoadMoreAction,
 		}, {
 			requests: [
 				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
@@ -329,7 +344,133 @@ suite('AICustomizationDiscoveryPage', () => {
 			],
 			visibleOrder: [...items.filter(item => item.mediaType !== CustomizationMarketplaceMediaType.Skill).map(item => item.identifier), 'mail-24', 'mail-25'],
 			hasLoadMoreFooter: false,
+			hasLoadMoreAction: false,
 		});
+	});
+
+	test('plugin-only search backfills an empty first 24-item page without scrolling', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'first-24-skills' };
+		await fixture.requests[0].result.complete({
+			items: Array.from({ length: 24 }, (_, index) => resource(`mail-skill-${index}`, { mediaType: CustomizationMarketplaceMediaType.Skill, score: 100 - index })),
+			nextCursor: cursor,
+		});
+		await timeout(0);
+		await fixture.requests[1].result.complete({
+			items: [resource('connector-mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceId: 'copilotConnectors' })],
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			cursors: fixture.requests.map(request => request.options.cursor),
+			visible: fixture.page.getAccessibilityContent().match(/^connector-mail-plugin$/gm),
+			loadMore: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state .monaco-button')?.textContent,
+		}, { cursors: [undefined, cursor], visible: ['connector-mail-plugin'], loadMore: undefined });
+	});
+
+	test('bounded zero-match backfill offers Load More but regular scroll paging does not', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		for (let index = 0; index < 8; index++) {
+			await fixture.requests[index].result.complete({
+				items: [resource(`mail-skill-${index}`, { mediaType: CustomizationMarketplaceMediaType.Skill })],
+				nextCursor: { token: `page-${index + 1}` },
+			});
+			await timeout(0);
+		}
+		const loadMoreButton = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
+		assert.ok(loadMoreButton);
+		const bounded = { count: fixture.requests.length, label: loadMoreButton.textContent };
+		loadMoreButton.click();
+		await fixture.requests[8].result.complete({ items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			bounded,
+			cursor: fixture.requests[8].options.cursor,
+			visible: fixture.page.getAccessibilityContent().match(/^mail-plugin$/gm),
+			loadMore: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state .monaco-button')?.textContent,
+		}, {
+			bounded: { count: 8, label: 'Load More' },
+			cursor: { token: 'page-8' },
+			visible: ['mail-plugin'],
+			loadMore: undefined,
+		});
+	});
+
+	test('query change cancels filtered backfill without exposing stale connector results', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('mail-skill', { mediaType: CustomizationMarketplaceMediaType.Skill })],
+			nextCursor: { token: 'next' },
+		});
+		await timeout(0);
+		const stale = fixture.requests[1];
+		fixture.page.setSearchQuery('@type:plugin fresh');
+		await stale.result.complete({ items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })] });
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('fresh-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceId: 'copilotConnectors' })] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			cancelled: stale.token.isCancellationRequested,
+			visible: fixture.page.getAccessibilityContent().match(/^(?:mail|fresh)-plugin$/gm),
+		}, { cancelled: true, visible: ['fresh-plugin'] });
+	});
+
+	test('hidden connector authorization reloads on reveal without focusing Discover', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const consent = new DeferredPromise<void>();
+		fixture.recoveryActions.set('copilotConnectors', { label: 'Sign In', kind: 'signIn', run: async () => consent.p });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('public-mail')],
+			sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
+		});
+		await timeout(0);
+		const signIn = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.ok(signIn);
+		signIn.click();
+		fixture.page.setVisible(false);
+		const focusTarget = DOM.append(fixture.container, DOM.$('button'));
+		focusTarget.focus();
+		await consent.complete();
+		await timeout(0);
+		const hidden = {
+			requests: fixture.requests.length,
+			focusRetained: mainWindow.document.activeElement === focusTarget,
+		};
+		fixture.page.setVisible(true);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('connector-mail', { sourceId: 'copilotConnectors' }), resource('public-mail'),
+			]
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			hidden,
+			cursors: fixture.requests.map(request => request.options.cursor),
+			visible: fixture.page.getAccessibilityContent().includes('connector-mail'),
+			signIns: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+		}, { hidden: { requests: 1, focusRetained: true }, cursors: [undefined, undefined], visible: true, signIns: 0 });
+	});
+
+	test('direct installed uninstall renders pending state and deduplicates by item ID', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+		const uninstallButton = () => fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+		assert.ok(uninstallButton());
+		uninstallButton()!.click();
+		const pending = { label: uninstallButton()?.textContent, disabled: uninstallButton()?.getAttribute('aria-disabled'), busy: uninstallButton()?.getAttribute('aria-busy') };
+		uninstallButton()?.click();
+		const calls = fixture.deletions.length;
+		for (const deletion of fixture.deletions) {
+			await deletion.complete();
+		}
+		assert.deepStrictEqual({ pending, calls }, { pending: { label: 'Uninstalling...', disabled: 'true', busy: 'true' }, calls: 1 });
 	});
 
 	for (const query of ['', '@type:plugin demo']) {

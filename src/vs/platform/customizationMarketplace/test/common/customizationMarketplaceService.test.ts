@@ -62,9 +62,11 @@ suite('CustomizationMarketplaceService', () => {
 		const first = await service.query({ sourceIds: ['first', 'second'], pageSize: 1 }, CancellationToken.None);
 		const second = await service.query({ sourceIds: ['first', 'second'], pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 		const third = await service.query({ sourceIds: ['first', 'second'], pageSize: 1, cursor: second.nextCursor }, CancellationToken.None);
-		assert.deepStrictEqual({ calls, pages: [first, second, third].map(page => ({
-			items: page.items.map(item => item.sourceId), total: page.total, hasMore: !!page.nextCursor,
-		})) }, {
+		assert.deepStrictEqual({
+			calls, pages: [first, second, third].map(page => ({
+				items: page.items.map(item => item.sourceId), total: page.total, hasMore: !!page.nextCursor,
+			}))
+		}, {
 			calls: [
 				{ source: 'first', cursor: undefined },
 				{ source: 'second', cursor: undefined },
@@ -222,10 +224,12 @@ suite('CustomizationMarketplaceService', () => {
 	test('backfills short source pages before emitting lower ranked buffered entries', async () => {
 		const calls: string[] = [];
 		const service = new CustomizationMarketplaceService([
-			{ id: 'short', query: async options => {
-				calls.push(options.cursor ?? 'first');
-				return { items: [{ ...entry, score: options.cursor ? 90 : 100 }], nextCursor: options.cursor ? undefined : 'second' };
-			} },
+			{
+				id: 'short', query: async options => {
+					calls.push(options.cursor ?? 'first');
+					return { items: [{ ...entry, score: options.cursor ? 90 : 100 }], nextCursor: options.cursor ? undefined : 'second' };
+				}
+			},
 			{ id: 'other', query: async () => ({ items: [{ ...entry, score: 80 }, { ...entry, score: 70 }] }) },
 		]);
 		const options = { sourceIds: ['short', 'other'], query: 'mail', pageSize: 3 };
@@ -286,19 +290,23 @@ suite('CustomizationMarketplaceService', () => {
 			const secondTail = { items: [2, 3].map(index => ({ ...entry, identifier: `second-${index}` })), total: 4 };
 			let continuationReads = 0;
 			const service = new CustomizationMarketplaceService([
-				{ id: 'first', query: async options => options.cursor ? firstTail : {
-					items: [0, 1, 2].map(index => ({ ...entry, identifier: `first-${index}` })), total: 5, nextCursor: 'next',
-				} },
-				{ id: 'second', query: async options => {
-					if (!options.cursor) {
-						return { items: [0, 1].map(index => ({ ...entry, identifier: `second-${index}` })), total: 4, nextCursor: 'next' };
+				{
+					id: 'first', query: async options => options.cursor ? firstTail : {
+						items: [0, 1, 2].map(index => ({ ...entry, identifier: `first-${index}` })), total: 5, nextCursor: 'next',
 					}
-					if (++continuationReads === 1) {
-						await waiting.complete();
-						return delayed.p;
+				},
+				{
+					id: 'second', query: async options => {
+						if (!options.cursor) {
+							return { items: [0, 1].map(index => ({ ...entry, identifier: `second-${index}` })), total: 4, nextCursor: 'next' };
+						}
+						if (++continuationReads === 1) {
+							await waiting.complete();
+							return delayed.p;
+						}
+						return secondTail;
 					}
-					return secondTail;
-				} },
+				},
 			]);
 			const options = { sourceIds: ['first', 'second'], pageSize: 3 };
 			const first = await service.query(options, CancellationToken.None);
@@ -369,13 +377,15 @@ suite('CustomizationMarketplaceService', () => {
 	test('a failed continuation does not consume buffered entries and can be retried', async () => {
 		let fail = true;
 		const service = new CustomizationMarketplaceService([
-			{ id: 'first', query: async options => {
-				if (options.cursor && fail) {
-					fail = false;
-					throw new Error('temporary failure');
+			{
+				id: 'first', query: async options => {
+					if (options.cursor && fail) {
+						fail = false;
+						throw new Error('temporary failure');
+					}
+					return { items: [{ ...entry, score: options.cursor ? 80 : 100 }], nextCursor: options.cursor ? undefined : 'next' };
 				}
-				return { items: [{ ...entry, score: options.cursor ? 80 : 100 }], nextCursor: options.cursor ? undefined : 'next' };
-			} },
+			},
 			{ id: 'second', query: async () => ({ items: [{ ...entry, score: 90 }] }) },
 		]);
 		const options = { sourceIds: ['first', 'second'], query: 'mail', pageSize: 1 };
@@ -398,13 +408,15 @@ suite('CustomizationMarketplaceService', () => {
 		const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
 		let nextCalls = 0;
 		const service = new CustomizationMarketplaceService([
-			{ id: 'first', query: async options => {
-				if (!options.cursor) {
-					return { items: [{ ...entry, score: 100 }, { ...entry, score: 95 }], nextCursor: 'next' };
+			{
+				id: 'first', query: async options => {
+					if (!options.cursor) {
+						return { items: [{ ...entry, score: 100 }, { ...entry, score: 95 }], nextCursor: 'next' };
+					}
+					nextCalls++;
+					return nextCalls === 1 ? pending.p : { items: [{ ...entry, score: 80 }] };
 				}
-				nextCalls++;
-				return nextCalls === 1 ? pending.p : { items: [{ ...entry, score: 80 }] };
-			} },
+			},
 			{ id: 'second', query: async () => ({ items: [{ ...entry, score: 90 }] }) },
 		]);
 		const options = { sourceIds: ['first', 'second'], query: 'mail', pageSize: 2 };
@@ -425,14 +437,18 @@ suite('CustomizationMarketplaceService', () => {
 			const context = store.add(new CancellationTokenSource());
 			const calls: string[] = [];
 			const service = new CustomizationMarketplaceService([
-				{ id: 'public', query: async options => {
-					calls.push('public');
-					return { items: [{ ...entry, score: options.cursor ? 95 : 100 }], nextCursor: options.cursor ? undefined : 'next' };
-				} },
-				{ id: 'authenticated', query: async () => {
-					calls.push('authenticated');
-					return { items: hasBufferedEntries ? [{ ...entry, score: 90 }] : [], cacheToken: context.token };
-				} },
+				{
+					id: 'public', query: async options => {
+						calls.push('public');
+						return { items: [{ ...entry, score: options.cursor ? 95 : 100 }], nextCursor: options.cursor ? undefined : 'next' };
+					}
+				},
+				{
+					id: 'authenticated', query: async () => {
+						calls.push('authenticated');
+						return { items: hasBufferedEntries ? [{ ...entry, score: 90 }] : [], cacheToken: context.token };
+					}
+				},
 			]);
 			const options = { query: 'mail', pageSize: 1 };
 			const mixed = await service.query({ ...options, sourceIds: ['public', 'authenticated'] }, CancellationToken.None);
@@ -452,10 +468,12 @@ suite('CustomizationMarketplaceService', () => {
 		let privateReads = 0;
 		const service = new CustomizationMarketplaceService([
 			{ id: 'public', query: async options => options.cursor ? pending.p : { items: [{ ...entry, score: 100 }, { ...entry, score: 95 }], nextCursor: 'next' } },
-			{ id: 'authenticated', query: async () => {
-				privateReads++;
-				return { items: [{ ...entry, score: 90 }, { ...entry, score: 85 }], cacheToken: context.token };
-			} },
+			{
+				id: 'authenticated', query: async () => {
+					privateReads++;
+					return { items: [{ ...entry, score: 90 }, { ...entry, score: 85 }], cacheToken: context.token };
+				}
+			},
 		]);
 		const options = { sourceIds: ['public', 'authenticated'], query: 'mail', pageSize: 2 };
 		const first = await service.query(options, CancellationToken.None);
@@ -602,15 +620,19 @@ suite('CustomizationMarketplaceService', () => {
 	test('isolates an unavailable source while paginating healthy results with explicit warnings and unknown totals', async () => {
 		let failedCalls = 0;
 		const service = new CustomizationMarketplaceService([
-			{ id: 'healthy', query: async options => ({
-				items: [{ ...entry, identifier: options.cursor ? 'second' : 'first', score: options.cursor ? 40 : 50 }],
-				total: 2,
-				nextCursor: options.cursor ? undefined : 'next',
-			}) },
-			{ id: 'failed', query: async () => {
-				failedCalls++;
-				throw new Error('Catalog unavailable');
-			} },
+			{
+				id: 'healthy', query: async options => ({
+					items: [{ ...entry, identifier: options.cursor ? 'second' : 'first', score: options.cursor ? 40 : 50 }],
+					total: 2,
+					nextCursor: options.cursor ? undefined : 'next',
+				})
+			},
+			{
+				id: 'failed', query: async () => {
+					failedCalls++;
+					throw new Error('Catalog unavailable');
+				}
+			},
 		]);
 		const options = { sourceIds: ['healthy', 'failed'], query: 'mail', pageSize: 1 };
 		const first = await service.query(options, CancellationToken.None);
@@ -631,18 +653,22 @@ suite('CustomizationMarketplaceService', () => {
 			let failures = 0;
 			let failing = true;
 			const service = new CustomizationMarketplaceService([
-				{ id: 'healthy', query: async options => {
-					const offset = Number(options.cursor ?? 0);
-					const items = catalog.slice(offset, offset + Math.min(5, options.pageSize!));
-					return { items, total: catalog.length, nextCursor: offset + items.length < catalog.length ? String(offset + items.length) : undefined };
-				} },
-				{ id: 'recovering', query: async () => {
-					if (failing) {
-						failures++;
-						throw new Error('Temporarily unavailable');
+				{
+					id: 'healthy', query: async options => {
+						const offset = Number(options.cursor ?? 0);
+						const items = catalog.slice(offset, offset + Math.min(5, options.pageSize!));
+						return { items, total: catalog.length, nextCursor: offset + items.length < catalog.length ? String(offset + items.length) : undefined };
 					}
-					return { items: [{ ...entry, identifier: 'recovered', score: 100 }], total: 1 };
-				} },
+				},
+				{
+					id: 'recovering', query: async () => {
+						if (failing) {
+							failures++;
+							throw new Error('Temporarily unavailable');
+						}
+						return { items: [{ ...entry, identifier: 'recovered', score: 100 }], total: 1 };
+					}
+				},
 			]);
 			const options = { sourceIds: ['healthy', 'recovering'], query, pageSize: 24 };
 			const first = await service.query(options, CancellationToken.None);
@@ -688,10 +714,12 @@ suite('CustomizationMarketplaceService', () => {
 	test('partial native pages preserve fetched items and their warning while stopping the source', async () => {
 		let calls = 0;
 		const service = new CustomizationMarketplaceService([
-			{ id: 'partial', query: async () => {
-				calls++;
-				return { items: [{ ...entry, score: 80 }, { ...entry, score: 70 }], error: 'Later native page failed' };
-			} },
+			{
+				id: 'partial', query: async () => {
+					calls++;
+					return { items: [{ ...entry, score: 80 }, { ...entry, score: 70 }], error: 'Later native page failed' };
+				}
+			},
 			{ id: 'healthy', query: async () => ({ items: [{ ...entry, score: 100 }, { ...entry, score: 90 }], total: 2 }) },
 		]);
 		const options = { sourceIds: ['partial', 'healthy'], query: 'mail', pageSize: 2 };
@@ -727,12 +755,14 @@ suite('CustomizationMarketplaceService', () => {
 	test('account invalidation still rejects a continuation after a source has failed', async () => {
 		const context = store.add(new CancellationTokenSource());
 		const service = new CustomizationMarketplaceService([
-			{ id: 'authenticated', query: async options => {
-				if (options.cursor) {
-					throw new Error('Unavailable');
+			{
+				id: 'authenticated', query: async options => {
+					if (options.cursor) {
+						throw new Error('Unavailable');
+					}
+					return { items: [{ ...entry, score: 100 }], nextCursor: 'next', cacheToken: context.token };
 				}
-				return { items: [{ ...entry, score: 100 }], nextCursor: 'next', cacheToken: context.token };
-			} },
+			},
 			{ id: 'healthy', query: async () => ({ items: [{ ...entry, score: 90 }, { ...entry, score: 80 }], total: 2 }) },
 		]);
 		const options = { sourceIds: ['authenticated', 'healthy'], query: 'mail', pageSize: 2 };
