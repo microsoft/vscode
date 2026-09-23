@@ -278,13 +278,16 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function changesetState(channel: string): Promise<IObservedChangesetState> {
+		const isPending = (status: string) => status === 'computing' || status === 'recomputing';
 		const result = await context.client.call<SubscribeResult>('subscribe', { channel });
-		let state = result.snapshot!.state as IObservedChangesetState;
-		if (state.status === 'computing') {
+		const snapshot = result.snapshot!;
+		let state = snapshot.state as IObservedChangesetState;
+		if (isPending(state.status)) {
 			await context.client.waitForNotification(n =>
 				isActionNotification(n, 'changeset/statusChanged')
 				&& getActionEnvelope(n).channel === channel
-				&& (getActionEnvelope(n).action as { readonly status: string }).status !== 'computing',
+				&& getActionEnvelope(n).serverSeq > snapshot.fromSeq
+				&& !isPending((getActionEnvelope(n).action as { readonly status: string }).status),
 				60_000,
 			);
 			state = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!.state as typeof state;
