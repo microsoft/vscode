@@ -349,12 +349,18 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return undefined;
 		}
 		return this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => {
+			if (resource.version !== undefined && plugin.version !== resource.version) {
+				return false;
+			}
 			const descriptor = plugin.sourceDescriptor;
 			if (descriptor.kind === PluginSourceKind.GitHub) {
-				return descriptor.repo.toLowerCase() === source.repository.toLowerCase() && (descriptor.path ?? '') === source.path;
+				return descriptor.repo.toLowerCase() === source.repository.toLowerCase() &&
+					(descriptor.path ?? '') === source.path &&
+					(descriptor.ref === source.ref || descriptor.sha === source.ref);
 			}
 			return descriptor.kind === PluginSourceKind.RelativePath &&
 				plugin.marketplaceReference.githubRepo?.toLowerCase() === source.repository.toLowerCase() &&
+				plugin.marketplaceReference.ref === source.ref &&
 				plugin.source.replace(/^\.\//, '').replace(/\/$/, '') === source.path;
 		});
 	}
@@ -441,6 +447,17 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					}
 					checkContext(token);
 					await this.fileService.move(staging, target, false);
+					try {
+						checkContext(token);
+					} catch (error) {
+						try {
+							await this.fileService.del(target, { recursive: true });
+						} catch (cleanupError) {
+							this.logService.error('[CustomizationMarketplace] Unable to remove cancelled skill installation', cleanupError);
+							throw cleanupError;
+						}
+						throw error;
+					}
 					this.installedSkills.set(key, { uri: joinPath(target, SKILL_FILENAME), sourceId: resource.sourceId });
 				} finally {
 					try {
