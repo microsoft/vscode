@@ -123,6 +123,7 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 export function createTestActiveSession(sessionId: string, isCreated = true) {
 	const chat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse(`test-chat://${sessionId}`);
+		override readonly workspace = constObservable(undefined);
 		override readonly title = constObservable('Main Chat');
 		override readonly status = constObservable(SessionStatus.Completed);
 		override readonly isRead = constObservable(true);

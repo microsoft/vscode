@@ -21,13 +21,13 @@ import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOpti
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
-import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -60,8 +60,6 @@ import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } f
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
-import { IAutomationStorageService } from '../../../../automations/common/automationStorageService.js';
-import { TestAutomationStorageService } from '../../../../automations/test/browser/automationTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -105,7 +103,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		protocolVersion: '1',
 		serverSeq: 0,
 		snapshots: [],
-		_meta: { 'vscode.detachedWorktrees': true as const },
+		_meta: { 'vscode.detachedWorktrees': true, [AgentHostAutonomousAutomationsCapabilityMetaKey]: true },
 	});
 
 	override readonly clientId = 'test-local-client';
@@ -286,6 +284,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// ---- Session-state subscriptions ---------------------------------------
 
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
+	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
 	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
@@ -306,11 +305,17 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			emitter = new Emitter<SubscriptionState>();
 			this._sessionStateEmitters.set(key, emitter);
 		}
+		let errorEmitter = this._sessionStateErrorEmitters.get(key);
+		if (!errorEmitter) {
+			errorEmitter = new Emitter<Error>();
+			this._sessionStateErrorEmitters.set(key, errorEmitter);
+		}
 		const self = this;
 		const sub: IAgentSubscription<T> = {
 			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
 			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
 			onDidChange: emitter.event as unknown as Event<T>,
+			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -334,6 +339,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessionStateEmitters.get(key)?.fire(state);
 	}
 
+	fireSessionStateError(resource: URI, error: Error): void {
+		this._sessionStateErrorEmitters.get(resource.toString())?.fire(error);
+	}
+
 	setChangesetState(changesetUri: string, state: ChangesetState): void {
 		this._sessionStateValues.set(changesetUri, state);
 		this._sessionStateEmitters.get(changesetUri)?.fire(state);
@@ -342,6 +351,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	setChatState(chatUri: string, state: ChatState): void {
 		this._sessionStateValues.set(chatUri, state);
 		this._sessionStateEmitters.get(chatUri)?.fire(state);
+	}
+
+	setAutomationCatalog(state: AutomationState): void {
+		this.automationCatalog = state;
+		const key = URI.parse(AUTOMATION_CATALOG_URI).toString();
+		this._sessionStateValues.set(key, state);
+		this._sessionStateEmitters.get(key)?.fire(state);
 	}
 
 	setRootState(state: RootState): void {
@@ -432,12 +448,16 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			emitter.dispose();
 		}
 		this._sessionStateEmitters.clear();
+		for (const emitter of this._sessionStateErrorEmitters.values()) {
+			emitter.dispose();
+		}
+		this._sessionStateErrorEmitters.clear();
 	}
 }
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; workingDirectories?: readonly URI[]; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; chats?: IAgentSessionMetadata['chats']; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	let _meta = opts?._meta;
 	_meta = opts?.quickChat ? withSessionWorkspaceless(_meta, true) : _meta;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
@@ -452,7 +472,8 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		status: opts?.status,
 		activity: opts?.activity,
 		project: opts?.project,
-		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
+		workingDirectories: opts?.workingDirectories ? [...opts.workingDirectories] : (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
+		chats: opts?.chats,
 		_meta,
 	};
 }
@@ -557,7 +578,6 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		onDidRemoveRecentWorkspaces: Event.None,
 	}));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IAutomationStorageService, new TestAutomationStorageService(storageService));
 	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
@@ -616,7 +636,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -630,7 +650,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			createdAt: opts?.createdAt ?? new Date().toISOString(),
 			modifiedAt: opts?.modifiedAt ?? new Date().toISOString(),
 			project: opts?.project,
-			workingDirectories: opts?.workingDirectory ? [opts.workingDirectory] : undefined,
+			workingDirectories: opts?.workingDirectories ? [...opts.workingDirectories] : (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
 			changes: opts?.changes,
 			...(opts?.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		},
@@ -705,7 +725,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	// ---- Provider identity -------
 
 	test('Automation catalogue state follows local Agent Host connection lifetime', () => {
-		agentHost.automationCatalog = { entries: [], _meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } };
+		agentHost.automationCatalog = { entries: [] };
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
 		const provider = createProvider(disposables, agentHost, undefined, {
 			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
@@ -849,6 +869,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.replaceRootStateOnStart([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 		]);
+		agentHost.addSession(createSession('after-rebind'));
 		fireSessionAdded(agentHost, 'after-rebind');
 		await timeout(100);
 
@@ -863,6 +884,63 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('external discovery notifications update the same session facade without refreshing the window', () => runWithFakedTimers({}, async () => {
+		agentHost.setAgents([{ provider: 'codex', displayName: 'Codex', description: '', models: [] } as AgentInfo]);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		await timeout(0);
+		const session = AgentSession.uri('codex', 'external-live');
+		agentHost.fireNotification({
+			channel: 'ahp-root://', type: NotificationType.SessionAdded,
+			summary: {
+				resource: session.toString(), provider: 'codex', title: 'Created in ChatGPT',
+				status: ProtocolSessionStatus.Idle, createdAt: new Date(1000).toISOString(), modifiedAt: new Date(1000).toISOString(),
+				_meta: withSessionExternal(undefined, true),
+			},
+		});
+		await timeout(100);
+		const facade = provider.getSessions()[0];
+		fireSessionSummaryChanged(agentHost, 'external-live', {
+			title: 'Renamed in ChatGPT', modifiedAt: new Date(2000).toISOString(),
+			workingDirectories: ['file:///project'], _meta: withSessionExternal(undefined, true),
+		}, 'codex');
+		await timeout(100);
+		assert.deepStrictEqual({
+			identityPreserved: provider.getSessions()[0] === facade,
+			title: facade.title.get(), updatedAt: facade.updatedAt.get().getTime(),
+			external: facade.isExternal?.get(), listCalls: agentHost.listSessionsCallCount,
+		}, { identityPreserved: true, title: 'Renamed in ChatGPT', updatedAt: 2000, external: true, listCalls: 1 });
+	}));
+
+	test('refreshes the catalog after Agent Host restart without waiting for a session notification', () => runWithFakedTimers({}, async () => {
+		agentHost.addSession(createSession('before-restart', { summary: 'Before' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		agentHost.fireAgentHostExit();
+		agentHost.stopListingSessions('before-restart');
+		agentHost.addSession(createSession('while-disconnected', { summary: 'Discovered while disconnected' }));
+		agentHost.fireAgentHostStart();
+		await timeout(100);
+		assert.deepStrictEqual(provider.getSessions().map(session => session.title.get()), ['Discovered while disconnected']);
+	}));
+
+	test('a late list response from before reconnect cannot replace the restarted host catalog', () => runWithFakedTimers({}, async () => {
+		const pending = new DeferredPromise<IAgentSessionMetadata[]>();
+		let lists = 0;
+		agentHost.listSessions = async () => ++lists === 1
+			? pending.p
+			: [createSession('after-restart', { summary: 'Current' })];
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		agentHost.fireAgentHostExit();
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+		await pending.complete([createSession('stale', { summary: 'Stale' })]);
+		await timeout(100);
+		assert.deepStrictEqual({ lists, titles: provider.getSessions().map(session => session.title.get()) }, { lists: 2, titles: ['Current'] });
+	}));
+
 	test('does not duplicate listeners when Agent Host starts after listeners bind', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
@@ -870,6 +948,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		agentHost.fireAgentHostStart();
+		agentHost.addSession(createSession('after-start'));
 		fireSessionAdded(agentHost, 'after-start');
 		await timeout(100);
 
@@ -3170,9 +3249,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.throws(() => provider.createQuickChat('copilotcli'));
 	});
 
-	test('derives automation provenance from the provider run ledger', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('derives automation provenance from the authoritative host catalogue', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('automation-1', { summary: 'Automation' }));
-		const provider = createProvider(disposables, agentHost);
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
+		});
 		provider.getSessions();
 		await timeout(0);
 
@@ -3184,17 +3266,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 		}));
 
-		const automation = await provider.automations.createAutomation({
-			name: 'Automation',
-			prompt: 'Run',
-			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			target: { kind: 'quickChat', providerId: provider.id, sessionTypeId: 'copilotcli' },
+		agentHost.setAutomationCatalog({
+			entries: [{
+				resource: 'ahp-automation:/automation',
+				definition: {
+					title: 'Automation',
+					message: { text: 'Run', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'copilotcli' },
+					enabled: true,
+					triggers: [],
+				},
+				operations: [],
+				createdAt: '2026-01-01T00:00:00Z',
+				modifiedAt: '2026-01-01T00:00:00Z',
+				runs: [{
+					resource: 'ahp-automation-run:/run',
+					automation: 'ahp-automation:/automation',
+					origin: { kind: AutomationRunOriginKind.Manual },
+					lifecycle: { status: AutomationRunStatus.Running, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z' },
+					primarySession: AgentSession.uri('copilotcli', 'automation-1').toString(),
+					sessionCount: 1,
+				}],
+			}],
 		});
-		const claim = await provider.automations.recordRunStart(automation.id, 'manual', 1);
-		await provider.automations.updateRun(claim.run.id, { sessionResource: session.resource });
 		const marked = session.isAutomation?.get();
 
-		await provider.automations.deleteRun(claim.run.id);
+		agentHost.setAutomationCatalog({ entries: [] });
 
 		assert.deepStrictEqual({
 			marked,
@@ -5998,8 +6095,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 	// ---- Multi-chat catalog (applyChatCatalog reconciliation) ----------------
 
 	suite('multi-chat catalog', () => {
-		function makeChatSummary(resource: string, title: string, status = ProtocolSessionStatus.Idle): ChatSummary {
-			return { resource, title, status, modifiedAt: new Date(0).toISOString() };
+		function makeChatSummary(resource: string, title: string, status = ProtocolSessionStatus.Idle, workingDirectories?: readonly string[]): ChatSummary {
+			return { resource, title, status, modifiedAt: new Date(0).toISOString(), workingDirectories: workingDirectories ? [...workingDirectories] : undefined };
 		}
 
 		function makeState(chats: ChatSummary[], opts?: { sessionTitle?: string; defaultChat?: string }): SessionState {
@@ -6014,18 +6111,142 @@ suite('LocalAgentHostSessionsProvider', () => {
 			};
 		}
 
-		function setupMultiChatSession(provider: ReturnType<typeof createProvider>, rawId: string): ISession {
+		function setupMultiChatSession(provider: ReturnType<typeof createProvider>, rawId: string, workingDirectories?: readonly URI[]): ISession {
 			// Registered with the host as well as announced: `getSessions` starts a refresh, and an
 			// authoritative empty list would evict the adapter the notification just created —
 			// leaving later writes landing on an instance nothing reads.
-			agentHost.addSession(createSession(rawId, { summary: 'Session' }));
-			fireSessionAdded(agentHost, rawId, { title: 'Session' });
+			agentHost.addSession(createSession(rawId, { summary: 'Session', workingDirectories }));
+			fireSessionAdded(agentHost, rawId, { title: 'Session', workingDirectories: workingDirectories?.map(uri => uri.toString()) });
 			const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === rawId);
 			assert.ok(session);
 			// Force a session-state subscription so pushed states reach the adapter.
 			provider.getSessionConfig(session!.sessionId);
 			return session!;
 		}
+
+		test('list metadata surfaces peer titles without subscribing and loads stable chat details while observed', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+			const rawId = 'multi-catalog-list';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const initialPeer = session.chats.get()[1];
+			let observedInteractivity: ChatInteractivity | undefined;
+			disposables.add(autorun(reader => {
+				observedInteractivity = initialPeer.interactivity.read(reader);
+			}));
+			assert.deepStrictEqual({
+				titles: session.chats.get().map(chat => chat.title.get()),
+				interactivity: session.chats.get().map(chat => chat.interactivity.get()),
+				observedInteractivity,
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+			}, {
+				titles: ['Default', 'Catalog Peer'],
+				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
+				observedInteractivity: ChatInteractivity.Hidden,
+				sessionSubscriptions: 0,
+			});
+
+			disposables.add(autorun(reader => {
+				initialPeer.title.read(reader);
+				initialPeer.status.read(reader);
+			}));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'Hydrated Peer', ProtocolSessionStatus.InProgress),
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+				peerIdentityPreserved: session.chats.get()[1] === initialPeer,
+				peerTitle: session.chats.get()[1].title.get(),
+				peerStatus: session.chats.get()[1].status.get(),
+				supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
+			}, {
+				sessionSubscriptions: 1,
+				peerIdentityPreserved: true,
+				peerTitle: 'Hydrated Peer',
+				peerStatus: SessionStatus.InProgress,
+				supportsMultipleChats: false,
+			});
+		});
+
+		test('observed peer details resubscribe after subscription failure and host restart', async () => {
+			const rawId = 'multi-catalog-reconnect';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const peer = session.chats.get()[1];
+			disposables.add(autorun(reader => peer.title.read(reader)));
+			const subscriptionsBeforeFailure = agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0;
+
+			agentHost.fireSessionStateError(sessionUri, new Error('subscription failed'));
+			await timeout(0);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'After failure'),
+			], { defaultChat: defaultChat.toString() }));
+			const afterFailure = {
+				title: peer.title.get(),
+				subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+				unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+			};
+
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'After restart'),
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				subscriptionsBeforeFailure,
+				afterFailure,
+				afterRestart: {
+					title: peer.title.get(),
+					subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+					unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+				},
+			}, {
+				subscriptionsBeforeFailure: 1,
+				afterFailure: {
+					title: 'After failure',
+					subscriptions: 2,
+					unsubscriptions: 1,
+				},
+				afterRestart: {
+					title: 'After restart',
+					subscriptions: 3,
+					unsubscriptions: 2,
+				},
+			});
+		});
 
 		test('default + peer catalog surfaces both chats with the default as mainChat', () => {
 			const provider = createProvider(disposables, agentHost);
@@ -6049,6 +6270,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 				chatFragments: ['', 'peer-1'],
 				mainIsDefault: true,
 				peerTitle: 'Peer',
+			});
+
+			test('chat workspaces expose explicit subsets and inherit the full session workspace', () => {
+				const provider = createProvider(disposables, agentHost);
+				const primaryDirectory = URI.file('/workspace-primary');
+				const peerDirectory = URI.file('/workspace-peer');
+				const session = setupMultiChatSession(provider, 'multi-workspaces', [primaryDirectory, peerDirectory]);
+				const sessionUri = AgentSession.uri('copilotcli', 'multi-workspaces').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const peerChat = buildChatUri(sessionUri, 'peer-1');
+				const inheritedPeerChat = buildChatUri(sessionUri, 'peer-2');
+
+				agentHost.setSessionState('multi-workspaces', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+					makeChatSummary(inheritedPeerChat, 'Inherited Peer'),
+				], { defaultChat }));
+
+				assert.deepStrictEqual({
+					session: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+					defaultChat: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+					peerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+					inheritedPeerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-2')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				}, {
+					session: [primaryDirectory.toString(), peerDirectory.toString()],
+					defaultChat: [primaryDirectory.toString()],
+					peerChat: [peerDirectory.toString()],
+					inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
+				});
 			});
 		});
 
@@ -6151,6 +6401,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 				subagentOrigin: ChatOriginKind.Tool,
 				subagentParentIsMain: true,
 				subagentCapabilities: { canRename: false, canDelete: false },
+			});
+		});
+
+		test('lightweight catalog updates preserve hydrated tool chats omitted from session lists', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-sub-catalog');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-sub-catalog').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const subagentChat = buildSubagentChatUri(sessionUri, 'tc-1');
+
+			agentHost.setSessionState('multi-sub-catalog', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(subagentChat, 'Code Reviewer'), origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tc-1' } },
+			], { defaultChat }));
+			const subagent = session.chats.get()[1];
+
+			fireSessionSummaryChanged(agentHost, 'multi-sub-catalog', {
+				chats: [{ resource: defaultChat, title: '' }],
+				defaultChat,
+			});
+
+			assert.deepStrictEqual({
+				chatCount: session.chats.get().length,
+				subagentIdentityPreserved: session.chats.get()[1] === subagent,
+			}, {
+				chatCount: 2,
+				subagentIdentityPreserved: true,
 			});
 		});
 
@@ -6313,6 +6590,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				'copilotcli',
 				options,
 				constObservable(false),
+				() => toDisposable(() => { }),
 			)));
 			const sessionUri = AgentSession.uri('copilotcli', 'lazy-capabilities-0').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -8036,6 +8314,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// Re-access after release re-subscribes.
 		provider.getSessionConfig(session!.sessionId);
 		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 2, 'fresh subscribe after release');
+	}));
+
+	test('session chat details lease holds the state subscription until released', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const rawId = 'chat-details-lease';
+		const sessionUri = AgentSession.uri('copilotcli', rawId);
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+		agentHost.addSession(createSession(rawId, {
+			summary: 'Session',
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default' },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+			],
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Session');
+		assert.ok(session);
+
+		const detailsObserver = disposables.add(autorun(reader => session.chats.read(reader)[1]?.status.read(reader)));
+		await timeout(31_000);
+		assert.deepStrictEqual({
+			subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+		}, {
+			subscriptions: 1,
+			unsubscriptions: 0,
+		});
+
+		detailsObserver.dispose();
+		await timeout(31_000);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()), 1);
 	}));
 
 	// ---- gitHubInfo / PR icon -------

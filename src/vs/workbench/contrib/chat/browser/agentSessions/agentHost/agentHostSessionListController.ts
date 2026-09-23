@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
-import type { ChangesSummary, SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -224,12 +224,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
 		};
-		if (!summary.chats?.length) {
+		const visibleChats = summary.chats?.filter(chat => chat.interactivity !== ChatInteractivity.Hidden);
+		if (!visibleChats?.length) {
 			return this._makeItem(rawId, base);
 		}
 
-		const defaultChat = summary.chats.find(chat => this._isDefaultChat(summary, chat));
-		const peerChats = summary.chats.filter(chat => chat !== defaultChat);
+		const defaultChat = visibleChats.find(chat => this._isDefaultChat(summary, chat));
+		const peerChats = visibleChats.filter(chat => chat !== defaultChat);
 		return this._makeItem(rawId, {
 			...base,
 			title: defaultChat?.title || summary.title,

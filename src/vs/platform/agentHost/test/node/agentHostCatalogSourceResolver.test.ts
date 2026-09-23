@@ -10,7 +10,7 @@ import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js'
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { ChatOriginKind } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
@@ -53,6 +53,7 @@ function sourceState(): ICatalogSourceState {
 			kind: 'default',
 			title: 'Live chat',
 			origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+			interactivity: ChatInteractivity.ReadOnly,
 		}],
 	};
 }
@@ -136,6 +137,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			summary: 'Persisted chat',
 			titleSource: 'agent',
 			origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+			interactivity: ChatInteractivity.ReadOnly,
 		}]);
 	});
 
@@ -305,6 +307,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					summary: 'Override chat',
 					titleSource: 'agent',
 					origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+					interactivity: ChatInteractivity.ReadOnly,
 				}],
 			},
 			legacyMetadata: {
@@ -360,6 +363,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					summary: 'Persisted chat',
 					titleSource: 'agent',
 					origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+					interactivity: ChatInteractivity.ReadOnly,
 				}],
 			},
 			legacyMetadata: {

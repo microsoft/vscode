@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
+import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
@@ -31,7 +32,7 @@ export function getModelConfigProperty(
 	configurationAccess: IModelConfigurationAccess,
 	group: string,
 ): IModelConfigProperty | undefined {
-	const properties = model?.metadata.configurationSchema?.properties;
+	const properties = model && (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
 	if (!properties) {
 		return undefined;
 	}
@@ -47,6 +48,9 @@ export function getModelConfigProperty(
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
 export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, value: unknown): string {
+	if (value === 'fast' && schema.enum?.includes('efficiency') && !schema.enum.includes('fast')) {
+		return localize('chat.modelPicker.automaticTier', "Automatic");
+	}
 	const index = schema.enum?.indexOf(value) ?? -1;
 	const label = index >= 0 ? schema.enumItemLabels?.[index] : undefined;
 	return label ?? (typeof value === 'number' ? formatTokenCount(value) : String(value));

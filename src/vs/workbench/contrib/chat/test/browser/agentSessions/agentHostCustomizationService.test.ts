@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,12 +15,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -28,6 +35,11 @@ import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHo
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
+	readonly startCalls: string[] = [];
+	readonly authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+	readonly operationLog: string[] = [];
+	authenticateResult: unknown = { authenticated: true };
+	startError: Error | undefined;
 
 	constructor(
 		readonly customizations: readonly Customization[],
@@ -41,11 +53,22 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		return this._isBundledMcpServer(pluginUri, serverName);
 	}
 
-	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
+	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown> {
+		this.operationLog.push('authenticate');
+		this.authenticateCalls.push(request);
+		return Promise.resolve(this.authenticateResult);
+	}
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void {
 		this.enablementChanges.push({ rawId, enablement });
 	}
-	startMcpServer(): Promise<void> { return Promise.resolve(); }
+	startMcpServer(rawId: string): Promise<void> {
+		this.operationLog.push('start');
+		this.startCalls.push(rawId);
+		if (this.startError) {
+			throw this.startError;
+		}
+		return Promise.resolve();
+	}
 	stopMcpServer(): Promise<void> { return Promise.resolve(); }
 	setRootConfigValue(): void { /* no-op */ }
 }
@@ -77,6 +100,7 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		return this._targets.get(sessionResource);
 	}
+
 }
 
 class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
@@ -105,9 +129,24 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSut(): TestAgentHostCustomizationService {
+	function createSut(authenticationError?: Error): TestAgentHostCustomizationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILabelService, { getHostLabel: () => 'Test Host' });
+		instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => {
+				if (authenticationError) {
+					throw authenticationError;
+				}
+				return [{ id: 'test-session', accessToken: 'token', scopes: [], account: { id: 'test-account', label: 'Test Account' } }];
+			},
+		});
+		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(IOutputService, {
 			getChannel: () => undefined,
 			getChannelDescriptor: () => undefined,
@@ -282,6 +321,75 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}, {
 			enabled: false,
 			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+		});
+	});
+
+	test('starts an unchanged auth-required server before forwarding root authentication results', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			},
+		}]);
+		sut.setTarget(session, target);
+
+		const firstAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+		target.authenticateResult = {};
+		const secondAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+
+		assert.deepStrictEqual({
+			authentication: [firstAuthentication, secondAuthentication],
+			startCalls: target.startCalls,
+			operationLog: target.operationLog,
+			authenticateCalls: target.authenticateCalls,
+		}, {
+			authentication: [true, true],
+			startCalls: ['server-1', 'server-1'],
+			operationLog: ['start', 'authenticate', 'start', 'authenticate'],
+			authenticateCalls: [
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+			],
+		});
+
+		target.startError = new Error('start cancelled');
+		const failedAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+		assert.deepStrictEqual({
+			failedAuthentication,
+			operationLog: target.operationLog,
+			authenticateCalls: target.authenticateCalls,
+		}, {
+			failedAuthentication: false,
+			operationLog: ['start', 'authenticate', 'start', 'authenticate', 'start'],
+			authenticateCalls: [
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+			],
+		});
+	});
+
+	test('does not forward credentials or repeat the start when sign-in is cancelled', async () => {
+		const sut = createSut(new CancellationError());
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			},
+		}]);
+		sut.setTarget(session, target);
+
+		const result = await sut.authenticateMcpServer(session, 'server-1');
+		assert.deepStrictEqual({ result, operations: target.operationLog, tokens: target.authenticateCalls }, {
+			result: false,
+			operations: ['start'],
+			tokens: [],
 		});
 	});
 
