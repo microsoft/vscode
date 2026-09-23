@@ -913,6 +913,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { identityPreserved: true, title: 'Renamed in ChatGPT', updatedAt: 2000, external: true, listCalls: 1 });
 	}));
 
+	for (const delivery of ['action', 'summary', 'reconnect'] as const) {
+		test(`external adoption metadata updates the same facade via ${delivery}`, () => runWithFakedTimers({}, async () => {
+			agentHost.addSession(createSession('adoption', { _meta: withSessionExternal(undefined, true) }));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			const isExternal = session.isExternal;
+			assert.ok(isExternal);
+			const observed: boolean[] = [];
+			disposables.add(autorun(reader => observed.push(isExternal.read(reader))));
+			const initialListCalls = agentHost.listSessionsCallCount;
+			const metadata: Record<string, unknown> = JSON.parse(JSON.stringify(withSessionExternal(undefined, false)));
+			if (delivery === 'action') {
+				fireSessionMetaChanged(agentHost, 'adoption', metadata);
+			} else if (delivery === 'summary') {
+				fireSessionSummaryChanged(agentHost, 'adoption', { _meta: metadata });
+			} else {
+				agentHost.fireAgentHostExit();
+				agentHost.addSession(createSession('adoption', { _meta: metadata }));
+				agentHost.fireAgentHostStart();
+				await timeout(100);
+			}
+			assert.deepStrictEqual({
+				identityPreserved: provider.getSessions()[0] === session,
+				observed,
+				metadata,
+				additionalListCalls: agentHost.listSessionsCallCount - initialListCalls,
+			}, {
+				identityPreserved: true,
+				observed: [true, false],
+				metadata: { 'vscode.external': false },
+				additionalListCalls: delivery === 'reconnect' ? 1 : 0,
+			});
+		}));
+	}
+
 	test('refreshes the catalog after Agent Host restart without waiting for a session notification', () => runWithFakedTimers({}, async () => {
 		agentHost.addSession(createSession('before-restart', { summary: 'Before' }));
 		const provider = createProvider(disposables, agentHost);

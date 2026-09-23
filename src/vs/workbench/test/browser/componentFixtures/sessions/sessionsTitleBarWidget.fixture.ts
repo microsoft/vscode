@@ -48,10 +48,15 @@ function createMockActiveSession(title: string, workspaceLabel?: string): IActiv
 			override readonly isVirtualWorkspace = false;
 		}();
 	}
+	// A chat without its own folders shares the session's workspace.
+	const activeChat = new class extends mock<IChat>() {
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
+	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
+		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
