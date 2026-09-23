@@ -3072,7 +3072,6 @@ declare module 'vscode' {
 
 		/**
 		 * Appends and escapes the given string to this markdown string.
-		 * Escaping is for Markdown prose, not code spans or blocks, where the escapes would be displayed literally.
 		 * @param value Plain text.
 		 */
 		appendText(value: string): MarkdownString;
