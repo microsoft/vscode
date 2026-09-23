@@ -126,7 +126,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		outgoingChanges: 1,
 	});
 	if (options.hasPullRequest) {
-		sessionMeta = withSessionGitHubState(sessionMeta, {
+		sessionMeta = withSessionGitHubState(sessionMeta, worktreeRoot.toString(), {
 			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
 			pullRequestBranchName: 'agents/session',
 		});

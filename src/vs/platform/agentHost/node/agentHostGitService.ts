@@ -1005,6 +1005,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		const status = parseGitStatusV2(statusOutput);
+		const hasGitRemote = remotesOutput !== undefined ? remotesOutput.trim().length > 0 : undefined;
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
@@ -1037,6 +1038,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		const result: ISessionGitState = {
+			hasGitRemote,
 			hasGitHubRemote,
 			branchName: status.branchName,
 			isDetachedHead: status.isDetachedHead,
