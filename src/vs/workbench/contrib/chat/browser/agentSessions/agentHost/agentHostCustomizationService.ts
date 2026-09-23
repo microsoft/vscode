@@ -183,8 +183,8 @@ export interface IAgentHostCustomizationTarget {
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
-	getPluginMarketplaceSnapshot?(): Promise<ICustomizationPluginMarketplaceSnapshot>;
-	refreshPluginMarketplaces?(): Promise<ICustomizationPluginMarketplaceSnapshot>;
+	getPluginMarketplaceSnapshot?(): Promise<ICustomizationPluginMarketplaceSnapshot | undefined>;
+	refreshPluginMarketplaces?(): Promise<ICustomizationPluginMarketplaceSnapshot | undefined>;
 	installPlugin?(source: string): Promise<ICustomizationPluginInstallResult>;
 }
 

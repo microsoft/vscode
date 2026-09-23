@@ -129,6 +129,26 @@ export function isCurrentPluginMarketplaceRequest(
 		&& requestBrowseMode === currentBrowseMode;
 }
 
+export function mergeFailedMarketplacePlugins<
+	TPrimary extends { readonly name: string; readonly marketplace: string },
+	TFallback extends { readonly name: string; readonly marketplace: string },
+>(
+	primary: readonly TPrimary[],
+	fallback: readonly TFallback[],
+	failedMarketplaces: ReadonlySet<string>,
+): readonly (TPrimary | TFallback)[] {
+	const merged: (TPrimary | TFallback)[] = [...primary];
+	const seen = new Set(primary.map(item => `${item.name}@${item.marketplace}`));
+	for (const item of fallback) {
+		const key = `${item.name}@${item.marketplace}`;
+		if (failedMarketplaces.has(item.marketplace) && !seen.has(key)) {
+			seen.add(key);
+			merged.push(item);
+		}
+	}
+	return merged;
+}
+
 //#region Entry types
 
 /**
@@ -1952,7 +1972,19 @@ export class PluginListWidget extends Disposable {
 			const sessionResource = this.harnessService.activeSessionResource.get();
 			const snapshot = await provider.getSnapshot(sessionResource, token);
 			if (snapshot) {
-				return snapshot.plugins.map(plugin => sessionMarketplacePluginToItem(sessionResource, plugin));
+				const sessionItems = snapshot.plugins.map(plugin => sessionMarketplacePluginToItem(sessionResource, plugin));
+				if (snapshot.failures.length === 0) {
+					return sessionItems;
+				}
+				const failedMarketplaces = new Set(snapshot.failures.map(failure => failure.marketplace));
+				const localFailures = new Set<string>();
+				const localItems = (await this.pluginMarketplaceService.fetchMarketplacePlugins(token, undefined, {
+					onMarketplaceError: reference => localFailures.add(reference.displayLabel),
+				})).map(marketplacePluginToItem);
+				for (const failed of localFailures) {
+					failedMarketplaces.delete(failed);
+				}
+				return mergeFailedMarketplacePlugins(sessionItems, localItems, failedMarketplaces);
 			}
 		}
 		return (await this.pluginMarketplaceService.fetchMarketplacePlugins(token)).map(marketplacePluginToItem);

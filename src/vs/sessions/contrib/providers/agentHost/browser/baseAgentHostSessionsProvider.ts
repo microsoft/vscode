@@ -21,7 +21,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, type IAgentPluginInstallResult, type IAgentPluginMarketplaceSnapshot } from '../../../../../platform/agentHost/common/agentService.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -4891,6 +4891,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getCustomizations(sessionId: string): Customization[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.customizations ?? [];
+	}
+
+	getPluginMarketplaceSnapshot(sessionId: string): Promise<IAgentPluginMarketplaceSnapshot | undefined> {
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		const operation = this.connection?.getSessionPluginMarketplaceSnapshot;
+		return sessionUri && operation ? operation.call(this.connection, sessionUri) : Promise.resolve(undefined);
+	}
+
+	refreshPluginMarketplaces(sessionId: string): Promise<IAgentPluginMarketplaceSnapshot | undefined> {
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		const operation = this.connection?.refreshSessionPluginMarketplaces;
+		return sessionUri && operation ? operation.call(this.connection, sessionUri) : Promise.resolve(undefined);
+	}
+
+	installPlugin(sessionId: string, source: string): Promise<IAgentPluginInstallResult> {
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		const operation = this.connection?.installSessionPlugin;
+		if (!sessionUri || !operation) {
+			return Promise.reject(new Error('Plugin marketplace is unavailable for this session.'));
+		}
+		return operation.call(this.connection, sessionUri, source);
 	}
 
 	getWorkingDirectory(sessionId: string): string | undefined {

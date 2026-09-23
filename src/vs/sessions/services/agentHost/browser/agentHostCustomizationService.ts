@@ -91,6 +91,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			setRootConfigValue: (property, value) => {
 				void provider.setRootConfigValue(property, value);
 			},
+			getPluginMarketplaceSnapshot: () => provider.getPluginMarketplaceSnapshot(session.sessionId),
+			refreshPluginMarketplaces: () => provider.refreshPluginMarketplaces(session.sessionId),
+			installPlugin: source => provider.installPlugin(session.sessionId, source),
 		};
 	}
 

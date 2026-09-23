@@ -622,7 +622,17 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 						? await provider.refresh(harnessService.activeSessionResource.get(), cts.token)
 						: undefined;
 					if (snapshot) {
-						failedLabels.push(...snapshot.failures.map(failure => failure.marketplace));
+						if (snapshot.failures.length > 0) {
+							const unresolved = new Set(snapshot.failures.map(failure => failure.marketplace));
+							const localPlugins = await marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
+								refresh: true,
+								onMarketplaceError: () => { },
+							});
+							for (const plugin of localPlugins) {
+								unresolved.delete(plugin.marketplace);
+							}
+							failedLabels.push(...unresolved);
+						}
 						return;
 					}
 					await marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
