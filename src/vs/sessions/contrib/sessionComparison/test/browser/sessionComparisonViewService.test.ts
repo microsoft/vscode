@@ -10,7 +10,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService, OpenSessionsInGridOutcome } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -19,7 +19,7 @@ import { SessionComparisonViewService } from '../../browser/sessionComparisonVie
 suite('Session comparison navigation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup() {
+	function setup(gridOutcome = OpenSessionsInGridOutcome.Committed) {
 		const roles = [
 			SessionComparisonParticipantRole.Attempt,
 			SessionComparisonParticipantRole.Attempt,
@@ -64,8 +64,9 @@ suite('Session comparison navigation', () => {
 			override async openSession(resource: URI): Promise<void> {
 				openedSessions.push(sessions.find(session => session.resource.toString() === resource.toString())!.sessionId);
 			}
-			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
+			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<OpenSessionsInGridOutcome> {
 				openedGrids.push(targets.map(session => session.sessionId));
+				return gridOutcome;
 			}
 		}());
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
@@ -151,6 +152,18 @@ suite('Session comparison navigation', () => {
 		}, {
 			openedSessions: [],
 			openedGrids: [],
+			hiddenParts: [],
+		});
+	});
+
+	test('does not hide panes when grid navigation is superseded', async () => {
+		const fixture = setup(OpenSessionsInGridOutcome.NotCommitted);
+		await fixture.service.open('comparison');
+		assert.deepStrictEqual({
+			openedGrids: fixture.openedGrids,
+			hiddenParts: fixture.hiddenParts,
+		}, {
+			openedGrids: [['attempt-0', 'attempt-1']],
 			hiddenParts: [],
 		});
 	});

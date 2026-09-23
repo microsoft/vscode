@@ -57,7 +57,7 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = [], showNavigationShortcuts = false) {
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = [], showNavigationShortcuts = false, pinnedSessionIds: ReadonlySet<string> = new Set()) {
 		const contextMenuService = new TestContextMenuService();
 		let menuDisposed = false;
 		const isComparison = typeof menuActionsOrComparison === 'boolean' ? menuActionsOrComparison : false;
@@ -80,6 +80,7 @@ suite('Sessions list context menus', () => {
 			groups: [group, targetGroup],
 			memberships: grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
 			comparisons,
+			pinnedSessionIds,
 		});
 		const contextKeyService = harness.instantiationService.get(IContextKeyService);
 		const commandService = harness.instantiationService.get(ICommandService);
@@ -285,9 +286,10 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
-	test('running comparison groups expose Stop instead of Delete Group', () => {
-		const session = createTestSession('Attempt', { status: SessionStatus.InProgress }).session;
-		const { container, contextMenuService } = createList(true, false, SessionsGrouping.Date, [session], true);
+	test('comparison groups with hidden input waits do not expose Delete Group', () => {
+		const completed = createTestSession('Completed attempt').session;
+		const waiting = createTestSession('Waiting attempt', { status: SessionStatus.NeedsInput }).session;
+		const { container, contextMenuService } = createList(true, false, SessionsGrouping.Date, [completed, waiting], true, false, new Set([waiting.sessionId]));
 		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
 		assert.ok(groupHeader);
 

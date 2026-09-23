@@ -42,7 +42,7 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { IActiveSession, ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { SessionsService } from '../../browser/sessionsService.js';
+import { OpenSessionsInGridOutcome, SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService, SessionGridLayout } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
@@ -1599,7 +1599,7 @@ suite('SessionsManagementService', () => {
 		await fixture.view.openSession(sessions[4].resource);
 		fixture.partService.updates.length = 0;
 		prepared.length = 0;
-		await fixture.view.openSessionsInGrid([...sessions.slice(0, 4), sessions[0]]);
+		const outcome = await fixture.view.openSessionsInGrid([...sessions.slice(0, 4), sessions[0]]);
 		const initialUpdates = [...fixture.partService.updates];
 		await fixture.storage.flush();
 		fixture.view.dispose();
@@ -1610,11 +1610,13 @@ suite('SessionsManagementService', () => {
 		await restored.openSession(sessions[4].resource);
 		assert.deepStrictEqual({
 			initialUpdates,
+			outcome,
 			prepared: prepared.slice(0, 4),
 			restoredLayout,
 			ordinaryLayout: restoredParts.updates.at(-1)?.layout,
 		}, {
 			initialUpdates: [{ ids: ['a', 'b', 'c', 'd'], layout: 'grid' }],
+			outcome: OpenSessionsInGridOutcome.Committed,
 			prepared: ['a', 'b', 'c', 'd'],
 			restoredLayout: { ids: ['a', 'b', 'c', 'd'], layout: 'grid' },
 			ordinaryLayout: 'columns',
@@ -1653,8 +1655,14 @@ suite('SessionsManagementService', () => {
 		await started.p;
 		await view.openSession(sessions[2].resource);
 		pending.complete();
-		await opening;
-		assert.deepStrictEqual(view.visibleSessions.get().map(session => session?.sessionId), ['c']);
+		const outcome = await opening;
+		assert.deepStrictEqual({
+			outcome,
+			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId),
+		}, {
+			outcome: OpenSessionsInGridOutcome.NotCommitted,
+			visibleSessions: ['c'],
+		});
 	});
 
 	test('restoreVisibleSessions prepares only the active session', async () => {

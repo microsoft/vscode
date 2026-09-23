@@ -141,6 +141,11 @@ interface ISessionState {
 	gridLayout?: SessionGridLayout;
 }
 
+export const enum OpenSessionsInGridOutcome {
+	Committed = 'committed',
+	NotCommitted = 'notCommitted',
+}
+
 /**
  * Owns the visible sessions shown in the sessions part's grid and everything
  * that drives them: opening sessions/chats, the new-session composer view,
@@ -157,7 +162,7 @@ export interface ISessionsService {
 	readonly _serviceBrand: undefined;
 
 	/** Opens existing sessions together in a tiled grid, without creating or sending requests. */
-	openSessionsInGrid(sessions: readonly ISession[]): Promise<void>;
+	openSessionsInGrid(sessions: readonly ISession[]): Promise<OpenSessionsInGridOutcome>;
 
 	/** Current presentation of the visible Sessions Part leaves. */
 	readonly sessionGridLayout: IObservable<SessionGridLayout>;
@@ -927,7 +932,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._openSession(sessionResource, options, 'explicit');
 	}
 
-	async openSessionsInGrid(sessions: readonly ISession[]): Promise<void> {
+	async openSessionsInGrid(sessions: readonly ISession[]): Promise<OpenSessionsInGridOutcome> {
 		if (sessions.length === 0) {
 			throw new Error(localize('sessions.emptyGrid', "No sessions are available to open."));
 		}
@@ -937,17 +942,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		for (const session of sessions) {
 			const target = await this._resolveSessionForOpen(session, undefined);
 			if (token.isCancellationRequested) {
-				return;
+				return OpenSessionsInGridOutcome.NotCommitted;
 			}
 			if (resolved.has(target.session.resource)) {
 				continue;
 			}
 			if (!await this.canOpenSession(target.session) || token.isCancellationRequested) {
-				return;
+				return OpenSessionsInGridOutcome.NotCommitted;
 			}
 			await this.sessionsProvidersService.getProvider(target.session.providerId)?.prepareSessionForOpen?.(target.session, 'open');
 			if (token.isCancellationRequested) {
-				return;
+				return OpenSessionsInGridOutcome.NotCommitted;
 			}
 			resolved.set(target.session.resource, target.session);
 		}
@@ -962,6 +967,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._gridLayout.set('grid', tx);
 			this._visibility.restoreGrid(slots, Math.max(0, activeIndex));
 		});
+		return OpenSessionsInGridOutcome.Committed;
 	}
 
 	resetSessionGridLayout(): void {

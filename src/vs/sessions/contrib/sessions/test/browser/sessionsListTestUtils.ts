@@ -63,6 +63,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		return this.sessions;
 	}
 
+	override getSession(resource: URI): ISession | undefined {
+		return this.sessions.find(session => session.resource.toString() === resource.toString());
+	}
+
 	override async markRead(session: ISession): Promise<void> {
 		this.readSessions.push(session);
 	}
@@ -180,6 +184,7 @@ export interface IListHarness {
 	readonly deletedGroupIds: string[];
 	readonly cancelledComparisonIds: string[];
 	readonly archivedComparisonIds: string[];
+	readonly addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
 	createContainer(width?: number, height?: number): HTMLElement;
@@ -214,6 +219,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
 	const archivedComparisonIds: string[] = [];
+	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
 	const sortChanges: ISortChangeRecord[] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
@@ -225,6 +231,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
+		override unpinSessions(): void { }
 		override migrateLegacyReadState(): void { }
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
@@ -249,6 +256,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override deleteGroup(groupId: string): void {
 			deletedGroupIds.push(groupId);
+		}
+		override addToGroup(sessionId: string, groupId: string): void;
+		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;
+		override addToGroup(sessionIds: string | Iterable<string>, groupId: string): void {
+			addedToGroups.push({ groupId, sessionIds: typeof sessionIds === 'string' ? [sessionIds] : [...sessionIds] });
 		}
 	});
 	instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -314,5 +326,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, sortChanges, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, createContainer };
 }
