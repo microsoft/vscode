@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
-import { PagedModel, IPagedModel, DelayedPagedModel, IPager } from '../../../../base/common/paging.js';
+import { PagedModel, IPagedModel, DelayedPagedModel, IPager, validatePage } from '../../../../base/common/paging.js';
 import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -1589,6 +1589,7 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		private readonly preferredExtensions: IExtension[],
 		private readonly pager: IPager<IExtension>,
 	) {
+		validatePage(pager, 0, pager.firstPage);
 		for (let i = 0; i < this.preferredExtensions.length; i++) {
 			this.resolved.set(i, this.preferredExtensions[i]);
 		}
@@ -1636,7 +1637,10 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		if (!page.promise) {
 			page.cts = new CancellationTokenSource();
 			page.promise = this.pager.getPage(pageIndex, page.cts.token)
-				.then(extensions => this.populateResolvedExtensions(pageIndex, extensions))
+				.then(extensions => {
+					validatePage(this.pager, pageIndex, extensions);
+					this.populateResolvedExtensions(pageIndex, extensions);
+				})
 				.catch(e => { page.promise = null; throw e; })
 				.finally(() => page.cts = null);
 		}
