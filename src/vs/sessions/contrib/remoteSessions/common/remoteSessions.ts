@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -98,11 +99,11 @@ export interface IRemoteSessionService {
 
 function readObject(value: unknown, fields: readonly string[], label: string): Record<string, unknown> {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new Error(`${label} must be an object.`);
+		throw new Error(localize('remoteSessions.invalidObject', "{0} must be an object.", label));
 	}
 	for (const key of Object.keys(value)) {
 		if (!fields.includes(key)) {
-			throw new Error(`Unknown ${label} property "${key}".`);
+			throw new Error(localize('remoteSessions.unknownProperty', "Unknown {0} property \"{1}\".", label, key));
 		}
 	}
 	return value as Record<string, unknown>;
@@ -110,7 +111,7 @@ function readObject(value: unknown, fields: readonly string[], label: string): R
 
 function readText(value: unknown, label: string): string {
 	if (typeof value !== 'string' || !value.trim()) {
-		throw new Error(`${label} must be a non-empty string.`);
+		throw new Error(localize('remoteSessions.invalidText', "{0} must be a non-empty string.", label));
 	}
 	return value;
 }
@@ -120,7 +121,9 @@ function readMinimum(value: unknown, label: string, integer: boolean): number | 
 		return undefined;
 	}
 	if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || (integer && !Number.isSafeInteger(value))) {
-		throw new Error(`${label} must be a positive ${integer ? 'integer' : 'number'}.`);
+		throw new Error(integer
+			? localize('remoteSessions.invalidInteger', "{0} must be a positive integer.", label)
+			: localize('remoteSessions.invalidNumber', "{0} must be a positive number.", label));
 	}
 	return value;
 }
@@ -130,7 +133,7 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 	const prompt = readText(input.prompt, 'prompt');
 	const title = input.title === undefined ? undefined : readText(input.title, 'title');
 	if (title !== undefined && Array.from(title).length > 200) {
-		throw new Error('title must not exceed 200 characters.');
+		throw new Error(localize('remoteSessions.titleTooLong', "{0} must not exceed {1} characters.", 'title', 200));
 	}
 	const hostId = input.hostId === undefined ? undefined : readText(input.hostId, 'hostId');
 	let model: IRemoteSessionModel | undefined;
@@ -141,7 +144,7 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 	const requirements: Record<string, unknown> = input.requirements === undefined ? {} : readObject(input.requirements, ['platform', 'minMemoryGiB', 'minCpuCount'], 'requirements');
 	const platform = requirements.platform;
 	if (platform !== undefined && platform !== 'windows' && platform !== 'linux' && platform !== 'macos') {
-		throw new Error('requirements.platform must be windows, linux, or macos.');
+		throw new Error(localize('remoteSessions.invalidPlatform', "{0} must be {1}, {2}, or {3}.", 'requirements.platform', 'windows', 'linux', 'macos'));
 	}
 	let workspace: IRemoteSessionWorkspace | undefined;
 	if (input.workspace !== undefined) {
@@ -151,15 +154,15 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 		if ((uri.scheme !== Schemas.file && uri.scheme !== AGENT_HOST_SCHEME)
 			|| directory.scheme !== Schemas.file || !directory.path.startsWith('/') || directory.path === '/'
 			|| directory.query || directory.fragment || (uri.scheme === AGENT_HOST_SCHEME && !uri.authority)) {
-			throw new Error('workspace.uri must identify an absolute folder using a file URI or a remote workspace URI from list_agent_hosts.');
+			throw new Error(localize('remoteSessions.invalidWorkspace', "{0} must identify an absolute folder using a file URI or a remote workspace URI from {1}.", 'workspace.uri', 'list_agent_hosts'));
 		}
 		const isolation = raw.isolation ?? 'worktree';
 		if (isolation !== 'folder' && isolation !== 'worktree') {
-			throw new Error('workspace.isolation must be folder or worktree.');
+			throw new Error(localize('remoteSessions.invalidIsolation', "{0} must be {1} or {2}.", 'workspace.isolation', 'folder', 'worktree'));
 		}
 		const branch = raw.branch === undefined ? undefined : readText(raw.branch, 'workspace.branch');
 		if (branch !== undefined && isolation !== 'worktree') {
-			throw new Error('workspace.branch requires worktree isolation; an existing checkout is never switched to another branch.');
+			throw new Error(localize('remoteSessions.branchRequiresWorktree', "{0} requires {1} isolation; an existing checkout is never switched to another branch.", 'workspace.branch', 'worktree'));
 		}
 		workspace = { uri, isolation, branch };
 	}
@@ -176,35 +179,41 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 export function remoteSessionHostRejections(host: IRemoteSessionHost, options: ICreateRemoteSessionOptions): string[] {
 	const reasons: string[] = [];
 	if (options.hostId !== undefined && options.hostId !== host.id) {
-		return ['Host ID does not match.'];
+		return [localize('remoteSessions.hostIdMismatch', "Host ID does not match.")];
 	}
 	if (host.status !== 'connected') {
-		return [`Host is ${host.status}. Establish a connection before creating a remote session; its capabilities are not available yet.`];
+		return [localize('remoteSessions.hostNotConnected', "Host is {0}. Establish a connection before creating a remote session; its capabilities are not available yet.", host.status)];
 	}
 	if (host.supportsRemoteSessions === null) {
-		return ['Host capabilities have not been received yet. Wait for host discovery to finish before creating a remote session.'];
+		return [localize('remoteSessions.capabilitiesPending', "Host capabilities have not been received yet. Wait for host discovery to finish before creating a remote session.")];
 	}
 	if (!host.supportsRemoteSessions) {
-		reasons.push('Host does not support remote session delegation. Update the agent host.');
+		reasons.push(localize('remoteSessions.delegationUnsupported', "Host does not support remote session delegation. Update the agent host."));
 	}
 	if (host.runningSessions === undefined) {
-		reasons.push('Running-session count is not available yet.');
+		reasons.push(localize('remoteSessions.workloadUnavailable', "Running-session count is not available yet."));
 	}
 	const { platform, minCpuCount, minMemoryGiB } = options.requirements;
 	if (platform !== undefined && host.resources?.platform !== platform) {
-		reasons.push(`Required platform ${platform}; host reports ${host.resources?.platform ?? 'unknown'}.`);
+		reasons.push(host.resources?.platform === undefined
+			? localize('remoteSessions.platformUnknown', "Required platform {0}; host reports unknown.", platform)
+			: localize('remoteSessions.platformMismatch', "Required platform {0}; host reports {1}.", platform, host.resources.platform));
 	}
 	if (minCpuCount !== undefined && (host.resources?.cpuCount === undefined || host.resources.cpuCount < minCpuCount)) {
-		reasons.push(`Required ${minCpuCount} logical CPUs; host reports ${host.resources?.cpuCount ?? 'unknown'}.`);
+		reasons.push(host.resources?.cpuCount === undefined
+			? localize('remoteSessions.cpuCountUnknown', "Required {0} logical CPUs; host reports unknown.", minCpuCount)
+			: localize('remoteSessions.insufficientCpuCount', "Required {0} logical CPUs; host reports {1}.", minCpuCount, host.resources.cpuCount));
 	}
 	if (minMemoryGiB !== undefined && (host.resources?.memoryBytes === undefined || host.resources.memoryBytes < minMemoryGiB * 1024 ** 3)) {
-		reasons.push(`Required ${minMemoryGiB} GiB of memory; host reports ${host.resources?.memoryBytes === undefined ? 'unknown' : `${host.resources.memoryBytes / 1024 ** 3} GiB`}.`);
+		reasons.push(host.resources?.memoryBytes === undefined
+			? localize('remoteSessions.memoryUnknown', "Required {0} GiB of memory; host reports unknown.", minMemoryGiB)
+			: localize('remoteSessions.insufficientMemory', "Required {0} GiB of memory; host reports {1} GiB.", minMemoryGiB, host.resources.memoryBytes / 1024 ** 3));
 	}
 	if (options.model !== undefined && !host.agents.some(agent => agent.provider === options.model?.provider && agent.models.some(model => model.id === options.model?.id))) {
-		reasons.push(`Model ${options.model.provider}/${options.model.id} is not available.`);
+		reasons.push(localize('remoteSessions.modelUnavailable', "Model {0}/{1} is not available.", options.model.provider, options.model.id));
 	}
 	if (!host.agents.length) {
-		reasons.push('No usable agents have been advertised.');
+		reasons.push(localize('remoteSessions.noAgents', "No usable agents have been advertised."));
 	}
 	return reasons;
 }

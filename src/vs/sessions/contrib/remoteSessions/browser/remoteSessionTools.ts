@@ -147,7 +147,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		const options = parseCreateRemoteSessionOptions(invocation.parameters);
 		const source = invocation.context?.sessionResource;
 		if (!source) {
-			throw new Error('create_remote_session requires an originating session.');
+			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(source);
 		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);

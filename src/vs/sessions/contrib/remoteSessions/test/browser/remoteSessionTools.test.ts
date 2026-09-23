@@ -139,11 +139,15 @@ suite('RemoteSessionTools', () => {
 		});
 	});
 
-	test('missing invocation context cannot create an unlinked child', async () => {
+	test('missing preparation or invocation context reports the same error without creating an unlinked child', async () => {
 		const { create, calls } = setup();
+		const error = { message: 'Remote session creation requires an originating session.' };
+		await assert.rejects(create.prepareToolInvocation({
+			toolCallId: 'prepare-id', parameters: { prompt: 'Test' },
+		}, CancellationToken.None), error);
 		await assert.rejects(create.invoke({
 			callId: 'call-id', toolId: create.getToolData().id, parameters: { prompt: 'Test' }, context: undefined,
-		}, async () => 0, progress, CancellationToken.None), /originating session/);
+		}, async () => 0, progress, CancellationToken.None), error);
 		assert.deepStrictEqual(calls, []);
 	});
 

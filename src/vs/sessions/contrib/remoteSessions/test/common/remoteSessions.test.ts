@@ -164,4 +164,22 @@ suite('RemoteSessions', () => {
 			assert.throws(() => parseCreateRemoteSessionOptions(input), JSON.stringify(input));
 		}
 	});
+
+	test('validation messages preserve parameter names and allowed values', () => {
+		const cases = [
+			{ input: undefined, message: 'create_remote_session must be an object.' },
+			{ input: { prompt: 'Test', extra: true }, message: 'Unknown create_remote_session property "extra".' },
+			{ input: { prompt: ' ' }, message: 'prompt must be a non-empty string.' },
+			{ input: { prompt: 'Test', title: 'x'.repeat(201) }, message: 'title must not exceed 200 characters.' },
+			{ input: { prompt: 'Test', requirements: { minCpuCount: 1.5 } }, message: 'requirements.minCpuCount must be a positive integer.' },
+			{ input: { prompt: 'Test', requirements: { minMemoryGiB: 0 } }, message: 'requirements.minMemoryGiB must be a positive number.' },
+			{ input: { prompt: 'Test', requirements: { platform: 'win32' } }, message: 'requirements.platform must be windows, linux, or macos.' },
+			{ input: { prompt: 'Test', workspace: { uri: 'https://example.com/repo' } }, message: 'workspace.uri must identify an absolute folder using a file URI or a remote workspace URI from list_agent_hosts.' },
+			{ input: { prompt: 'Test', workspace: { uri: 'file:///repo', isolation: 'inherit' } }, message: 'workspace.isolation must be folder or worktree.' },
+			{ input: { prompt: 'Test', workspace: { uri: 'file:///repo', isolation: 'folder', branch: 'main' } }, message: 'workspace.branch requires worktree isolation; an existing checkout is never switched to another branch.' },
+		];
+		for (const { input, message } of cases) {
+			assert.throws(() => parseCreateRemoteSessionOptions(input), { message });
+		}
+	});
 });

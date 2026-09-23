@@ -83,12 +83,12 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const previous = this.requests.get(key);
 		if (previous) {
 			if (previous.input !== input) {
-				throw new Error('A remote session creation request cannot be retried with different arguments.');
+				throw new Error(localize('remoteSessions.changedRetry', "A remote session creation request cannot be retried with different arguments."));
 			}
 			return previous.result;
 		}
 		if (this.requests.size >= maxRemoteSessionCreations) {
-			throw new Error(`Remote session creation limit reached (${maxRemoteSessionCreations} requests per window).`);
+			throw new Error(localize('remoteSessions.creationLimit', "Remote session creation limit reached ({0} requests per window).", maxRemoteSessionCreations));
 		}
 		const result = this.doCreateSession(options, source, token);
 		this.requests.set(key, { input, result });
@@ -148,20 +148,20 @@ export class RemoteSessionService implements IRemoteSessionService {
 			return { reasons };
 		}
 		if (!connection) {
-			reasons.push('The host connection is not available.');
+			reasons.push(localize('remoteSessions.connectionUnavailable', "The host connection is not available."));
 		}
 		if (provider.hostGroup?.connectable === false) {
-			reasons.push('This host is dedicated to an existing session.');
+			reasons.push(localize('remoteSessions.dedicatedHost', "This host is dedicated to an existing session."));
 		}
 		const authority = agentHostAuthority(provider.remoteAddress);
 		const workspace = options.workspace?.uri.scheme === AGENT_HOST_SCHEME
 			? options.workspace.uri
 			: options.workspace ? provider.mapAgentHostResource(options.workspace.uri) : undefined;
 		if (workspace && workspace.authority !== authority) {
-			reasons.push('The workspace belongs to a different host.');
+			reasons.push(localize('remoteSessions.workspaceHostMismatch', "The workspace belongs to a different host."));
 		}
 		if (!workspace && !provider.supportsQuickChats) {
-			reasons.push('The host does not support workspace-less sessions.');
+			reasons.push(localize('remoteSessions.workspaceRequired', "The host does not support workspace-less sessions."));
 		}
 		const types = workspace ? provider.getSessionTypes(workspace) : provider.sessionTypes;
 		const agent = host.agents.find(agent => {
@@ -173,7 +173,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		});
 		const sessionType = agent && types.find(type => type.chatSessionType === remoteAgentHostSessionTypeId(authority, agent.provider));
 		if (!sessionType) {
-			reasons.push('No agent supports the requested workspace and isolation with an available model or Auto fallback.');
+			reasons.push(localize('remoteSessions.unsupportedWorkspace', "No agent supports the requested workspace and isolation with an available model or Auto fallback."));
 		}
 		if (reasons.length || !sessionType || !agent || !connection) {
 			return { reasons };
@@ -193,7 +193,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 			|| candidate.provider.connectionStatus?.get().kind !== 'connected'
 			|| connection !== candidate.connection
 			|| connection?.clientId !== candidate.clientId) {
-			throw new Error(`Remote agent host ${candidate.host.label} connection changed during session creation.`);
+			throw new Error(localize('remoteSessions.connectionChanged', "Remote agent host {0} connection changed during session creation.", candidate.host.label));
 		}
 	}
 
@@ -208,17 +208,17 @@ export class RemoteSessionService implements IRemoteSessionService {
 						this.workspaceTrustService.getUriTrustInfo(candidate.workspace),
 					]), token);
 					if (!stat.isDirectory) {
-						reasons.push('The workspace is not a directory.');
+						reasons.push(localize('remoteSessions.workspaceNotDirectory', "The workspace is not a directory."));
 					}
 					if (!trust.trusted) {
-						reasons.push('The workspace is not trusted. Trust it before starting an unattended session.');
+						reasons.push(localize('remoteSessions.workspaceNotTrusted', "The workspace is not trusted. Trust it before starting an unattended session."));
 					}
 				} catch (error) {
 					if (token.isCancellationRequested) {
 						throw new CancellationError();
 					}
 					this.logService.warn(`[RemoteSessions] Could not inspect workspace on ${provider.id}`, error);
-					reasons.push(`Workspace inspection failed: ${toErrorMessage(error)}`);
+					reasons.push(localize('remoteSessions.workspaceInspectionFailed', "Workspace inspection failed: {0}", toErrorMessage(error)));
 				}
 			}
 			if (reasons.length || !candidate) {
@@ -229,7 +229,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		}));
 		const eligible = candidates.filter(candidate => candidate !== undefined);
 		if (!eligible.length) {
-			throw new Error(`No connected remote agent host matches this request. ${JSON.stringify(rejected)}`);
+			throw new Error(localize('remoteSessions.noMatchingHost', "No connected remote agent host matches this request. {0}", JSON.stringify(rejected)));
 		}
 		return eligible;
 	}
@@ -241,7 +241,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const source = await resolveRemoteSessionSource(sourceResource, this.sessionsService, this.connectionsService, token);
 		const depth = source.depth + 1;
 		if (depth > maxRemoteSessionDepth) {
-			throw new Error(`Remote session recursion limit reached (maximum depth ${maxRemoteSessionDepth}).`);
+			throw new Error(localize('remoteSessions.recursionLimit', "Remote session recursion limit reached (maximum depth {0}).", maxRemoteSessionDepth));
 		}
 		const candidates = await this.candidates(options, token);
 		this.checkEnabled();
@@ -257,15 +257,15 @@ export class RemoteSessionService implements IRemoteSessionService {
 		this.assertTargetConnection(selected);
 		const { candidate: target, reasons } = this.getCandidate(selected.provider, options);
 		if (!target) {
-			throw new Error(`Remote agent host ${selected.host.label} no longer matches this request. ${JSON.stringify(reasons)}`);
+			throw new Error(localize('remoteSessions.hostNoLongerMatches', "Remote agent host {0} no longer matches this request. {1}", selected.host.label, JSON.stringify(reasons)));
 		}
 		if (!isEqual(target.workspace, selected.workspace)) {
-			throw new Error(`Remote agent host ${target.host.label} workspace changed during session creation.`);
+			throw new Error(localize('remoteSessions.workspaceChanged', "Remote agent host {0} workspace changed during session creation.", target.host.label));
 		}
 		const pendingCreations = this.pendingCreations.get(target.host.id) ?? 0;
 		const runningSessions = target.host.runningSessions;
 		if (runningSessions === undefined) {
-			throw new Error(`Remote agent host ${target.host.label} no longer reports its workload.`);
+			throw new Error(localize('remoteSessions.workloadLost', "Remote agent host {0} no longer reports its workload.", target.host.label));
 		}
 		this.pendingCreations.set(target.host.id, pendingCreations + 1);
 		this.lastSelected.set(target.host.id, ++this.selectionSequence);
@@ -303,7 +303,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				? await this.sessionsService.createAndSendNewChatRequest(target.workspace, request, createOptions, token)
 				: await this.sessionsService.createAndSendQuickChatRequest(request, createOptions, token);
 			if (!created) {
-				throw new Error('Remote session creation ended without a committed session. Do not retry automatically.');
+				throw new Error(localize('remoteSessions.creationUnconfirmed', "Remote session creation ended without a committed session. Do not retry automatically."));
 			}
 			background?.releaseWhenIdle();
 			background = undefined;
