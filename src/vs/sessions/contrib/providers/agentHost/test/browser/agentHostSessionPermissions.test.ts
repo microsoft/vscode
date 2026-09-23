@@ -12,20 +12,19 @@ suite('AgentHostSessionPermissions', () => {
 
 	test('exposes exact provider choices and maps allow-all permissions without bypassing policy', () => {
 		assert.deepStrictEqual({
-			copilotOptions: getAgentHostSessionPermissionOptions('copilotcli', false, true).map(option => ({ id: option.id, label: option.label, default: option.isDefault, allowAll: option.isAllowAll })),
-			claudeOptions: getAgentHostSessionPermissionOptions('claude', false, true).map(option => ({ id: option.id, label: option.label, default: option.isDefault, allowAll: option.isAllowAll })),
-			codexOptions: getAgentHostSessionPermissionOptions('codex', false, true).map(option => ({ id: option.id, label: option.label, default: option.isDefault, allowAll: option.isAllowAll })),
-			copilotDefault: getAgentHostSessionPermissionConfig('copilotcli', 'default', false, true),
-			copilotAssisted: getAgentHostSessionPermissionConfig('copilotcli', 'assisted', false, true),
-			copilotAllowAll: getAgentHostSessionPermissionConfig('copilotcli', 'autoApprove', false, true),
-			claudeAllowAll: getAgentHostSessionPermissionConfig('claude', 'bypassPermissions', false, true),
-			codexAllowAll: getAgentHostSessionPermissionConfig('codex', 'full-access', false, true),
-			policyRestricted: getAgentHostSessionPermissionConfig('copilotcli', 'autoApprove', true, true),
-			unknownPermission: getAgentHostSessionPermissionConfig('codex', 'future', false, true),
+			copilotOptions: getAgentHostSessionPermissionOptions('copilotcli', false).map(option => ({ id: option.id, label: option.label, default: option.isDefault, allowAll: option.isAllowAll })),
+			claudeOptions: getAgentHostSessionPermissionOptions('claude', false).map(option => ({ id: option.id, label: option.label, default: option.isDefault, allowAll: option.isAllowAll })),
+			codexOptions: getAgentHostSessionPermissionOptions('codex', false).map(option => ({ id: option.id, label: option.label, default: option.isDefault, allowAll: option.isAllowAll })),
+			copilotDefault: getAgentHostSessionPermissionConfig('copilotcli', 'default', false),
+			copilotAllowAll: getAgentHostSessionPermissionConfig('copilotcli', 'autoApprove', false),
+			copilotAssisted: getAgentHostSessionPermissionConfig('copilotcli', 'assisted', false),
+			claudeAllowAll: getAgentHostSessionPermissionConfig('claude', 'bypassPermissions', false),
+			codexAllowAll: getAgentHostSessionPermissionConfig('codex', 'full-access', false),
+			policyRestricted: getAgentHostSessionPermissionConfig('copilotcli', 'autoApprove', true),
+			unknownPermission: getAgentHostSessionPermissionConfig('codex', 'future', false),
 		}, {
 			copilotOptions: [
 				{ id: 'default', label: 'Manual permissions', default: true, allowAll: undefined },
-				{ id: 'assisted', label: 'Assisted permissions', default: undefined, allowAll: undefined },
 				{ id: 'autoApprove', label: 'Allow all', default: undefined, allowAll: true },
 			],
 			claudeOptions: [
@@ -41,8 +40,8 @@ suite('AgentHostSessionPermissions', () => {
 				{ id: 'full-access', label: 'Full Access', default: undefined, allowAll: true },
 			],
 			copilotDefault: { mode: 'interactive', autoApprove: 'default' },
-			copilotAssisted: { mode: 'interactive', autoApprove: 'assisted' },
 			copilotAllowAll: { mode: 'autopilot', autoApprove: 'autoApprove' },
+			copilotAssisted: undefined,
 			claudeAllowAll: { permissionMode: 'bypassPermissions' },
 			codexAllowAll: { mode: 'interactive', 'codex.permissionsPreset': 'full-access' },
 			policyRestricted: undefined,

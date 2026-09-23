@@ -14,7 +14,7 @@ const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli';
 const policyLockedReason = () => localize('sessionComparison.permissions.policyLocked', "Disabled by your organization");
 
 /** Returns the exact permission choices owned by an Agent Host backend. */
-export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): readonly ISessionPermissionOption[] {
+export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean): readonly ISessionPermissionOption[] {
 	switch (agentProvider) {
 		case COPILOT_CLI_AGENT_PROVIDER_ID:
 			return [{
@@ -22,13 +22,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				label: localize('sessionComparison.permissions.copilot.default', "Manual permissions"),
 				description: localize('sessionComparison.permissions.copilot.defaultDescription', "Asks before running tools unless your configured approval settings allow them."),
 				isDefault: true,
-			}, ...(assistedPermissionsEnabled ? [{
-				id: 'assisted',
-				label: localize('sessionComparison.permissions.copilot.assisted', "Assisted permissions"),
-				description: localize('sessionComparison.permissions.copilot.assistedDescription', "An LLM judge evaluates tool calls and asks when it does not approve them."),
-				locked: policyRestricted,
-				lockedReason: policyRestricted ? policyLockedReason() : undefined,
-			}] : []), {
+			}, {
 				id: 'autoApprove',
 				label: localize('sessionComparison.permissions.copilot.allowAll', "Allow all"),
 				description: localize('sessionComparison.permissions.copilot.allowAllDescription', "Runs all tool calls without asking and continues until the task is done."),
@@ -92,8 +86,8 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 }
 
 /** Maps one advertised permission choice to the backend's native session configuration. */
-export function getAgentHostSessionPermissionConfig(agentProvider: string, permissionId: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): Record<string, unknown> | undefined {
-	const option = getAgentHostSessionPermissionOptions(agentProvider, policyRestricted, assistedPermissionsEnabled)
+export function getAgentHostSessionPermissionConfig(agentProvider: string, permissionId: string, policyRestricted: boolean): Record<string, unknown> | undefined {
+	const option = getAgentHostSessionPermissionOptions(agentProvider, policyRestricted)
 		.find(candidate => candidate.id === permissionId && !candidate.locked);
 	if (!option) {
 		return undefined;

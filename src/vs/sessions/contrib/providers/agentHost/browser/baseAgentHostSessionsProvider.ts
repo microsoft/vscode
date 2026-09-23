@@ -2982,7 +2982,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return getAgentHostSessionPermissionOptions(
 			sessionTypeId,
 			isAutoApprovePolicyRestricted(this._baseConfigurationService),
-			true,
 		);
 	}
 
@@ -3941,7 +3940,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				sessionType.id,
 				initialPermissionId,
 				isAutoApprovePolicyRestricted(this._baseConfigurationService),
-				true,
 			)
 			: undefined;
 		if (initialPermissionId && !permissionConfig) {
