@@ -1877,6 +1877,8 @@ suite('AgentHostProtocolClient', () => {
 
 	test('session plugin marketplace methods send VS Code extension requests', async () => {
 		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
 		const session = URI.parse('copilotcli:/session-1');
 		const snapshot = {
 			marketplaces: [{ name: 'company', source: 'GitHub: company/plugins', managed: true }],
@@ -1887,35 +1889,48 @@ suite('AgentHostProtocolClient', () => {
 		const snapshotPromise = client.getSessionPluginMarketplaceSnapshot(session);
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
-			id: 1,
+			id: 2,
 			method: GetSessionPluginMarketplaceSnapshotExtensionMethod,
 			params: { session: session.toString() },
 		});
-		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: snapshot });
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: snapshot });
 
 		const refreshPromise = client.refreshSessionPluginMarketplaces(session, 'company');
 		assert.deepStrictEqual(transport.sentMessages[1], {
 			jsonrpc: '2.0',
-			id: 2,
+			id: 3,
 			method: RefreshSessionPluginMarketplacesExtensionMethod,
 			params: { session: session.toString(), marketplace: 'company' },
 		});
-		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: snapshot });
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: snapshot });
 
 		const installPromise = client.installSessionPlugin(session, 'review@company');
 		assert.deepStrictEqual(transport.sentMessages[2], {
 			jsonrpc: '2.0',
-			id: 3,
+			id: 4,
 			method: InstallSessionPluginExtensionMethod,
 			params: { session: session.toString(), source: 'review@company' },
 		});
-		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: { postInstallMessage: 'Configure the review plugin.' } });
+		transport.fireMessage({ jsonrpc: '2.0', id: 4, result: { postInstallMessage: 'Configure the review plugin.' } });
 
 		assert.deepStrictEqual(await Promise.all([snapshotPromise, refreshPromise, installPromise]), [
 			snapshot,
 			snapshot,
 			{ postInstallMessage: 'Configure the review plugin.' },
 		]);
+	});
+
+	test('session plugin marketplace methods do not send requests without the advertised capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false));
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Host does not support session plugin marketplaces' };
+
+		await assertRemoteProtocolError(client.getSessionPluginMarketplaceSnapshot(session), error);
+		await assertRemoteProtocolError(client.refreshSessionPluginMarketplaces(session), error);
+		await assertRemoteProtocolError(client.installSessionPlugin(session, 'review@company'), error);
+		assert.deepStrictEqual(transport.sentMessages, []);
 	});
 
 	test('getSessionStateFile maps the returned host resource', async () => {

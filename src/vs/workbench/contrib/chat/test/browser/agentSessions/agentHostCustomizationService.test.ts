@@ -16,6 +16,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -216,7 +218,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const target = new FakeTarget([]);
 		target.getPluginMarketplaceSnapshot = () => Promise.reject(new Error('Method not found: vscode/sessionPluginMarketplaces/snapshot'));
-		target.refreshPluginMarketplaces = () => Promise.reject(new Error('Method not found: vscode/sessionPluginMarketplaces/refresh'));
+		target.refreshPluginMarketplaces = () => Promise.reject(new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Provider test does not support live-session plugin marketplaces'));
 		sut.setTarget(session, target);
 
 		assert.deepStrictEqual({

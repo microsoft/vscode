@@ -14,6 +14,9 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { supportsAgentHostSessionPluginMarketplaces } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
@@ -616,7 +619,8 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const channel = target.backendSession.toString();
 		const supportsPluginMarketplaces = target.connection.getSessionPluginMarketplaceSnapshot !== undefined
 			&& target.connection.refreshSessionPluginMarketplaces !== undefined
-			&& target.connection.installSessionPlugin !== undefined;
+			&& target.connection.installSessionPlugin !== undefined
+			&& supportsAgentHostSessionPluginMarketplaces(target.connection.initializeResult.get());
 		return {
 			customizations: sessionState?.customizations ?? [],
 			resourceUris: target.connection.resourceUris,
@@ -762,7 +766,9 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 }
 
 function isUnsupportedPluginMarketplaceOperation(error: unknown): boolean {
-	return /^Method not found\b/i.test(getErrorMessage(error));
+	return error instanceof ProtocolError
+		? error.code === JsonRpcErrorCodes.MethodNotFound
+		: /^Method not found\b/i.test(getErrorMessage(error));
 }
 
 registerSingleton(IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService, InstantiationType.Delayed);
