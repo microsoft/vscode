@@ -19,7 +19,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
-import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -2148,7 +2148,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/** Working-directory key of the session folder, the main chat's first folder. */
-	private _getSessionFolderKey(reader: IReader): string | undefined {
+	private _getSessionFolderKey(reader: IReader | undefined): string | undefined {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
 		const defaultChatWorkingDirectory = this._defaultChatWorkingDirectories.read(reader)?.[0];
@@ -2156,6 +2156,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return defaultChatWorkingDirectory !== undefined
 			? getWorkingDirectoryKey(defaultChatWorkingDirectory)
 			: sessionWorkingDirectory ? toFolderGitHubKey(sessionWorkingDirectory) : undefined;
+	}
+
+	/**
+	 * Working-directory keys of the folder `chat` works in — its first folder,
+	 * or the session folder for the main chat or when omitted — and of the
+	 * session folder. Each folder has its own Agent Merge state.
+	 */
+	getAgentMergeFolderKeys(chat: URI | undefined): { readonly folderKey: string | undefined; readonly sessionFolderKey: string | undefined } {
+		const sessionFolderKey = this._getSessionFolderKey(undefined);
+		const folder = chat && !isEqual(chat, this._defaultChat.resource)
+			? this._chatsObs.get().find(candidate => isEqual(candidate.resource, chat))?.workspace.get()?.folders[0]
+			: undefined;
+		return { folderKey: folder ? toFolderGitHubKey(folder.workingDirectory) : sessionFolderKey, sessionFolderKey };
 	}
 
 	/** Resolves the GitHub info each session folder reports from its own state. */
@@ -4606,7 +4619,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				nextValues[key] = runningConfig.values[key];
 			}
 		}
-		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeController]) {
+		// Client-owned Agent Merge settings carry over; the host keeps its own state.
+		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeFolders]) {
 			if (Object.hasOwn(runningConfig.values, key)) {
 				nextValues[key] = runningConfig.values[key];
 			}
@@ -4640,12 +4654,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined {
-		return readAgentMergeSessionState(this._lastSessionStates.get(sessionId)?.config?.values);
+	getAgentMergeSessionState(sessionId: string, chat?: URI): AgentMergeSessionState | undefined {
+		const values = this._lastSessionStates.get(sessionId)?.config?.values;
+		const keys = this._getAgentMergeFolderKeys(sessionId, chat);
+		return keys ? readAgentMergeFolderState(values, keys.folderKey, keys.sessionFolderKey) : readAgentMergeSessionState(values);
 	}
 
-	getAgentMergeClientStateObservable(sessionId: string): IObservable<IAgentMergeClientState | undefined> {
-		const existing = this._agentMergeSessionStateObservables.get(sessionId);
+	getAgentMergeClientStateObservable(sessionId: string, chat?: URI): IObservable<IAgentMergeClientState | undefined> {
+		const cacheKey = chat ? `${sessionId}\u0001${chat.toString()}` : sessionId;
+		const existing = this._agentMergeSessionStateObservables.get(cacheKey);
 		if (existing) {
 			return existing;
 		}
@@ -4661,38 +4678,57 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			});
 		};
 		const observable = observableFromEvent(this, observedEvent, () => {
-			const state = this.getAgentMergeSessionState(sessionId);
+			const state = this.getAgentMergeSessionState(sessionId, chat);
 			return state ? { enabled: state.enabled, overrides: state.overrides } : undefined;
 		});
-		this._agentMergeSessionStateObservables.set(sessionId, observable);
+		this._agentMergeSessionStateObservables.set(cacheKey, observable);
 		return observable;
 	}
 
-	async setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void> {
-		const current = this.getAgentMergeSessionState(sessionId);
-		await this._writeAgentMergeClientState(sessionId, enabled, current?.overrides);
+	async setAgentMergeEnabled(sessionId: string, enabled: boolean, chat?: URI): Promise<void> {
+		const current = this.getAgentMergeSessionState(sessionId, chat);
+		await this._writeAgentMergeClientState(sessionId, enabled, current?.overrides, chat);
 	}
 
-	async setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void> {
-		const current = this.getAgentMergeSessionState(sessionId);
-		await this._writeAgentMergeClientState(sessionId, current?.enabled ?? false, overrides);
+	async setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined, chat?: URI): Promise<void> {
+		const current = this.getAgentMergeSessionState(sessionId, chat);
+		await this._writeAgentMergeClientState(sessionId, current?.enabled ?? false, overrides, chat);
 	}
 
-	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined): Promise<void> {
+	/** The Agent Merge folder of `chat` (the session folder when omitted), or `undefined` before the session is known. */
+	private _getAgentMergeFolderKeys(sessionId: string, chat: URI | undefined): { readonly folderKey: string | undefined; readonly sessionFolderKey: string | undefined } | undefined {
+		const rawId = this._rawIdFromChatId(sessionId);
+		return rawId ? this._sessionCache.get(rawId)?.getAgentMergeFolderKeys(chat) : undefined;
+	}
+
+	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined): Promise<void> {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (!rawId || !cached || !connection) {
 			throw new Error(`[${this.id}] Cannot update Agent Merge state without a running session connection`);
 		}
+		const values = this._lastSessionStates.get(sessionId)?.config?.values;
+		const { folderKey, sessionFolderKey } = cached.getAgentMergeFolderKeys(chat);
+		const clientState = { enabled, ...(overrides ? { overrides } : {}) };
+		// Settings written by earlier versions describe the session folder until the host migrates them.
+		if (folderKey === undefined || (folderKey === sessionFolderKey && values?.[SessionConfigKey.AgentMerge] !== undefined)) {
+			connection.dispatch(cached.backendUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AgentMerge]: clientState },
+			});
+			return;
+		}
+		// Only the folder entries are client-owned; record the chat that turned Agent Merge on.
+		const folders: Record<string, unknown> = {};
+		for (const [key, state] of readAgentMergeFolderStates(values, undefined)) {
+			folders[key] = { enabled: state.enabled, ...(state.overrides ? { overrides: state.overrides } : {}), ...(state.chat ? { chat: state.chat } : {}) };
+		}
+		const owningChat = (chat && this.getBackendChatResource(chat)?.toString()) ?? readAgentMergeFolderState(values, folderKey, sessionFolderKey)?.chat;
+		folders[folderKey] = { ...clientState, ...(owningChat ? { chat: owningChat } : {}) };
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionConfigChanged,
-			config: {
-				[SessionConfigKey.AgentMerge]: {
-					enabled,
-					...(overrides ? { overrides } : {}),
-				},
-			},
+			config: { [SessionConfigKey.AgentMergeFolders]: folders },
 		});
 	}
 
@@ -6233,9 +6269,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		const previousAgentMerge = readAgentMergeSessionState(previous?.config?.values);
-		const currentAgentMerge = readAgentMergeSessionState(state.config?.values);
-		if (previousAgentMerge?.enabled !== currentAgentMerge?.enabled || !structuralEquals(previousAgentMerge?.overrides, currentAgentMerge?.overrides)) {
+		// Any folder's Agent Merge settings, including those written by earlier versions.
+		const agentMergeSettings = (values: Record<string, unknown> | undefined) => [...readAgentMergeFolderStates(values, '').entries()]
+			.map(([key, folderState]) => ({ key, enabled: folderState.enabled, overrides: folderState.overrides }));
+		if (!structuralEquals(agentMergeSettings(previous?.config?.values), agentMergeSettings(state.config?.values))) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
 		}
 		// Only fire when the inputs to `getCustomAgents` actually change.

@@ -31,6 +31,7 @@ import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagen
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getWorkingDirectoryKey } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -6585,6 +6586,55 @@ suite('LocalAgentHostSessionsProvider', () => {
 					peerChat: [peerDirectory.toString()],
 					inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
 				});
+			});
+		});
+
+		test('Agent Merge settings are per folder: a peer chat writes its own folder while the session folder keeps earlier settings', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const session = setupMultiChatSession(provider, 'multi-agent-merge', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-agent-merge').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const peerFolderKey = getWorkingDirectoryKey(peerDirectory.toString());
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('multi-agent-merge', 'copilotcli', {
+				...makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+				], { defaultChat }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			// Written by an earlier version, so it describes the session folder.
+			setConfigValues({ [SessionConfigKey.AgentMerge]: { enabled: true } });
+			const mainChat = session.mainChat.get();
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.ok(peer);
+			const readEnabled = () => ({
+				session: provider.getAgentMergeSessionState(session.sessionId)?.enabled,
+				mainChat: provider.getAgentMergeSessionState(session.sessionId, mainChat.resource)?.enabled,
+				peerChat: provider.getAgentMergeSessionState(session.sessionId, peer.resource)?.enabled,
+				peerChatObservable: provider.getAgentMergeClientStateObservable(session.sessionId, peer.resource).get()?.enabled,
+			});
+			const before = readEnabled();
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, peer.resource);
+			await provider.setAgentMergeEnabled(session.sessionId, false, mainChat.resource);
+			const writes = agentHost.dispatchedActions.slice(dispatchCount).map(({ channel, action }) => ({ channel, action }));
+
+			setConfigValues({
+				[SessionConfigKey.AgentMerge]: { enabled: false },
+				[SessionConfigKey.AgentMergeFolders]: { [peerFolderKey]: { enabled: true, chat: peerChat } },
+			});
+
+			assert.deepStrictEqual({ before, writes, after: readEnabled() }, {
+				before: { session: true, mainChat: true, peerChat: undefined, peerChatObservable: undefined },
+				writes: [
+					{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMergeFolders]: { [peerFolderKey]: { enabled: true, chat: peerChat } } } } },
+					{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMerge]: { enabled: false } } } },
+				],
+				after: { session: false, mainChat: false, peerChat: true, peerChatObservable: true },
 			});
 		});
 
