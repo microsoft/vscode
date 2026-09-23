@@ -177,7 +177,6 @@ export class TabbedModelPicker extends Disposable {
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
 			contextViewLayer: this._contextViewLayer,
 			showCheckedItemHover: !this._selectedFooterModel(context),
-			showCheckedItemHover: !this._selectedFooterModel(context),
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			widgetClassNames: () => [

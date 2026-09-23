@@ -19,7 +19,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
-import { IAgentHostOTelService, IAgentHostTraceContext, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -196,19 +196,6 @@ export function createTestAgentService(
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
-	services.set(IAgentHostOTelService, {
-		_serviceBrand: undefined,
-		getSdkTelemetryConfig: async () => undefined,
-		getNativeSdkTelemetryConfig: async () => undefined,
-		getSessionTraceContext: () => undefined,
-		setSessionComparisonMetadata: () => { },
-		releaseSessionTraceContext: () => { },
-		withTraceContext: <T>(_context: IAgentHostTraceContext | undefined, fn: () => T): T => fn(),
-		getCurrentTraceContext: () => undefined,
-		getSpansDbPath: () => undefined,
-		emitSessionTitleChanged: () => { },
-		flush: async () => { },
-	});
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));

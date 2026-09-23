@@ -124,7 +124,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		const attemptParticipants = allAttemptParticipants.filter(participant => participant.sessionResource);
 		const attempts = attemptParticipants.map(participant => {
 			const session = this.sessionsManagementService.getSession(participant.sessionResource!);
-			const changes = session?.changes.get() ?? [];
+			const changes = session?.mainChat.get().changes.get() ?? [];
 			const changedFiles = changes.slice(0, 200).map(change => ({
 				resource: (isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri).toString(),
 				insertions: change.insertions,

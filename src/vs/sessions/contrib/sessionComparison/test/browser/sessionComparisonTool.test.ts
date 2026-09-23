@@ -700,6 +700,11 @@ function stubComparison(): ISessionComparison {
 function stubAttemptSession(): ISession {
 	const chat = upcastPartial<IChat>({
 		resource: attemptChatResource,
+		changes: constObservable([{
+			uri: URI.file('/workspace/src/example.ts'),
+			insertions: 3,
+			deletions: 1,
+		}]),
 	});
 	return upcastPartial<ISession>({
 		resource: attemptResource,
@@ -715,11 +720,6 @@ function stubAttemptSession(): ISession {
 			}],
 		})),
 		changesSummary: constObservable({ files: 1, additions: 3, deletions: 1 }),
-		changes: constObservable([{
-			uri: URI.file('/workspace/src/example.ts'),
-			insertions: 3,
-			deletions: 1,
-		}]),
 	});
 }
 

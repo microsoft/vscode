@@ -118,6 +118,7 @@ export const NullAgentHostOTelService: IAgentHostOTelService = {
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
 	releaseSessionTraceContext: () => { },
 	withTraceContext: (_context, fn) => fn(),
 	getCurrentTraceContext: () => undefined,
