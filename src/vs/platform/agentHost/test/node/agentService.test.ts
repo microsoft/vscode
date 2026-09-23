@@ -35,14 +35,14 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
-import { IAgentHostGitStateService, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -63,7 +63,7 @@ import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -1305,7 +1305,8 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			const svc = createService();
 			registerTestAgentProvider(svc, copilotAgent);
-			const session = await svc.createSession({ provider: 'copilot' });
+			const sessionFolder = URI.file('/repo').toString();
+			const session = await svc.createSession({ provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 			const sessionKey = session.toString();
 			const { _gitStateService: gitStateService } = svc as unknown as { _gitStateService: IAgentHostGitStateService };
 			const stateManager = getStateManager(svc);
@@ -1317,15 +1318,15 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			await initialChanged;
 			await svc.whenCatalogReconciliationIdle();
-			const before = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta);
+			const before = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta, sessionFolder);
 
 			const restrictedChanged = Event.toPromise(stateManager.onDidChangeSessionSummary);
+			// Switching to restricted mode reconciles every session's pull requests.
 			getConfigurationService(svc).updateRootConfig({ [AgentHostAutoAttachPullRequestsConfigKey]: false });
-			await gitStateService.attachSessionGitHubPullRequest(sessionKey, undefined);
 			await restrictedChanged;
 			await svc.whenCatalogReconciliationIdle();
-			const central = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta);
-			const legacy = await database.getMetadata(META_GITHUB_STATE);
+			const central = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta, sessionFolder);
+			const legacy = await database.getMetadata(META_GITHUB_DATA_STATE);
 			const restarted = createService();
 			await restarted.whenCatalogReconciliationIdle();
 			databaseOpens = 0;
@@ -1335,11 +1336,11 @@ suite('AgentService (node dispatcher)', () => {
 				originalLinks: before?.pullRequestUrls,
 				legacy: JSON.parse(legacy!),
 				central,
-				restarted: readSessionGitHubState(listed._meta),
+				restarted: readSessionGitHubState(listed._meta, sessionFolder),
 				databaseOpens,
 			}, {
 				originalLinks: ['https://github.com/microsoft/vscode/pull/42'],
-				legacy: { owner: 'microsoft', repo: 'vscode' },
+				legacy: { [getWorkingDirectoryKey(sessionFolder)]: { owner: 'microsoft', repo: 'vscode' } },
 				central: { owner: 'microsoft', repo: 'vscode' },
 				restarted: { owner: 'microsoft', repo: 'vscode' },
 				databaseOpens: 0,
@@ -2341,13 +2342,15 @@ suite('AgentService (node dispatcher)', () => {
 			_meta: { multiRoot: override },
 		});
 
+		const sessionFolder = URI.file('/workspace/one').toString();
 		assert.deepStrictEqual({
 			state: getStateManager(localService).getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
-			github: readSessionGitHubState(getStateManager(localService).getSessionState(session.toString())?._meta),
+			github: readSessionGitHubState(getStateManager(localService).getSessionState(session.toString())?._meta, sessionFolder),
 			overridden: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(overridden.toString())?._meta),
 		}, {
-			state: { github, multiRoot },
+			// The client's single GitHub state seeds the session folder.
+			state: { [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot },
 			persisted: JSON.stringify(override),
 			github,
 			overridden: override,
@@ -2620,8 +2623,10 @@ suite('AgentService (node dispatcher)', () => {
 		});
 		const before = readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta);
 		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
-		const githubBefore = readSessionGitHubState(getStateManager(localService).getSessionState(session.toString())?._meta);
-		const persistedGitHubBefore = await db.getMetadata(META_GITHUB_STATE);
+		const requestedFolder = URI.file('/work/one').toString();
+		const materializedFolder = URI.file('/work/materialized').toString();
+		const githubBefore = readSessionGitHubState(getStateManager(localService).getSessionState(session.toString())?._meta, requestedFolder);
+		const persistedGitHubBefore = await db.getMetadata(META_GITHUB_DATA_STATE);
 
 		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
 		await localService.whenCatalogReconciliationIdle();
@@ -2633,8 +2638,8 @@ suite('AgentService (node dispatcher)', () => {
 			persistedGitHubBefore,
 			after: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(session.toString())?._meta),
 			persistedAfter: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
-			githubAfter: readSessionGitHubState(getStateManager(localService).getSessionState(session.toString())?._meta),
-			persistedGitHubAfter: await db.getMetadata(META_GITHUB_STATE),
+			githubAfter: readSessionGitHubData(getStateManager(localService).getSessionState(session.toString())?._meta),
+			persistedGitHubAfter: await db.getMetadata(META_GITHUB_DATA_STATE),
 		}, {
 			before: multiRoot,
 			persistedBefore: undefined,
@@ -2642,8 +2647,9 @@ suite('AgentService (node dispatcher)', () => {
 			persistedGitHubBefore: undefined,
 			after: multiRoot,
 			persistedAfter: JSON.stringify(multiRoot),
-			githubAfter: github,
-			persistedGitHubAfter: JSON.stringify(github),
+			// The session folder's state moves with its checkout.
+			githubAfter: new Map([[getWorkingDirectoryKey(materializedFolder), github]]),
+			persistedGitHubAfter: JSON.stringify({ [getWorkingDirectoryKey(materializedFolder)]: github }),
 		});
 	});
 
@@ -4983,6 +4989,35 @@ suite('AgentService (node dispatcher)', () => {
 				session: session.toString(),
 				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'],
 				action: 'delete',
+			}]);
+		});
+
+		test('enumerates sessions whose pull requests belong to any folder', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.UTC(2026, 8, 5);
+			const session = AgentSession.uri('copilot', 'other-folder-pr');
+			await registry.register(session, {
+				provider: 'copilot',
+				startTime: now - 10 * 24 * 60 * 60 * 1000,
+				modifiedTime: now - 8 * 24 * 60 * 60 * 1000,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			await perSession.database(session).setMetadata(META_GITHUB_DATA_STATE, JSON.stringify({
+				[getWorkingDirectoryKey('file:///other')]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'] },
+			}));
+
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined);
+
+			assert.deepStrictEqual(candidates.map(candidate => ({
+				session: candidate.session.toString(),
+				pullRequestUrls: candidate.pullRequestUrls,
+				action: candidate.action,
+			})), [{
+				session: session.toString(),
+				pullRequestUrls: ['https://github.com/contoso/tools/pull/7'],
+				action: 'archive',
 			}]);
 		});
 
@@ -8927,7 +8962,7 @@ suite('AgentService (node dispatcher)', () => {
 					_catalogReconciliationService: { runFullPass(): Promise<{ readonly outcomes: readonly { readonly status: string }[] }> };
 				})._catalogReconciliationService.runFullPass();
 				const data = catalogDataOf(await database.getSessionV2(session.toString()));
-				const { multiRoot: _multiRoot, ...centralMetaWithoutMultiRoot } = centralMeta;
+				const { multiRoot: _multiRoot, github: centralGitHub, ...centralMetaWithoutMultiRoot } = centralMeta;
 
 				assert.deepStrictEqual({
 					outcomes: report.outcomes.map(outcome => outcome.status),
@@ -8950,6 +8985,8 @@ suite('AgentService (node dispatcher)', () => {
 					changes: { files: 3, additions: 4, deletions: 1 },
 					meta: {
 						...centralMetaWithoutMultiRoot,
+						// The payload's original single-folder state moves to the session folder.
+						[SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(URI.file('/provider/workspace').toString())]: centralGitHub },
 						git: { hasGitHubRemote: false, branchName: 'provider-refresh' },
 					},
 					chats: [
@@ -14365,6 +14402,34 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionSourceControlState(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), sourceControlState);
 		});
 
+		test('migrates the original single-folder GitHub state to the session folder on restore', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			await createAgentSession(copilotAgent);
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			const sessionFolder = URI.file('/repo');
+			copilotAgent.sessionMetadataOverrides = { workingDirectories: [sessionFolder] };
+			const legacy = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' };
+			const otherFolder = { [getWorkingDirectoryKey('file:///other')]: { owner: 'contoso', repo: 'tools' } };
+			await db.setMetadata(META_GITHUB_STATE, JSON.stringify(legacy));
+			await db.setMetadata(META_GITHUB_DATA_STATE, JSON.stringify(otherFolder));
+
+			await localService.restoreSession(sessionResource);
+
+			const migrated = { ...otherFolder, [getWorkingDirectoryKey(sessionFolder.toString())]: legacy };
+			assert.deepStrictEqual({
+				state: Object.fromEntries(readSessionGitHubData(getStateManager(localService).getSessionState(sessionResource.toString())?._meta)),
+				persisted: JSON.parse(await db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'),
+				persistedLegacy: await db.getMetadata(META_GITHUB_STATE),
+			}, {
+				state: migrated,
+				persisted: migrated,
+				persistedLegacy: undefined,
+			});
+		});
+
 		test('restores a session with message history', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
@@ -15253,7 +15318,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, () => true);
 			await validationStarted.p;
 
-			const rejected = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			const rejected = Event.toPromise(Event.filter(stateManager.onDidRejectClientAction, envelope =>
 				envelope.action.type === ActionType.SessionIsArchivedChanged && envelope.rejectionReason !== undefined));
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
 			finishValidation.complete();
