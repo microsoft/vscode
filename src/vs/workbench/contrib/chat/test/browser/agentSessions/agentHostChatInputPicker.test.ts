@@ -240,13 +240,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				override readonly sessionResource = sessionResource;
 			}();
 			for (const picker of [modePicker, permissionPicker]) {
-				const sub = store.add(new class extends mock<IAgentSubscription<SessionState>>() {
+				const sub = new class extends mock<IAgentSubscription<SessionState>>() {
 					override readonly value = new class extends mock<SessionState>() {
 						override readonly provider = backendSession.scheme;
 						override readonly config = config;
 					}();
-					override dispose(): void { }
-				}());
+				}();
 				picker['_initialResolved'] = undefined;
 				picker['_subRef'].value = Object.assign(toDisposable(() => { }), {
 					sessionResource, backendSession, connection: host, generation: picker['_sessionGeneration'], sub,
