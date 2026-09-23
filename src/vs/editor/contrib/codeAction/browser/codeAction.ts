@@ -114,6 +114,7 @@ export async function getCodeActions(
 	const codeActionContext: languages.CodeActionContext = {
 		only: filter.include?.value,
 		trigger: trigger.type,
+		diagnostics: trigger.diagnostics,
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
