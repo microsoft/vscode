@@ -40,11 +40,14 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 		if (!welcomePage) {
 			return undefined;
 		}
+		if (!welcomePage.isDiscover && this.type === AccessibleViewType.View) {
+			return undefined;
+		}
 		const focused = DOM.getActiveElement();
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.CustomizationDiscovery,
 			{ type: this.type, language: 'plaintext' },
-			() => this.type === AccessibleViewType.Help ? [
+			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover ? [
 				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. The search filter menu updates the same query and filters can be combined."),
@@ -58,6 +61,10 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry action above the results. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
 				localize('customizationDiscovery.help.sourceRecovery', "A source that needs sign-in shows a Sign In action, not a warning. Sign-in starts only when you choose it; cancelling keeps the other results available."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
+			].join('\n\n') : [
+				localize('customizationOverview.help.overview', "The Customizations overview shows categories you can open to manage agents, skills, MCP servers, plugins, and other customizations."),
+				localize('customizationOverview.help.navigation', "Use Tab and Shift+Tab to navigate the category cards, and Enter or Space to open a category."),
+				localize('customizationOverview.help.migrations', "When customizations need migration, choose Review Customization Migrations to see what will change."),
 			].join('\n\n') : welcomePage.getAccessibilityContent(),
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : welcomePage.focus(),
 			AccessibilityVerbositySettingId.CustomizationDiscovery,

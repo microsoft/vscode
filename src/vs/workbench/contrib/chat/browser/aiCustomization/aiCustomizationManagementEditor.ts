@@ -990,6 +990,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
+				this.updateHomeButtonHarnessPresentation();
+			}
 			if (this.allSections.some(section => {
 				const settings = aiCustomizationManagementSectionRegistry.get(section.id, this.harnessService.activeHarness.get())?.enablementSettings;
 				return settings?.some(setting => e.affectsConfiguration(setting));
@@ -1037,15 +1040,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Discover button
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
 		homeButton.classList.add('sidebar-harness-home-button');
-		homeButton.setAttribute('aria-label', localize('homeButton', "Discover"));
-		const homeButtonTooltip = localize('homeButtonTooltip', "Back to Discover");
+		const homeButtonTooltip = localize('homeButtonTooltip', "Back to Customizations");
 		homeButton.title = homeButtonTooltip;
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, homeButtonTooltip));
 		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
-		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
-		homeLabel.textContent = localize('homeButtonLabel', "Discover");
+		this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
 		}));
@@ -1071,6 +1072,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.homeButtonIcon.className = 'sidebar-home-icon';
 		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
+		const label = this.welcomePage?.isDiscover
+			? localize('homeButtonLabel', "Discover")
+			: localize('overviewButtonLabel', "Overview");
+		this.homeButton.setAttribute('aria-label', label);
+		this.homeButtonLabel.textContent = label;
 	}
 
 	private createSidebarMigrationShortcut(sidebarContent: HTMLElement): void {
@@ -1152,6 +1158,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		));
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 		this.welcomePage.setMigrationCategories(this.getMigrationCategorySummaries());
+		this.updateHomeButtonHarnessPresentation();
 	}
 
 	private createBackArrowButton(
