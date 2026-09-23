@@ -447,7 +447,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			}, {
 				state: 'Available customizations could not be fully loaded. Retry an unavailable source.',
 				retries: [
-					'Retry Public Feed. Reload all sources from the first page.',
+					'Retry Public GitHub Feed. Reload all sources from the first page.',
 					'Retry Copilot Connectors. Reload all sources from the first page.',
 				],
 				accessibleErrors: [true, true],

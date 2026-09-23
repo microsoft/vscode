@@ -21,6 +21,14 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 suite('CustomizationMarketplaceIpc', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('identifies the public source without exposing the backend name', () => {
+		assert.deepStrictEqual(CustomizationMarketplaceSources.AgentFinderPublicFeed, {
+			id: 'agentFinder',
+			displayName: 'Public GitHub Feed',
+			enablementSetting: 'chat.customizations.marketplace.sources.publicGitHubFeed.enabled',
+		});
+	});
+
 	function createClient(service: ICustomizationMarketplaceQueryService, sources: readonly ICustomizationMarketplaceSourceInfo[] = [{ id: 'agentFinder', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled }]): CustomizationMarketplaceChannelClient {
 		const server = new CustomizationMarketplaceChannel(() => service);
 		const channel: IChannel = {
@@ -73,6 +81,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled,
 				'chat.agentFinder.enabled': true,
 				'chat.customizations.unifiedMarketplace.enabled': true,
+				'chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled': true,
 			});
 			disposables.add(configuration.onDidChangeConfigurationEmitter);
 			const client = new CustomizationMarketplaceChannelClient(channel, configuration);
