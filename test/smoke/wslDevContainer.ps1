@@ -131,7 +131,7 @@ function Write-WslDiagnostics([datetime] $ImportStartTime, [string] $InstallPath
 	Write-DiagnosticSection 'Available WSL event logs' {
 		if ($wslEventLogs.Count) { $wslEventLogs } else { 'No Lxss event logs available.' }
 	}
-	foreach ($eventLogName in @($wslEventLogs + @('Microsoft-Windows-Host-Compute-Service/Admin', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin', 'Microsoft-Windows-Hyper-V-VMMS/Admin') | Select-Object -Unique)) {
+	foreach ($eventLogName in @($wslEventLogs + @('Microsoft-Windows-Host-Compute-Service-Admin', 'Microsoft-Windows-Hyper-V-Compute-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin', 'Microsoft-Windows-Hyper-V-VMMS-Admin') | Select-Object -Unique)) {
 		$action = {
 			Get-WinEvent -FilterHashtable @{ LogName = $eventLogName; StartTime = $eventStartTime; EndTime = $eventEndTime } -MaxEvents 20 -ErrorAction Stop |
 				Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-List
