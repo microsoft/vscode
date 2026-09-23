@@ -90,7 +90,7 @@ suite('NewChatMigrationNotice', () => {
 				.map(type => ({ type, count: 1 }));
 			const count = counts.length;
 			return count > 0 ? {
-				hintId: 'hint',
+				migrationFlowId: 'hint',
 				message: count === 1
 					? '1 agent customization needs an update to keep working.'
 					: `${count} agent customizations need an update to keep working.`,
@@ -123,7 +123,7 @@ suite('NewChatMigrationNotice', () => {
 	test('shows a computed migration hint and opens the migration overview with the keyboard', async () => {
 		const env = setup([CustomizationMigrationType.PromptFiles, CustomizationMigrationType.UserData, CustomizationMigrationType.McpServers]);
 		const hint: ICustomizationMigrationHint = {
-			hintId: 'hint',
+			migrationFlowId: 'hint',
 			message: '3 workspace and 1 user customizations need an update to keep working.',
 			counts: [
 				{ type: CustomizationMigrationType.PromptFiles, count: 2 },
@@ -202,7 +202,7 @@ suite('NewChatMigrationNotice', () => {
 		env.session.set(createSession('two'), undefined);
 		await timeout(0);
 		await pending.complete({
-			hintId: 'stale',
+			migrationFlowId: 'stale',
 			message: '1 agent customization needs an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
