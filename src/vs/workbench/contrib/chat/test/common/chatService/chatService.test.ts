@@ -62,7 +62,7 @@ import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '..
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
@@ -2463,18 +2463,18 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		const migrationHint = {
+			hintId: 'hint-id',
 			message: 'Found 3 customization files that could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
 		migrationService.computeMigrationHint.resolves(migrationHint);
 		const migrationTelemetry: Record<string, unknown>[] = [];
 		instantiationService.stub(ICustomizationMigrationTelemetryService, {
 			_serviceBrand: undefined,
-			hintComputed(counts): void {
-				migrationTelemetry.push(...counts.map(({ type, count }) => ({ action: 'assessment', category: type, count })));
+			hintComputed(hint): void {
+				migrationTelemetry.push(...hint.counts.map(({ type, count }) => ({ action: 'assessment', hintId: hint.hintId, category: type, count })));
 			},
-			hintShown(target): void { migrationTelemetry.push({ action: 'hintShown', target }); },
+			hintShown(hint): void { migrationTelemetry.push({ action: 'hintShown', hintId: hint.hintId, count: hint.counts.reduce((total, value) => total + value.count, 0) }); },
 			hintClicked(): void { },
 			pageShown(): void { },
 			actionClicked(): void { },
@@ -2553,8 +2553,8 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHintTarget%2522%253A%2522fileMigrations%2522%257D%255D "Open Chat Customizations")`;
-		const expectedDismissLink = `[Hide for this workspace](command:aiCustomization.dismissMigrationHint?%255B%257B%2522target%2522%253A%2522fileMigrations%2522%257D%255D "Stop Showing Migration Hints for This Harness")`;
+		const expectedReviewLink = `[Review Migrations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%252C%2522migrationHint%2522%253A%257B%2522hintId%2522%253A%2522hint-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Open Chat Customizations")`;
+		const expectedDismissLink = `[Don't Show Again](command:aiCustomization.dismissMigrationHint?%255B%257B%2522hint%2522%253A%257B%2522hintId%2522%253A%2522hint-id%2522%252C%2522message%2522%253A%2522Found%25203%2520customization%2520files%2520that%2520could%2520be%2520migrated.%2522%252C%2522counts%2522%253A%255B%257B%2522type%2522%253A%2522promptFiles%2522%252C%2522count%2522%253A3%257D%255D%257D%257D%255D "Do not show this migration hint again for this harness in this workspace")`;
 		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | ${expectedDismissLink}*`;
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
@@ -2571,12 +2571,12 @@ suite('ChatService', () => {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ action: 'assessment', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', target: 'fileMigrations' },
-				{ action: 'assessment', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', target: 'fileMigrations' },
-				{ action: 'assessment', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', target: 'fileMigrations' },
+				{ action: 'assessment', hintId: 'hint-id', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', hintId: 'hint-id', count: 3 },
+				{ action: 'assessment', hintId: 'hint-id', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', hintId: 'hint-id', count: 3 },
+				{ action: 'assessment', hintId: 'hint-id', category: 'promptFiles', count: 3 },
+				{ action: 'hintShown', hintId: 'hint-id', count: 3 },
 			],
 			neverHint: [],
 			firstHint: [expectedHint],
@@ -2593,8 +2593,8 @@ suite('ChatService', () => {
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		migrationService.computeMigrationHint.resolves({
+			hintId: 'hint-id',
 			message: 'Found customization files that could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 

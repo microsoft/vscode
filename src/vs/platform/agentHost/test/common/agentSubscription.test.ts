@@ -11,10 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 
 // Helpers
 
@@ -87,6 +89,23 @@ const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
 const automationUri = 'ahp-automation:/test-automation';
 const automationRunUri = 'ahp-automation-run:/test-run';
+
+suite('resolveAgentHostSession', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves peer chats and folder changeset owners to their containing session', () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder');
+
+		assert.deepStrictEqual({
+			peer: resolveAgentHostSession(URI.parse(peer)).toString(),
+			folder: resolveAgentHostSession(URI.parse(folderOwner)).toString(),
+		}, {
+			peer: sessionUri,
+			folder: sessionUri,
+		});
+	});
+});
 
 function makeAutomationCatalogState(): AutomationState {
 	return { entries: [] };

@@ -3597,39 +3597,69 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
-		const result = await this._getMappedEvents();
+		const result = await this._getMappedEvents('all');
 		const turns = result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
 		return turns;
 	}
 
-	/**
-	 * Memoized `getEvents()` + {@link mapSessionEvents} result, shared by
-	 * {@link getMessages} and {@link getSubagentMessages}. A single session open reads and
-	 * reconstructs the full parent event log once instead of once per
-	 * subagent. The memo is scoped to the resume/restore wave: it is dropped
-	 * whenever the persisted event log could change (see
-	 * {@link _invalidateMappedEvents}) and on dispose, so it never serves
-	 * stale turns for an actively-running session.
-	 */
-	private _mappedEventsMemo: Promise<IMappedSessionEvents> | undefined;
+	/** Parent restoration excludes child transcripts; the full interleaved replay is shared by child reads on demand. */
+	private readonly _mappedEventsMemo = new Map<'primary' | 'all', Promise<IMappedSessionEvents>>();
 
-	private _getMappedEvents(): Promise<IMappedSessionEvents> {
-		if (!this._mappedEventsMemo) {
-			const pending = this._computeMappedEvents();
-			this._mappedEventsMemo = pending;
+	private _getMappedEvents(agentScope: 'primary' | 'all' = 'primary'): Promise<IMappedSessionEvents> {
+		let pending = this._mappedEventsMemo.get(agentScope);
+		if (!pending) {
+			pending = this._computeMappedEvents(agentScope);
+			this._mappedEventsMemo.set(agentScope, pending);
 			// Don't cache a rejected reconstruction — let the next caller retry.
 			pending.catch(() => {
-				if (this._mappedEventsMemo === pending) {
-					this._mappedEventsMemo = undefined;
+				if (this._mappedEventsMemo.get(agentScope) === pending) {
+					this._mappedEventsMemo.delete(agentScope);
 				}
 			});
 		}
-		return this._mappedEventsMemo;
+		return pending;
 	}
 
-	private async _computeMappedEvents(): Promise<IMappedSessionEvents> {
-		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events`);
-		const events = await this._wrapper.session.getEvents();
+	private async _computeMappedEvents(agentScope: 'primary' | 'all'): Promise<IMappedSessionEvents> {
+		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events: scope=${agentScope}`);
+		const pages: SessionEvent[][] = [];
+		const seenCursors = new Set<string>();
+		let cursor: string | undefined;
+		while (true) {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			// Backward paging fixes the history boundary even if new events arrive during the read.
+			const page = await this._awaitControlPlaneRpc('rpc.eventLog.read', this._wrapper.session.rpc.eventLog.read({
+				cursor, max: 1000, direction: 'backward', agentScope, includeEphemeral: false,
+			}));
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			if (page.cursorStatus !== 'ok') {
+				throw new Error(localize('copilot.historyChanged', "Session history changed while it was loading. Reopen the session to try again."));
+			}
+			if (page.hasMore && (!page.cursor || seenCursors.has(page.cursor))) {
+				throw new Error(localize('copilot.invalidHistoryCursor', "The Copilot runtime returned an invalid history cursor. Reopen the session to try again."));
+			}
+
+			pages.push(page.events.filter(event => event.type !== 'system.message').map(event => {
+				if (event.type !== 'assistant.message') {
+					return event;
+				}
+				const data = { ...event.data };
+				delete data.encryptedContent;
+				delete data.reasoningOpaque;
+				delete data.reasoningBlocks;
+				return { ...event, data };
+			}));
+			if (!page.hasMore) {
+				break;
+			}
+			seenCursors.add(page.cursor);
+			cursor = page.cursor;
+		}
+		const events = pages.reverse().flat();
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		let db: ISessionDatabase | undefined;
@@ -3664,7 +3694,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Drop the memoized event reconstruction; the next read rebuilds it. */
 	private _invalidateMappedEvents(): void {
-		this._mappedEventsMemo = undefined;
+		this._mappedEventsMemo.clear();
 	}
 
 	async abort(): Promise<void> {
@@ -3711,6 +3741,7 @@ export class CopilotAgentSession extends Disposable {
 	 * backstop, since {@link _beginAbort} no-ops when already aborted.
 	 */
 	override dispose(): void {
+		this._invalidateMappedEvents();
 		this._settleIdleWaiters(false);
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
@@ -4284,7 +4315,9 @@ export class CopilotAgentSession extends Disposable {
 					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
 					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
-					_meta: !trackedToolCall && isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
+					_meta: trackedToolCall?.meta
+						? toToolCallMeta(trackedToolCall.meta)
+						: isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
 					invocationMessage,
 					toolInput,
 					confirmationTitle,
@@ -4766,7 +4799,8 @@ export class CopilotAgentSession extends Disposable {
 				? localize('agentHost.unsandboxedCommandConfirmation.blockedDomains', "This command needs to access blocked network domain(s): {0}.", blockedDomains)
 				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
-		const parentToolCallId = this._activeToolCalls.get(request.toolCallId)?.parentToolCallId;
+		const trackedToolCall = this._activeToolCalls.get(request.toolCallId);
+		const parentToolCallId = trackedToolCall?.parentToolCallId;
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
 			chat: this._chatChannelUri,
@@ -4778,6 +4812,7 @@ export class CopilotAgentSession extends Disposable {
 				invocationMessage,
 				toolInput: request.command,
 				confirmationTitle,
+				_meta: toToolCallMeta(trackedToolCall?.meta ?? this._createToolCallMeta(request.toolName, undefined)),
 			},
 			// Intentionally omit `permissionKind: 'shell'`: that would route this
 			// through the shell rule-based auto-approver and silently approve
@@ -6918,13 +6953,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/**
-	 * Drop the memoized event reconstruction whenever the persisted event log
-	 * could have changed, so {@link _getMappedEvents} never serves stale turns
-	 * once the session resumes activity. While the session is idle (e.g. during
-	 * a historical session open) none of these fire, so the whole restore wave
-	 * coalesces to a single reconstruction.
-	 */
+	/** Invalidates both history scopes when persisted events change, while coalescing idle reads within each scope. */
 	private _subscribeForMemoInvalidation(): void {
 		const wrapper = this._wrapper;
 		const invalidate = () => this._invalidateMappedEvents();

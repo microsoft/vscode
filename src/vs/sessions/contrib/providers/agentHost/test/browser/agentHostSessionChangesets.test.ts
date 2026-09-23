@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -22,13 +22,13 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -38,14 +38,14 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionIdContext } from '../../../../../common/contextkeys.js';
-import { ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
-import { createChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
+import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
 suite('AgentHostSessionChangesets', () => {
@@ -98,6 +98,105 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		};
 	}
+
+	suite('changeset snapshots', () => {
+		const cachedFiles: ChangesetState['files'] = [{
+			id: 'file:///repo/a.ts',
+			edit: {
+				after: { uri: 'file:///repo/a.ts', content: { uri: 'file:///repo/a.ts' } },
+				diff: { added: 57, removed: 45 },
+			},
+		}];
+
+		function createHarness() {
+			const isActiveSession = observableValue('isActiveSession', false);
+			const subscription = createMutableSubscription<ChangesetState | undefined>(undefined);
+			let acquired = 0;
+			let released = 0;
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					acquired++;
+					return {
+						object: subscription.object as IAgentSubscription<ComponentToState[T]>,
+						dispose: () => released++,
+					};
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			}, isActiveSession, [{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: 'changeset/branch',
+			}])[0];
+			disposables.add(autorun(reader => changeset.changes.read(reader)));
+
+			return {
+				isActiveSession,
+				subscription,
+				snapshot: () => ({
+					changes: changeset.changes.get().map(change => ({ insertions: change.insertions, deletions: change.deletions })),
+					loading: changeset.isLoadingChanges.get(),
+					acquired,
+					released,
+				}),
+			};
+		}
+
+		test('uses a computing snapshot after being observed while inactive', () => {
+			const { isActiveSession, subscription, snapshot } = createHarness();
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Computing, files: cachedFiles });
+
+			assert.deepStrictEqual(snapshot(), {
+				changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0,
+			});
+		});
+
+		test('uses a cached snapshot when returning to a session without retaining its subscription', () => {
+			const { isActiveSession, subscription, snapshot } = createHarness();
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
+			isActiveSession.set(false, undefined);
+			const inactive = snapshot();
+			subscription.set(undefined);
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Computing, files: cachedFiles });
+
+			assert.deepStrictEqual({ inactive, reactivated: snapshot() }, {
+				inactive: { changes: [], loading: false, acquired: 1, released: 1 },
+				reactivated: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 2, released: 1 },
+			});
+		});
+
+		test('uses every available snapshot and keeps the cache while waiting for a snapshot', () => {
+			const { isActiveSession, subscription, snapshot } = createHarness();
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Ready, files: [] });
+			subscription.set({ status: ChangesetStatus.Computing, files: cachedFiles });
+			const populated = snapshot();
+			subscription.set(undefined);
+			const pending = snapshot();
+			subscription.set({ status: ChangesetStatus.Computing, files: [] });
+			const empty = snapshot();
+			subscription.set({ status: ChangesetStatus.Ready, files: [] });
+
+			assert.deepStrictEqual({ populated, pending, empty, ready: snapshot() }, {
+				populated: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				pending: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				empty: { changes: [], loading: true, acquired: 1, released: 0 },
+				ready: { changes: [], loading: false, acquired: 1, released: 0 },
+			});
+		});
+	});
 
 	suite('filterChangesToPrimaryWorkingDirectory', () => {
 		test('(a) multi-root: keeps only changes under the primary working directory', () => {
@@ -228,7 +327,7 @@ suite('AgentHostSessionChangesets', () => {
 				defaultChangesetKind,
 			};
 
-			return createChangesets(sessionUri, options, constObservable(false), changeKinds.map(entry))
+			return createChangesets(sessionUri, options, constObservable(false), changeKinds.map(entry), URI.parse(buildDefaultChatUri(sessionUri.toString())))
 				.map(changeset => `${changeset.id}${changeset.isDefault.get() ? '*' : ''}`);
 		}
 
@@ -271,6 +370,31 @@ suite('AgentHostSessionChangesets', () => {
 				['uncommitted*']);
 		});
 
+		test('projects Session Changes with the same identity in every chat', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const options: IAgentHostAdapterOptions = {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => undefined,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			};
+			const catalogue = [entry(ChangesetKind.Session)];
+			const sessionChangeset = createChangesets(sessionUri, options, constObservable(false), catalogue)[0];
+			const chatChangeset = createChangesets(sessionUri, options, constObservable(false), catalogue, URI.parse(buildDefaultChatUri(sessionUri.toString())))[0];
+
+			assert.deepStrictEqual({
+				session: { id: sessionChangeset.id, isDefault: sessionChangeset.isDefault.get() },
+				chat: { id: chatChangeset.id, isDefault: chatChangeset.isDefault.get() },
+			}, {
+				session: { id: SESSION_CHANGES_CHANGESET_ID, isDefault: false },
+				chat: { id: SESSION_CHANGES_CHANGESET_ID, isDefault: true },
+			});
+		});
+
 		test('rejects operation invocation while disconnected', async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
@@ -292,9 +416,240 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
+	test('projects chat-owned changesets with session-owned Session Changes', () => {
+		const chatUri = URI.parse('ahp-chat://default/c2Vzc2lvbg');
+		const chatSummary: ChatSummary = {
+			resource: chatUri.toString(),
+			title: 'Chat',
+			status: SessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+		};
+		const sessionCatalogue: Changeset[] = [{
+			label: 'Session Changes',
+			changeKind: ChangesetKind.Session,
+			uriTemplate: 'changeset/session',
+		}];
+		const initialState: ChatState = createChatState(chatSummary);
+		const chatSubscription = createMutableSubscription(initialState);
+		const sessionSubscription = createMutableSubscription({ changesets: sessionCatalogue } as SessionState);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = component === StateComponents.Chat ? chatSubscription : sessionSubscription;
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const projected = createChatChangesets(chatUri, options, constObservable(true));
+		let current: readonly ISessionChangeset[] | undefined;
+		disposables.add(autorun(reader => current = projected.read(reader)));
+		const absentCatalogue = current;
+
+		chatSubscription.set({ ...initialState, changesets: sessionCatalogue });
+		const initial = current;
+
+		chatSubscription.set({ ...initialState, title: 'Updated', changesets: sessionCatalogue });
+		const afterUnrelatedUpdate = current;
+		chatSubscription.set({
+			...initialState,
+			changesets: [{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: 'changeset/branch',
+			}],
+		});
+		const updated = current;
+		chatSubscription.set({ ...initialState, changesets: [] });
+
+		assert.deepStrictEqual({
+			absentCatalogue,
+			initial: initial?.map(changeset => changeset.id),
+			initialResource: initial?.map(changeset => changeset.resource?.toString()),
+			preservedIdentity: initial === afterUnrelatedUpdate,
+			updated: updated?.map(changeset => changeset.id),
+			updatedResource: updated?.map(changeset => changeset.resource?.toString()),
+			emptyCatalogue: current?.map(changeset => changeset.id),
+			emptyCatalogueResource: current?.map(changeset => changeset.resource?.toString()),
+		}, {
+			absentCatalogue: undefined,
+			initial: ['session'],
+			initialResource: ['file:///session/changeset/session'],
+			preservedIdentity: true,
+			updated: ['branch', 'session'],
+			updatedResource: [`${chatUri}/changeset/branch`, 'file:///session/changeset/session'],
+			emptyCatalogue: ['session'],
+			emptyCatalogueResource: ['file:///session/changeset/session'],
+		});
+	});
+
+	test('projects legacy Session Changes into every chat', () => {
+		const sessionUri = URI.parse('ahp-session:/session');
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
+		const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer'));
+		const legacyCatalogue: readonly Changeset[] = [
+			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' },
+			{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset/session' },
+			{ label: 'Last Turn Changes', changeKind: ChangesetKind.Turn, uriTemplate: 'changeset/turn/{turnId}' },
+		];
+		const sessionSubscription = createMutableSubscription({
+			defaultChat: defaultChatUri.toString(),
+			chats: [],
+			changesets: legacyCatalogue,
+		} as unknown as SessionState);
+		const chatSubscriptions = new Map([
+			[defaultChatUri.toString(), createMutableSubscription(createChatState({
+				resource: defaultChatUri.toString(),
+				title: 'Default',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}))],
+			[peerChatUri.toString(), createMutableSubscription(createChatState({
+				resource: peerChatUri.toString(),
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}))],
+		]);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = component === StateComponents.Session
+					? sessionSubscription
+					: chatSubscriptions.get(resource.toString());
+				assert.ok(subscription);
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const defaultProjected = createChatChangesets(defaultChatUri, options, constObservable(true));
+		const peerProjected = createChatChangesets(peerChatUri, options, constObservable(true));
+		let defaultChangesets: readonly ISessionChangeset[] | undefined;
+		let peerChangesets: readonly ISessionChangeset[] | undefined;
+		disposables.add(autorun(reader => defaultChangesets = defaultProjected.read(reader)));
+		disposables.add(autorun(reader => peerChangesets = peerProjected.read(reader)));
+
+		assert.deepStrictEqual({
+			defaultIds: defaultChangesets?.map(changeset => changeset.id),
+			defaultBranchResource: defaultChangesets?.[0].resource?.toString(),
+			peerIds: peerChangesets?.map(changeset => changeset.id),
+			peerResource: peerChangesets?.[0].resource?.toString(),
+		}, {
+			defaultIds: ['branch', 'session', 'turn'],
+			defaultBranchResource: `${sessionUri.toString()}/changeset/branch`,
+			peerIds: ['session'],
+			peerResource: `${sessionUri.toString()}/changeset/session`,
+		});
+	});
+
+	test('subscribes Last Turn Changes directly to the owning chat while live edits are provided', () => {
+		const chatUri = URI.parse('ahp-chat://peer/c2Vzc2lvbg');
+		const chatSummary: ChatSummary = {
+			resource: chatUri.toString(),
+			title: 'Chat',
+			status: SessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+		};
+		const chatState: ChatState = {
+			...createChatState(chatSummary),
+			workingDirectories: ['file:///chat'],
+			turns: [],
+			activeTurn: {
+				id: 'turn-1',
+				startedAt: new Date(0).toISOString(),
+				message: { text: 'Edit', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			},
+			changesets: [{
+				label: 'Last Turn Changes',
+				changeKind: ChangesetKind.Turn,
+				uriTemplate: 'changeset/turn/{turnId}',
+			}],
+		};
+		const chatSubscription = createMutableSubscription(chatState);
+		const sessionSubscription = createMutableSubscription({} as SessionState);
+		const changesetSubscription = createMutableSubscription<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [],
+		});
+		const subscriptions: Array<{ component: StateComponents; resource: string }> = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				subscriptions.push({ component, resource: resource.toString() });
+				switch (component) {
+					case StateComponents.Session:
+						return { object: sessionSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+					case StateComponents.Chat:
+						return { object: chatSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+					case StateComponents.Changeset:
+						return { object: changesetSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+					default:
+						throw new Error(`Unexpected subscription component: ${component}`);
+				}
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const projected = createChatChangesets(chatUri, options, constObservable(true), constObservable([]));
+		let enabled: boolean | undefined;
+		disposables.add(autorun(reader => {
+			const changeset = projected.read(reader)?.[0];
+			enabled = changeset?.isEnabled.read(reader);
+			changeset?.changes.read(reader);
+		}));
+
+		assert.deepStrictEqual({
+			enabled,
+			sessionSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Session),
+			chatSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Chat),
+			changesetSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Changeset),
+		}, {
+			enabled: true,
+			sessionSubscriptions: [{
+				component: StateComponents.Session,
+				resource: URI.parse(parseRequiredSessionUriFromChatUri(chatUri)).toString(),
+			}],
+			chatSubscriptions: [
+				{ component: StateComponents.Chat, resource: chatUri.toString() },
+				{ component: StateComponents.Chat, resource: chatUri.toString() },
+			],
+			changesetSubscriptions: [{
+				component: StateComponents.Changeset,
+				resource: buildTurnChangesetUri(chatUri.toString(), 'turn-1'),
+			}],
+		});
+	});
+
 	test('binds Agent Merge changes to completed repair turns after the last default-chat user turn', () => {
 		const sessionUri = URI.parse('ahp-session:/session-1');
-		const defaultChatUri = URI.parse('ahp-session:/session-1/chat/default');
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri));
 		const modifiedAt = new Date(0).toISOString();
 		const chatSummary: ChatSummary = {
 			resource: defaultChatUri.toString(),
@@ -375,11 +730,11 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
+		const changeset = createChangesets(defaultChatUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri.toString()),
-		}])[0];
+		}], defaultChatUri)[0];
 		if (!changeset) {
 			throw new Error('Expected Agent Merge changeset');
 		}
@@ -679,15 +1034,21 @@ suite('AgentHostSessionChangesets', () => {
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
 			}, constObservable(true), [{ label: 'Uncommitted Changes', changeKind: ChangesetKind.Uncommitted, uriTemplate: channel }]);
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [upcastPartial<ISessionFolder>({
+					gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges: 1 }),
+				})],
+			}));
+			const chat = upcastPartial<IChat>({
+				changesets: constObservable(changesets),
+				workspace,
+			});
 			const session = upcastPartial<IActiveSession>({
 				sessionId: 'draft',
 				resource: sessionUri,
-				changesets: constObservable(changesets),
-				workspace: constObservable(upcastPartial<ISessionWorkspace>({
-					folders: [upcastPartial<ISessionFolder>({
-						gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges: 1 }),
-					})],
-				})),
+				activeChat: constObservable(chat),
+				mainChat: constObservable(chat),
+				workspace,
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(session);

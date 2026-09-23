@@ -2180,7 +2180,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	test('re-subscribes to session state after a subscribe that failed because the host had no such session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A failed pre-creation subscribe must remain retryable so later session state, including changesets, can arrive.
+		// A failed pre-creation subscribe must remain retryable so later session state can arrive.
 		connection.addSession(createSession('late-1', { summary: 'Created after we asked' }));
 		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		const backendUri = AgentSession.uri('copilotcli', 'late-1').toString();
@@ -2199,7 +2199,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' }],
 		} as unknown as SessionState);
 		provider.getSessionByResource(session.resource);
 		await timeout(0);
@@ -2207,45 +2206,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			afterFailedSubscribe,
 			afterRetry: connection.sessionSubscribeCounts.get(backendUri),
-			changesets: provider.getSessions()[0].changesets.get()?.map(c => c.id),
 		}, {
 			afterFailedSubscribe: 1,
 			afterRetry: 2,
-			changesets: ['branch'],
-		});
-	}));
-
-	test('a configured defaultChangesetKind reaches the session adapter', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const gitBackedCatalogue = [
-			{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: 'session' },
-			{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' },
-		];
-		const defaultChangesetIds = async (defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']) => {
-			const localConnection = disposables.add(new MockAgentConnection());
-			localConnection.addSession(createSession('changeset-default-1', { summary: 'Changeset default' }));
-			const provider = createProvider(disposables, localConnection, { defaultChangesetKind });
-			provider.getSessions();
-			await timeout(0);
-			localConnection.setSessionState('changeset-default-1', 'copilotcli', {
-				provider: 'copilotcli', title: 'Changeset default', status: ProtocolSessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready,
-				activeClients: [],
-				chats: [],
-				changesets: gitBackedCatalogue,
-			} as unknown as SessionState);
-			const session = provider.getSessions()[0];
-			provider.getSessionByResource(session.resource);
-			await timeout(0);
-			return provider.getSessions()[0].changesets.get()
-				?.map(c => `${c.id}${c.isDefault.get() ? '*' : ''}`);
-		};
-
-		assert.deepStrictEqual({
-			configured: await defaultChangesetIds(ChangesetKind.Session),
-			unconfigured: await defaultChangesetIds(),
-		}, {
-			configured: ['session*', 'branch'],
-			unconfigured: ['session', 'branch*'],
 		});
 	}));
 

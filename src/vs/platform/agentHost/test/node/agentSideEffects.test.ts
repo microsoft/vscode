@@ -8102,7 +8102,10 @@ suite('AgentSideEffects', () => {
 				},
 			});
 
-			assert.deepStrictEqual(changesets.toolCallEdits, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+			assert.deepStrictEqual(changesets.toolCallEdits, [
+				{ session: defaultChatUri, turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+			]);
 		});
 
 		test('turn complete fires onTurnComplete once with the right turn id', async () => {
@@ -8129,7 +8132,10 @@ suite('AgentSideEffects', () => {
 			// runs before we assert.
 			await Promise.resolve();
 
-			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+			assert.deepStrictEqual(changesets.turnCompletes, [
+				{ session: defaultChatUri, turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+			]);
 		});
 
 		test('turn complete passes the resolved working directories to the checkpoint capture', async () => {

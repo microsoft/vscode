@@ -1358,6 +1358,7 @@ export class AgentHostStateManager extends Disposable {
 		// the active set forever, keeping the session permanently "active"
 		// (activeSessions > 0) and leaving changeset operations disabled.
 		this._removeChatActiveTurn(session, chatUri);
+		this.disposeChangesets(chatUri);
 		this._invalidateChatEntry(chatUri);
 		this.dispatchServerAction(session, { type: ActionType.SessionChatRemoved, chat: chatUri });
 	}
@@ -1606,16 +1607,11 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Replaces the catalogue entries on `state.changesets` for `session` by
+	 * Replaces session-owned catalogue entries on `state.changesets` by
 	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
-	 * Subscribers see the mutation in the standard session action stream —
-	 * the catalogue lives on session state and is not its own subscribable
-	 * resource. Aggregate `changes` counts (additions / deletions /
-	 * files) are propagated separately via {@link setSessionSummaryChanges}.
-	 *
-	 * Producers call this after each compute pass to keep the list of
-	 * available changesets (with their `changeKind`) in sync so observers
-	 * can render the correct entries without subscribing to each one.
+	 * Subscribers see the mutation in the standard session action stream.
+	 * Aggregate `changes` counts are propagated separately via
+	 * {@link setSessionSummaryChanges}; chat-owned catalogues remain on chat state.
 	 */
 	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
 		const entry = this._sessionStates.get(session);
@@ -1638,6 +1634,26 @@ export class AgentHostStateManager extends Disposable {
 		this.dispatchServerAction(session, {
 			type: ActionType.SessionChangesetsChanged,
 			changesets: next,
+		});
+	}
+
+	/** Replaces the changeset catalogue owned by a session or chat channel. */
+	setChangesets(owner: URI, changesets: readonly Changeset[] | undefined): void {
+		if (!isAhpChatChannel(owner)) {
+			this.setSessionChangesets(owner, changesets);
+			return;
+		}
+		const state = this._chatEntries.get(owner)?.state;
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setChangesets: unknown chat ${owner}`);
+			return;
+		}
+		if (arrayEquals(state.changesets ?? [], changesets ?? [], structuralEquals)) {
+			return;
+		}
+		this.dispatchServerAction(owner, {
+			type: ActionType.ChatChangesetsChanged,
+			changesets: changesets ? changesets.slice() : undefined,
 		});
 	}
 
@@ -1672,12 +1688,17 @@ export class AgentHostStateManager extends Disposable {
 	 * session itself is removed.
 	 */
 	disposeSessionChangesets(session: URI): void {
+		this.disposeChangesets(session, true);
+	}
+
+	/** Disposes changesets owned by one channel, optionally including all chats in its session. */
+	disposeChangesets(owner: URI, includeSessionChats: boolean = false): void {
 		// Collect first because `disposeChangeset` mutates the underlying
 		// map via its envelope handler.
 		const toDispose: URI[] = [];
 		for (const uri of this._changesets.keys()) {
 			const parsed = parseChangesetUri(uri);
-			if (parsed && parsed.sessionUri === session) {
+			if (parsed && (parsed.ownerUri === owner || (includeSessionChats && parsed.sessionUri === owner))) {
 				toDispose.push(uri);
 			}
 		}
@@ -2043,6 +2064,10 @@ export class AgentHostStateManager extends Disposable {
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
+		if (prev.workingDirectories !== next.workingDirectories) {
+			this._onDidChangeSessionWorkingDirectories.fire({ session: chatUri });
+		}
+
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.
 		if (next.turns.length > 0 || next.activeTurn) {

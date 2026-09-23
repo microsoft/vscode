@@ -79,6 +79,18 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(fired, [sessionUri, sessionUri, sessionUri]);
 	});
 
+	test('onDidChangeSessionWorkingDirectories identifies chat-owned changes', () => {
+		manager.createSession(makeSessionSummary());
+		const fired: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///chat' });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///chat' });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///chat' });
+
+		assert.deepStrictEqual(fired, [sessionChatUri, sessionChatUri]);
+	});
+
 	test('getSnapshot returns undefined for unknown session', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);
@@ -963,6 +975,27 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(cleared.length, 1, 'expected exactly one cleared envelope');
 		assert.strictEqual(cleared[0].channel, changeset);
 		assert.strictEqual(manager.getChangesetState(changeset), undefined, 'state should be deleted');
+	});
+
+	test('setChangesets publishes chat-owned catalogues on the chat channel', () => {
+		manager.createSession(makeSessionSummary());
+		const changesets = [{
+			label: 'Chat Changes',
+			changeKind: 'session',
+			uriTemplate: buildSessionChangesetUri(sessionChatUri),
+		}];
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+		manager.setChangesets(sessionChatUri, changesets);
+
+		assert.deepStrictEqual({
+			changesets: manager.getChatState(sessionChatUri)?.changesets,
+			envelopes: envelopes.map(envelope => ({ channel: envelope.channel, type: envelope.action.type })),
+		}, {
+			changesets,
+			envelopes: [{ channel: sessionChatUri, type: ActionType.ChatChangesetsChanged }],
+		});
 	});
 
 	test('producer-emitted ChangesetCleared keeps the state alive (recompute path)', () => {

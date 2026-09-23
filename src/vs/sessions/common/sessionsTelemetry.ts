@@ -84,6 +84,28 @@ export function logSessionsInteraction(telemetryService: ITelemetryService, butt
 	telemetryService.publicLog2<SessionsInteractionEvent, SessionsInteractionClassification>('vscodeAgents.interaction', source ? { button, source } : { button });
 }
 
+/** Presentation shown for a response-text selection in the Agents window. */
+export type ResponseSelectionWidgetVariant = 'askQuestionInput' | 'actionMenu';
+
+/** User interaction with the response-selection widget. */
+export type ResponseSelectionWidgetAction = 'shown' | 'askQuestionOpened' | 'askQuestionSubmitted' | 'quote' | 'copy';
+
+type ResponseSelectionWidgetEvent = {
+	variant: ResponseSelectionWidgetVariant;
+	action: ResponseSelectionWidgetAction;
+};
+
+type ResponseSelectionWidgetClassification = {
+	owner: 'ulugbekna';
+	comment: 'Measures exposure to and use of the response-text selection widget in the Agents window.';
+	variant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget presentation shown: the existing ask-question input or the experimental action menu.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget exposure or action: shown, question opened or submitted, quote, or copy.' };
+};
+
+export function logResponseSelectionWidgetAction(telemetryService: ITelemetryService, variant: ResponseSelectionWidgetVariant, action: ResponseSelectionWidgetAction): void {
+	telemetryService.publicLog2<ResponseSelectionWidgetEvent, ResponseSelectionWidgetClassification>('vscodeAgents.responseSelectionWidget/action', { variant, action });
+}
+
 // --- Changes panel interactions ---
 
 type SidePanelToggleEvent = {
