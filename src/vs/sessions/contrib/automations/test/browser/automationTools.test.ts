@@ -11,7 +11,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -44,19 +46,6 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 			this.events.push({ name: eventName, data });
 		}
 	}
-}
-
-function createConfigureAutomationTool(
-	automationService: IAutomationService,
-	sessionsManagementService: ISessionsManagementService,
-	configurationService: TestConfigurationService,
-	telemetryService: ITelemetryService = NullTelemetryService,
-	provider?: ISessionsProvider,
-): ConfigureAutomationTool {
-	return new ConfigureAutomationTool(
-		automationService, sessionsManagementService, configurationService, telemetryService,
-		upcastPartial<ISessionsProvidersService>({ getProvider: () => provider }),
-	);
 }
 
 function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomationDescriptor {
@@ -309,6 +298,22 @@ function getText(result: IToolResult): string {
 
 suite('AutomationTools', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createConfigureAutomationTool(
+		automationService: IAutomationService,
+		sessionsManagementService: ISessionsManagementService,
+		configurationService: TestConfigurationService,
+		telemetryService: ITelemetryService = NullTelemetryService,
+		provider?: ISessionsProvider,
+	): ConfigureAutomationTool {
+		const instantiationService = teardown.add(new TestInstantiationService());
+		instantiationService.stub(IAutomationService, automationService);
+		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined }, 'getProvider', provider);
+		return instantiationService.createInstance(ConfigureAutomationTool);
+	}
 
 	test('tool data is gated by AI and Automations context keys', () => {
 		const automationService = new FakeAutomationService();
