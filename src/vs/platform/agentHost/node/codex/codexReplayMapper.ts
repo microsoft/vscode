@@ -24,7 +24,6 @@ import {
 	type Turn,
 	type MessageResourceAttachment,
 	type ModelSelection,
-	type TerminalCommandResult,
 } from '../../common/state/sessionState.js';
 import {
 	describeFileChange,
@@ -38,7 +37,6 @@ import {
 	webSearchPastTenseMessage,
 } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
-import { terminalOutputContent } from '../shared/terminalOutputArtifacts.js';
 import { parseCodexDelegation } from './codexDelegation.js';
 import { buildCodexThreadOpenLink, extractCodexCreatedThreadDirectives, getCodexThreadCoordinationCall, type ICodexThreadCoordinationCall } from './codexThreadCoordination.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
@@ -73,8 +71,6 @@ export function replayThreadToTurns(
 	thread: Thread,
 	modelsByTurnId?: ReadonlyMap<string, ModelSelection>,
 	_threadCoordinationByTurnId?: ReadonlyMap<string, readonly ICodexThreadCoordinationCall[]>,
-	terminalOutputs?: ReadonlyMap<string, TerminalCommandResult>,
-	sessionResource?: URI,
 ): Turn[] {
 	const turns: Turn[] = [];
 	for (const codexTurn of thread.turns ?? []) {
@@ -82,8 +78,6 @@ export function replayThreadToTurns(
 			codexTurn,
 			modelsByTurnId?.get(codexTurn.id),
 			_threadCoordinationByTurnId?.get(codexTurn.id),
-			terminalOutputs,
-			sessionResource,
 		);
 		if (turn) {
 			turns.push(turn);
@@ -95,13 +89,7 @@ export function replayThreadToTurns(
 /** A completed `commandExecution` item narrowed to its terminal fields. */
 type CommandExecutionItem = Extract<ThreadItem, { type: 'commandExecution' }>;
 
-function replayTurnToTurn(
-	codexTurn: CodexTurn,
-	model: ModelSelection | undefined,
-	rolloutCoordination: readonly ICodexThreadCoordinationCall[] | undefined,
-	terminalOutputs: ReadonlyMap<string, TerminalCommandResult> | undefined,
-	sessionResource: URI | undefined,
-): Turn | undefined {
+function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefined, rolloutCoordination: readonly ICodexThreadCoordinationCall[] | undefined): Turn | undefined {
 	let userText = '';
 	const userAttachments: MessageResourceAttachment[] = [];
 	const parts: ResponsePart[] = [];
@@ -125,7 +113,7 @@ function replayTurnToTurn(
 	let pendingPreflight: { command: string; item: CommandExecutionItem } | undefined;
 	const flushPreflight = () => {
 		if (pendingPreflight) {
-			parts.push(shellToolCallPart(pendingPreflight.item, pendingPreflight.command, terminalOutputs?.get(pendingPreflight.item.id), sessionResource));
+			parts.push(shellToolCallPart(pendingPreflight.item, pendingPreflight.command));
 			pendingPreflight = undefined;
 		}
 	};
@@ -134,11 +122,11 @@ function replayTurnToTurn(
 		if (item.type === 'commandExecution') {
 			const command = unwrapShellInvocation(item.command ?? '');
 			if (pendingPreflight && pendingPreflight.command === command) {
-				// Match live coalescing: keep the pre-flight's tool-call identity
-				// while taking the real output/approval from the re-run.
-				const toolCallId = pendingPreflight.item.id;
+				// Escalated re-run of the deferred pre-flight: render only this
+				// item (it carries the real output/approval), dropping the
+				// output-less pre-flight box.
 				pendingPreflight = undefined;
-				parts.push(shellToolCallPart(item, command, terminalOutputs?.get(item.id), sessionResource, toolCallId));
+				parts.push(shellToolCallPart(item, command));
 				continue;
 			}
 			flushPreflight();
@@ -148,7 +136,7 @@ function replayTurnToTurn(
 				pendingPreflight = { command, item };
 				continue;
 			}
-			parts.push(shellToolCallPart(item, command, terminalOutputs?.get(item.id), sessionResource));
+			parts.push(shellToolCallPart(item, command));
 			continue;
 		}
 
@@ -325,7 +313,7 @@ function textContent(output: string): ToolResultContent[] | undefined {
 	return output ? [{ type: ToolResultContentType.Text, text: output }] : undefined;
 }
 
-function shellToolCallPart(item: CommandExecutionItem, command: string, terminalOutput: TerminalCommandResult | undefined, sessionResource: URI | undefined, toolCallId = item.id): ToolCallResponsePart {
+function shellToolCallPart(item: CommandExecutionItem, command: string): ToolCallResponsePart {
 	const success = item.status === 'completed' && (item.exitCode === 0 || item.exitCode === null);
 	const output = item.aggregatedOutput ?? '';
 	const exit = item.exitCode;
@@ -338,7 +326,7 @@ function shellToolCallPart(item: CommandExecutionItem, command: string, terminal
 		kind: ResponsePartKind.ToolCall,
 		toolCall: {
 			status: ToolCallStatus.Completed,
-			toolCallId,
+			toolCallId: generateUuid(),
 			toolName: 'shell',
 			displayName: 'Run shell command',
 			_meta: toToolCallMeta({ toolKind: 'terminal' }),
@@ -347,9 +335,7 @@ function shellToolCallPart(item: CommandExecutionItem, command: string, terminal
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success,
 			pastTenseMessage: pastTense,
-			content: terminalOutput && sessionResource
-				? [terminalOutputContent(sessionResource, item.id, command, terminalOutput)]
-				: textContent(output),
+			content: textContent(output),
 			error: success ? undefined : { message: exit !== null ? `Exit code ${exit}` : 'Command failed' },
 		},
 	};

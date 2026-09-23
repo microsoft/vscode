@@ -642,46 +642,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('large Bash output uses structured preview, size and full-output reference without parsing result prose', () => {
-		const log = new CapturingLogService();
-		const state = new ClaudeMapperState();
-		const resolver = r();
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_large', 'Bash')), SESSION, TURN_ID, state, log, resolver);
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"command":"node large-output.cjs"}')), SESSION, TURN_ID, state, log, resolver);
-		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, resolver);
-		const stdout = `FULL-OUTPUT-START\n${'x'.repeat(1000)}`;
-		const signals = mapSDKMessageToAgentSignals(
-			makeUserToolResultMessage(SESSION_ID, 'tu_large', '<persisted-output>do not parse me</persisted-output>', {
-				toolUseResult: {
-					stdout,
-					stderr: 'warning',
-					interrupted: false,
-					persistedOutputPath: '/tmp/claude-full-output.txt',
-					persistedOutputSize: 352335,
-				},
-			}),
-			SESSION,
-			'turn-2-irrelevant',
-			state,
-			log,
-			resolver,
-		);
-		const signal = signals[0];
-		assert.ok(signal?.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
-		const terminal = signal.action.result.content?.[0];
-		assert.deepStrictEqual(terminal, {
-			type: ToolResultContentType.Terminal,
-			resource: 'agenthost-terminal://shell/abc/tu_large',
-			title: 'node large-output.cjs',
-			isPty: false,
-			result: {
-				preview: stdout.slice(0, 500),
-				truncated: true,
-			},
-		});
-		assert.strictEqual(JSON.stringify(terminal).includes('do not parse me'), false);
-	});
-
 	test('Test 11 — tool_result for unknown tool_use_id emits no signal and warns', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();

@@ -10,7 +10,6 @@ import { IAgentChatMetadata } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
 import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
-import { readClaudeTerminalOutputRecords, writeClaudeTerminalOutputRecords, type IClaudeTerminalOutputRecord } from './claudeTerminalOutput.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -57,7 +56,7 @@ export interface IClaudeSessionOverlayUpdate {
 /**
  * Owns Claude's per-session metadata layer:
  *
- * - Claude-owned DB metadata keys,
+ * - the three `_META_*` DB keys,
  * - the {@link ModelSelection} JSON codec used to persist the parallel
  *   `{ id, config }` shape,
  * - the read/write helpers that open a per-call DB ref,
@@ -178,27 +177,7 @@ export class ClaudeSessionMetadataStore {
 		} finally {
 			ref.dispose();
 		}
-	}
 
-	async readTerminalOutputs(session: URI): Promise<ReadonlyMap<string, IClaudeTerminalOutputRecord>> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return new Map();
-		}
-		try {
-			return await readClaudeTerminalOutputRecords(ref.object);
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	async writeTerminalOutputs(session: URI, outputs: ReadonlyMap<string, IClaudeTerminalOutputRecord>): Promise<void> {
-		const ref = this._sessionDataService.openDatabase(session);
-		try {
-			await writeClaudeTerminalOutputRecords(ref.object, outputs);
-		} finally {
-			ref.dispose();
-		}
 	}
 
 	/**

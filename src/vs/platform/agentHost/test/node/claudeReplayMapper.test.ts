@@ -166,31 +166,6 @@ suite('claudeReplayMapper', () => {
 		}
 	});
 
-	test('replay restores Claude Bash full-output reference from host metadata when SDK history strips structured results', () => {
-		const stdout = `FULL-OUTPUT-START\n${'x'.repeat(1000)}`;
-		const turns = mapSessionMessagesToTurns([
-			makeUser('u1', 'run it'),
-			makeAssistantToolUse('a1', 'tu1', 'Bash', { command: 'node large-output.cjs' }),
-			makeUserToolResult('u2', 'tu1', '<persisted-output>ignored prose</persisted-output>'),
-			makeAssistantText('a2', 'done'),
-		], session, logService, new Map([['tu1', {
-			preview: stdout.slice(0, 500),
-			persistedOutputPath: '/tmp/claude-full-output.txt',
-		}]]));
-		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
-		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
-		assert.deepStrictEqual(part.toolCall.content?.[0], {
-			type: ToolResultContentType.Terminal,
-			resource: 'agenthost-terminal://shell/sess-1/tu1',
-			title: 'node large-output.cjs',
-			isPty: false,
-			result: {
-				preview: stdout.slice(0, 500),
-				truncated: true,
-			},
-		});
-	});
-
 	test('replay preserves generic semantics for client tools that collide with built-in names', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'run client tools'),

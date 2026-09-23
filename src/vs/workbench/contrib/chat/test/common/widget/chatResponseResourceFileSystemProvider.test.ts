@@ -52,7 +52,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 				lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
 				claim: {
 					kind: TerminalClaimKind.Session,
-					session: 'codex:/session',
+					session: 'copilotcli:/session',
 					chat: sessionResource.toString(),
 					toolCallId: 'command-a',
 				},

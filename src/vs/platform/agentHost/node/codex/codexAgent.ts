@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
-import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection, TerminalCommandResult } from '../../common/state/protocol/state.js';
+import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -79,9 +79,6 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
-import { persistTerminalOutput, shouldPersistTerminalOutput } from '../shared/terminalOutputArtifacts.js';
-import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { buildNonPtyShellTerminalClaim, buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -90,7 +87,7 @@ import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICo
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, getCodexCommandExecutionOutput, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
@@ -1255,7 +1252,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _onDemandConnectionSequencer = new Sequencer();
 	/** Orders create/release/dispose so one exact chat cannot race its own backing lifecycle. */
 	private readonly _chatLifecycleSequencer = new SequencerByKey<string>();
-	private readonly _notificationSequencer = new SequencerByKey<string>();
 	/** Settles when the currently-running one-off action has released its process. */
 	private _transientConnectionOperation: Promise<void> | undefined;
 	/** A deliberately short-lived connection used by an explicit account action. */
@@ -1320,7 +1316,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IFileService private readonly _fileService: IFileService,
-		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -2660,12 +2655,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		subscriptions.add(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
-		subscriptions.add(client.onNotification('item/completed', params => {
-			void this._notificationSequencer.queue(params.threadId, () => this._dispatchItemCompleted(params)).catch(error => this._logService.error(`[Codex] item/completed handler failed for ${params.item.id}`, error));
-		}));
-		subscriptions.add(client.onNotification('turn/completed', params => {
-			void this._notificationSequencer.queue(params.threadId, async () => this._dispatchTurnCompleted(params)).catch(error => this._logService.error(`[Codex] turn/completed handler failed for ${params.turn.id}`, error));
-		}));
+		subscriptions.add(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
+		subscriptions.add(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
 		// Auto-review (guardian) surfacing. The guardian turn-interruption warning
 		// is shown as a system notification; terminal review failures are surfaced
 		// from the structured completion event, and a denied review also gets a
@@ -3570,13 +3561,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * shared orchestrator has attached the subagent-chat block to the parent
 	 * tool call by the time it completes).
 	 */
-	private async _dispatchItemCompleted(params: ItemCompletedNotification): Promise<void> {
+	private _dispatchItemCompleted(params: ItemCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
-			const streamedOutput = subagent.session.mapState.itemToToolCall.get(params.item.id)?.output;
-			const chat = subagent.session.chatChannel ?? URI.parse(buildDefaultChatUri(subagent.session.sessionUri));
-			const terminalOutput = await this._codexTerminalOutput(subagent.session.sessionUri, chat, params.item, streamedOutput);
-			const actions = mapItemCompleted(subagent.session.mapState, this._withHostTurnId(subagent.session, params), terminalOutput);
+			const actions = mapItemCompleted(subagent.session.mapState, this._withHostTurnId(subagent.session, params));
 			for (const action of actions) {
 				this._fireSubagent(subagent, action);
 			}
@@ -3593,55 +3581,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		// may clear), and firing `subagent_started` first lets the orchestrator
 		// attach the child-conversation block to the still-open parent tool call.
 		this._maybeRegisterSubagents(session, params);
-		const streamedOutput = session.mapState.itemToToolCall.get(params.item.id)?.output;
-		const chat = session.chatChannel ?? URI.parse(buildDefaultChatUri(session.sessionUri));
-		const terminalOutput = await this._codexTerminalOutput(session.sessionUri, chat, params.item, streamedOutput);
-		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), terminalOutput);
+		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params));
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
 		}
-	}
-
-	private async _codexTerminalOutput(session: URI, chat: URI, item: ItemCompletedNotification['item'], streamedOutput = ''): Promise<{ readonly session: URI; readonly result: TerminalCommandResult } | undefined> {
-		if (item.type !== 'commandExecution') {
-			return undefined;
-		}
-		const output = getCodexCommandExecutionOutput(item, streamedOutput);
-		if (!shouldPersistTerminalOutput(output)) {
-			return undefined;
-		}
-		try {
-			const retained = await persistTerminalOutput({
-				owner: chat,
-				toolCallId: item.id,
-				output,
-				...(item.exitCode !== null ? { exitCode: item.exitCode } : {}),
-			}, this._sessionDataService, this._fileService);
-			const command = unwrapShellInvocation(item.command ?? '');
-			this._terminalManager.retainTerminalState(buildNonPtyShellTerminalUri(session, item.id), {
-				title: command,
-				claim: buildNonPtyShellTerminalClaim(session, chat, item.id),
-				...(item.exitCode !== null ? { exitCode: item.exitCode } : {}),
-				artifact: retained.artifact,
-			});
-			return { session, result: retained.result };
-		} catch (error) {
-			this._logService.error(`[Codex] Failed to persist terminal output for ${item.id}; falling back to inline output`, error);
-			return undefined;
-		}
-	}
-
-	private async _codexTerminalOutputs(session: URI, chat: URI, thread: Thread): Promise<ReadonlyMap<string, TerminalCommandResult>> {
-		const outputs = new Map<string, TerminalCommandResult>();
-		for (const turn of thread.turns ?? []) {
-			for (const item of turn.items ?? []) {
-				const output = await this._codexTerminalOutput(session, chat, item);
-				if (output) {
-					outputs.set(item.id, output.result);
-				}
-			}
-		}
-		return outputs;
 	}
 
 	/**
@@ -6601,14 +6544,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!read) {
 			return [];
 		}
-		const terminalOutputs = await this._codexTerminalOutputs(sessionUri, chat, read.thread);
-		const turns = replayThreadToTurns(
-			read.thread,
-			toRolloutTurnModels(read.rolloutMetadata),
-			read.rolloutMetadata?.threadCoordinationByTurnId,
-			terminalOutputs,
-			sessionUri,
-		);
+		const turns = replayThreadToTurns(read.thread, toRolloutTurnModels(read.rolloutMetadata), read.rolloutMetadata?.threadCoordinationByTurnId);
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (session) {
 			this._chatHistorySnapshots.set(session, { thread: read.thread, turns });
@@ -6653,13 +6589,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const hostTurnIds = new Set(session.codexTurnIdByHostTurnId.values());
 		const rolloutMetadata = this._chatHistoryRolloutMetadata.get(session);
 		const changed = read.thread.turns.filter(turn => !hostTurnIds.has(turn.id) && !equals(previousRaw.get(turn.id), turn));
-		const changedThread = { ...read.thread, turns: changed };
-		const terminalOutputs = await this._codexTerminalOutputs(session.sessionUri, chat, changedThread);
-		if (session.currentTurnId || session.disposed || connectionGeneration !== this._connectionGeneration
-			|| this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
-			return;
-		}
-		const mapped = new Map(replayThreadToTurns(changedThread, toRolloutTurnModels(rolloutMetadata), rolloutMetadata?.threadCoordinationByTurnId, terminalOutputs, session.sessionUri).map(turn => [turn.id, turn]));
+		const mapped = new Map(replayThreadToTurns({ ...read.thread, turns: changed }, toRolloutTurnModels(rolloutMetadata), rolloutMetadata?.threadCoordinationByTurnId).map(turn => [turn.id, turn]));
 		const turns = read.thread.turns.flatMap(turn => {
 			if (hostTurnIds.has(turn.id)) {
 				return [];

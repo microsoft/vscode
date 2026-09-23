@@ -63,13 +63,11 @@ import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
@@ -79,8 +77,6 @@ import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
-import { writeClaudeTerminalOutputRecords } from '../../node/claude/claudeTerminalOutput.js';
-import { buildNonPtyShellTerminalUri } from '../../node/shared/nonPtyShellTerminal.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
@@ -1093,7 +1089,6 @@ interface ITestContext {
 	readonly instantiationService: IInstantiationService;
 	readonly fileService: IFileService;
 	readonly sdkDownloader: RecordingAgentSdkDownloader;
-	readonly terminalManager: TestAgentHostTerminalManager;
 }
 
 /**
@@ -1139,7 +1134,6 @@ function createTestContext(
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const authenticationService = disposables.add(new FakeAgentHostAuthenticationService());
-	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 
 	// In-memory file service the session's customization scan / agent-name
 	// resolution runs against; exposed so tests can seed `.claude/**` files.
@@ -1162,7 +1156,6 @@ function createTestContext(
 		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
-		[IAgentHostTerminalManager, terminalManager],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, otelService],
@@ -1211,7 +1204,7 @@ function createTestContext(
 	chats.changeAgent = (chat, nextAgent, context) => changeAgent(chat, nextAgent, toChatContext(chat, context));
 	const getMessages = chats.getMessages.bind(agent.chats);
 	chats.getMessages = (chat, context) => getMessages(chat, toChatContext(chat, context));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader, terminalManager };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -8300,66 +8293,6 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 		});
 	});
 
-	test('getMessages overlays host-persisted full output when Claude SDK history omits the structured Bash result', async () => {
-		const database = new TestSessionDatabase();
-		const stdout = `FULL-OUTPUT-START\n${'x'.repeat(1000)}`;
-		await writeClaudeTerminalOutputRecords(database, new Map([['tu1', {
-			preview: stdout.slice(0, 500),
-			persistedOutputPath: '/tmp/claude-full-output.txt',
-		}]]));
-		const { agent, sdk, terminalManager } = createTestContext(disposables, { database });
-		const sessionId = 'phase13-terminal-output';
-		sdk.sessionMessagesById.set(sessionId, [
-			makeUserSessionMessage('u1', 'run it'),
-			{
-				type: 'assistant',
-				uuid: 'a1',
-				session_id: sessionId,
-				parent_tool_use_id: null,
-				parent_agent_id: null,
-				message: {
-					id: 'msg_a1',
-					role: 'assistant',
-					content: [{ type: 'tool_use', id: 'tu1', name: 'Bash', input: { command: 'node large-output.cjs' } }],
-				},
-			},
-			{
-				type: 'user',
-				uuid: 'u2',
-				session_id: sessionId,
-				parent_tool_use_id: null,
-				parent_agent_id: null,
-				message: {
-					role: 'user',
-					content: [{ type: 'tool_result', tool_use_id: 'tu1', content: '<persisted-output>display prose only</persisted-output>' }],
-				},
-			},
-			makeAssistantSessionMessage('a2', 'done'),
-		]);
-
-		const sessionUri = AgentSession.uri(agent.id, sessionId);
-		await bindDefaultChat(agent, sessionUri);
-		const turns = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
-		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
-
-		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
-		assert.deepStrictEqual(part.toolCall.content?.[0], {
-			type: ToolResultContentType.Terminal,
-			resource: buildNonPtyShellTerminalUri(defaultChatUri(sessionUri), 'tu1'),
-			title: 'node large-output.cjs',
-			isPty: false,
-			result: {
-				preview: stdout.slice(0, 500),
-				truncated: true,
-			},
-		});
-		const terminalUri = buildNonPtyShellTerminalUri(defaultChatUri(sessionUri), 'tu1');
-		assert.strictEqual(
-			terminalManager.retainedTerminalStates.get(terminalUri)?.artifact?.toString(),
-			URI.file('/tmp/claude-full-output.txt').toString(),
-		);
-	});
-
 	test('getMessages resolves a released peer-chat subagent through the exact source backing', async () => {
 		const { agent, sdk, stateManager } = createTestContext(disposables);
 		const parentSessionId = 'sdk-parent';
@@ -8511,7 +8444,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const authenticationService = disposables.add(new FakeAgentHostAuthenticationService());
-		const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 		const resolveReducerEnablement = (session: string, target: { readonly id: string }) => {
 			const findCustomization = (customizations: readonly (Customization | ChildCustomization)[]): PluginCustomization | McpServerCustomization | undefined => {
 				for (const customization of customizations) {
@@ -8556,7 +8488,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
-			[IAgentHostTerminalManager, terminalManager],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
 			[IAgentHostCustomizationEnablementService, {
@@ -8597,7 +8528,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
 			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
 		};
-		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader, terminalManager };
+		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 	}
 
 	function publishReducerCustomizations(stateManager: AgentHostStateManager, session: URI, customizations: readonly Customization[]): void {

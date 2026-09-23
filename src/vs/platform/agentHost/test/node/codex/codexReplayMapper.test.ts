@@ -666,52 +666,6 @@ suite('codexReplayMapper', () => {
 			success: true,
 			output: 'total 0',
 		});
-
-		test('commandExecution replay uses a supplied full-output artifact', () => {
-			const thread = {
-				id: 'thr',
-				turns: [{
-					id: 'turn_a',
-					items: [
-						{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'run it', text_elements: [] }] },
-						{
-							type: 'commandExecution', id: 'c1',
-							command: 'node large-output.cjs', cwd: '/tmp', processId: null,
-							source: 'agent', status: 'completed',
-							commandActions: [], aggregatedOutput: `FULL-OUTPUT-START\n${'x'.repeat(1000)}\nFULL-OUTPUT-END`, exitCode: 0, durationMs: 5,
-						},
-					],
-					itemsView: { type: 'full' } as never,
-					status: 'completed' as never,
-					error: null, startedAt: null, completedAt: null, durationMs: null,
-				}],
-			} as never;
-			const turns = replayThreadToTurns(
-				thread,
-				undefined,
-				undefined,
-				new Map([['c1', {
-					exitCode: 0,
-					preview: 'FULL-OUTPUT-START',
-					truncated: true,
-				}]]),
-				URI.parse('codex:/session-1'),
-			);
-			const part = turns[0].responseParts[0];
-			assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
-			assert.strictEqual(part.toolCall.toolCallId, 'c1');
-			assert.deepStrictEqual(part.toolCall.content?.[0], {
-				type: ToolResultContentType.Terminal,
-				resource: 'agenthost-terminal://shell/session-1/c1',
-				title: 'node large-output.cjs',
-				isPty: false,
-				result: {
-					exitCode: 0,
-					preview: 'FULL-OUTPUT-START',
-					truncated: true,
-				},
-			});
-		});
 	});
 
 	test('imageGeneration restores its generated image', () => {
@@ -808,47 +762,37 @@ suite('codexReplayMapper', () => {
 		]);
 	});
 
-	for (const retainedOutput of [false, true]) {
-		test(`coalesced commandExecution preserves its live tool identity with ${retainedOutput ? 'retained' : 'inline'} output`, () => {
-			const output = retainedOutput ? `BEGIN\n${'x'.repeat(21 * 1024)}\nEND` : 'Example Domain';
-			const terminalResult = { exitCode: 0, preview: output.slice(0, 500), truncated: true };
-			const session = URI.parse('codex:/session-1');
-			const turns = replayThreadToTurns({
-				id: 'thr',
-				turns: [{
-					id: 'turn_a',
-					items: [
-						{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'curl it', text_elements: [] }] },
-						{
-							type: 'commandExecution', id: 'pre',
-							command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
-							source: 'agent', status: 'completed',
-							commandActions: [], aggregatedOutput: '', exitCode: 0, durationMs: 3,
-						},
-						{
-							type: 'commandExecution', id: 'esc',
-							command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
-							source: 'agent', status: 'completed',
-							commandActions: [], aggregatedOutput: output, exitCode: 0, durationMs: 30,
-						},
-					],
-					itemsView: { type: 'full' },
-					status: 'completed',
-					error: null, startedAt: null, completedAt: null, durationMs: null,
-				}],
-			} as never, undefined, undefined, retainedOutput ? new Map([['esc', terminalResult]]) : undefined, session);
-			assert.strictEqual(turns.length, 1);
-			assert.strictEqual(turns[0].responseParts.length, 1);
-			const part = turns[0].responseParts[0];
-			assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
-			assert.strictEqual(part.toolCall.toolCallId, 'pre');
-			assert.deepStrictEqual(part.toolCall.content, retainedOutput ? [{
-				type: ToolResultContentType.Terminal,
-				resource: 'agenthost-terminal://shell/session-1/esc',
-				title: 'curl -s https://example.com',
-				isPty: false,
-				result: terminalResult,
-			}] : [{ type: ToolResultContentType.Text, text: output }]);
-		});
-	}
+	test('commandExecution coalesces a sandbox pre-flight with its re-run into one box', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'curl it', text_elements: [] }] },
+					// Pre-flight: same command, no output, success → deferred.
+					{
+						type: 'commandExecution', id: 'pre',
+						command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+						source: 'agent', status: 'completed',
+						commandActions: [], aggregatedOutput: '', exitCode: 0, durationMs: 3,
+					},
+					// Escalated re-run: same command, real output.
+					{
+						type: 'commandExecution', id: 'esc',
+						command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+						source: 'agent', status: 'completed',
+						commandActions: [], aggregatedOutput: 'Example Domain', exitCode: 0, durationMs: 30,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.strictEqual(turns.length, 1);
+		// Exactly one box — the pre-flight is coalesced away.
+		assert.strictEqual(turns[0].responseParts.length, 1);
+		const part = turns[0].responseParts[0] as { toolCall: { content?: { text: string }[] } };
+		assert.strictEqual(part.toolCall.content?.[0].text, 'Example Domain');
+	});
 });

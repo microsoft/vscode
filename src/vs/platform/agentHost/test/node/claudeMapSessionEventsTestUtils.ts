@@ -282,7 +282,7 @@ export function makeUserToolResultMessage(
 	sessionId: string,
 	toolUseId: string,
 	content: string | Array<{ type: 'text'; text: string }>,
-	options?: { isError?: boolean; toolUseResult?: unknown },
+	options?: { isError?: boolean },
 ): SDKUserMessage {
 	return {
 		type: 'user',
@@ -299,7 +299,6 @@ export function makeUserToolResultMessage(
 		},
 		parent_tool_use_id: null,
 		isSynthetic: true,
-		...(options?.toolUseResult !== undefined ? { tool_use_result: options.toolUseResult } : {}),
 		uuid: TEST_UUID,
 		session_id: sessionId,
 	};
