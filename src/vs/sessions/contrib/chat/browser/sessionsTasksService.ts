@@ -11,7 +11,7 @@ import { parse } from '../../../../base/common/jsonc.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
@@ -94,7 +94,7 @@ export interface ISessionsTasksService {
 	 * a one-time snapshot for a specific session should use
 	 * {@link getSessionTasksOnce} instead.
 	 */
-	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]>;
+	getSessionTasks(session: ISession | IChat): IObservable<readonly ISessionTaskWithTarget[]>;
 
 	/**
 	 * Returns a one-shot snapshot of the session tasks (with `inAgents: true`)
@@ -222,7 +222,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		this._pinnedBrowsers = this._loadPinnedBrowsers();
 	}
 
-	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]> {
+	getSessionTasks(session: ISession | IChat): IObservable<readonly ISessionTaskWithTarget[]> {
 		const folder = this._getSessionFolder(session);
 		this._ensureFileWatch(folder);
 		// Trigger initial read only when the folder changes; the file watcher handles subsequent updates
@@ -487,11 +487,11 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 
 	// --- private helpers ---
 
-	private _getSessionRepo(session: ISession) {
+	private _getSessionRepo(session: ISession | IChat) {
 		return session.workspace.get()?.folders[0];
 	}
 
-	private _getSessionFolder(session: ISession): URI | undefined {
+	private _getSessionFolder(session: ISession | IChat): URI | undefined {
 		const repo = this._getSessionRepo(session);
 		return repo?.workingDirectory ?? repo?.root;
 	}

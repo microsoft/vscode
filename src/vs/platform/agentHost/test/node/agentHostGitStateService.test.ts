@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,7 +15,8 @@ import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHost
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildChatUri, getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
@@ -189,6 +191,7 @@ suite('AgentHostGitStateService', () => {
 		const gitCalls: string[] = [];
 		const gitBaseBranches: Array<string | undefined> = [];
 		let gitResult: ISessionGitState | undefined;
+		let gitResultPromise: Promise<ISessionGitState | undefined> | undefined;
 		let gitError: Error | undefined;
 		let headSha: string | undefined;
 		const gitService: IAgentHostGitService = {
@@ -199,7 +202,7 @@ suite('AgentHostGitStateService', () => {
 				if (gitError) {
 					throw gitError;
 				}
-				return gitResult;
+				return gitResultPromise ?? gitResult;
 			},
 			revParse: async () => headSha,
 		};
@@ -257,6 +260,7 @@ suite('AgentHostGitStateService', () => {
 			pullRequestShaCalls,
 			pullRequestCandidateCalls,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
+			setGitResultPromise: (promise: Promise<ISessionGitState | undefined> | undefined) => { gitResultPromise = promise; },
 			setGitError: (error: Error) => { gitError = error; },
 			setHeadSha: (sha: string | undefined) => { headSha = sha; },
 			setPullRequest: (branch: string, pullRequest: CreatedPullRequest) => { pullRequestsByBranch.set(branch, pullRequest); },
@@ -299,6 +303,69 @@ suite('AgentHostGitStateService', () => {
 			stateManager.setSessionMeta(SESSION, withSessionArtifacts(stateManager.getSessionState(SESSION)?._meta, options.artifacts));
 		}
 	}
+
+	test('seeds the materialized worktree branch while preserving known git state', () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: {
+				branchName: 'main',
+				isDetachedHead: true,
+				baseBranchName: 'main',
+				hasGitHubRemote: true,
+				upstreamBranchName: 'origin/main',
+				incomingChanges: 1,
+				outgoingChanges: 2,
+				uncommittedChanges: 3,
+				hasBaseBranchChanges: true,
+				githubOwner: 'microsoft',
+				githubHeadOwner: 'user',
+				githubRepo: 'vscode',
+			},
+		});
+
+		const materializedMeta = h.service.getMaterializedWorktreeMeta(SESSION, 'agents/feature');
+
+		assert.deepStrictEqual(readSessionGitState(materializedMeta), {
+			branchName: 'agents/feature',
+			baseBranchName: 'main',
+			hasGitHubRemote: true,
+			githubOwner: 'microsoft',
+			githubRepo: 'vscode',
+		});
+	});
+
+	test('discards a refresh result when the session moved to another working directory', async () => {
+		const h = createHarness();
+		const repository = URI.file('/work/repo');
+		const worktree = URI.file('/work/repo.worktrees/feature');
+		seedSession(h.stateManager, {
+			workingDirectory: repository.toString(),
+			gitState: { branchName: 'agents/feature', baseBranchName: 'main' },
+		});
+		const deferredResult = new DeferredPromise<ISessionGitState | undefined>();
+		h.setGitResultPromise(deferredResult.p);
+
+		const refresh = h.service.refreshSessionGitState(SESSION, repository);
+		while (h.gitCalls.length === 0) {
+			await Promise.resolve();
+		}
+		h.stateManager.dispatchServerAction(SESSION, {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			directory: repository.toString(),
+			replacement: worktree.toString(),
+		});
+		deferredResult.complete({ branchName: 'main', baseBranchName: 'main' });
+		await refresh;
+
+		assert.deepStrictEqual({
+			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+			runEvents: h.runEvents,
+		}, {
+			gitState: { branchName: 'agents/feature', baseBranchName: 'main' },
+			runEvents: [],
+		});
+	});
 
 	test('preserves merge provenance when a later pull request becomes the latest outcome', async () => {
 		const h = createHarness();
@@ -358,6 +425,53 @@ suite('AgentHostGitStateService', () => {
 			runEvents: []
 		});
 	});
+
+	test('keeps chat Git state separate from the containing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'session-main' };
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: sessionGitState,
+		});
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+
+		const before = h.service.getSessionGitState(chat);
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+		const afterRefresh = h.service.getSessionGitState(chat);
+		h.setGitResult(undefined);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			afterRefresh,
+			afterUnavailable: h.service.getSessionGitState(chat),
+			sessionGitState: h.service.getSessionGitState(SESSION),
+			runEvents: h.runEvents,
+		}, {
+			before: undefined,
+			afterRefresh: chatGitState,
+			afterUnavailable: undefined,
+			sessionGitState,
+			runEvents: [chat, chat],
+		});
+	}));
+
+	test('clears chat Git state when the chat is removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		h.stateManager.removeChat(SESSION, chat);
+
+		assert.strictEqual(h.service.getSessionGitState(chat), undefined);
+	}));
 
 	test('uses the selected worktree base branch when refreshing git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();

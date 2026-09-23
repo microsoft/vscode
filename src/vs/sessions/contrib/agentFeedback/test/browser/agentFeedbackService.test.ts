@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService, shouldIncludeRawPRReviewComments } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -24,7 +24,7 @@ import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workb
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -36,6 +36,31 @@ function r(startLine: number, endLine: number = startLine): Range {
 function feedbackSummary(items: readonly { resourceUri: URI; range: { startLineNumber: number } }[]): string[] {
 	return items.map(f => `${f.resourceUri.path}:${f.range.startLineNumber}`);
 }
+
+suite('AgentFeedbackService - PR review authority', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes raw PR comments until Agent Host feedback has loaded', () => {
+		let loaded = false;
+		const service = new class extends mock<IAgentFeedbackService>() {
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return loaded; }
+		}();
+		const session = URI.parse('vscode-agent-session://test/session');
+
+		const beforeLoad = shouldIncludeRawPRReviewComments(service, session);
+		loaded = true;
+
+		assert.deepStrictEqual({
+			beforeLoad,
+			afterLoad: shouldIncludeRawPRReviewComments(service, session),
+		}, {
+			beforeLoad: true,
+			afterLoad: false,
+		});
+	});
+});
 
 suite('AgentFeedbackService - Ordering', () => {
 
@@ -466,6 +491,28 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 
 	test('returns undefined when there is no active session and no tracked file', () => {
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+
+	test('returns changes from the active chat instead of aggregate session changes', () => {
+		const aggregateChange = URI.file('/aggregate.ts');
+		const activeChatChange = URI.file('/active-chat.ts');
+		const activeChat = new class extends mock<IChat>() {
+			override readonly changes = observableValue<readonly ISessionFileChange[]>('activeChatChanges', [{
+				modifiedUri: activeChatChange,
+				originalUri: activeChatChange,
+				insertions: 1,
+				deletions: 0,
+			}]);
+		}();
+		const activeSession = {
+			...makeSession(sessionS1, SessionStatus.InProgress, { changes: [aggregateChange] }),
+			activeChat: observableValue('activeChat', activeChat),
+		} as unknown as IActiveSession;
+		setActiveSession(activeSession);
+
+		assert.deepStrictEqual(service.getChatChanges(sessionS1).map(change => change.modifiedUri?.toString()), [
+			activeChatChange.toString(),
+		]);
 	});
 
 	test('uses one shared feedback scope for undefined and workspace-less drafts', () => {

@@ -35,7 +35,7 @@ import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './si
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneHeaderToggleDetailsOrder = 9;
+const singlePaneHeaderToggleDetailsOrder = 10;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -146,7 +146,8 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			}
 
 			if (multipleSessionsVisible) {
-				const workspace = activeSession?.workspace.read(reader);
+				const activeChat = activeSession?.activeChat.read(reader);
+				const workspace = activeChat?.workspace.read(reader);
 				const isCreated = activeSession?.isCreated.read(reader);
 				if (!isWorkspaceConversion && activeSession && !isQuickChat && workspace && isCreated === true) {
 					this._ctx.withSessionLayoutRestore(() => this._reveal(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
@@ -288,7 +289,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			}
 			if (!activeSession
 				|| isQuickChat
-				|| !activeSession.workspace.read(reader)
+				|| !activeSession.activeChat.read(reader).workspace.read(reader)
 				|| !activeSession.isCreated.read(reader)) {
 				wasExistingActive = false;
 				previousActiveEditor = undefined;
@@ -345,7 +346,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		this._register(autorun(sync));
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
 			const activeSession = this._sessionsService.activeSession.get();
-			if (!activeSession || activeSession.resource.toString() !== pendingSessionKey) {
+			if (pendingSessionKey && activeSession?.resource.toString() !== pendingSessionKey) {
 				return;
 			}
 			pendingSessionKey = undefined;
@@ -450,7 +451,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 			if (session && !isQuickChat && isCreated) {
 				const target = this.managedTabs.readTarget(reader);
-				const hasChanges = (session.changes.read(reader).length ?? 0) > 0;
+				const hasChanges = session.activeChat.read(reader).changes.read(reader).length > 0;
 				const ensureChangesActive = changesActivationPendingForSession === sessionKey && hasChanges;
 				if (ensureChangesActive) {
 					changesActivationPendingForSession = undefined;

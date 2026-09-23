@@ -41,6 +41,14 @@ export interface ISessionType {
 	 * credentials come and go).
 	 */
 	readonly authRequirement: SessionTypeAuthRequirement;
+	/**
+	 * Selection-time initialization advertised by the provider while this type
+	 * is not usable yet. Absent when selecting the type cannot make progress.
+	 */
+	readonly initializationOnSelection?: {
+		/** Whether the provider already has non-GitHub authentication for initialization. */
+		readonly canInitializeWithoutGitHub: boolean;
+	};
 }
 
 /**
@@ -117,6 +125,13 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 	}
 }
 
+/** Provider-owned progress while preparing a draft for its first request. */
+export interface ISessionPreparationProgress {
+	readonly message: string;
+	readonly showLog?: () => void;
+	cancel(): void;
+}
+
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
  * host protocol's notion of chat interactivity but is decoupled from it so that
@@ -151,6 +166,10 @@ export function effectiveChatInteractivity(isArchived: boolean, interactivity: C
 }
 
 export interface ISessionGitRepository {
+	/** Whether the folder is a Git repository. */
+	readonly isRepository?: IObservable<boolean>;
+	/** Starts resolving repository information when it is exposed lazily. */
+	readonly resolveRepository?: () => void;
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
@@ -363,9 +382,11 @@ export interface IGitHubPullRequestRef {
 	 * discovered from git state, which carry no title until they are fetched live.
 	 */
 	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 	/**
-	 * Whether this pull request originated in the session, as opposed to being
-	 * inherited from the checkout it started from or merely referenced by the agent.
+	 * Whether this pull request originated in or was explicitly recorded as the session's own artifact, as opposed to being
+	 * inherited from the checkout it started from or merely recorded as a reference by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
 }
@@ -390,6 +411,13 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 	}];
 }
 
+/** Excludes inherited checkout PRs, while accepting the primary PR from providers without provenance. */
+export function getSessionOwnedGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	return gitHubInfo?.pullRequests
+		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
+		: getGitHubPullRequestRefs(gitHubInfo);
+}
+
 /** A GitHub issue referenced by a session. */
 export interface IGitHubIssueRef {
 	/** GitHub repository owner of the issue. */
@@ -400,6 +428,10 @@ export interface IGitHubIssueRef {
 	readonly number: number;
 	/** URI of the issue. */
 	readonly uri: URI;
+	/** Issue title recorded by the session, when known. */
+	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 }
 
 export interface ISessionChangesSummary {
@@ -419,7 +451,7 @@ export type ISessionTurnFileChange = ISessionFileChange & {
  * Well-known id of the changeset that holds the diff between a session's branch
  * and its base (e.g. `main...feature`). Shared so that consumers which always
  * want the branch diff — regardless of the changeset currently selected in the
- * Changes view — can locate it in {@link ISession.changesets} by id.
+ * Changes view — can locate it in {@link IChat.changesets} by id.
  */
 export const BRANCH_CHANGES_CHANGESET_ID = 'branch';
 
@@ -440,7 +472,7 @@ export const SESSION_CHANGES_CHANGESET_ID = 'session';
  * Well-known id of the changeset that holds the diff made during the session's
  * **last turn** only (as opposed to the cumulative session diff). Consumers that
  * want to reflect just the most recent turn — e.g. the chat input status pills —
- * can locate it in {@link ISession.changesets} by id.
+ * can locate it in {@link IChat.changesets} by id.
  *
  * Must match the agent host provider's `ChangesetKind.Turn` value.
  */
@@ -449,6 +481,8 @@ export const TURN_CHANGES_CHANGESET_ID = 'turn';
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
+	/** Stable backing resource shared by equivalent changeset projections, when available. */
+	readonly resource?: URI;
 	/** Display label for the changeset. */
 	readonly label: string;
 	/** Optional description for the changeset. */
@@ -636,6 +670,8 @@ export interface IChat {
 
 	// Reactive properties
 
+	/** The effective workspace available to this chat. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. */
@@ -644,6 +680,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
+	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
@@ -699,6 +737,13 @@ export interface IChat {
 	 * {@link getChatCapabilities}.
 	 */
 	readonly capabilities?: IObservable<IChatCapabilities>;
+}
+
+/** Whether the chat is a side chat spawned by the given parent chat. */
+export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
+	return chat.origin?.kind === ChatOriginKind.SideChat
+		&& !!chat.origin.parentChat
+		&& isEqual(chat.origin.parentChat, parentChat);
 }
 
 /**
@@ -765,10 +810,6 @@ export interface ISession {
 	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
-	/** File changes produced by the session. */
-	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * The artifacts and references the agent recorded for this session (pull
 	 * requests, issues, files, …). Both categories share this observable and are
@@ -783,6 +824,7 @@ export interface ISession {
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
 	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
+	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -810,7 +852,7 @@ export interface ISessionCreationReference {
 	readonly turnId?: string;
 }
 
-/** Returns whether any chat or session-level fallback reports file changes. */
+/** Returns whether any chat or the session summary reports file changes. */
 export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
 	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
 		return true;
@@ -819,7 +861,7 @@ export function sessionHasChanges(session: ISession, reader: IReader | undefined
 	if (changesSummary !== undefined) {
 		return changesSummary.files > 0;
 	}
-	return session.changes.read(reader).length > 0;
+	return session.mainChat.read(reader).changes.read(reader).length > 0;
 }
 
 /**
@@ -842,6 +884,8 @@ export function toSessionId(providerId: string, resource: URI): string {
  * Consumers check these before surfacing session-specific features in the UI.
  */
 export interface ISessionCapabilities {
+	/** Whether recorded artifacts can be removed from this session. */
+	readonly supportsRemoveArtifacts?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
@@ -1037,6 +1081,7 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.state === y.state &&
 			x.liveState === y.liveState &&
 			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
@@ -1046,7 +1091,14 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
-		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 /**
@@ -1100,6 +1152,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 	}
 	return isEqual(a.uri, b.uri)
 		&& isEqual(a.workTreeUri, b.workTreeUri)
+		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
 		&& a.baseBranchProtected === b.baseBranchProtected

@@ -6,7 +6,7 @@
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -21,13 +21,13 @@ import { IChatEntitlementService } from '../../../../../../services/chat/common/
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
-import { ModelPickerAutoRow } from './modelPickerAutoRow.js';
-import { IPricingDisclosure, ModelCard } from './modelPickerCard.js';
-import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
+import { IAutoRowOptions, ModelPickerAutoRow } from './modelPickerAutoRow.js';
+import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
+import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge } from './modelPickerBadges.js';
-import { createModelAction, createUnavailableModelItem, getUnavailableReason } from './modelPickerItemPrimitives.js';
+import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
-import { isAutoModel } from './modelPickerPresentation.js';
+import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 
@@ -64,7 +64,8 @@ export interface ITabbedModelPickerContext {
 	readonly onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 	readonly onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined;
 	readonly onManageModels: () => void;
-	/** Reports a configuration change made from a model's detail card. */
+	readonly onDidToggleOtherModels: (collapsed: boolean) => void;
+	/** Reports a configuration change made from the Auto row or a model's detail card. */
 	readonly onConfigurationChanged: (model: ILanguageModelChatMetadataAndIdentifier, group: string, key: string, fromValue: unknown, toValue: unknown) => void;
 	/** Warning banner shown when switching options mid-session would reset the prompt cache. */
 	readonly cacheBreakHint: { readonly text: string; readonly link: IActionListHeaderLink | undefined; readonly dismiss: () => void } | undefined;
@@ -72,7 +73,8 @@ export interface ITabbedModelPickerContext {
 
 /**
  * A provider-tabbed model picker with a detail card beside the hovered model and an
- * Auto row pinned below. With only the built-in provider there is no tab bar.
+ * Auto row pinned below, followed by HydraFusion when offered. Enabling either collapses
+ * the manual model controls.
  */
 export class TabbedModelPicker extends Disposable {
 
@@ -80,8 +82,10 @@ export class TabbedModelPicker extends Disposable {
 	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _widget: TabbedActionListWidget;
-	private readonly _cards = this._register(new DisposableStore());
-	private readonly _autoRow = this._register(new MutableDisposable<ModelPickerAutoRow>());
+	private readonly _cards = this._register(new DisposableMap<string, ModelCard>());
+	/** The footer rows of the showing popup, which owns them; cleared when it disposes them. */
+	private _autoRow: ModelPickerAutoRow | undefined;
+	private _hydraFusionRow: ModelPickerAutoRow | undefined;
 	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
 	/** Shared by every card, and remembered, so the breakdown is opened once rather than per model. */
 	private readonly _pricingDisclosure: IPricingDisclosure = {
@@ -97,7 +101,9 @@ export class TabbedModelPicker extends Disposable {
 	private _anchor: HTMLElement | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
-	private _speedVariants: ReadonlyMap<string, IModelSpeedVariants> = new Map();
+	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
+	private readonly _preferredSpeedVariants = new Map<string, string>();
+	private _selectionVersion = 0;
 	/** The model to fall back to when Auto is switched off. */
 	private _lastExplicitModelId: string | undefined;
 
@@ -119,6 +125,7 @@ export class TabbedModelPicker extends Disposable {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
+			this._cards.clearAndDisposeAll();
 			this._onDidHide.fire();
 		}));
 	}
@@ -133,7 +140,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 		this._anchor = anchor;
 		this._context = context;
-		if (context.selectedModelId && !this._isAutoSelected(context)) {
+		if (context.selectedModelId && !this._selectedFooterModel(context)) {
 			this._lastExplicitModelId = context.selectedModelId;
 		}
 		this._showCurrent();
@@ -146,9 +153,9 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 
-		this._speedVariants = buildSpeedVariants(context.models);
-		const listModels = collapseSpeedVariants(context.models, this._speedVariants, context.selectedModelId);
-		const destinations = buildModelPickerDestinations(listModels, this._languageModelsService, context.providerPlaceholders);
+		this._speedVariants.clear();
+		this._cards.clearAndDisposeAll();
+		const destinations = this._buildDestinations(context);
 		if (!destinations.length) {
 			return;
 		}
@@ -157,6 +164,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 
 		const autoModel = context.models.find(isAutoModel);
+		const hydraFusionModel = this._hydraFusionModel(context);
 		this._widget.show<IActionWidgetDropdownAction>({
 			user: 'ChatTabbedModelPicker',
 			anchor,
@@ -164,35 +172,34 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
-			showCheckedItemHover: !this._isAutoSelected(context),
+			showCheckedItemHover: !this._selectedFooterModel(context),
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
-			// Recomputed on every render so a tab switch reflects the current Auto state.
 			widgetClassNames: () => [
 				'chat-model-picker-widget',
-				...(this._isAutoSelected(this._context ?? context) ? ['auto-enabled'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
 			tabLabels: 'active',
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
-			createActionList: activeTab => {
-				this._cards.clear();
+			createActionList: (activeTab, forSizing) => {
 				const current = this._context ?? context;
-				const destination = destinations.find(candidate => candidate.id === activeTab) ?? destinations[0];
+				const currentDestinations = this._buildDestinations(current);
+				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
 				// Search spans every destination at once, so each model names its provider.
-				const items = this._searchVisible
-					? destinations.flatMap(candidate => this._buildSearchItems(candidate, current))
+				const searching = this._searchVisible && !forSizing;
+				const items = searching
+					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
 					: this._buildItems(destination, sections, current);
 				return {
 					items,
 					listOptions: withChatInputPickerMotion({
 						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 						persistentHover: true,
-						showFilter: this._searchVisible,
+						showFilter: searching,
 						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-						focusFilterOnOpen: this._searchVisible,
+						focusFilterOnOpen: searching,
 						initialFilterValue,
 						filterAsCombobox: true,
 						onType: text => {
@@ -205,6 +212,11 @@ export class TabbedModelPicker extends Disposable {
 						headerDismiss: current.cacheBreakHint?.dismiss,
 						// A tab with nothing promoted would open on an empty list, so leave it expanded.
 						collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+						onDidToggleSection: (section, collapsed) => {
+							if (section === OTHER_MODELS_SECTION) {
+								current.onDidToggleOtherModels(collapsed);
+							}
+						},
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
 						maxWidth: PICKER_WIDTH,
 						hideDefaultKeybindingTooltip: true,
@@ -221,7 +233,18 @@ export class TabbedModelPicker extends Disposable {
 				container.appendChild(welcome.element);
 				return welcome;
 			},
-			renderFooter: autoModel ? container => this._renderAutoRow(container, autoModel, context) : undefined,
+			renderFooter: autoModel || hydraFusionModel ? container => this._renderFooter(container, autoModel, hydraFusionModel, context) : undefined,
+			isBodyCollapsed: () => {
+				const current = this._context ?? context;
+				const selected = this._selectedFooterModel(current);
+				// Keep provider and upgrade actions reachable when the footer model is the only available one.
+				return !!selected && !!this._fallbackModel(current, selected);
+			},
+			focusFooter: () => {
+				const current = this._context ?? context;
+				const hydraFusionSelected = !!hydraFusionModel && current.selectedModelId === hydraFusionModel.identifier;
+				(hydraFusionSelected ? this._hydraFusionRow : this._autoRow ?? this._hydraFusionRow)?.focus();
+			},
 			delegate: {
 				onSelect: action => {
 					void action.run();
@@ -231,11 +254,45 @@ export class TabbedModelPicker extends Disposable {
 			},
 			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
 		});
+		if (this._context?.selectedModelId) {
+			this._rememberSpeedVariant(this._context.selectedModelId);
+		}
+	}
+
+	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
+		const hydraFusionModel = this._hydraFusionModel(context);
+		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders, model => isAutoModel(model) || model === hydraFusionModel);
+	}
+
+	/**
+	 * HydraFusion, when this build can run it. Otherwise it stays in the list, where the
+	 * sections show the update it needs rather than a switch that cannot be honoured.
+	 */
+	private _hydraFusionModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return context.models.find(model => isHydraFusionModel(model) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion));
+	}
+
+	private _rememberSpeedVariant(modelIdentifier: string): void {
+		const pair = this._speedVariants.get(modelIdentifier);
+		if (pair) {
+			this._preferredSpeedVariants.set(pair.standard.identifier, modelIdentifier);
+		}
+	}
+
+	private _pinnedVariantIds(modelIdentifier: string, context: ITabbedModelPickerContext): string[] {
+		const pair = this._speedVariants.get(modelIdentifier);
+		return context.pinnedModelIds.filter(id => id === modelIdentifier || id === pair?.standard.identifier || id === pair?.fast.identifier);
 	}
 
 	private _isAutoSelected(context: ITabbedModelPickerContext): boolean {
 		const selected = context.models.find(model => model.identifier === context.selectedModelId);
 		return !!selected && isAutoModel(selected);
+	}
+
+	/** The selected model when it is one of the footer's own rows, Auto or HydraFusion, which pick models themselves. */
+	private _selectedFooterModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const selected = context.models.find(model => model.identifier === context.selectedModelId);
+		return selected && (isAutoModel(selected) || selected === this._hydraFusionModel(context)) ? selected : undefined;
 	}
 
 	private _destinationForSelectedModel(destinations: readonly IModelPickerDestination[], context: ITabbedModelPickerContext): string | undefined {
@@ -244,12 +301,13 @@ export class TabbedModelPicker extends Disposable {
 
 	private _buildSections(destination: IModelPickerDestination, context: ITabbedModelPickerContext): IModelPickerSections {
 		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
-		return buildModelPickerSections({
+		const sections = buildModelPickerSections({
 			models: destination.models,
 			selectedModelId: context.selectedModelId,
 			recentModelIds: context.recentModelIds,
 			pinnedModelIds: context.pinnedModelIds,
 			controlModels: context.controlModels,
+			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
 			showSuggested: isBuiltIn,
@@ -257,6 +315,10 @@ export class TabbedModelPicker extends Disposable {
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
 			currentVSCodeVersion: context.unavailableContext.currentVSCodeVersion,
 		});
+		for (const [id, pair] of sections.speedVariants) {
+			this._speedVariants.set(id, pair);
+		}
+		return sections;
 	}
 
 	private _buildTabBarActions(context: ITabbedModelPickerContext): ITabBarAction[] {
@@ -338,7 +400,6 @@ export class TabbedModelPicker extends Disposable {
 					item: { id: 'otherModels', enabled: true, checked: false, class: undefined, tooltip: label, label, run: () => { } },
 					kind: ActionListItemKind.Action,
 					label,
-					badge: String(count),
 					ariaDescription: localize('chat.modelPicker.otherModelsCount', "{0} more models", count),
 					group: { title: '', icon: Codicon.chevronDown },
 					hideIcon: false,
@@ -358,9 +419,8 @@ export class TabbedModelPicker extends Disposable {
 	 * Every model in one destination as flat rows, for searching. Sections would only
 	 * get in the way of a result list, but each row still names its provider.
 	 */
-	private _buildSearchItems(destination: IModelPickerDestination, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
-		return destination.models
-			.slice()
+	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		return [...sections.pinned, ...sections.suggested, ...sections.other]
 			.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService)));
 	}
@@ -371,44 +431,58 @@ export class TabbedModelPicker extends Disposable {
 		section?: string,
 		providerLabel?: string,
 	): IActionListItem<IActionWidgetDropdownAction> {
-		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, context.onSelect, section, true);
+		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
+			this._selectionVersion++;
+			const pair = this._speedVariants.get(next.identifier);
+			context.onSelect(pair
+				? getPreferredSpeedVariant(pair, this._context?.selectedModelId, this._preferredSpeedVariants.get(pair.standard.identifier))
+				: next);
+		}, section, true);
 		const badge = getModelBadge(model, { configurationAccess: context.configurationAccess, providerLabel });
-		// While Auto is choosing, a model's settings do not apply, so the card that edits
-		// them stays shut. The row is still selectable, which is what turns Auto off.
-		const autoEnabled = this._isAutoSelected(context);
-		// Build each card lazily and reuse it while browsing this list.
-		let card: ModelCard | undefined;
-		const createCard = () => (card ??= this._cards.add(new ModelCard({
+		// A footer model hides the model controls, so it must not open a model's detail card.
+		const footerModelEnabled = !!this._selectedFooterModel(context);
+		let selectionVersion = this._selectionVersion;
+		const cardOptions: IModelCardOptions = {
 			model,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
 			openerService: this._openerService,
-			isPinned: context.pinnedModelIds.includes(model.identifier),
+			isPinned: this._pinnedVariantIds(model.identifier, context).length > 0,
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
-			onSelectVariant: next => {
-				context.onSelect(next);
-				this._widget.hide();
+			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
+			onSelect: next => {
+				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
+					this._rememberSpeedVariant(next.identifier);
+					context.onSelect(next);
+					this._context = { ...(this._context ?? context), selectedModelId: next.identifier };
+					this._lastExplicitModelId = next.identifier;
+				}
+			},
+			onDidAccept: () => {
+				this._widget.refreshActiveList({
+					focusItemId: selectionVersion === this._selectionVersion ? this._context?.selectedModelId : undefined,
+					preserveHover: true,
+				});
 			},
 			onTogglePin: context.onTogglePin
-				? pinned => {
-					context.onTogglePin?.(model.identifier, pinned);
-					// Closes like every other action in the card, so the card is not left
-					// open over a list that has since reordered itself.
-					this._widget.hide();
-				}
+				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
 			onDidChangeConfiguration: (group, key, fromValue, toValue) => {
 				context.onConfigurationChanged(model, group, key, fromValue, toValue);
-				// Configuring a model is a choice of it: the settings only take effect on the
-				// model they belong to, so tuning one and leaving another selected would
-				// discard the change the user just made.
-				if (model.identifier !== context.selectedModelId) {
-					context.onSelect(model);
-				}
-				this._widget.hide();
 			},
-		}))).element;
+		};
+		const createCard = () => {
+			const key = this._speedVariants.get(model.identifier)?.standard.identifier ?? model.identifier;
+			let card = this._cards.get(key);
+			if (card) {
+				card.update(cardOptions);
+			} else {
+				card = new ModelCard(cardOptions);
+				this._cards.set(key, card);
+			}
+			return card.element;
+		};
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -420,51 +494,122 @@ export class TabbedModelPicker extends Disposable {
 			hideIcon: false,
 			section,
 			className: badge ? `chat-model-picker-badge-${badge.tone}` : undefined,
-			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true },
+			hover: footerModelEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true, preserveVerticalPosition: true },
 			tooltip: action.tooltip,
 		};
 	}
 
-	private _renderAutoRow(container: HTMLElement, autoModel: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): IDisposable {
-		const row = new ModelPickerAutoRow({
-			autoModel,
-			configurationAccess: context.configurationAccess,
-			isEnabled: () => this._isAutoSelected(this._context ?? context),
-			onToggle: enabled => this._toggleAuto(enabled, autoModel),
+	private _togglePin(modelIdentifier: string, pinned: boolean): void {
+		const context = this._context;
+		if (!context?.onTogglePin) {
+			return;
+		}
+		const pinnedVariantIds = this._pinnedVariantIds(modelIdentifier, context);
+		if (pinned) {
+			context.onTogglePin(modelIdentifier, true);
+		} else {
+			for (const id of pinnedVariantIds) {
+				context.onTogglePin(id, false);
+			}
+		}
+		this._context = {
+			...context,
+			pinnedModelIds: pinned
+				? [...context.pinnedModelIds, modelIdentifier]
+				: context.pinnedModelIds.filter(id => !pinnedVariantIds.includes(id)),
+		};
+		this._widget.refreshActiveList({
+			focusItemId: modelIdentifier,
+			preserveHover: true,
+			animateItemMove: true,
 		});
-		this._autoRow.value = row;
+	}
+
+	/** Auto, with HydraFusion below it: both stay reachable from every tab, even while Auto collapses the list. */
+	private _renderFooter(
+		container: HTMLElement,
+		autoModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		hydraFusionModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		context: ITabbedModelPickerContext,
+	): IDisposable {
+		const store = new DisposableStore();
+		const autoRow = autoModel ? this._renderFooterRow(container, store, autoModel, context, {
+			isEnabled: () => this._isAutoSelected(this._context ?? context),
+		}) : undefined;
+		const hydraFusionRow = hydraFusionModel ? this._renderFooterRow(container, store, hydraFusionModel, context, {
+			toggleAriaLabel: localize('chat.modelPicker.hydraFusionToggle', "Use {0}", hydraFusionModel.metadata.name),
+			isEnabled: () => (this._context ?? context).selectedModelId === hydraFusionModel.identifier,
+		}) : undefined;
+		this._autoRow = autoRow;
+		this._hydraFusionRow = hydraFusionRow;
+		store.add(toDisposable(() => {
+			if (this._autoRow === autoRow) {
+				this._autoRow = undefined;
+			}
+			if (this._hydraFusionRow === hydraFusionRow) {
+				this._hydraFusionRow = undefined;
+			}
+		}));
+		return store;
+	}
+
+	private _renderFooterRow(
+		container: HTMLElement,
+		store: DisposableStore,
+		model: ILanguageModelChatMetadataAndIdentifier,
+		context: ITabbedModelPickerContext,
+		options: Pick<IAutoRowOptions, 'isEnabled' | 'toggleAriaLabel'>,
+	): ModelPickerAutoRow {
+		const row = store.add(new ModelPickerAutoRow({
+			...options,
+			autoModel: model,
+			configurationAccess: context.configurationAccess,
+			selectionVersion: () => this._selectionVersion,
+			onToggle: enabled => this._toggleFooterModel(enabled, model),
+			onDidChangeConfiguration: (group, key, fromValue, toValue) => context.onConfigurationChanged(model, group, key, fromValue, toValue),
+		}));
 		container.appendChild(row.element);
 		return row;
 	}
 
-	private _toggleAuto(enabled: boolean, autoModel: ILanguageModelChatMetadataAndIdentifier): void {
+	private _toggleFooterModel(enabled: boolean, model: ILanguageModelChatMetadataAndIdentifier): void {
 		const context = this._context;
 		if (!context) {
 			return;
 		}
-		const next = enabled ? autoModel : this._fallbackModel(context);
+		const next = enabled ? model : this._fallbackModel(context, model);
 		if (!next) {
-			// Auto is the only model, so there is nothing to switch back to.
-			this._autoRow.value?.render();
+			// The model is the only one, so there is nothing to switch back to.
+			this._renderFooterRows();
 			return;
 		}
+		this._selectionVersion++;
 		context.onSelect(next);
 		this._context = { ...context, selectedModelId: next.identifier };
 		// Updated in place rather than re-shown: rebuilding the popup would move focus
 		// off the switch the user just clicked, and can dismiss it outright.
 		this._widget.refreshActiveList();
-		this._autoRow.value?.render();
+		this._renderFooterRows();
 	}
 
-	/** The model to select when Auto is switched off: the last explicit pick, else the most recent one. */
-	private _fallbackModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
+	private _renderFooterRows(): void {
+		this._autoRow?.render();
+		this._hydraFusionRow?.render();
+	}
+
+	/**
+	 * The model to select when a footer model is switched off: the last explicit pick,
+	 * else the most recent one. Never Auto, nor the model being switched off.
+	 */
+	private _fallbackModel(context: ITabbedModelPickerContext, excluded?: ILanguageModelChatMetadataAndIdentifier): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const isCandidate = (model: ILanguageModelChatMetadataAndIdentifier) => !isAutoModel(model) && model.identifier !== excluded?.identifier;
 		const candidates = [this._lastExplicitModelId, ...context.recentModelIds, ...context.pinnedModelIds];
 		for (const id of candidates) {
 			const model = context.models.find(candidate => candidate.identifier === id);
-			if (model && !isAutoModel(model)) {
+			if (model && isCandidate(model)) {
 				return model;
 			}
 		}
-		return context.models.find(model => !isAutoModel(model));
+		return context.models.find(isCandidate);
 	}
 }

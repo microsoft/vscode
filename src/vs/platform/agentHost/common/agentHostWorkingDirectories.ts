@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -18,6 +19,14 @@ import { URI } from '../../../base/common/uri.js';
  */
 export function isMultiRootSession(workingDirectories: readonly string[] | undefined): boolean {
 	return (workingDirectories?.length ?? 0) > 1;
+}
+
+/** Returns a stable identity for an effective folder/worktree set. */
+export function getWorkingDirectoryScopeId(workingDirectories: readonly string[]): string {
+	const keys = [...new Set(workingDirectories.map(directory => extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(directory))))].sort();
+	const sha1 = new StringSHA1();
+	sha1.update(JSON.stringify(keys));
+	return sha1.digest();
 }
 
 /**

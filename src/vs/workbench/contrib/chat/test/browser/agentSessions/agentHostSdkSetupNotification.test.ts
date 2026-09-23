@@ -13,10 +13,10 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AgentHostSdkSetupNotificationContribution, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AgentHostSdkSetupNotificationContribution, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupForSessionType, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { IAgentSdkSetupService, type AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService, type IChatInputNotification, type IChatInputNotificationAction } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotificationService, type IChatInputNotification, type IChatInputNotificationAction } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
@@ -319,52 +319,18 @@ suite('Agent SDK setup banner', () => {
 		});
 	});
 
-	suite('reachability', () => {
-		/** A notification service holding the given notifications, none dismissed. */
-		function notificationService(notifications: readonly IChatInputNotification[]): IChatInputNotificationService {
-			return new class extends mock<IChatInputNotificationService>() {
-				override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
-					return notifications.find(notification => !filter || filter(notification));
-				}
-			}();
-		}
-
-		function bannersFor(...agents: readonly string[]): readonly IChatInputNotification[] {
-			return agents.flatMap(agent => {
-				const notification = createAgentSdkSetupNotification({ agent, download: 'notDownloaded' }, agent, 'downloadOffered');
-				return notification ? [notification] : [];
-			});
-		}
-
-		test('a banner is found for the session type it is scoped to, and only that one', () => {
-			const service = notificationService(bannersFor('claude'));
-
+	suite('activation reachability', () => {
+		test('an advertised setup is found for its session type and only that one', () => {
+			const setups: readonly IAgentSdkSetupInfo[] = [{ agent: 'claude', download: 'ready' }];
 			assert.deepStrictEqual({
-				claude: hasAgentSdkSetupNotification(service, SessionType.AgentHostClaude),
-				codex: hasAgentSdkSetupNotification(service, SessionType.AgentHostCodex),
-				copilot: hasAgentSdkSetupNotification(service, SessionType.AgentHostCopilot),
+				claude: hasAgentSdkSetupForSessionType(setups, SessionType.AgentHostClaude),
+				codex: hasAgentSdkSetupForSessionType(setups, SessionType.AgentHostCodex),
+				copilot: hasAgentSdkSetupForSessionType(setups, SessionType.AgentHostCopilot),
 			}, { claude: true, codex: false, copilot: false });
 		});
 
-		test('an unscoped notification is not mistaken for a setup banner', () => {
-			// The session-type filter alone passes a notification with no
-			// `sessionTypes` — a quota warning applies everywhere — so the id
-			// carries the "this is a setup ask" bit.
-			const service = notificationService([{
-				id: 'chat.quotaExceeded',
-				severity: ChatInputNotificationSeverity.Warning,
-				message: 'Out of quota',
-				description: undefined,
-				actions: [],
-				dismissible: true,
-				autoDismissOnMessage: false,
-			}]);
-
-			assert.strictEqual(hasAgentSdkSetupNotification(service, SessionType.AgentHostClaude), false);
-		});
-
-		test('nothing on offer means nothing to reach', () => {
-			assert.strictEqual(hasAgentSdkSetupNotification(notificationService([]), SessionType.AgentHostClaude), false);
+		test('no advertised setup leaves the harness gated', () => {
+			assert.strictEqual(hasAgentSdkSetupForSessionType([], SessionType.AgentHostClaude), false);
 		});
 	});
 

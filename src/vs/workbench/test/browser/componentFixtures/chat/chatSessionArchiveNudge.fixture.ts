@@ -8,6 +8,9 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../browser/chatPills.js';
 import { CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT } from '../../../../contrib/chat/browser/widget/input/chatSessionArchiveNudge.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -22,6 +25,9 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 	readonly withPills?: boolean;
 	readonly title?: string;
 	readonly icon?: string;
+	readonly expanded?: boolean;
+	readonly compact?: boolean;
+	readonly wording?: ChatSessionArchiveActionWording;
 }): Promise<void> {
 	return renderChatWidget(context, {
 		width: options.width,
@@ -33,6 +39,9 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 			assistant: [{ kind: 'markdown', text: 'The session list layout is updated and the changes have been merged.' }],
 		}],
 		additionalServices: registration => {
+			registration.defineInstance(IConfigurationService, new TestConfigurationService({
+				[ChatSessionArchiveActionWordingSettingId]: options.wording ?? ChatSessionArchiveActionWording.Archive,
+			}));
 			const treatments = new Map<string, string | undefined>([
 				[CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT, options.title],
 				[CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, options.icon],
@@ -66,9 +75,14 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 			inputPart.setSessionArchiveNudge({
 				hasWorktree: options.hasWorktree,
 				pullRequestCount: options.pullRequestCount ?? 1,
+				compact: options.compact,
 				onArchive: async () => inputPart.setSessionArchiveNudge(undefined),
 				onDismiss: () => { },
+				onOpenCleanupSettings: async () => { },
 			});
+			if (options.expanded) {
+				inputPart.element.querySelector<HTMLDetailsElement>('.chat-session-archive-nudge-details')!.open = true;
+			}
 		},
 	});
 }
@@ -80,8 +94,32 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Worktree: defineComponentFixture({
 		render: context => renderArchiveNudge(context, { hasWorktree: true }),
 	}),
+	FolderExpanded: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: false, expanded: true }),
+	}),
+	WorktreeExpanded: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, expanded: true }),
+	}),
 	Narrow: defineComponentFixture({
 		render: context => renderArchiveNudge(context, { hasWorktree: true, pullRequestCount: 2, width: 360 }),
+	}),
+	NarrowExpanded: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, pullRequestCount: 2, width: 360, expanded: true }),
+	}),
+	MarkAsDone: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	MarkAsDoneExpanded: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, width: 360, expanded: true, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	MarkAsDoneCompact: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, compact: true, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	MarkAsDoneCompactNarrow: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: true, compact: true, pullRequestCount: 2, width: 360, wording: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
+	Compact: defineComponentFixture({
+		render: context => renderArchiveNudge(context, { hasWorktree: false, compact: true }),
 	}),
 	WithSessionPills: defineComponentFixture({
 		render: context => renderArchiveNudge(context, { hasWorktree: false, withPills: true }),

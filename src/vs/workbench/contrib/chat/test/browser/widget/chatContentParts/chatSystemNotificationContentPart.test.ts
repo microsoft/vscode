@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -83,6 +83,64 @@ suite('ChatSystemNotificationContentPart', () => {
 				differentPresentation: false,
 			},
 		});
+	});
+
+	test('renders a workflow introduction with a quiet title and always-visible explanation', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const notification = {
+			kind: 'systemNotification', presentation: 'workflow',
+			content: new MarkdownString('Selected Single workflow\n\nUsing Single: one solver will work on your request.\n\nMain pass'),
+		} as const;
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, notification, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.querySelector('.chat-system-notification-workflow-title')?.textContent?.trim(),
+			body: [...part.domNode.querySelectorAll('.chat-system-notification-workflow-body > p')].map(p => p.textContent),
+			collapsed: part.domNode.classList.contains('collapsed'),
+			buttons: part.domNode.querySelectorAll('button, .monaco-button').length,
+			icons: part.domNode.querySelectorAll('.codicon').length,
+			same: part.hasSameContent(notification),
+			differentPresentation: part.hasSameContent({ ...notification, presentation: undefined }),
+		}, {
+			title: 'Selected Single workflow', body: ['Using Single: one solver will work on your request.', 'Main pass'],
+			collapsed: false, buttons: 0, icons: 0, same: true, differentPresentation: false,
+		});
+	});
+
+	test('older workflow records without an explanation still render their title', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+			kind: 'systemNotification', presentation: 'workflow', content: new MarkdownString('Selected Single workflow'),
+		}, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.textContent?.trim(),
+			body: part.domNode.querySelector('.chat-system-notification-workflow-body'),
+		}, { title: 'Selected Single workflow', body: null });
+	});
+
+	test('renders background agent titles as code without exposing markdown delimiters', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const names = ['Renderer reviewer', 'Review `permissions`', '[Renderer](command:unused)'];
+		const rendered = names.map(name => {
+			const content = new MarkdownString(`Background agent ${appendEscapedMarkdownInlineCode(name)} is complete`);
+			const part = disposables.add(instantiationService.createInstance(ChatSystemNotificationContentPart, { kind: 'systemNotification', content }, renderer));
+			return {
+				titles: [...part.domNode.querySelectorAll('code')].map(code => code.textContent),
+				text: part.domNode.textContent,
+				plaintext: renderAsPlaintext(content),
+				links: part.domNode.querySelectorAll('a').length,
+			};
+		});
+
+		assert.deepStrictEqual(rendered, names.map(name => ({
+			titles: [name],
+			text: `Background agent ${name} is complete`,
+			plaintext: `Background agent ${name} is complete`,
+			links: 0,
+		})));
 	});
 
 	test('renders collapsible notification details with accessible mouse and keyboard controls', () => {

@@ -15,10 +15,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +31,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -38,6 +39,7 @@ import { openChatFileChanges } from '../../editorChatResponseFileChangesService.
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -67,7 +69,9 @@ const artifactSectionOrder: readonly { readonly type: SessionArtifactType; reado
 
 export interface IAgentHostSessionPillMetadata {
 	readonly pullRequestUrls: readonly string[];
+	readonly pullRequestTitles: ReadonlyMap<string, string>;
 	readonly issueUrls: readonly string[];
+	readonly issueTitles: ReadonlyMap<string, string>;
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly references: readonly ISessionArtifact[];
 }
@@ -111,30 +115,34 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
-	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
-	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)).map(entry => entry.link);
+	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest));
+	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
-	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
-	const issueUrls = dedupeLinks(artifactIssues);
+	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
+	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
+	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
+	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
+		pullRequestTitles,
 		issueUrls,
+		issueTitles,
 		artifacts: remaining.filter(entry => entry.isArtifact),
 		references: remaining.filter(entry => !entry.isArtifact),
 	};
 }
 
-/** Resolves the session-wide changeset represented by the workbench Changes pill. */
-export function resolveAgentHostSessionChangeset(
-	backendSession: URI,
+/** Resolves the changeset represented by the workbench Changes pill. */
+export function resolveAgentHostChangeset(
+	ownerResource: URI,
 	changesets: readonly Changeset[] | undefined,
 	defaultKind?: DefaultChangesetKind,
 ): { readonly changeset: Changeset; readonly resource: URI } | undefined {
 	const staticChangesets = changesets?.filter(changeset => !changeset.uriTemplate.includes('{')) ?? [];
 	const changeset = selectDefaultChangeset(staticChangesets, defaultKind);
-	const resource = changeset ? parseUri(resolveChangesetUriTemplate(backendSession.toString(), changeset.uriTemplate)) : undefined;
+	const resource = changeset ? parseUri(resolveChangesetUriTemplate(ownerResource.toString(), changeset.uriTemplate)) : undefined;
 	return changeset && resource ? { changeset, resource } : undefined;
 }
 
@@ -204,9 +212,19 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function referenceLabel(link: string, kind: 'pullRequest' | 'issue'): string {
+function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
 	const resource = parseUri(link);
 	const number = resource ? githubReferenceNumber(resource, kind) : undefined;
+	if (title) {
+		if (kind === 'pullRequest') {
+			return number
+				? localize('agentHostSessionPills.pullRequest.numberWithTitle', "Pull Request #{0}: {1}", number, title)
+				: title;
+		}
+		return number
+			? localize('agentHostSessionPills.issue.numberWithTitle', "Issue #{0}: {1}", number, title)
+			: title;
+	}
 	if (kind === 'pullRequest') {
 		return number
 			? localize('agentHostSessionPills.pullRequest.number', "Pull Request #{0}", number)
@@ -248,15 +266,26 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
+		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super();
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
+		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
 			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
-			return resource ? connectionsService.resolveSessionResource(resource) : undefined;
+			if (!resource) {
+				return undefined;
+			}
+			provisionalSessionChanged.read(reader);
+			const provisionalBackend = provisionalSessions.get(resource);
+			if (isUntitledChatSession(resource) && !provisionalBackend) {
+				return undefined;
+			}
+			const resolved = connectionsService.resolveSessionResource(resource);
+			return resolved && provisionalBackend ? { ...resolved, backendSession: provisionalBackend } : resolved;
 		});
 		const sessionStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
@@ -267,19 +296,41 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
-		// A subagent (worker) chat inherits the session-wide pills, where they read
-		// as the subagent's own work, so the row stays hidden there.
-		const subagentChat = derived(this, reader => {
+		const chatResource = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const resource = sessionResource.read(reader);
-			const chatResource = resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
-			return !!chatResource && isSubagentChatUri(chatResource);
+			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
+		});
+		const chatStateSource = derived(this, reader => {
+			const current = resolution.read(reader);
+			const resource = chatResource.read(reader);
+			if (!current || !resource) {
+				return constObservable<ChatState | undefined>(undefined);
+			}
+			const subscription = reader.store.add(current.connection.getSubscription(StateComponents.Chat, resource, 'AgentHostSessionInputPills'));
+			return observableFromSubscription(this, subscription.object);
+		});
+		const chatState = derived(this, reader => chatStateSource.read(reader).read(reader));
+		// Session-wide metadata pills still belong to the parent session.
+		const subagentChat = derived(this, reader => {
+			const resource = chatResource.read(reader);
+			return !!resource && isSubagentChatUri(resource);
 		});
 		const pillsVisible = derived(this, reader => !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
-			return currentResolution
-				? resolveAgentHostSessionChangeset(currentResolution.backendSession, sessionState.read(reader)?.changesets, currentResolution.defaultChangesetKind)
-				: undefined;
+			const chat = chatResource.read(reader);
+			if (!currentResolution || !chat) {
+				return undefined;
+			}
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
+			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
+			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
+			return resolveAgentHostChangeset(
+				selectedEntry?.owner === 'session' ? currentResolution.backendSession : chat,
+				selectedChangeset ? [selectedChangeset] : undefined,
+				currentResolution.defaultChangesetKind,
+			);
 		});
 		const changesetStateSource = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
@@ -345,12 +396,18 @@ export class AgentHostSessionInputPills extends Disposable {
 				: new Set();
 		});
 
-		const pullRequestSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).pullRequestUrls, 'pullRequest', gitHubState.read(reader)));
+		const pullRequestSections = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', gitHubState.read(reader), currentMetadata.pullRequestTitles);
+		});
 		const pullRequestIcon = derived(this, reader => {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
 			return getHighestPriorityPullRequestIcon(icons) ?? computePullRequestIcon('open');
 		});
-		const issueSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).issueUrls, 'issue'));
+		const issueSections = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', undefined, currentMetadata.issueTitles);
+		});
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
@@ -404,14 +461,15 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>) {
+	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
 				return undefined;
 			}
 			const number = githubReferenceNumber(resource, kind);
-			const label = referenceLabel(link, kind);
+			const title = titles?.get(linkKey(link));
+			const label = referenceLabel(link, kind, title);
 			const pullRequestState = kind === 'pullRequest'
 				&& gitHubState?.pullRequestState
 				&& gitHubState.pullRequestStateUrl
@@ -433,6 +491,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					run: () => this._clipboardService.writeText(resource.toString(true)),
 				})],
 				...getChatPillResourceLocation(resource, label),
+				...(title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
 				open: () => this._openExternal(resource),
 			};
 		}).filter(isDefined);

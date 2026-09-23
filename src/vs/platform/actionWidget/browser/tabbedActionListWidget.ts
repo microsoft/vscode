@@ -13,11 +13,12 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions } from './actionList.js';
+import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from './actionList.js';
 import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
 const TAB_RESIZE_ANIMATION: KeyframeAnimationOptions = { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+const BODY_COLLAPSE_ANIMATION: KeyframeAnimationOptions = { duration: 200, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
 
 /** The box a tab occupied, including the spacing that travels with its width. */
 interface ITabBox {
@@ -96,8 +97,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly tabs: readonly ITabDescriptor[];
 	/** Initially active tab id. Must match an entry in {@link tabs}. */
 	readonly initialTab: string;
-	/** Computes the list items and per-tab options shown when the given tab is active. */
-	createActionList(activeTab: string): ITabbedActionListBuildResult<T>;
+	/** Computes a tab's list, or its resting contents when `forSizing` is true. */
+	createActionList(activeTab: string, forSizing?: boolean): ITabbedActionListBuildResult<T>;
 	/** Item delegate (selection, hide, focus). */
 	readonly delegate: IActionListDelegate<T>;
 	/** Optional accessibility provider passed to the underlying list. */
@@ -128,13 +129,21 @@ export interface ITabbedActionListShowOptions<T> {
 	 * tabs, rather than as its own row below them.
 	 */
 	readonly filterInTabBar?: boolean;
+	/** Whether the tabs and list are collapsed, leaving only the footer. Re-read on refresh. */
+	readonly isBodyCollapsed?: () => boolean;
 	/** Renders content pinned below the list, e.g. a persistent option row. */
 	renderFooter?(container: HTMLElement, activeTab: string): IDisposable;
+	/** Focuses a footer control when the body is collapsed. */
+	focusFooter?(): void;
 	/**
 	 * Renders the body when the active tab has no items, e.g. a sign-in prompt.
 	 * When it returns `undefined` the empty list is shown instead.
 	 */
 	renderEmpty?(container: HTMLElement, activeTab: string): IDisposable | undefined;
+}
+
+export interface ITabbedActionListRefreshOptions extends IActionListUpdateOptions {
+	readonly focusItemId?: string;
 }
 
 /**
@@ -150,11 +159,11 @@ export class TabbedActionListWidget extends Disposable {
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
-	private _refreshActiveList: (() => void) | undefined;
+	private _refreshActiveList: ((options?: ITabbedActionListRefreshOptions) => void) | undefined;
 	/** Boxes and labels from the last render, so the next one can animate from them. */
 	private _previousTabBoxes: Map<string, ITabBox> | undefined;
 	private _previousTabTexts: ReadonlyMap<string, string> | undefined;
-	/** Initial list height from {@link ITabbedActionListShowOptions.sizingTab}. */
+	/** List height from {@link ITabbedActionListShowOptions.sizingTab}, recomputed when items change. */
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
@@ -236,7 +245,9 @@ export class TabbedActionListWidget extends Disposable {
 				const block = dom.append(container, dom.$('.context-view-block'));
 				renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
 
-				const tabBar = dom.append(widget, dom.$('.tabbed-action-list-tabbar'));
+				const body = dom.append(widget, dom.$('.tabbed-action-list-body'));
+				const bodyContent = dom.append(body, dom.$('.tabbed-action-list-body-content'));
+				const tabBar = dom.append(bodyContent, dom.$('.tabbed-action-list-tabbar'));
 				if (options.tabBarClassName) {
 					tabBar.classList.add(options.tabBarClassName);
 				}
@@ -300,15 +311,14 @@ export class TabbedActionListWidget extends Disposable {
 
 				// Built before the active tab's list because a consumer may hold per-tab state
 				// while building, and the active tab has to be the one that keeps it.
-				const needsSizing = !this._hasMeasuredSizingTab
-					&& options.sizingTab !== undefined
-					&& options.tabs.some(tab => tab.id === options.sizingTab);
-				const sizingBuild = needsSizing && options.sizingTab !== activeTab
-					? options.createActionList(options.sizingTab!)
+				const sizingTab = options.tabs.find(tab => tab.id === options.sizingTab)?.id;
+				const needsSizing = !this._hasMeasuredSizingTab && sizingTab !== undefined;
+				const sizingBuild = needsSizing
+					? options.createActionList(sizingTab, true)
 					: undefined;
 
 				const { items, listOptions } = options.createActionList(activeTab);
-				const emptyBody = items.length === 0 ? this._renderEmptyBody(widget, options, activeTab, renderDisposables) : undefined;
+				const emptyBody = items.length === 0 ? this._renderEmptyBody(bodyContent, options, activeTab, renderDisposables) : undefined;
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -322,12 +332,42 @@ export class TabbedActionListWidget extends Disposable {
 				listRef = list;
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
-				this._refreshActiveList = () => {
+				this._refreshActiveList = refreshOptions => {
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
+					const bodyHeight = body.offsetHeight;
+					if (options.isBodyCollapsed?.() && dom.isAncestorOfActiveElement(body)) {
+						options.focusFooter?.();
+					}
+					if (body.inert !== !!options.isBodyCollapsed?.()) {
+						// Refreshing must not anchor a hover against the body's old position.
+						list.setHoverEnabled(false);
+					}
 					applyWidgetClassNames();
-					list.updateItems(options.createActionList(activeTab).items);
+					const sizing = sizingTab !== undefined
+						? options.createActionList(sizingTab, true)
+						: undefined;
+					const refreshed = options.createActionList(activeTab);
+					const sizingHeight = sizing
+						? list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined
+						: undefined;
+					const sizingChanged = sizingHeight !== this._fixedListHeight;
+					if (sizingChanged) {
+						this._fixedListHeight = sizingHeight;
+						this._fixedPopupHeight = undefined;
+					}
+					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
+						preserveHover: refreshOptions?.preserveHover,
+						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),
+					});
+					if (sizingChanged) {
+						layout();
+						this._contextViewService.layout();
+					}
+					updateBodyCollapsed(bodyHeight);
 					if (hadFocus && !dom.isAncestorOfActiveElement(widget)) {
-						if (emptyBody) {
+						if (body.inert) {
+							options.focusFooter?.();
+						} else if (emptyBody) {
 							radio.focusActiveItem();
 						} else {
 							list.focus();
@@ -340,16 +380,16 @@ export class TabbedActionListWidget extends Disposable {
 
 				if (!emptyBody) {
 					if (list.headerContainer) {
-						widget.appendChild(list.headerContainer);
+						bodyContent.appendChild(list.headerContainer);
 					}
 					if (list.filterContainer) {
 						// The filter takes the tabs' place inside the bar, so the trailing
 						// actions stay put and no extra row appears.
-						(options.filterInTabBar ? filterSlot : widget).appendChild(list.filterContainer);
+						(options.filterInTabBar ? filterSlot : bodyContent).appendChild(list.filterContainer);
 					}
-					widget.appendChild(list.domNode);
+					bodyContent.appendChild(list.domNode);
 					if (list.footerContainer) {
-						widget.appendChild(list.footerContainer);
+						bodyContent.appendChild(list.footerContainer);
 					}
 				}
 
@@ -367,9 +407,10 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
+				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
 				const layout = () => {
-					const body = emptyBody ?? list.domNode;
-					const chromeHeight = widget.offsetHeight - body.offsetHeight;
+					const listBody = emptyBody ?? list.domNode;
+					const chromeHeight = getExpandedPopupHeight() - listBody.offsetHeight;
 					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
 						: Math.max(0, this._fixedPopupHeight - chromeHeight);
@@ -379,10 +420,57 @@ export class TabbedActionListWidget extends Disposable {
 						emptyBody.style.minHeight = list.domNode.style.height;
 					}
 					if (this._fixedListHeight !== undefined && this._fixedPopupHeight === undefined) {
-						this._fixedPopupHeight = widget.offsetHeight;
+						this._fixedPopupHeight = getExpandedPopupHeight();
 					}
 				};
 				layout();
+
+				const bodyAnimation = renderDisposables.add(new MutableDisposable<DisposableStore>());
+				const finishBodyAnimation = () => {
+					bodyAnimation.clear();
+					this._contextViewService.layout();
+					list.setHoverEnabled(!body.inert);
+				};
+				const updateBodyCollapsed = (fromHeight?: number) => {
+					const collapsed = !!options.isBodyCollapsed?.();
+					if (body.inert === collapsed) {
+						return;
+					}
+					bodyAnimation.clear();
+					list.setHoverEnabled(false);
+					body.inert = collapsed;
+					body.classList.toggle('collapsed', collapsed);
+
+					if (fromHeight !== undefined && !this._accessibilityService.isMotionReduced()) {
+						const animationDisposables = new DisposableStore();
+						bodyAnimation.value = animationDisposables;
+						body.classList.add('animating');
+						const animation = body.animate([
+							{ height: `${fromHeight}px` },
+							{ height: `${collapsed ? 0 : bodyContent.offsetHeight}px` },
+						], BODY_COLLAPSE_ANIMATION);
+						animationDisposables.add(toDisposable(() => {
+							animation.cancel();
+							body.classList.remove('animating');
+						}));
+						animationDisposables.add(dom.animate(dom.getWindow(body), () => this._contextViewService.layout()));
+						animationDisposables.add(dom.addDisposableListener(animation, 'finish', finishBodyAnimation));
+					}
+					if (fromHeight !== undefined) {
+						this._contextViewService.layout();
+					}
+					if (!bodyAnimation.value) {
+						list.setHoverEnabled(!collapsed);
+					}
+				};
+				updateBodyCollapsed();
+				if (options.isBodyCollapsed) {
+					renderDisposables.add(this._accessibilityService.onDidChangeReducedMotion(() => {
+						if (this._accessibilityService.isMotionReduced()) {
+							finishBodyAnimation();
+						}
+					}));
+				}
 
 				if (footer) {
 					const observer = renderDisposables.add(new dom.DisposableResizeObserver('TabbedActionListWidget.footer', () => {
@@ -396,7 +484,9 @@ export class TabbedActionListWidget extends Disposable {
 				renderDisposables.add(this._animateTabResize(radio, options.tabs, tabBoxes, tabTexts));
 				this._previousTabBoxes = tabBoxes;
 				this._previousTabTexts = tabTexts;
-				if (emptyBody) {
+				if (body.inert) {
+					options.focusFooter?.();
+				} else if (emptyBody) {
 					// The list is not in the DOM at all, so focusing it would drop focus
 					// out of the popup. The active tab is the nearest thing to act on, and
 					// it leads to the empty body's own action.
@@ -492,7 +582,7 @@ export class TabbedActionListWidget extends Disposable {
 			get anchorPosition() { return listRef?.anchorPosition; },
 		}, undefined, false);
 
-		if (options.showCheckedItemHover) {
+		if (options.showCheckedItemHover && !options.isBodyCollapsed?.()) {
 			listRef?.showHoverForCheckedItem();
 		}
 
@@ -567,12 +657,11 @@ export class TabbedActionListWidget extends Disposable {
 	}
 
 	/**
-	 * Rebuilds the active tab's items and the popup's class names in place, keeping its
-	 * position and whatever currently has focus. Use when an action inside the popup
-	 * changes what it shows but should not dismiss it.
+	 * Rebuilds the active tab and remeasures its resting sizing contents without dismissing the popup.
+	 * Focus is retained, and `preserveHover` keeps the live detail panel.
 	 */
-	refreshActiveList(): void {
-		this._refreshActiveList?.();
+	refreshActiveList(options?: ITabbedActionListRefreshOptions): void {
+		this._refreshActiveList?.(options);
 	}
 
 	/** Renders the caller's empty body, or nothing when it declines to handle the empty tab. */
