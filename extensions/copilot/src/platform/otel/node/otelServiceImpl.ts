@@ -15,6 +15,7 @@ import { type ICompletedSpanData, type IOTelService, type ISpanEventData, type I
 import type { Attributes, Context, Meter, MetricOptions, Span, SpanContext, Tracer } from '@opentelemetry/api';
 import type { AnyValueMap, Logger } from '@opentelemetry/api-logs';
 import type { ExportResult } from '@opentelemetry/core';
+import type { Resource } from '@opentelemetry/resources';
 import type { BatchLogRecordProcessor, LogRecordExporter } from '@opentelemetry/sdk-logs';
 import type { PeriodicExportingMetricReader, PushMetricExporter } from '@opentelemetry/sdk-metrics';
 import type { BatchSpanProcessor, ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node';
@@ -85,6 +86,7 @@ export class NodeOTelService implements IOTelService {
 		sqliteStore?: OTelSqliteStore,
 		private readonly _currentIdentityAllowed: () => boolean = () => config.captureIdentity,
 		private readonly _exporterFactory?: () => Promise<ExporterSet>,
+		private readonly _getOSUsername: () => string = () => os.userInfo().username,
 	) {
 		this.config = config;
 		this._log = logFn ?? ((_level, _msg) => { /* silent when no logger wired */ });
@@ -134,10 +136,30 @@ export class NodeOTelService implements IOTelService {
 				'service.version': this.config.serviceVersion,
 				'session.id': this.config.sessionId,
 				...identityResourceAttributes(this.config.resourceAttributes, this._identityAllowed(),
-					() => ({ username: os.userInfo().username, hostname: os.hostname() })),
+					() => {
+						let username: string | undefined;
+						try {
+							username = this._getOSUsername();
+						} catch {
+							this._log('warn', '[OTel] Could not detect the OS username; continuing without a detected process.user.name.');
+						}
+						return { username, hostname: os.hostname() };
+					}),
 			});
-			const filterResource = (value: import('@opentelemetry/resources').Resource) => resourcesMod.resourceFromAttributes(
-				filterIdentityAttributes(value.attributes, this._identityAllowed()), { schemaUrl: value.schemaUrl });
+			// OTLP batches by resource object identity. Reuse filtered copies without caching consent.
+			const filteredResources = new WeakMap<Resource, Resource>();
+			const filterResource = (value: Resource): Resource => {
+				if (this._identityAllowed()) {
+					return value;
+				}
+				let filtered = filteredResources.get(value);
+				if (!filtered) {
+					filtered = resourcesMod.resourceFromAttributes(
+						filterIdentityAttributes(value.attributes, false), { schemaUrl: value.schemaUrl });
+					filteredResources.set(value, filtered);
+				}
+				return filtered;
+			};
 
 			// Create exporters based on config
 			const { spanExporter, logExporter, metricExporter } = await (this._exporterFactory?.() ?? this._createExporters());

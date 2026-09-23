@@ -16,7 +16,7 @@ import { agentIdentityAttributes, filterIdentityAttributes, identityResourceAttr
 import type { ICompletedSpanData } from '../../common/otelService';
 import { InMemoryOTelService } from '../inMemoryOTelService';
 import { IdentitySpanExporter } from '../otelIdentityExporters';
-import { NodeOTelService } from '../otelServiceImpl';
+import { NodeOTelService, type OTelLogFn } from '../otelServiceImpl';
 
 class TestAuthentication {
 	anyGitHubSession: AuthenticationSession | undefined;
@@ -61,13 +61,13 @@ describe('governed OTel identity', () => {
 	let service: NodeOTelService | undefined;
 	afterEach(async () => { await service?.shutdown(); });
 
-	async function start(input: Partial<OTelConfigInput> = {}, allowed = () => true) {
+	async function start(input: Partial<OTelConfigInput> = {}, allowed = () => true, getOSUsername?: () => string, logFn?: OTelLogFn) {
 		const exporters = {
 			spanExporter: new RecordingSpanExporter(),
 			logExporter: new RecordingLogExporter(),
 			metricExporter: new RecordingMetricExporter(),
 		};
-		service = new NodeOTelService(config(input), undefined, undefined, allowed, async () => exporters);
+		service = new NodeOTelService(config(input), logFn, undefined, allowed, async () => exporters, getOSUsername);
 		const current = service;
 		// Buffered completion proves SDK initialization finished without inspecting private state.
 		await new Promise<void>(resolve => {
@@ -136,6 +136,86 @@ describe('governed OTel identity', () => {
 		expect(identityResourceAttributes(resolved.resourceAttributes, resolved.captureIdentity, () => ({
 			username: 'detected-user', hostname: 'detected-host',
 		}))).toEqual({ 'host.name': 'managed-host', 'process.user.name': 'environment-user' });
+	});
+
+	for (const captureIdentity of [false, true]) {
+		it(`preserves shared resources across span and log batches with identity ${captureIdentity}`, async () => {
+			let allowed = true;
+			const { service, spanExporter, logExporter } = await start({ settingCaptureIdentity: captureIdentity }, () => allowed);
+			for (let batch = 0; batch < 2; batch++) {
+				for (let index = 0; index < 3; index++) {
+					service.startSpan('batched').end();
+					service.emitLogRecord('batched');
+				}
+				await service.flush();
+			}
+			const originalResource = spanExporter.spans[0].resource;
+			expect({
+				spans: spanExporter.spans.length,
+				logs: logExporter.logs.length,
+				spanResources: new Set(spanExporter.spans.map(span => span.resource)).size,
+				logResources: new Set(logExporter.logs.map(log => log.resource)).size,
+			}).toEqual({ spans: 6, logs: 6, spanResources: 1, logResources: 1 });
+
+			allowed = false;
+			service.startSpan('denied').end();
+			service.emitLogRecord('denied');
+			await service.flush();
+			const deniedResource = spanExporter.spans.at(-1)!.resource;
+			expect({
+				sameResource: deniedResource === originalResource,
+				originalHasIdentity: StdAttr.PROCESS_USER_NAME in originalResource.attributes,
+				deniedHasIdentity: StdAttr.PROCESS_USER_NAME in deniedResource.attributes,
+				deniedLogHasIdentity: StdAttr.PROCESS_USER_NAME in logExporter.logs.at(-1)!.resource.attributes,
+			}).toEqual({
+				sameResource: !captureIdentity,
+				originalHasIdentity: captureIdentity,
+				deniedHasIdentity: false,
+				deniedLogHasIdentity: false,
+			});
+		});
+	}
+
+	for (const explicitUsername of [undefined, 'managed-user']) {
+		it(`continues exporting when OS username detection fails${explicitUsername ? ' with an explicit username' : ''}`, async () => {
+			const warnings: string[] = [];
+			const { service, spanExporter, logExporter, metricExporter } = await start({
+				settingCaptureIdentity: true,
+				policyResourceAttributes: explicitUsername ? { [StdAttr.PROCESS_USER_NAME]: explicitUsername } : undefined,
+			}, () => true, () => {
+				throw new Error('No passwd entry');
+			}, (level, message) => warnings.push(`${level}: ${message}`));
+			service.startSpan('identity-unavailable').end();
+			service.emitLogRecord('identity-unavailable');
+			service.incrementCounter('test.identityUnavailable');
+			await service.flush();
+			const resource = spanExporter.spans[0].resource;
+			expect({
+				spans: spanExporter.spans.length,
+				logs: logExporter.logs.length,
+				hasMetric: metricExporter.metrics.some(batch => batch.scopeMetrics.some(scope =>
+					scope.metrics.some(metric => metric.descriptor.name === 'test.identityUnavailable'))),
+				usernamePresent: StdAttr.PROCESS_USER_NAME in resource.attributes,
+				username: resource.attributes[StdAttr.PROCESS_USER_NAME],
+				hostname: resource.attributes[StdAttr.HOST_NAME],
+				warnings: warnings.filter(message => message.startsWith('warn:')),
+			}).toEqual({
+				spans: 1, logs: 1, hasMetric: true,
+				usernamePresent: explicitUsername !== undefined,
+				username: explicitUsername,
+				hostname: expect.any(String),
+				warnings: ['warn: [OTel] Could not detect the OS username; continuing without a detected process.user.name.'],
+			});
+		});
+	}
+
+	it('does not query the OS username when identity is disabled', async () => {
+		let calls = 0;
+		await start({}, () => true, () => {
+			calls++;
+			throw new Error('Must not query OS identity without consent');
+		});
+		expect(calls).toBe(0);
 	});
 
 	it('managed false defeats local, environment, and SDK-supplied identity', async () => {

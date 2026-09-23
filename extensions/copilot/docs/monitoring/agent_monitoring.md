@@ -146,6 +146,10 @@ No anonymous identity is invented, and `enduser.pseudo.id` is unchanged.
 `OTEL_RESOURCE_ATTRIBUTES` overrides detected OS/host values; managed
 `resourceAttributes` overrides environment attributes. Identity attributes are
 removed when capture is off, even if explicitly supplied as resource attributes.
+If the OS username cannot be detected (for example, a container user has no passwd
+entry), a warning is logged and telemetry continues without a detected
+`process.user.name`. Hostname capture and explicitly configured resource values
+remain available.
 
 > **Compatibility note:** Explicit `host.name`, `process.user.name`, and `user.name`
 > resource attributes from environment variables, personal settings, or managed

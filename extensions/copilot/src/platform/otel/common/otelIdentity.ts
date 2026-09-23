@@ -22,13 +22,13 @@ export function filterIdentityAttributes<T>(attributes: Readonly<Record<string, 
 }
 
 /** Detect only after consent; explicit resource attributes override detected values. */
-export function identityResourceAttributes(attributes: Record<string, string>, allowed: boolean, detect: () => { username: string; hostname: string }): Record<string, string> {
+export function identityResourceAttributes(attributes: Record<string, string>, allowed: boolean, detect: () => { username: string | undefined; hostname: string }): Record<string, string> {
 	if (!allowed) {
 		return filterIdentityAttributes(attributes, false);
 	}
 	const { username, hostname } = detect();
 	return {
-		[StdAttr.PROCESS_USER_NAME]: username,
+		...(username === undefined ? {} : { [StdAttr.PROCESS_USER_NAME]: username }),
 		[StdAttr.HOST_NAME]: hostname,
 		...attributes,
 	};
