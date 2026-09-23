@@ -307,14 +307,18 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const fallback = DOM.append(templateData.icon, $('.codicon'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file));
 		fallback.setAttribute('aria-hidden', 'true');
+		templateData.icon.classList.add('is-fallback');
 		if (!installed && element.resource.icon) {
 			const image = DOM.append(templateData.icon, $('img')) as HTMLImageElement;
 			image.alt = '';
 			image.loading = 'lazy';
 			image.referrerPolicy = 'no-referrer';
-			image.src = element.resource.icon.toString(true);
-			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => fallback.hidden = true));
+			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
+				fallback.hidden = true;
+				templateData.icon.classList.remove('is-fallback');
+			}));
 			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
+			image.src = element.resource.icon.toString(true);
 		}
 
 		templateData.name.textContent = name;
@@ -664,8 +668,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private createAddButton(parent: HTMLElement): void {
 		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true }));
-		addButton.label = localize('customizationDiscovery.add', "Add");
-		addButton.setAriaLabel(localize('customizationDiscovery.addLabel', "Add a customization"));
+		addButton.label = localize('customizationDiscovery.import', "Import");
+		addButton.setAriaLabel(localize('customizationDiscovery.importLabel', "Import a customization"));
 		this._register(addButton.onDidClick(() => {
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
@@ -1221,14 +1225,18 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const fallback = DOM.append(icon, $('.codicon'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb));
 		fallback.setAttribute('aria-hidden', 'true');
+		icon.classList.add('is-fallback');
 		if (item.icon) {
 			const image = DOM.append(icon, $('img')) as HTMLImageElement;
 			image.alt = '';
 			image.loading = 'lazy';
 			image.referrerPolicy = 'no-referrer';
-			image.src = item.icon.toString(true);
-			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => fallback.hidden = true));
+			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
+				fallback.hidden = true;
+				icon.classList.remove('is-fallback');
+			}));
 			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
+			image.src = item.icon.toString(true);
 		}
 		const body = DOM.append(card, $('.customization-discovery-card-body'));
 		const resource = item.externalUrl ?? item.url;

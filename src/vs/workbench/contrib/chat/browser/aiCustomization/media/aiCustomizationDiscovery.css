@@ -147,11 +147,14 @@
 }
 
 .customization-discovery-browse-scrollable {
+	position: relative;
 	flex: 1;
 	min-height: 0;
 }
 
 .customization-discovery-browse {
+	position: absolute;
+	inset: 0;
 	box-sizing: border-box;
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
 	margin: 0 auto;
@@ -172,9 +175,8 @@
 
 .customization-discovery-section.featured {
 	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-editorWidget-background);
+	background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
 }
 
 .customization-discovery-section-title {
@@ -215,6 +217,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	box-sizing: border-box;
 	width: 76px;
 	height: 76px;
 	flex-shrink: 0;
@@ -222,6 +225,11 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	background: var(--vscode-editorWidget-background);
+}
+
+.customization-discovery-card-icon.is-fallback,
+.customization-discovery-result-icon.is-fallback {
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
 
 .customization-discovery-card-icon img {
@@ -339,6 +347,14 @@
 	display: flex;
 	align-items: end;
 	padding-bottom: var(--vscode-spacing-size60);
+	pointer-events: none;
+}
+
+.customization-discovery .customization-discovery-content .customization-discovery-list .monaco-list:not(.drop-target):not(.dragging) .monaco-list-row.customization-discovery-group-header:hover:not(.selected):not(.focused),
+.customization-discovery .customization-discovery-content .customization-discovery-list .monaco-list .monaco-list-row.customization-discovery-group-header.focused,
+.customization-discovery .customization-discovery-content .customization-discovery-list .monaco-list .monaco-list-row.customization-discovery-group-header.selected {
+	color: inherit;
+	background: transparent;
 }
 
 .customization-discovery-group-label {
@@ -363,6 +379,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	box-sizing: border-box;
 	width: 64px;
 	height: 64px;
 	flex-shrink: 0;
