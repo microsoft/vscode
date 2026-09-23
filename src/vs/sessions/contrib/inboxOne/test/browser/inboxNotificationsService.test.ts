@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -21,7 +21,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
-import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
+import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
@@ -349,6 +349,44 @@ suite('InboxNotificationsService', () => {
 				questionCount: 1,
 			},
 		}]);
+	});
+
+	test('surfaces a needs-input part that streams into an already-loaded model (window reload)', () => {
+		const chatResource = URI.parse('test:///chat/reload-question');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'reload-question', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+
+		// The restored model is loaded but its active turn (holding the pending question) has
+		// not streamed in yet, as happens right after a window reload.
+		const streamQuestion = chatService.installDeferredQuestionModel(chatResource, disposables, {
+			requestId: 'reload-request',
+			resolveId: 'reload-resolve',
+			allowSkip: true,
+			message: 'Answer to continue.',
+			questions: [{ id: 'q1', type: 'text', title: 'Question 1', required: true }],
+		});
+
+		// Observe notifications so the derivation stays live, mirroring the inbox view. A stale
+		// derivation is what previously hid the pending part until the session was opened.
+		const observed: (readonly IInboxNotificationItem[])[] = [];
+		disposables.add(autorun(reader => {
+			observed.push(fixture.service.notifications.read(reader));
+		}));
+
+		assert.strictEqual(observed.at(-1)?.[0].needsInputPart, undefined);
+
+		// The active turn's question streams into the already-loaded model (no change to the set
+		// of loaded models). The observed item must now carry the interactive part.
+		streamQuestion();
+
+		const latest = observed.at(-1);
+		assert.strictEqual(latest?.length, 1);
+		assert.strictEqual(latest?.[0].kind, InboxNotificationKind.NeedsInput);
+		assert.strictEqual(latest?.[0].needsInputPart?.kind, 'questionCarousel');
+		assert.strictEqual(latest?.[0].needsInputPart?.requestId, 'reload-request');
+		assert.strictEqual(latest?.[0].description, 'Answer the pending questions below.');
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
@@ -1033,6 +1071,58 @@ class TestChatService {
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
+	/**
+	 * Loads a model whose active turn has not streamed in yet (its requests are empty), then
+	 * returns a callback that streams in a pending question carousel by mutating the model and
+	 * firing the model's own `onDidChange` — without changing the set of loaded models. This
+	 * mirrors a window reload, where an agent-host needs-input session is restored and its
+	 * pending question arrives via progress streaming after the model is already loaded.
+	 */
+	installDeferredQuestionModel(chatResource: URI, store: DisposableStore, options: {
+		readonly requestId: string;
+		readonly resolveId: string;
+		readonly allowSkip: boolean;
+		readonly message: string;
+		readonly questions: IChatQuestionCarousel['questions'];
+	}): () => void {
+		const onDidChange = store.add(new Emitter<void>());
+		let requests: IChatRequestModel[] = [];
+		const model = upcastPartial<IChatModel>({
+			onDidChange: onDidChange.event as unknown as IChatModel['onDidChange'],
+			getRequests: () => requests,
+		});
+		this._chatModels.set(chatResource.toString(), model);
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
+		return () => {
+			const response = upcastPartial<IChatResponseModel>({
+				requestId: options.requestId,
+				isCanceled: false,
+				isComplete: false,
+				response: {
+					value: [{
+						kind: 'questionCarousel',
+						resolveId: options.resolveId,
+						allowSkip: options.allowSkip,
+						message: options.message,
+						questions: options.questions,
+						isUsed: false,
+					}],
+					getMarkdown: () => '',
+					getFinalResponse: () => '',
+					toString: () => '',
+				},
+				isPendingConfirmation: observableValue(`test.pendingConfirmation.${options.requestId}`, { startedWaitingAt: 10 }),
+			});
+			requests = [upcastPartial<IChatRequestModel>({
+				id: `request.${options.requestId}`,
+				response,
+				isHiddenFromTranscript: false,
+				shouldBeRemovedOnSend: undefined,
+			})];
+			onDidChange.fire();
+		};
+	}
+
 	private _createChatModel(options: { readonly requestId: string; readonly parts: IChatResponseModel['response']['value']; readonly startedWaitingAt?: number; readonly isComplete?: boolean }): IChatModel {
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: options.requestId,
@@ -1053,6 +1143,7 @@ class TestChatService {
 			shouldBeRemovedOnSend: undefined,
 		});
 		return upcastPartial<IChatModel>({
+			onDidChange: Event.None,
 			getRequests: () => [request],
 		});
 	}

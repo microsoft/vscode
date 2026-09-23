@@ -20,7 +20,7 @@ import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -305,6 +305,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _loadingNeedsInputChatModels = new Set<string>();
 	private readonly _loadingCompletedPreviewChatModels = new Set<string>();
 
+	/**
+	 * Per-chat-model change signals, cached by chat resource. Reading one inside the item
+	 * derivation subscribes it to that model's structural changes (requests/responses added,
+	 * turns reopened). This matters on a window reload: an agent-host session that needs input
+	 * is restored with only its completed history, and the active turn's pending confirmation
+	 * (e.g. a question carousel) streams into the model *after* it is added to the chat service.
+	 * Without observing the model itself, the derivation only re-runs when the *set* of loaded
+	 * models changes, so the pending part would stay invisible until the user opened the session.
+	 */
+	private readonly _chatModelChangeSignals = new Map<string, { readonly model: IChatModel; readonly signal: IObservable<void> }>();
+
 	private readonly _previews: ISettableObservable<ReadonlyMap<string, string>>;
 	readonly previews: IObservable<ReadonlyMap<string, string>>;
 	private readonly _previewCache = new LRUCache<string, string>(PREVIEW_CACHE_SIZE);
@@ -370,6 +381,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._completedPreviewChatModelRefs.clear();
 			this._loadingNeedsInputChatModels.clear();
 			this._loadingCompletedPreviewChatModels.clear();
+			this._chatModelChangeSignals.clear();
 			for (const cts of this._previewCancellationSources) {
 				cts.cancel();
 				cts.dispose();
@@ -1312,6 +1324,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				continue;
 			}
 
+			// Re-derive when this model changes so a pending confirmation that streams in after
+			// the model is loaded (notably the active turn restored after a window reload) is
+			// picked up without requiring the user to open the session.
+			this.chatModelChangeSignal(chat.resource, chatModel).read(reader);
+
 			for (const request of chatModel.getRequests().toReversed()) {
 				const response = request.response;
 				if (!response
@@ -1346,7 +1363,22 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	/**
-	 * A stable key identifying the specific pending request behind a needs-input item, so
+	 * A cached change signal for a chat model, keyed by its chat resource. The signal only
+	 * subscribes to the model's `onDidChange` event while the derivation observing it stays
+	 * live, and is replaced whenever the underlying model instance changes.
+	 */
+	private chatModelChangeSignal(chatResource: URI, chatModel: IChatModel): IObservable<void> {
+		const key = chatResource.toString();
+		const existing = this._chatModelChangeSignals.get(key);
+		if (existing?.model === chatModel) {
+			return existing.signal;
+		}
+		const signal = observableSignalFromEvent(this, chatModel.onDidChange);
+		this._chatModelChangeSignals.set(key, { model: chatModel, signal });
+		return signal;
+	}
+
+	/**
 	 * each distinct question/confirmation/tool request gets its own inbox id. This keeps
 	 * repeated requests from the same session in their own cards (and their Now tier)
 	 * instead of colliding on a shared updatedAt and inheriting a prior request's dismissal.
