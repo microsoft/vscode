@@ -31,7 +31,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 			}] : []), {
 				id: 'autoApprove',
 				label: localize('sessionComparison.permissions.copilot.allowAll', "Allow all"),
-				description: localize('sessionComparison.permissions.copilot.allowAllDescription', "Runs all tool calls without asking for approval."),
+				description: localize('sessionComparison.permissions.copilot.allowAllDescription', "Runs all tool calls without asking and continues until the task is done."),
 				isAllowAll: true,
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
@@ -102,7 +102,7 @@ export function getAgentHostSessionPermissionConfig(agentProvider: string, permi
 	switch (agentProvider) {
 		case COPILOT_CLI_AGENT_PROVIDER_ID:
 			return {
-				[SessionConfigKey.Mode]: 'interactive',
+				[SessionConfigKey.Mode]: permissionId === 'autoApprove' ? 'autopilot' : 'interactive',
 				[SessionConfigKey.AutoApprove]: permissionId,
 			};
 		case CLAUDE_AGENT_PROVIDER_ID: {
