@@ -286,9 +286,12 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
 		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this.onDidChangeSupportsUnifiedCompletions = VsEvent.fromObservableLight(this._modelService.supportsUnifiedCompletions);
+		void authenticationService.getCopilotToken().catch(error => logService.error(error, 'Failed to initialize NES model availability'));
 		const statelessNextEditProvider = instantiationService.createInstance(XtabProvider);
 		const git = instantiationService.createInstance(ObservableGit);
 		const historyContextProvider = new NesHistoryContextProvider(this._options.workspace, git);

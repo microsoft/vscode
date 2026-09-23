@@ -153,7 +153,11 @@ describe('NESProvider Facade', () => {
 
 		let resolveModelChange!: () => void;
 		const modelChanged = new Promise<void>(resolve => resolveModelChange = resolve);
-		const listener = nextEditProvider.onDidChangeSupportsUnifiedCompletions(() => resolveModelChange());
+		const listener = nextEditProvider.onDidChangeSupportsUnifiedCompletions(() => {
+			if (nextEditProvider.supportsUnifiedCompletions) {
+				resolveModelChange();
+			}
+		});
 		await modelChanged;
 
 		assert.strictEqual(nextEditProvider.supportsUnifiedCompletions, true);
