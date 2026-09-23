@@ -14,8 +14,8 @@
  *   - Absent → upload.
  *   - Present with matching sha256 (in `metadata.sha256`) → skip.
  *   - Present with different / no sha256 metadata → fail loud, refusing to
- *     overwrite content-addressed history. Recovery: delete the blob in the
- *     Azure Portal and re-run.
+ *     overwrite content-addressed history, except for explicitly allowlisted
+ *     development versions.
  */
 
 import * as fs from 'fs';
@@ -25,6 +25,7 @@ import { BlobServiceClient } from '@azure/storage-blob';
 import { buildCdnUrl, getAgentMeta, parseFlags, type Sdk, sha256OfFile } from './common.ts';
 
 const SCRIPT = 'upload.ts';
+const OVERWRITABLE_DEVELOPMENT_VERSIONS = new Set(['2.0.1']);
 
 export interface IUploadArgs {
 	readonly sdk: Sdk;
@@ -77,13 +78,16 @@ export async function uploadOne(args: IUploadArgs): Promise<IUploadResult> {
 			console.log(`[${SCRIPT}] blob already present with matching sha256 — skipping upload (idempotent).`);
 			return { url: buildCdnUrl(args.sdk, args.sdkVersion, args.sdkTarget), sha256 };
 		}
-		throw new Error(
-			`[${SCRIPT}] Blob already present with ${remoteSha ? 'DIFFERENT' : 'NO'} sha256 metadata — refusing to overwrite content-addressed history.\n` +
-			`  remote: ${remoteSha ?? '<no metadata.sha256 — was this blob uploaded out-of-band?>'}\n` +
-			`  local:  ${sha256}\n` +
-			`If the local build is what should ship, delete the remote blob in Azure Portal and re-run. ` +
-			`Otherwise: investigate why the same ${getAgentMeta(args.sdk).name}@${args.sdkVersion} produced different bytes.`,
-		);
+		if (!OVERWRITABLE_DEVELOPMENT_VERSIONS.has(args.sdkVersion)) {
+			throw new Error(
+				`[${SCRIPT}] Blob already present with ${remoteSha ? 'DIFFERENT' : 'NO'} sha256 metadata — refusing to overwrite content-addressed history.\n` +
+				`  remote: ${remoteSha ?? '<no metadata.sha256 — was this blob uploaded out-of-band?>'}\n` +
+				`  local:  ${sha256}\n` +
+				`If the local build is what should ship, delete the remote blob in Azure Portal and re-run. ` +
+				`Otherwise: investigate why the same ${getAgentMeta(args.sdk).name}@${args.sdkVersion} produced different bytes.`,
+			);
+		}
+		console.log(`[${SCRIPT}] overwriting ${getAgentMeta(args.sdk).name}@${args.sdkVersion} because it is an allowlisted development version.`);
 	}
 
 	console.log(`[${SCRIPT}] uploading ${fs.statSync(args.tgzPath).size} bytes…`);

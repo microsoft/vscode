@@ -106,7 +106,8 @@ gulp graph. As its own pipeline step:
   node-tar+gzip with reproducible flags. Has a thin CLI at bottom.
 - `upload.ts` — `uploadOne(...)`. HEAD-then-decide: absent → upload;
   matching sha → skip (idempotent re-runs); different / no-metadata sha
-  → fail loud, refusing to overwrite content-addressed history. Thin CLI.
+  → fail loud, refusing to overwrite content-addressed history, except for
+  explicitly allowlisted development versions. Thin CLI.
 - `produce.ts` — pipeline-step entry. For one `(vscode-platform, arch)`,
   iterates the SDKs in parallel, calls `buildOne` + `uploadOne` for each
   that applies, writes results to `AGENT_SDK_RESULTS_FILE`, and emits
