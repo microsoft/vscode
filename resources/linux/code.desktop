@@ -8,7 +8,7 @@ Type=Application
 StartupNotify=false
 StartupWMClass=@@DESKTOP_NAME@@
 Categories=TextEditor;Development;IDE;
-MimeType=application/x-@@NAME@@-workspace;
+MimeType=application/x-@@NAME@@-workspace;text/plain;
 Actions=new-empty-window;
 Keywords=vscode;
 
