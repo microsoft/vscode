@@ -724,6 +724,62 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('archiving an active session stops each running chat before archiving', async () => {
+		const mainChat = { ...stubChat, status: constObservable(SessionStatus.InProgress) };
+		const peerChat = { ...stubChat, resource: URI.parse('test:///peer'), status: constObservable(SessionStatus.NeedsInput) };
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test',
+			status: constObservable(SessionStatus.InProgress),
+			mainChat: constObservable(mainChat),
+			chats: constObservable([mainChat, peerChat]),
+		});
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(): Promise<void> {
+				calls.push('archive');
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		chatService.cancelCurrentRequestForSession = async resource => {
+			calls.push(`stop ${resource.path}`);
+		};
+
+		await service.archiveSession(session);
+
+		assert.deepStrictEqual(calls, ['stop /chat', 'stop /peer', 'archive']);
+	});
+
+	test('archiving a running session with unloaded chats cancels its main chat before archiving', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+
+		await service.archiveSession(session);
+
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [stubChat.resource],
+		});
+	});
+
+	test('failed cancellation does not archive a running session', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(): Promise<void> {
+				calls.push('archive');
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		chatService.cancelError = new Error('cancel failed');
+
+		await assert.rejects(() => service.archiveSession(session), /cancel failed/);
+
+		assert.deepStrictEqual(calls, []);
+	});
+
 	test('openSession waits for a loading session before opening chat content', async () => {
 		const loading = observableValue('loading', true);
 		const session = stubSession({ sessionId: 'loading', providerId: 'test', loading });
