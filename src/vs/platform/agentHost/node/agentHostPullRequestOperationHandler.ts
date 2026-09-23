@@ -197,7 +197,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, parsed.ownerUri);
-		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey);
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey, gitHubFolder.isSessionFolder);
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const storedGitState = readSessionGitState(sessionState._meta);
@@ -255,7 +255,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		return {
-			sessionUri, sourceUri: scope.sourceUri, ownerUri: parsed.ownerUri, isSessionGitHubFolder: gitHubFolder.folderKey === undefined,
+			sessionUri, sourceUri: scope.sourceUri, ownerUri: parsed.ownerUri, isSessionGitHubFolder: gitHubFolder.isSessionFolder,
 			sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
 			gitHubState: repository, preparationContext,
 		};

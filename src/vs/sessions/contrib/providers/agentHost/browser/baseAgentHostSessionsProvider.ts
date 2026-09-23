@@ -485,12 +485,14 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 }
 
 /**
- * Maps session metadata to GitHub info. Pass `folderKey` for a folder other
- * than the session's first to use its own GitHub state instead of the session's.
+ * Maps session metadata to GitHub info. Pass `folderKey` to use a folder's own
+ * GitHub state; omit it for the session folder's state in the original
+ * single-folder entry.
  */
-function toGitHubInfo(meta: SessionMeta | undefined, folderKey?: string): IGitHubInfo | undefined {
-	const state = readFolderGitHubState(meta, folderKey);
-	const gitState = folderKey ? undefined : readSessionGitState(meta);
+function toGitHubInfo(meta: SessionMeta | undefined, folderKey?: string, isSessionFolder = folderKey === undefined): IGitHubInfo | undefined {
+	const state = readFolderGitHubState(meta, folderKey, isSessionFolder);
+	// The session's Git state describes the session folder.
+	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
 	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
 	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
 		.map(url => ({ url }));
@@ -1044,7 +1046,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
 	private readonly _defaultChatWorkingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'defaultChatWorkingDirectories', equalsFn: structuralEquals }, undefined);
-	/** GitHub info per folder other than the session's first, keyed by working-directory key and created on demand. */
+	/** GitHub info per folder, keyed by working-directory key and created on demand. */
 	private readonly _folderGitHubInfos = new Map<string, IObservable<IGitHubInfo | undefined>>();
 	/** Whether this session was created with worktree isolation. */
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
@@ -2130,15 +2132,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => gitHubInfoWithIcon.read(reader));
 	}
 
-	/**
-	 * Resolves the GitHub info a session folder reports: the session-level
-	 * GitHub info for the folder it describes, and each other folder's own.
-	 */
+	/** Resolves the GitHub info each session folder reports from its own state. */
 	private _getFolderGitHubInfoResolver(reader: IReader): IFolderGitHubInfoResolver {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
 		const sessionWorkingDirectories = this._workingDirectories?.map(directory => directory.toString()) ?? [];
-		// The session-level GitHub state describes the main chat's first folder.
+		// The session folder is the main chat's first folder.
 		const sessionFolder = (this._defaultChatWorkingDirectories.read(reader) ?? sessionWorkingDirectories)[0];
 		const sessionFolderKey = sessionFolder !== undefined ? getWorkingDirectoryKey(sessionFolder) : undefined;
 		const mapWorkingDirectoryUri = this._options.mapWorkingDirectoryUri ?? (uri => uri);
@@ -2148,13 +2147,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return undefined;
 			}
 			const folderKey = getWorkingDirectoryKey(backendWorkingDirectory);
-			if (folderKey === sessionFolderKey) {
-				return this.gitHubInfo;
-			}
-			let gitHubInfo = this._folderGitHubInfos.get(folderKey);
+			const isSessionFolder = folderKey === sessionFolderKey;
+			const cacheKey = `${folderKey}\u0001${isSessionFolder}`;
+			let gitHubInfo = this._folderGitHubInfos.get(cacheKey);
 			if (!gitHubInfo) {
-				gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({ equalsFn: isGitHubInfoEqual }, reader => toGitHubInfo(this._metaObs.read(reader), folderKey)));
-				this._folderGitHubInfos.set(folderKey, gitHubInfo);
+				gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({ equalsFn: isGitHubInfoEqual }, reader => toGitHubInfo(this._metaObs.read(reader), folderKey, isSessionFolder)));
+				this._folderGitHubInfos.set(cacheKey, gitHubInfo);
 			}
 			return gitHubInfo;
 		};

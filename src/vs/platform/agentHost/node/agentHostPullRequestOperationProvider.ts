@@ -122,7 +122,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		// Lifecycle status is tracked for the session's pull request only, so
 		// other folders offer no lifecycle operations yet.
 		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return ownerKey === undefined || resolveGitHubStateFolder(this._stateManager, ownerKey).folderKey === undefined
+			return ownerKey === undefined || resolveGitHubStateFolder(this._stateManager, ownerKey).isSessionFolder
 				? this._getPullRequestLifecycleOperations(sessionKey)
 				: undefined;
 		}
@@ -279,7 +279,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			link: event.pullRequestUrl,
 		}, generateUuid));
 
-		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey, folder.isSessionFolder);
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);

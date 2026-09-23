@@ -104,12 +104,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			}
 		}
 
-		// Folders other than the session's first have their own GitHub state.
+		// Each folder has its own GitHub state; callers may pass the session folder's.
 		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, ownerKey);
-		if (gitHubFolder.folderKey !== undefined) {
-			gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubFolder.folderKey);
-		} else if (!gitHubState) {
-			gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		if (!gitHubFolder.isSessionFolder || !gitHubState) {
+			gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubFolder.folderKey, gitHubFolder.isSessionFolder);
 		}
 
 		// In a multi-folder session the per-turn `turn` and `compare-turns`

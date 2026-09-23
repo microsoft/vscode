@@ -222,12 +222,12 @@ function parsePersistedSourceControlState(value: string): ISessionSourceControlS
 	return state;
 }
 
-/** Returns `meta` with the persisted GitHub state of every session folder other than the first. */
+/** Returns `meta` with the persisted GitHub state of each session folder. */
 function withPersistedFolderGitHubStates(meta: SessionSummaryMeta | undefined, value: string): SessionSummaryMeta | undefined {
 	const states = readSessionFolderGitHubStates({ [SESSION_META_FOLDER_GITHUB_KEY]: JSON.parse(value) });
 	let next = meta;
 	for (const [folderKey, state] of states) {
-		next = withFolderGitHubState(next, folderKey, state);
+		next = withFolderGitHubState(next, folderKey, false, state);
 	}
 	return next;
 }

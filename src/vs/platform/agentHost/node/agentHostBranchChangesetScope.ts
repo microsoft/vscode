@@ -92,17 +92,18 @@ export interface IGitHubStateFolder {
 	readonly sessionUri: ProtocolURI;
 	/** The chat whose Git state describes the folder. */
 	readonly sourceUri: ProtocolURI;
-	/** Working-directory key of the folder, or `undefined` for the session's first folder, which uses the session-level state. */
+	/** Working-directory key of the folder, or `undefined` when the session has no working directories. */
 	readonly folderKey: string | undefined;
+	/** Whether the folder is the session's first folder, whose state is also copied to the original single-folder entry. */
+	readonly isSessionFolder: boolean;
 	/** The folder's working directory, when known. */
 	readonly workingDirectory: ProtocolURI | undefined;
 }
 
 /**
  * Resolves the folder whose GitHub state a session, chat channel or folder
- * changeset owner URI uses: the first folder of the chat (or of the folder
- * scope). The session's first folder uses the session-level state; every
- * other folder has its own.
+ * changeset owner URI uses: the first folder of the chat, of the folder scope,
+ * or of the session.
  */
 export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, uri: ProtocolURI): IGitHubStateFolder {
 	const scope = parseFolderChangesetOwnerUri(uri) ? resolveChangesetOwnerScope(stateManager, uri) : resolveBranchChangesetScopeForSource(stateManager, uri);
@@ -112,7 +113,8 @@ export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, ur
 	return {
 		sessionUri: scope.sessionUri,
 		sourceUri: scope.sourceUri,
-		folderKey: folderKey === undefined || (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)) ? undefined : folderKey,
+		folderKey,
+		isSessionFolder: folderKey === undefined || (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)),
 		workingDirectory,
 	};
 }

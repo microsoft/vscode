@@ -498,6 +498,34 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
+	test('migrates the session folder from the original single-folder entry and keeps it as a copy', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const legacy: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitHubState: legacy });
+		const beforeWrite = {
+			read: h.service.getGitHubState(SESSION),
+			folders: Object.fromEntries(readSessionFolderGitHubStates(h.stateManager.getSessionState(SESSION)?._meta)),
+		};
+
+		await h.service.setSessionGitHubState(SESSION, { pullRequestState: 'open', pullRequestStateUrl: 'https://github.com/microsoft/vscode/pull/1' });
+
+		const migrated = { ...legacy, pullRequestState: 'open', pullRequestStateUrl: 'https://github.com/microsoft/vscode/pull/1' };
+		const meta = h.stateManager.getSessionState(SESSION)?._meta;
+		assert.deepStrictEqual({
+			beforeWrite,
+			folders: Object.fromEntries(readSessionFolderGitHubStates(meta)),
+			copy: readSessionGitHubState(meta),
+			persistedFolders: JSON.parse(await h.db.getMetadata(META_FOLDER_GITHUB_STATE) ?? 'null'),
+			persistedCopy: JSON.parse(await h.db.getMetadata(META_GITHUB_STATE) ?? 'null'),
+		}, {
+			beforeWrite: { read: legacy, folders: {} },
+			folders: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: migrated },
+			copy: migrated,
+			persistedFolders: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: migrated },
+			persistedCopy: migrated,
+		});
+	}));
+
 	test('clears chat Git state when the chat is removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const chat = buildChatUri(SESSION, 'peer');
