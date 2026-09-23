@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { autorun, constObservable, observableValue, type IReader } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,6 +21,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,6 +72,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
+			derived(reader => getSessionGitHubReferences(session.read(reader), reader)),
 			new class extends mock<IClipboardService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			configurationService,
@@ -173,7 +175,7 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('omits only recorded GitHub links already surfaced in pull request and issue pills', () => {
+	test('omits recorded GitHub links from every repository surfaced in pull request and issue pills', () => {
 		const { presentation } = createPresentation([
 			{ id: 'created-pr', kind: SessionArtifactKind.PullRequest, label: 'Created', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/REPO/pull/50/') },
 			{ id: 'referenced-pr', kind: SessionArtifactKind.PullRequest, label: 'Referenced', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/60') },
@@ -195,8 +197,8 @@ suite('Session Artifacts', () => {
 		});
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
-			artifacts: ['foreign-pr', 'gitlab-pr', 'foreign-issue', 'file'],
-			references: ['referenced-pr', 'foreign-pr-reference', 'referenced-issue'],
+			artifacts: ['gitlab-pr', 'file'],
+			references: [],
 		});
 	});
 
@@ -232,7 +234,7 @@ suite('Session Artifacts', () => {
 		}), entries.map(artifact => [artifact.id, [artifact.id]]));
 	});
 
-	test('updates pill deduplication as workspace, GitHub metadata and recorded entries hydrate', () => {
+	test('keeps GitHub entries out of generic pills before, during and after workspace hydration', () => {
 		const pullRequest = URI.parse('https://github.com/owner/repo/pull/50');
 		const reference = URI.parse('https://github.com/owner/repo/pull/60');
 		const issue = URI.parse('https://github.com/owner/repo/issues/7');
@@ -276,12 +278,12 @@ suite('Session Artifacts', () => {
 		const noSession = visible;
 
 		assert.deepStrictEqual({ withoutWorkspace, withoutGitHubInfo, hydrated, changedGitHubInfo, recordedFile, unmounted, noSession }, {
-			withoutWorkspace: { artifacts: ['pr', 'issue'], references: ['duplicate-reference', 'reference'] },
-			withoutGitHubInfo: { artifacts: ['pr', 'issue'], references: ['duplicate-reference', 'reference'] },
-			hydrated: { artifacts: [], references: ['reference'] },
-			changedGitHubInfo: { artifacts: ['pr', 'issue'], references: ['duplicate-reference'] },
-			recordedFile: { artifacts: ['pr', 'issue', 'file'], references: ['duplicate-reference'] },
-			unmounted: { artifacts: ['pr', 'issue', 'file'], references: ['duplicate-reference', 'reference'] },
+			withoutWorkspace: { artifacts: [], references: [] },
+			withoutGitHubInfo: { artifacts: [], references: [] },
+			hydrated: { artifacts: [], references: [] },
+			changedGitHubInfo: { artifacts: [], references: [] },
+			recordedFile: { artifacts: ['file'], references: [] },
+			unmounted: { artifacts: ['file'], references: [] },
 			noSession: { artifacts: [], references: [] },
 		});
 	});
