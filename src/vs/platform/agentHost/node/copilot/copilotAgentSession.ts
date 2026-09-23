@@ -4007,6 +4007,23 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	async backgroundMcpServerStartup(): Promise<void> {
+		const starting = this._mcpCustomizations.serverEnablement()
+			.map(({ serverName }) => ({ name: serverName, state: this._mcpCustomizations.stateForServer(serverName) }));
+		// The SDK backgrounds loading session-wide, not per server.
+		await this._wrapper.session.rpc.mcp.moveLoadingToBackground();
+		if (this.isDisposed) {
+			return;
+		}
+		this._mcpLifecycleVersion++;
+		for (const server of starting) {
+			if (server.state?.kind !== McpServerStatus.Starting || this._mcpCustomizations.stateForServer(server.name) !== server.state) {
+				continue;
+			}
+			this._mcpCustomizations.applyOne({ name: server.name, state: { kind: McpServerStatus.Starting, blocking: false } });
+		}
+	}
+
 	/**
 	 * Forwards an App→host `sampling/createMessage` request received
 	 * over the AHP `mcp://` channel to `rpc.mcp.executeSampling`. The
@@ -6810,7 +6827,7 @@ export class CopilotAgentSession extends Disposable {
 				if (hasPendingAuthentication && previous?.kind === McpServerStatus.AuthRequired) {
 					return previous;
 				}
-				return { kind: McpServerStatus.Starting };
+				return { kind: McpServerStatus.Starting, blocking: previous?.kind === McpServerStatus.Starting ? previous.blocking ?? true : true };
 			}
 			case 'needs-auth': {
 				const previous = this._mcpCustomizations.stateForServer(name);

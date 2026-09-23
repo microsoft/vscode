@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -22,7 +23,6 @@ import './media/chatMcpServersInteractionContent.css';
  * sessions. The set of servers still starting is driven by the observable on
  * {@link IChatMcpServersStartingSlow.servers}; when it empties (all servers
  * started, content began arriving, or the turn ended) the part hides itself.
- * There is no interactive affordance — this is a progress indicator only.
  */
 export class ChatMcpServersStartingContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -64,15 +64,21 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		this.hadStartingServers = true;
 		this.domNode.style.display = '';
 
-		const links = servers
+		const blockingServers = servers.filter(server => server.blocking);
+		const backgroundableServers = blockingServers.filter(server => server.background !== undefined);
+		const visibleServers = blockingServers.length ? blockingServers : servers;
+		const links = visibleServers
 			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
 			.join(', ');
 		this._renderMessage(
-			localize('mcp.starting.servers', 'Starting MCP servers {0}...', links),
+			blockingServers.length
+				? localize('mcp.waiting.for.servers', 'Waiting for MCP servers {0}...', links)
+				: localize('mcp.starting.servers', 'Starting MCP servers {0}...', links),
+			backgroundableServers,
 		);
 	}
 
-	private _renderMessage(content: string): void {
+	private _renderMessage(content: string, backgroundableServers: readonly IChatMcpStartingServer[]): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		if (this.options?.showSpinner !== false) {
@@ -81,7 +87,25 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 			messageContainer.appendChild(iconElement);
 		}
 
-		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
+		if (backgroundableServers.length) {
+			content = localize('mcp.starting.withSkip', "{0} [Skip](#skip)", content);
+		}
+		let skipping = false;
+		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content), {
+			actionHandler: async href => {
+				if (href !== '#skip' || skipping) {
+					return;
+				}
+				skipping = true;
+				const results = await Promise.allSettled(backgroundableServers.map(server => Promise.resolve().then(() => server.background!())));
+				skipping = false;
+				for (const result of results) {
+					if (result.status === 'rejected') {
+						onUnexpectedError(result.reason);
+					}
+				}
+			},
+		});
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);

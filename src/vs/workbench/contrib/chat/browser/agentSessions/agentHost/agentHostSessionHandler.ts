@@ -3469,15 +3469,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
+			const backgroundActions = new Map(this._customizationService.getMcpServers(opts.sessionResource)
+				.filter(server => server.background !== undefined)
+				.map(server => [server.id, server.background]));
 			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
 			return servers
 				.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.Starting)
-				.map((server): IChatMcpStartingServer => ({
-					id: opts.sessionResource.authority + '/' + server.id,
-					name: server.name,
-				}));
+				.map((server): IChatMcpStartingServer => {
+					const id = opts.sessionResource.authority + '/' + server.id;
+					return {
+						id,
+						name: server.name,
+						blocking: server.state.kind === McpServerStatus.Starting && server.state.blocking === true,
+						background: backgroundActions.get(id),
+					};
+				});
 		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
@@ -3595,11 +3603,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}));
 
 			// Surface a "Starting MCP servers …" progress hint when servers
-			// remain in the `Starting` state past a short grace period after the
+			// remain in the `Starting` state past a short grace period after a
 			// turn begins without any content arriving from the host. The part
 			// updates as servers finish and hides once every server has started,
 			// content starts being received, or the turn ends — whichever comes
-			// first. It carries no interactive affordance (no "Skip").
+			// first.
 			{
 				const MCP_STARTING_GRACE_MS = 5000;
 

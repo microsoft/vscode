@@ -1737,6 +1737,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._findSessionChat(session)?.stopMcpServer(id);
 	}
 
+	async backgroundMcpServerStartup(session: URI): Promise<void> {
+		await this._findSessionChat(session)?.backgroundMcpServerStartup();
+	}
+
 	/**
 	 * The gated additional (non-primary) roots for a session: the tail of the
 	 * ordered working-directory set when multi-root is enabled, else empty (so
