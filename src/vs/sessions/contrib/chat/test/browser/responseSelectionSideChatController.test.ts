@@ -24,7 +24,7 @@ import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/co
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 class RecordingNotificationService extends TestNotificationService {
@@ -42,12 +42,20 @@ class RecordingNotificationService extends TestNotificationService {
 suite('ResponseSelectionSideChatController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createChat(resource: URI, interactivity = ChatInteractivity.Full): IChat {
+		return upcastPartial<IChat>({
+			resource,
+			interactivity: constObservable(interactivity),
+		});
+	}
+
 	function setup(options?: {
 		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
 		enhancedSelectionMenu?: boolean;
 		initialInput?: string;
+		chatInteractivity?: ChatInteractivity;
 	}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -159,7 +167,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const highlightedRanges = () => targetWindow.CSS.highlights?.get('chat-response-selection')?.size ?? 0;
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
-		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/source') });
+		const chat = createChat(URI.parse('test:///chat/source'), options?.chatInteractivity);
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
@@ -247,11 +255,16 @@ suite('ResponseSelectionSideChatController', () => {
 			.map(item => item.textContent?.trim() ?? '');
 	}
 
-	function triggerMenuAction(controller: ResponseSelectionSideChatController, label: string): void {
-		const menu = menuDomNode(controller);
-		const item = Array.from(menu.querySelectorAll<HTMLElement>('.action-menu-item'))
+	function menuAction(controller: ResponseSelectionSideChatController, label: string): HTMLElement {
+		const item = Array.from(menuDomNode(controller).querySelectorAll<HTMLElement>('.action-menu-item'))
 			.find(item => item.textContent?.trim() === label);
 		assert.ok(item, `Missing menu action: ${label}`);
+		return item;
+	}
+
+	function triggerMenuAction(controller: ResponseSelectionSideChatController, label: string): void {
+		const menu = menuDomNode(controller);
+		const item = menuAction(controller, label);
 		const actionItem = item.closest<HTMLElement>('.action-item');
 		assert.ok(actionItem, `Missing action item for: ${label}`);
 		const index = Array.from(menu.querySelectorAll<HTMLElement>('.action-item')).indexOf(actionItem);
@@ -376,6 +389,31 @@ suite('ResponseSelectionSideChatController', () => {
 			telemetryEvents: [
 				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
 				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'quote' } },
+			],
+		});
+	});
+
+	test('disables Quote for read-only chats', () => {
+		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			initialInput: 'Existing prompt',
+			chatInteractivity: ChatInteractivity.ReadOnly,
+		});
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Quote');
+
+		assert.deepStrictEqual({
+			quoteAriaDisabled: menuAction(controller, 'Quote').getAttribute('aria-disabled'),
+			inputValue: inputValue(),
+			focusInputCalls: focusInputCalls(),
+			telemetryEvents,
+		}, {
+			quoteAriaDisabled: 'true',
+			inputValue: 'Existing prompt',
+			focusInputCalls: 0,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
 			],
 		});
 	});
@@ -756,7 +794,7 @@ suite('ResponseSelectionSideChatController', () => {
 		// A new IChat object for the same resource (e.g. ChatView re-invoking
 		// setChat on a status/interactivity observable change) must not
 		// discard the visible draft.
-		controller.setChat(upcastPartial<IChat>({ resource: chat.resource }));
+		controller.setChat(createChat(chat.resource));
 
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'input must stay visible on a same-resource setChat');
 		assert.strictEqual(textArea.value, 'a draft in progress', 'the typed draft must survive a same-resource setChat');
@@ -777,7 +815,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		// A same-resource setChat (status/interactivity update) must not
 		// force-dismiss or clear busy while the submission is still pending.
-		controller.setChat(upcastPartial<IChat>({ resource: chat.resource }));
+		controller.setChat(createChat(chat.resource));
 		assert.strictEqual(isInputBusy(controller), true, 'busy must survive a same-resource setChat');
 		assert.strictEqual(inputTextArea(controller).disabled, true);
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
@@ -806,7 +844,7 @@ suite('ResponseSelectionSideChatController', () => {
 		submitViaClick(controller, 'what does this mean?');
 		assert.strictEqual(isInputBusy(controller), true);
 
-		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
 
 		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a genuine chat change must dismiss even a busy overlay');
 		assert.strictEqual(isInputBusy(controller), false);
@@ -832,7 +870,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 
-		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
 		setSelection('');
 		const focusCallsAtDismiss = focusResponseItemCalls.length;
 
@@ -853,7 +891,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 
-		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
 		setSelection('');
 		const focusCallsAtDismiss = focusResponseItemCalls.length;
 

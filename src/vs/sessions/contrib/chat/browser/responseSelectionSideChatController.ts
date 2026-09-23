@@ -11,6 +11,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { clamp } from '../../../../base/common/numbers.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -26,7 +27,7 @@ import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWi
 import { logResponseSelectionWidgetAction, type ResponseSelectionWidgetVariant } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
@@ -107,6 +108,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _input: FeedbackInputWidget;
 	private readonly _menuDomNode: HTMLElement;
 	private readonly _menu: Menu;
+	private readonly _quoteAction: Action;
+	private readonly _chatInteractivity = this._register(new MutableDisposable());
 	private _visibleSurface: 'input' | 'menu' | undefined;
 	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
 	private _resolved: IResolvedResponseSelection | undefined;
@@ -156,11 +159,11 @@ export class ResponseSelectionSideChatController extends Disposable {
 			true,
 			() => this._openQuestionInput(),
 		));
-		const quoteAction = this._register(new Action(
+		this._quoteAction = this._register(new Action(
 			'sessions.responseSelection.quote',
 			localize('sessions.responseSelection.quote', "Quote"),
 			ThemeIcon.asClassName(Codicon.quote),
-			true,
+			false,
 			() => this._quoteSelection(),
 		));
 		const copyAction = this._register(new Action(
@@ -172,7 +175,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		));
 		this._menu = this._register(new Menu(this._menuDomNode, [
 			askQuestionAction,
-			quoteAction,
+			this._quoteAction,
 			new Separator(),
 			copyAction,
 		], {
@@ -226,6 +229,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 	setChat(chat: IChat): void {
 		const changedChat = !this._chat || this._chat.resource.toString() !== chat.resource.toString();
 		this._chat = chat;
+		this._chatInteractivity.value = autorun(reader => {
+			this._quoteAction.enabled = chat.interactivity.read(reader) === ChatInteractivity.Full;
+		});
 		if (changedChat) {
 			this._dismiss(true);
 		}
@@ -355,7 +361,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	private _quoteSelection(): void {
 		const resolved = this._resolved;
-		if (!resolved) {
+		if (!resolved || this._chat?.interactivity.get() !== ChatInteractivity.Full) {
 			return;
 		}
 		const variant = this._visibleVariant ?? this._getConfiguredVariant();

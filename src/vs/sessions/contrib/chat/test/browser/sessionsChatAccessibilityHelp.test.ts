@@ -179,7 +179,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
-			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter or Space to activate one. Press Escape to dismiss the menu. Ask with /btw opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input. Copy copies the selected text.',
+			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask with /btw opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
 		);
 	});
 
