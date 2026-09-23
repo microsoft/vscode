@@ -836,6 +836,7 @@ class MockCopilotSession {
 			},
 		},
 		eventLog: {
+			read: async () => ({ events: [], cursor: 'end', hasMore: false, cursorStatus: 'ok' as const }),
 			registerInterest: async () => ({ handle: 'sampling-interest' }),
 			releaseInterest: async () => ({ success: true }),
 		},
@@ -906,7 +907,6 @@ class MockCopilotSession {
 			throw this.setModelError;
 		}
 	}
-	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
 	async disconnect(): Promise<void> { this.disconnectCalls++; await this.disconnectGate; }
 }
 
@@ -927,6 +927,7 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	}
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
+	setSessionComparisonMetadata() { }
 	releaseSessionTraceContext() { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext() { return undefined; }
@@ -967,6 +968,7 @@ class RecordingReleaseOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig() { return undefined; }
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
+	setSessionComparisonMetadata() { }
 	releaseSessionTraceContext(sessionUri: string): void {
 		this.released.push(sessionUri);
 	}

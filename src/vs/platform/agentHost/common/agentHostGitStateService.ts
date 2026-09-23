@@ -9,12 +9,19 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionGitHubState, ISessionGitState, SessionSummaryMeta } from './state/sessionState.js';
 
 export const META_GIT_STATE = 'agentHost.git';
+/**
+ * Original single-folder GitHub state of the session folder. No longer written;
+ * migrated into {@link META_GITHUB_DATA_STATE} and removed on restore.
+ */
 export const META_GITHUB_STATE = 'agentHost.github';
+/** GitHub state of every session folder, keyed by working-directory key. */
+export const META_GITHUB_DATA_STATE = 'agentHost.githubData';
 export const META_SOURCE_CONTROL_STATE = 'agentHost.sourceControl';
 
 export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 	[META_GIT_STATE]: true,
 	[META_GITHUB_STATE]: true,
+	[META_GITHUB_DATA_STATE]: true,
 	[META_SOURCE_CONTROL_STATE]: true,
 };
 
@@ -48,8 +55,16 @@ export interface IAgentHostGitStateService {
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
 	/**
-	 * Sets the GitHub state for a given session.
-	 * @param sessionKey The key of the session for which to set the GitHub state.
+	 * Returns the GitHub state of the folder a session, chat channel or folder
+	 * changeset owner URI resolves to: the first folder of the chat, of the
+	 * folder scope, or of the session.
+	 */
+	readonly getGitHubState?: (key: string) => ISessionGitHubState | undefined;
+
+	/**
+	 * Merges into the GitHub state of the folder a session, chat channel or
+	 * folder changeset owner URI resolves to.
+	 * @param sessionKey The session, chat channel or folder changeset owner URI whose folder's GitHub state to set.
 	 * @param state The GitHub state to set.
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;

@@ -20,6 +20,10 @@ import { isPhoneLayout } from './mobileLayout.js';
  */
 export class MobileSessionsPart extends SessionsPart {
 
+	protected override getGridColumnCount(count: number): number {
+		return isPhoneLayout(this.layoutService) ? 1 : super.getGridColumnCount(count);
+	}
+
 	override updateStyles(): void {
 		// Always run the desktop implementation first so inline styles are
 		// set on tablet/desktop transitions. In phone mode we then clear
@@ -50,7 +54,7 @@ export class MobileSessionsPart extends SessionsPart {
 
 		// Full dimensions - no card margins or session-bar subtraction.
 		const { contentSize } = this.layoutContents(width, height);
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);
+		this.layoutSessionGrid(contentSize.width, contentSize.height, top, left);
 		Part.prototype.layout.call(this, width, height, top, left);
 	}
 }

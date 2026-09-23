@@ -491,7 +491,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects legacy Session Changes into every chat', () => {
+	test('projects legacy Session and turn changes into every chat', () => {
 		const sessionUri = URI.parse('ahp-session:/session');
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
 		const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer'));
@@ -554,7 +554,7 @@ suite('AgentHostSessionChangesets', () => {
 		}, {
 			defaultIds: ['branch', 'session', 'turn'],
 			defaultBranchResource: `${sessionUri.toString()}/changeset/branch`,
-			peerIds: ['session'],
+			peerIds: ['session', 'turn'],
 			peerResource: `${sessionUri.toString()}/changeset/session`,
 		});
 	});

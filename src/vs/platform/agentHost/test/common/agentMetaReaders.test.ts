@@ -11,7 +11,7 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
@@ -36,6 +36,30 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads bounded session comparison metadata', () => {
+		assert.deepStrictEqual(readSessionComparisonMetadata(withSessionComparisonMetadata(undefined, {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		})), {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		});
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': { id: 'comparison', role: 'attempt', attemptIndex: 3, attemptCount: 3 },
+		}), undefined);
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': {
+				id: 'comparison',
+				role: 'judge',
+				attemptCount: 3,
+			},
+		})?.role, 'judge');
+	});
 
 	suite('readToolCallMeta', () => {
 		test('returns empty when no _meta', () => {

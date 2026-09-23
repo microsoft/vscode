@@ -21,6 +21,7 @@ import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../
 import { chatReducer } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/reducer.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
+	buildChatUri,
 	buildDefaultChatUri,
 	ChangesetStatus,
 	createActiveTurn,
@@ -323,6 +324,38 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			path: fromAgentHostUri(diff.modifiedURI).path,
 			added: diff.added,
 		})), [{ path: '/repo/legacy.ts', added: 2 }]);
+	});
+
+	test('uses the session-owned turn changeset for a peer chat on a legacy host', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const peerResource = URI.parse('agent-host-copilot:/sess-1/peer');
+		const peerChatUri = URI.parse(buildChatUri(backendSession.toString(), 'peer'));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => peerChatUri));
+		// Older hosts advertise the Turn entry only on the session and publish no chat catalogue.
+		conn.setState(backendSession.toString(), {
+			changesets: turnChangesetCatalog(backendSession),
+		} as unknown as SessionState);
+		conn.setState(peerChatUri.toString(), { turns: [] } as unknown as ChatState);
+		conn.setState(turnChangesetUri('t1', backendSession), {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'peer',
+				edit: {
+					after: { uri: URI.file('/repo/peer.ts').toString(), content: { uri: 'git-blob://peer-after' } },
+					diff: { added: 3, removed: 0 },
+				},
+			}],
+		} satisfies ChangesetState);
+
+		const obs = provider.getChangesForRequest(peerResource, 't1')!;
+		let latest: readonly IEditSessionEntryDiff[] = [];
+		ds.add(autorun(reader => { latest = obs.read(reader); }));
+
+		assert.deepStrictEqual(latest.map(diff => ({
+			path: fromAgentHostUri(diff.modifiedURI).path,
+			added: diff.added,
+		})), [{ path: '/repo/peer.ts', added: 3 }]);
 	});
 
 	test('treats host notices as authoritatively empty without suppressing visible Agent Merge turns', () => {
