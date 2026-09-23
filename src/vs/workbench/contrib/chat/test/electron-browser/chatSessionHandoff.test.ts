@@ -79,6 +79,34 @@ suite('ChatSessionHandoff', () => {
 		assert.strictEqual(attempts, 1);
 	});
 
+	test('waits for a pending open before preserving hidden state', async () => {
+		const session = URI.parse('test:/session');
+		const pendingOpen = new DeferredPromise<boolean>();
+		let visible = true;
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override getAllWidgets(): readonly IChatWidget[] {
+				return [createChatWidget(session, visible)];
+			}
+		}();
+		let attempts = 0;
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async () => {
+			attempts++;
+			return attempts === 1 ? true : pendingOpen.p;
+		});
+
+		await controller.open(session);
+		const second = controller.open(session);
+		visible = false;
+		let thirdResolved = false;
+		const third = controller.open(session).then(() => thirdResolved = true);
+		await Promise.resolve();
+		const resolvedWhilePending = thirdResolved;
+		pendingOpen.complete(true);
+		await Promise.all([second, third]);
+
+		assert.deepStrictEqual({ attempts, resolvedWhilePending, thirdResolved }, { attempts: 2, resolvedWhilePending: false, thirdResolved: true });
+	});
+
 	test('does not treat an inactive Chat editor as a hidden Chat view', async () => {
 		const session = URI.parse('test:/session');
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {

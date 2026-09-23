@@ -21,6 +21,11 @@ export class ChatSessionHandoffController {
 	) { }
 
 	async open(sessionResource: URI): Promise<void> {
+		const pendingOpen = this.pendingOpens.get(sessionResource);
+		if (pendingOpen) {
+			return pendingOpen;
+		}
+
 		const existingWidget = this.chatWidgetService.getAllWidgets().find(widget =>
 			this.isChatViewWidget(widget)
 			&& !!widget.viewModel?.sessionResource
@@ -28,11 +33,6 @@ export class ChatSessionHandoffController {
 		);
 		if (this.openedSessions.has(sessionResource) && existingWidget && !existingWidget.visible) {
 			return;
-		}
-
-		const pendingOpen = this.pendingOpens.get(sessionResource);
-		if (pendingOpen) {
-			return pendingOpen;
 		}
 
 		const open = this.doOpen(sessionResource);
