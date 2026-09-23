@@ -54,6 +54,7 @@ const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototyp
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
+	readonly options?: { readonly draftStorageKey: string };
 	readonly storageService: {
 		get(key: string, scope: unknown): string | undefined;
 		store(key: string, value: string, scope: unknown, target: unknown): void;
@@ -182,6 +183,23 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 }
 
 suite('NewChatInputWidget', () => {
+	test('hosted drafts restore, save and clear independently of the main composer and other boards', () => {
+		const saved = new Map<string, string>();
+		const storageService = {
+			get: (key: string) => saved.get(key),
+			store: (key: string, value: string) => { saved.set(key, value); },
+		};
+		const main: IDraftStateHarness = { storageService, _draftState: { inputText: 'main draft', attachments: [] } };
+		const first: IDraftStateHarness = { storageService, options: { draftStorageKey: 'board.first' }, _draftState: { inputText: 'first board', attachments: [] } };
+		const second: IDraftStateHarness = { storageService, options: { draftStorageKey: 'board.second' }, _draftState: { inputText: 'second board', attachments: [] } };
+		for (const harness of [main, first, second]) {
+			saveState.call(harness);
+		}
+		assert.strictEqual(getDraftState.call(first)?.inputText, 'first board');
+		clearDraftState.call(first);
+		assert.deepStrictEqual([getDraftState.call(main)?.inputText, getDraftState.call(first)?.inputText, getDraftState.call(second)?.inputText], ['main draft', '', 'second board']);
+	});
+
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const existing of ['empty', 'text', 'attachments', 'sending'] as const) {

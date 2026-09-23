@@ -4177,6 +4177,440 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ created, automation: service.automationSession.get(), ordinary: service.newSession.get() }, { created: 1, automation: undefined, ordinary: session });
 	});
 
+	suite('createSessionDraft', () => {
+		const folder = URI.file('/draft-workspace');
+
+		class DraftProvider extends TestSessionsProvider {
+			override readonly id: string;
+			override supportsQuickChats = true;
+			override sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm, supportsWorktreeConfiguration: true }];
+			readonly created: ISession[] = [];
+			readonly createOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
+			readonly deleted: string[] = [];
+			readonly published: ISession[] = [];
+			readonly sent: ISendRequestOptions[] = [];
+			readonly configured: string[] = [];
+			readonly configuration = { providerConfig: { draft: true } };
+			requiresTrust = false;
+			activeRequests = 0;
+
+			constructor(id = 'test') {
+				super(stubSession({ sessionId: 'seed', providerId: id }));
+				this.id = id;
+			}
+
+			override resolveWorkspace(uri: URI): ISessionWorkspace {
+				return { uri, label: 'Workspace', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: this.requiresTrust, isVirtualWorkspace: false };
+			}
+			override getSessions(): ISession[] { return this.published; }
+			override createNewSession(uri?: URI, sessionType = 'test', options?: ISessionsProviderCreateSessionOptions): ISession {
+				const sessionId = `${this.id}-${this.created.length}`;
+				const chat = { ...stubChat, resource: URI.parse(`test:///${sessionId}/chat`), status: constObservable(SessionStatus.Untitled) };
+				const session = stubSession({
+					sessionId, providerId: this.id, sessionType,
+					status: constObservable(SessionStatus.Untitled),
+					workspace: constObservable(uri ? this.resolveWorkspace(uri) : undefined),
+					mainChat: constObservable(chat), chats: constObservable([chat]),
+				});
+				this.created.push(session);
+				this.createOptions.push(options);
+				return session;
+			}
+			override createQuickChat(sessionType: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				return this.createNewSession(undefined, sessionType, options);
+			}
+			override deleteNewSession(sessionId: string): void { this.deleted.push(sessionId); }
+			override setModel(_sessionId: string, _chat: URI, modelId: string): void { this.configured.push(`model:${modelId}`); }
+			override setMode(_sessionId: string, modeId: string): void { this.configured.push(`mode:${modeId}`); }
+			override setPermissionLevel(_sessionId: string, level: string): void { this.configured.push(`permission:${level}`); }
+			override async setWorktreeConfiguration(_sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void> {
+				this.configured.push(`branch:${configuration.branch}`);
+			}
+			override startNewSessionRequest() {
+				this.activeRequests++;
+				return toDisposable(() => this.activeRequests--);
+			}
+			override async getNewSessionConfig() { return this.configuration; }
+			override async createNewChat(sessionId?: string): Promise<IChat> {
+				const session = this.created.find(session => session.sessionId === sessionId);
+				assert.ok(session);
+				return session.mainChat.get();
+			}
+			override async sendRequest(sessionId: string, _chat: URI, options: ISendRequestOptions): Promise<ISession> {
+				const draft = this.created.find(session => session.sessionId === sessionId);
+				assert.ok(draft);
+				const session = { ...draft, status: constObservable(SessionStatus.InProgress) };
+				this.sent.push(options);
+				this.published.push(session);
+				return session;
+			}
+		}
+
+		function createService(provider: ISessionsProvider | ISessionsProvider[] = new DraftProvider(), trust?: TestWorkspaceTrustManagementService) {
+			return createSessionsManagementService(stubSession({ sessionId: 'seed', providerId: 'test' }), disposables, provider, trust);
+		}
+
+		test('owns independent drafts without replacing main or Automation drafts and preserves metadata/configuration', async () => {
+			const provider = new DraftProvider();
+			const { service } = createService(provider);
+			const main = service.createNewSession(folder);
+			const automation = service.createAutomationSession(folder);
+			const metadata = { source: 'dialog', nested: { board: 'one' } };
+			let created: ISession | undefined;
+			const first = disposables.add(await service.createSessionDraft(folder, {
+				metadata, modelId: 'model', modeId: 'plan', permissionLevel: 'default', branch: 'main',
+				onSessionCreated: session => created = session,
+			}));
+			const second = disposables.add(await service.createSessionDraft(folder));
+			const firstSession = first.session;
+			assert.deepStrictEqual({
+				main: service.newSession.get(), automation: service.automationSession.get(),
+				first: service.getSession(firstSession.resource), created,
+				chatOwner: service.getSessionForChatResource(firstSession.mainChat.get().resource)?.session,
+				metadata: provider.createOptions[2]?.metadata, configured: provider.configured, listed: service.getSessions(),
+			}, {
+				main, automation, first: firstSession, created: firstSession, chatOwner: firstSession,
+				metadata, configured: ['model:model', 'mode:plan', 'permission:default', 'branch:main'], listed: [],
+			});
+
+			first.dispose();
+			first.dispose();
+			assert.deepStrictEqual({
+				deleted: provider.deleted, first: service.getSession(firstSession.resource),
+				second: service.getSession(second.session.resource),
+				main: service.newSession.get(), automation: service.automationSession.get(),
+			}, { deleted: [firstSession.sessionId], first: undefined, second: second.session, main, automation });
+			await assert.rejects(first.send({ query: 'disposed' }), /Canceled/);
+		});
+
+		test('creates workspace-less quick chats without trust or global draft changes', async () => {
+			const provider = new DraftProvider();
+			const trust = new TestWorkspaceTrustManagementService();
+			trust.trusted = false;
+			const { service } = createService(provider, trust);
+			const draft = disposables.add(await service.createSessionDraft(undefined, { metadata: { quick: true } }));
+			assert.deepStrictEqual({
+				workspace: draft.session.workspace.get(), options: provider.createOptions,
+				trust: trust.requestedUris, main: service.newSession.get(), automation: service.automationSession.get(),
+			}, { workspace: undefined, options: [{ metadata: { quick: true } }], trust: [], main: undefined, automation: undefined });
+			await draft.send({ query: 'quick' });
+			draft.dispose();
+			assert.deepStrictEqual(provider.deleted, []);
+		});
+
+		test('successful send uses normal lifecycle without navigation and transfers ownership permanently', async () => {
+			const provider = new DraftProvider();
+			const { service, view, chatWidgetService } = createService(provider);
+			const main = service.createNewSession(folder);
+			const automation = service.createAutomationSession(folder);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			const sentEvents: ISendRequestSentEvent[] = [];
+			const started: ISession[] = [];
+			disposables.add(service.onDidStartSession(session => started.push(session)));
+			disposables.add(service.onDidSendRequest(event => sentEvents.push(event)));
+			const options = { query: 'hello', metadata: { source: 'dialog' } };
+			const result = await draft.send(options);
+			draft.dispose();
+			await assert.rejects(draft.send(options));
+			assert.deepStrictEqual({
+				result, current: draft.session, resolved: service.getSession(draft.session.resource),
+				main: service.newSession.get(), automation: service.automationSession.get(),
+				active: view.activeSession.get(), opened: chatWidgetService.opened, deleted: provider.deleted,
+				started, sent: sentEvents.map(event => ({ options: event.options, config: event.newSessionConfig, isNew: event.isNewSession })),
+				inFlight: service.getInFlightNewSessionRequests(), activeRequests: provider.activeRequests,
+			}, {
+				result: provider.published[0], current: provider.published[0], resolved: provider.published[0], main, automation,
+				active: undefined, opened: [], deleted: [], started: provider.published,
+				sent: [{ options, config: provider.configuration, isNew: true }], inFlight: [], activeRequests: 0,
+			});
+		});
+
+		test('failed unpublished sends retain the draft for retry', async () => {
+			let attempts = 0;
+			const provider = new class extends DraftProvider {
+				override async sendRequest(sessionId: string, chat: URI, options: ISendRequestOptions): Promise<ISession> {
+					if (++attempts === 1) {
+						throw new Error('send failed');
+					}
+					return super.sendRequest(sessionId, chat, options);
+				}
+			}();
+			const { service } = createService(provider);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			const original = draft.session;
+			await assert.rejects(draft.send({ query: 'first' }), /send failed/);
+			assert.deepStrictEqual({
+				current: draft.session, resolved: service.getSession(original.resource),
+				deleted: provider.deleted, inFlight: service.getInFlightNewSessionRequests(), activeRequests: provider.activeRequests,
+			}, { current: original, resolved: original, deleted: [], inFlight: [], activeRequests: 0 });
+			await draft.send({ query: 'retry' });
+			draft.dispose();
+			assert.deepStrictEqual({ attempts, deleted: provider.deleted, sent: provider.sent }, { attempts: 2, deleted: [], sent: [{ query: 'retry' }] });
+		});
+
+		for (const success of [true, false]) {
+			test(`rejects duplicate sends and defers disposal until an in-flight ${success ? 'success' : 'failure'}`, async () => {
+				const entered = new DeferredPromise<void>();
+				const finish = new DeferredPromise<void>();
+				const provider = new class extends DraftProvider {
+					override async sendRequest(sessionId: string, chat: URI, options: ISendRequestOptions): Promise<ISession> {
+						await entered.complete();
+						await finish.p;
+						if (!success) {
+							throw new Error('send failed');
+						}
+						return super.sendRequest(sessionId, chat, options);
+					}
+				}();
+				const { service } = createService(provider);
+				const draft = disposables.add(await service.createSessionDraft(folder));
+				const session = draft.session;
+				const sending = draft.send({ query: 'hello' });
+				const result = success ? sending : assert.rejects(sending, /send failed/);
+				await entered.p;
+				await assert.rejects(draft.send({ query: 'duplicate' }), /already been sent or is being sent/);
+				draft.dispose();
+				assert.deepStrictEqual({
+					deleted: provider.deleted, inFlight: service.getInFlightNewSessionRequests(), resolved: service.getSession(session.resource),
+				}, { deleted: [], inFlight: [session], resolved: session });
+				await finish.complete();
+				await result;
+				assert.deepStrictEqual({
+					deleted: provider.deleted, inFlight: service.getInFlightNewSessionRequests(),
+					resolved: service.getSession(session.resource), activeRequests: provider.activeRequests,
+				}, {
+					deleted: success ? [] : [session.sessionId], inFlight: [],
+					resolved: success ? provider.published[0] : undefined, activeRequests: 0,
+				});
+			});
+		}
+
+		for (const loss of ['provider', 'type', 'quickChat'] as const) {
+			test(`rejects ${loss} availability loss without falling back to another provider`, async () => {
+				const provider = new DraftProvider();
+				const fallback = new DraftProvider('fallback');
+				const providers = [provider, fallback];
+				const { service } = createService(providers);
+				const draft = disposables.add(await service.createSessionDraft(loss === 'quickChat' ? undefined : folder));
+				if (loss === 'provider') {
+					providers.splice(0, 1);
+				} else if (loss === 'type') {
+					provider.sessionTypes = [];
+				} else {
+					provider.supportsQuickChats = false;
+				}
+				await assert.rejects(draft.send({ query: 'hello' }), /no longer available|does not advertise|does not support quick chats/);
+				draft.dispose();
+				assert.deepStrictEqual({
+					sent: provider.sent, deleted: provider.deleted, fallback: fallback.created,
+					inFlight: service.getInFlightNewSessionRequests(),
+				}, { sent: [], deleted: [draft.session.sessionId], fallback: [], inFlight: [] });
+			});
+		}
+
+		test('rejects untrusted creation and rechecks trust on send without prompting', async () => {
+			const provider = new DraftProvider();
+			provider.requiresTrust = true;
+			const trust = new TestWorkspaceTrustManagementService();
+			trust.trusted = false;
+			const { service } = createService(provider, trust);
+			await assert.rejects(service.createSessionDraft(folder), WorkspaceNotTrustedError);
+			assert.deepStrictEqual(provider.created, []);
+			trust.trusted = true;
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			trust.trusted = false;
+			await assert.rejects(draft.send({ query: 'not trusted' }), WorkspaceNotTrustedError);
+			assert.deepStrictEqual({ sent: provider.sent, deleted: provider.deleted }, { sent: [], deleted: [] });
+			trust.trusted = true;
+			await draft.send({ query: 'trusted' });
+			assert.deepStrictEqual(provider.sent, [{ query: 'trusted' }]);
+		});
+
+		test('configuration failure disposes and unindexes only the new draft', async () => {
+			const provider = new class extends DraftProvider {
+				override setModel(): never { throw new Error('configuration failed'); }
+			}();
+			const { service } = createService(provider);
+			const main = service.createNewSession(folder);
+			await assert.rejects(service.createSessionDraft(folder, { modelId: 'missing' }), /configuration failed/);
+			assert.deepStrictEqual({
+				deleted: provider.deleted, resolved: service.getSession(provider.created[1].resource), main: service.newSession.get(),
+			}, { deleted: [provider.created[1].sessionId], resolved: undefined, main });
+		});
+
+		test('retains a prepared replacement and its provider/workspace on failure and retry', async () => {
+			const preparedFolder = URI.file('/prepared-workspace');
+			let attempts = 0;
+			const replacementProvider = new class extends DraftProvider {
+				override resolveWorkspace(uri: URI): ISessionWorkspace {
+					assert.strictEqual(uri.path, preparedFolder.path);
+					return super.resolveWorkspace(uri);
+				}
+				override async sendRequest(sessionId: string, chat: URI, options: ISendRequestOptions): Promise<ISession> {
+					if (++attempts === 1) {
+						throw new Error('prepared send failed');
+					}
+					return super.sendRequest(sessionId, chat, options);
+				}
+			}('prepared');
+			let prepared: ISession;
+			const originalProvider = new class extends DraftProvider {
+				override async prepareNewSession(sessionId: string, _token: CancellationToken, query: string) {
+					assert.strictEqual(query, 'first');
+					prepared = { ...replacementProvider.createNewSession(preparedFolder), sessionId };
+					replacementProvider.created[0] = prepared;
+					return { session: prepared };
+				}
+			}();
+			const { service } = createService([originalProvider, replacementProvider]);
+			const draft = disposables.add(await service.createSessionDraft(folder, { providerId: originalProvider.id }));
+			const original = draft.session;
+			await assert.rejects(draft.send({ query: 'first' }), /prepared send failed/);
+			assert.deepStrictEqual({
+				current: draft.session, old: service.getSession(original.resource), currentResolved: service.getSession(draft.session.resource),
+				deletedOriginal: originalProvider.deleted, deletedPrepared: replacementProvider.deleted,
+			}, { current: prepared!, old: undefined, currentResolved: prepared!, deletedOriginal: [original.sessionId], deletedPrepared: [] });
+			await draft.send({ query: 'retry' });
+			draft.dispose();
+			assert.deepStrictEqual({
+				sent: replacementProvider.sent, deleted: replacementProvider.deleted,
+				inFlight: service.getInFlightNewSessionRequests(),
+			}, { sent: [{ query: 'retry' }], deleted: [], inFlight: [] });
+		});
+
+		test('waits for preparation to settle before disposing its replacement', async () => {
+			const entered = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			let preparationToken: CancellationToken | undefined;
+			const provider = new class extends DraftProvider {
+				override async prepareNewSession(_sessionId: string, token: CancellationToken) {
+					preparationToken = token;
+					await entered.complete();
+					await finish.p;
+					return { session: this.createNewSession(folder) };
+				}
+			}();
+			const { service } = createService(provider);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			const sending = assert.rejects(draft.send({ query: 'hello' }), /Canceled/);
+			await entered.p;
+			draft.dispose();
+			assert.deepStrictEqual({ deleted: provider.deleted, cancelled: preparationToken?.isCancellationRequested }, { deleted: [], cancelled: true });
+			await finish.complete();
+			await sending;
+			assert.deepStrictEqual({
+				deleted: provider.deleted, sent: provider.sent, current: draft.session,
+				resolved: provider.created.map(session => service.getSession(session.resource)),
+				inFlight: service.getInFlightNewSessionRequests(), activeRequests: provider.activeRequests,
+			}, {
+				deleted: provider.created.map(session => session.sessionId), sent: [], current: provider.created[1],
+				resolved: [undefined, undefined], inFlight: [], activeRequests: 0,
+			});
+		});
+
+		test('exposes preparation that replaces the session facade without changing its identifier', async () => {
+			let replacement: ISession | undefined;
+			const provider = new class extends DraftProvider {
+				override async prepareNewSession() {
+					replacement = { ...this.created[0], title: constObservable('Prepared') };
+					return { session: replacement };
+				}
+				override async sendRequest(): Promise<never> { throw new Error('send failed'); }
+			}();
+			const { service } = createService(provider);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			await assert.rejects(draft.send({ query: 'hello' }), /send failed/);
+			assert.deepStrictEqual({
+				current: draft.session, resolved: service.getSession(draft.session.resource), deleted: provider.deleted,
+			}, { current: replacement, resolved: replacement, deleted: [] });
+		});
+
+		test('revalidates the provider after asynchronous configuration capture', async () => {
+			const entered = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			const provider = new class extends DraftProvider {
+				override async getNewSessionConfig() {
+					await entered.complete();
+					await finish.p;
+					return super.getNewSessionConfig();
+				}
+			}();
+			const providers = [provider];
+			const { service } = createService(providers);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			const sending = assert.rejects(draft.send({ query: 'hello' }), /no longer available/);
+			await entered.p;
+			providers.splice(0, 1);
+			await finish.complete();
+			await sending;
+			draft.dispose();
+			assert.deepStrictEqual({
+				sent: provider.sent, deleted: provider.deleted, activeRequests: provider.activeRequests,
+			}, { sent: [], deleted: [draft.session.sessionId], activeRequests: 0 });
+		});
+
+		test('rejects an untrusted prepared workspace while retaining only the prepared draft', async () => {
+			const trust = new TestWorkspaceTrustManagementService();
+			const preparedFolder = URI.file('/untrusted-prepared-workspace');
+			const provider = new class extends DraftProvider {
+				override async prepareNewSession() {
+					this.requiresTrust = true;
+					trust.trusted = false;
+					return { session: this.createNewSession(preparedFolder) };
+				}
+			}();
+			const { service } = createService(provider, trust);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			await assert.rejects(draft.send({ query: 'hello' }), WorkspaceNotTrustedError);
+			const current = draft.session;
+			assert.deepStrictEqual({
+				current, resolved: service.getSession(current.resource), checked: trust.requestedUris,
+				sent: provider.sent, deleted: provider.deleted,
+			}, {
+				current: provider.created[1], resolved: provider.created[1], checked: [preparedFolder],
+				sent: [], deleted: [provider.created[0].sessionId],
+			});
+			draft.dispose();
+			assert.deepStrictEqual(provider.deleted, provider.created.map(session => session.sessionId));
+		});
+
+		test('does not delete a session published by a failed provider send', async () => {
+			const provider = new class extends DraftProvider {
+				override async sendRequest(sessionId: string, chat: URI, options: ISendRequestOptions): Promise<ISession> {
+					await super.sendRequest(sessionId, chat, options);
+					throw new Error('post-publication failure');
+				}
+			}();
+			const { service } = createService(provider);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			await assert.rejects(draft.send({ query: 'hello' }), /post-publication failure/);
+			await assert.rejects(draft.send({ query: 'duplicate' }), /already been sent/);
+			draft.dispose();
+			assert.deepStrictEqual({ deleted: provider.deleted, resolved: service.getSession(draft.session.resource) }, { deleted: [], resolved: provider.published[0] });
+		});
+
+		test('service shutdown during send waits for publication rather than deleting the backend', async () => {
+			const entered = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			const provider = new class extends DraftProvider {
+				override async sendRequest(sessionId: string, chat: URI, options: ISendRequestOptions): Promise<ISession> {
+					await entered.complete();
+					await finish.p;
+					return super.sendRequest(sessionId, chat, options);
+				}
+			}();
+			const { service } = createService(provider);
+			const draft = disposables.add(await service.createSessionDraft(folder));
+			const sending = draft.send({ query: 'hello' });
+			await entered.p;
+			(service as SessionsManagementService).dispose();
+			assert.deepStrictEqual(provider.deleted, []);
+			await finish.complete();
+			assert.strictEqual(await sending, undefined);
+			assert.deepStrictEqual({ deleted: provider.deleted, published: provider.published.length }, { deleted: [], published: 1 });
+		});
+	});
+
 	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

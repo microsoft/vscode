@@ -53,6 +53,8 @@ export const PROJECT_BOARD_CHAT_VIEW_ID = 'sessions.kanban.chat';
 export const ProjectBoardChatAvailableContext = new RawContextKey<boolean>('kanbanChatAvailable', false);
 export const ProjectBoardChatFocusContext = new RawContextKey<boolean>('kanbanChatFocus', false);
 
+type ProjectBoardChat = Pick<IProjectBoardCard, 'session' | 'chat'>;
+
 /** Owns a borrowed auxiliary pane without changing the window's active session or chat. */
 export class ProjectBoardChatSidePanel extends Disposable {
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -90,7 +92,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 		}));
 	}
 
-	async open(card: IProjectBoardCard, onClose: () => void): Promise<void> {
+	async open(card: ProjectBoardChat, onClose: () => void): Promise<void> {
 		const customView = this.customViewService.activeCustomView.get();
 		if (this.disposed || customView?.id !== KANBAN_CUSTOM_VIEW_ID || this.entitlementService.sentiment.hidden) {
 			throw new Error(localize('kanban.chatUnavailable', "Chat can only be opened beside the embedded Agents Hub view while AI features are enabled."));
@@ -234,7 +236,7 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		}));
 	}
 
-	async open(card: IProjectBoardCard, token: CancellationToken, onClose: () => void): Promise<void> {
+	async open(card: ProjectBoardChat, token: CancellationToken, onClose: () => void): Promise<void> {
 		if (!this.chatContainer) {
 			throw new Error(localize('kanban.chatNotRendered', "The Agents Hub chat side panel has not been rendered."));
 		}
@@ -281,7 +283,7 @@ export class ProjectBoardChatContent extends Disposable {
 	private dimensions: { height: number; width: number } | undefined;
 
 	constructor(
-		private readonly card: IProjectBoardCard,
+		private readonly card: ProjectBoardChat,
 		private readonly viewStates: LRUCache<string, IChatWidgetViewState>,
 		private readonly pendingInputs: LRUCache<string, IChatModelInputState>,
 		readonly onClose: () => void,

@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { IEditorPane } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -23,6 +24,7 @@ import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getNewChatSessionResource, LocalChatSessionUri } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostNewSessionFolderService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -30,6 +32,12 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { IProjectBoardCard } from '../common/projectBoardModel.js';
+
+export interface IProjectBoardNewSessionTarget {
+	readonly folderUri: URI;
+	readonly providerId: string;
+	readonly sessionTypeId: string;
+}
 
 export interface IProjectBoardDraft {
 	readonly id: string;
@@ -70,6 +78,8 @@ export class ProjectBoardChatWindows extends Disposable {
 		@IAgentHostConnectionsService private readonly agentConnections: IAgentHostConnectionsService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.publishDrafts()));
@@ -86,7 +96,7 @@ export class ProjectBoardChatWindows extends Disposable {
 		}));
 	}
 
-	async open(card: IProjectBoardCard): Promise<void> {
+	async open(card: Pick<IProjectBoardCard, 'id' | 'session' | 'chat' | 'title'>): Promise<void> {
 		let pending = this.opening.get(card.id);
 		if (!pending) {
 			pending = this.openEditor(card).finally(() => this.opening.delete(card.id));
@@ -110,15 +120,31 @@ export class ProjectBoardChatWindows extends Disposable {
 		return await group.closeEditor(input) ? resource : undefined;
 	}
 
-	async createNewSession(): Promise<URI> {
-		const types = this.sessionsManagementService.getQuickChatSessionTypes();
-		const active = this.sessionsService.activeSession.get();
-		const target = types.find(type => type.providerId === active?.providerId && type.sessionType.id === active.sessionType)
-			?? types.find(type => type.sessionType.authRequirement !== SessionTypeAuthRequirement.Unusable);
+	async createNewSession(selection: IProjectBoardNewSessionTarget): Promise<URI | undefined> {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
+		const resolved = this.sessionsManagementService.resolveWorkspace(selection.folderUri, selection.providerId);
+		if (!resolved) {
+			throw new Error(localize('projectBoard.workspaceGone', "The selected workspace is no longer available."));
+		}
+		if (resolved.workspace.requiresWorkspaceTrust && !await this.workspaceTrustRequestService.requestResourcesTrust({
+			uri: selection.folderUri,
+			message: localize('projectBoard.trustFolder', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		})) {
+			return undefined;
+		}
+		if (this._store.isDisposed) {
+			return undefined;
+		}
+		const target = this.sessionsManagementService.getSessionTypesForFolder(selection.folderUri).find(type =>
+			type.providerId === selection.providerId && type.sessionType.id === selection.sessionTypeId
+			&& type.sessionType.authRequirement !== SessionTypeAuthRequirement.Unusable);
 		if (!target) {
 			throw new Error(localize('projectBoard.noSessionProvider', "No available provider can create a standalone session."));
 		}
 		const resource = getNewChatSessionResource(target.sessionType.chatSessionType ?? target.sessionType.id);
+		this.newSessionFolderService.setFolder(resource, selection.folderUri);
 		const lifetime = this._register(new DisposableStore());
 		const entry: IDraftEntry = {
 			id: resource.toString(), resource, lifetime,
@@ -259,6 +285,7 @@ export class ProjectBoardChatWindows extends Disposable {
 			} else if (LocalChatSessionUri.isLocalSession(entry.resource)) {
 				await this.chatService.removeHistoryEntry(entry.resource);
 			}
+			this.newSessionFolderService.clear(URI.parse(entry.id));
 			this._store.delete(entry.lifetime);
 		} catch (error) {
 			this.entries.set(entry.id, entry);
@@ -286,7 +313,7 @@ export class ProjectBoardChatWindows extends Disposable {
 		return resource;
 	}
 
-	private async openEditor(card: IProjectBoardCard): Promise<void> {
+	private async openEditor(card: Pick<IProjectBoardCard, 'session' | 'chat' | 'title'>): Promise<void> {
 		if (!await this.sessionsService.canOpenSession(card.session)) {
 			return;
 		}

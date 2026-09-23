@@ -28,37 +28,13 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { sessionDialogAllowableCommands } from '../../../browser/sessionDialogKeyboardNavigation.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationSessionConfigurationCapture, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
-
-const automationDialogAllowableCommands = new Set([
-	'workbench.action.quit',
-	'workbench.action.reloadWindow',
-	'copy',
-	'cut',
-	'paste',
-	'editor.action.selectAll',
-	'editor.action.clipboardCopyAction',
-	'editor.action.clipboardCutAction',
-	'editor.action.clipboardPasteAction',
-	'hideCodeActionWidget',
-	'clearFilterCodeActionWidget',
-	'selectPrevCodeAction',
-	'selectNextCodeAction',
-	'acceptSelectedCodeAction',
-	'previewSelectedCodeAction',
-	'toggleSectionCodeAction',
-	'collapseSectionCodeAction',
-	'expandSectionCodeAction',
-	'quickInput.next',
-	'quickInput.previous',
-	'quickInput.accept',
-	'quickInput.hide',
-]);
 
 /**
  * Owns the Automations create/edit dialog in the sessions layer, where the
@@ -347,7 +323,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					};
 					revalidate();
 				},
-			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
+			}, this.keybindingService, this.layoutService, this.hostService, sessionDialogAllowableCommands,
 				(commandId, event) => shouldPassThroughAutomationDialogCommand(commandId, event.target)),
 		));
 

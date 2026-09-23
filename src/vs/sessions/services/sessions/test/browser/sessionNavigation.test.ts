@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionDraft, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
@@ -217,6 +217,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createSessionDraft(_folderUri: URI | undefined, _options?: ICreateNewSessionOptions): Promise<ISessionDraft> { throw new Error('not implemented'); }
 	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }

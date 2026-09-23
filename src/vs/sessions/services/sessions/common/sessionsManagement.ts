@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
@@ -35,6 +36,21 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 * existing session).
 	 */
 	readonly background?: boolean;
+}
+
+/**
+ * An independently owned composer draft. Disposal discards only its unsent
+ * session, waiting for an in-flight send to settle before releasing ownership.
+ */
+export interface ISessionDraft extends IDisposable {
+	/** The current session, including any replacement produced by preparation. */
+	readonly session: ISession;
+	/**
+	 * Send without navigation, rejecting concurrent or published sends; unpublished
+	 * failures remain retryable. Resolved `undefined` still means success during
+	 * service shutdown and must not be retried.
+	 */
+	send(options: ISendRequestOptions): Promise<ISession | undefined>;
 }
 
 export interface IDeferredNewSessionRequestOptions {
@@ -396,6 +412,12 @@ export interface ISessionsManagementService {
 	 * regular New Chat composer draft.
 	 */
 	readonly automationSession: IObservable<ISession | undefined>;
+
+	/**
+	 * Create an independently owned draft (quick chat when no folder is supplied)
+	 * without replacing existing composers. Checks trust without prompting.
+	 */
+	createSessionDraft(folderUri: URI | undefined, options?: ICreateNewSessionOptions): Promise<ISessionDraft>;
 
 	/**
 	 * Create and track an Automation dialog session draft for the given folder.

@@ -20,7 +20,7 @@ import { IActiveSession, ICreateNewSessionOptions, WorkspaceNotTrustedError } fr
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
-import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { INewChatWidgetHost, NewChatWidget } from '../../browser/newChatWidget.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -330,7 +330,50 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(derived(reader => hasRunningSession.call(harness, reader)).get(), true);
 	});
 
-	test('workspace row hosts the workspace picker before the multiple-harness and context pickers', () => {
+	test('hosted workspace selection creates only an isolated draft using the chosen provider', async () => {
+		const folder = URI.file('/chosen/workspace');
+		const calls: unknown[] = [];
+		const host: INewChatWidgetHost = {
+			session: constObservable(undefined),
+			draftStorageKey: 'board.draft',
+			async createSession(folderUri, options, token) {
+				calls.push({ folderUri, options, token });
+				return { session: undefined, trustDeclined: true };
+			},
+			clearSession: () => assert.fail('Unexpected clear'),
+			sendRequest: async () => assert.fail('Unexpected send'),
+		};
+		const harness = {
+			options: { host },
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'unrelated' } },
+			sessionsService: { openNewSession: async () => assert.fail('Must not replace the main draft') },
+			logService: { error: () => assert.fail('Unexpected creation error') },
+			_isPreferredServable: () => true,
+		};
+		assert.deepStrictEqual(await createSessionNow.call(harness, folder, { providerId: 'chosen', sessionTypeId: 'test' }, CancellationToken.None), { session: undefined, trustDeclined: true });
+		assert.deepStrictEqual(calls, [{ folderUri: folder, options: { providerId: 'chosen', sessionTypeId: 'test' }, token: CancellationToken.None }]);
+	});
+
+	test('hosted submission uses the isolated host without main feedback, navigation or reseeding', async () => {
+		const session = upcastPartial<IActiveSession>({ sessionId: 'isolated' });
+		const requests: unknown[] = [];
+		const host: INewChatWidgetHost = {
+			session: constObservable(session),
+			draftStorageKey: 'board.draft',
+			createSession: async () => assert.fail('Must not reseed the main draft'),
+			clearSession: () => assert.fail('Must not clear the main draft'),
+			async sendRequest(target, options) { requests.push({ target, options }); return true; },
+		};
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			options: { host }, _session: host.session,
+		});
+		const hostedSend = Reflect.get(NewChatWidget.prototype, '_send') as (this: NewChatWidget, query: string) => Promise<boolean>;
+		assert.strictEqual(await hostedSend.call(widget, 'board prompt'), true);
+		assert.deepStrictEqual(requests, [{ target: session, options: { query: 'board prompt', attachedContext: undefined, background: true } }]);
+	});
+
+	test('workspace row hosts the workspace picker before the harness and context pickers', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
