@@ -159,7 +159,9 @@ remain available.
 
 Enabling capture still requires the normal reload/recovery flow. Disabling is
 checked before subsequent exports and local completion events, including queued
-spans, logs, metrics, and SQLite export. Once observed, a denial stays in effect
+spans, logs, metrics, and SQLite export. These checks read cached state refreshed
+on OTel configuration changes, without resolving settings per span. A denial is
+latched when the configuration change is observed, even between exports, and stays in effect
 for that service instance, even if policy later allows capture or is withdrawn;
 re-enabling capture requires a reload. Already exported or persisted data cannot
 be recalled, and an export already handed to its transport cannot be cancelled.
