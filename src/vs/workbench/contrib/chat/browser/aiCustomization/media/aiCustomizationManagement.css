@@ -2896,6 +2896,28 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
+.mcp-server-item .mcp-server-issue,
+.mcp-server-item .mcp-server-compatibility-message,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-compatibility-message {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mcp-server-item .mcp-server-issue,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-error-message {
+	color: var(--vscode-errorForeground);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	white-space: normal;
+	overflow: hidden;
+}
+
 .mcp-server-item .mcp-server-source-path {
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -2949,24 +2971,26 @@ per-word capitalization does not survive translation. */
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.mcp-server-item .mcp-server-status.running {
-	color: var(--vscode-charts-green);
-}
-
 .mcp-server-item .mcp-server-status.starting {
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
-}
-
-.mcp-server-item .mcp-server-status.auth-required {
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
 .mcp-server-item.disabled {
 	opacity: 0.5;
 }
 
-.mcp-server-item .mcp-server-status.disabled {
+.plugin-list-widget .mcp-server-state-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-disabledForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.error {
+	color: var(--vscode-errorForeground);
+}
+
+.plugin-list-widget .mcp-server-state-icon.starting {
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
 .plugin-list-widget .plugin-search-header {
@@ -3106,6 +3130,10 @@ per-word capitalization does not survive translation. */
 	opacity: 1;
 }
 
+.plugin-list-widget .mcp-installed-home-row.disabled .plugin-list-item-details {
+	opacity: 0.6;
+}
+
 .plugin-list-widget .plugin-list-item .item-sync-checkbox {
 	flex-shrink: 0;
 	display: flex;
@@ -3172,41 +3200,6 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget .plugin-list-item-status.disabled {
 	color: var(--vscode-badge-foreground);
 	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge {
-	color: var(--vscode-foreground);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.running {
-	color: var(--vscode-foreground);
-	background-color: color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.starting {
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.auth-required {
-	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-runtime-status-badge.error {
-	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-compatibility-status-badge {
-	color: var(--vscode-foreground);
-}
-
-.plugin-list-widget .mcp-compatibility-status-badge.partially-supported,
-.plugin-list-widget .mcp-compatibility-status-badge.support-unknown {
-	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
-}
-
-.plugin-list-widget .mcp-compatibility-status-badge.unsupported {
-	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
 }
 
 .plugin-list-widget .plugin-list-item-action {

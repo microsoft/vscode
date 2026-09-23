@@ -63,7 +63,7 @@ import {
 	registerMcpSignInButtonAction,
 	type IMcpInstalledEntry,
 	type IMcpStatusRenderInput,
-	updateMcpCompatibilityBadge,
+	updateMcpCompatibilityMessage,
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
 	preserveMcpEntryOrder,
@@ -502,32 +502,59 @@ suite('mcpListWidget', () => {
 	test('updates card runtime status without replacing live nodes', () => {
 		const row = document.createElement('div');
 		const primaryAction = document.createElement('button');
-		const statusBadge = document.createElement('span');
+		const statusIcon = document.createElement('span');
 		const description = document.createElement('span');
-		row.append(primaryAction, statusBadge, description);
+		row.append(primaryAction, statusIcon, description);
 
-		updateMcpCardRuntimePresentation(statusBadge, primaryAction, description, McpConnectionState.Kind.Starting, undefined, 'Server, Starting', 'First description');
+		updateMcpCardRuntimePresentation(statusIcon, primaryAction, description, McpConnectionState.Kind.Starting, undefined, 'Server, Starting', 'First description');
 		const initialNodes = [...row.childNodes];
-		updateMcpCardRuntimePresentation(statusBadge, primaryAction, description, McpConnectionState.Kind.Error, undefined, 'Server, Error', 'Updated description');
+		updateMcpCardRuntimePresentation(statusIcon, primaryAction, description, McpConnectionState.Kind.Error, undefined, 'Server, Error', 'Updated description', 'Connection failed');
 
 		assert.deepStrictEqual({
 			nodesPreserved: initialNodes.every((node, index) => row.childNodes[index] === node),
-			statusClass: statusBadge.className,
-			statusText: statusBadge.textContent,
+			statusClass: statusIcon.className,
+			statusText: statusIcon.textContent,
 			ariaLabel: primaryAction.getAttribute('aria-label'),
 			description: description.textContent,
 		}, {
 			nodesPreserved: true,
-			statusClass: 'plugin-list-item-status mcp-runtime-status-badge error',
-			statusText: 'Error',
+			statusClass: 'mcp-server-state-icon error codicon codicon-error',
+			statusText: '',
 			ariaLabel: 'Server, Error',
-			description: 'Updated description',
+			description: 'Connection failed',
 		});
 	});
 
+	test('keeps running, authentication and disabled quiet while indicating transitions and failures', () => {
+		const icon = document.createElement('span');
+		const action = document.createElement('button');
+		const description = document.createElement('span');
+		const states = [
+			McpServerStatus.Ready,
+			McpServerStatus.AuthRequired,
+			'disabled',
+			McpServerStatus.Starting,
+			McpServerStatus.Stopped,
+			McpServerStatus.Error,
+		] as const;
+		const presentations = states.map(state => {
+			updateMcpCardRuntimePresentation(icon, action, description, state, undefined, `Server, ${state}`, 'Description', state === McpServerStatus.Error ? 'Failed to connect' : undefined);
+			return { state, visible: icon.style.display !== 'none', icon: icon.classList.contains('codicon') ? [...icon.classList].find(name => name.startsWith('codicon-')) : undefined, description: description.textContent };
+		});
+
+		assert.deepStrictEqual(presentations, [
+			{ state: McpServerStatus.Ready, visible: false, icon: undefined, description: 'Description' },
+			{ state: McpServerStatus.AuthRequired, visible: false, icon: undefined, description: 'Description' },
+			{ state: 'disabled', visible: false, icon: undefined, description: 'Description' },
+			{ state: McpServerStatus.Starting, visible: true, icon: 'codicon-loading', description: 'Description' },
+			{ state: McpServerStatus.Stopped, visible: true, icon: 'codicon-circle-slash', description: 'Description' },
+			{ state: McpServerStatus.Error, visible: true, icon: 'codicon-error', description: 'Failed to connect' },
+		]);
+	});
+
 	test('renders harness compatibility separately from runtime status', () => {
-		const badge = document.createElement('span');
-		updateMcpCompatibilityBadge(badge, 'partiallySupported');
+		const message = document.createElement('span');
+		updateMcpCompatibilityMessage(message, 'partiallySupported');
 
 		assert.deepStrictEqual({
 			presentations: [
@@ -536,9 +563,9 @@ suite('mcpListWidget', () => {
 				getMcpCompatibilityPresentation('unsupported'),
 				getMcpCompatibilityPresentation('unknown'),
 			],
-			badgeClass: badge.className,
-			badgeText: badge.textContent,
-			badgeDisplay: badge.style.display,
+			messageClass: message.className,
+			messageText: message.textContent,
+			messageDisplay: message.style.display,
 		}, {
 			presentations: [
 				undefined,
@@ -546,9 +573,9 @@ suite('mcpListWidget', () => {
 				{ label: 'Unsupported', className: 'unsupported' },
 				{ label: 'Support unknown', className: 'support-unknown' },
 			],
-			badgeClass: 'plugin-list-item-status mcp-compatibility-status-badge partially-supported',
-			badgeText: 'Partially supported',
-			badgeDisplay: '',
+			messageClass: 'mcp-server-compatibility-message partially-supported',
+			messageText: 'Partially supported. See Migrations for details.',
+			messageDisplay: '',
 		});
 	});
 
@@ -1117,6 +1144,7 @@ suite('mcpListWidget', () => {
 			statusLabel: 'Error',
 			statusClassName: 'error',
 			statusIconId: 'error',
+			compatibilityKind: 'unsupported',
 			activeSessionServerId: 'session-1/notion',
 			logOutputChannelId: 'mcp.session-1.notion',
 			localServerId: 'mcp.config.workspace/notion',
@@ -1133,6 +1161,7 @@ suite('mcpListWidget', () => {
 			statusLabel: 'Running',
 			statusClassName: 'running',
 			statusIconId: 'check',
+			compatibilityKind: 'supported',
 			activeSessionServerId: 'session-1/other',
 			logOutputChannelId: 'mcp.session-1.other',
 			localServerId: 'mcp.config.user/notion',
@@ -1535,7 +1564,7 @@ suite('mcpListWidget', () => {
 		}
 
 		for (const kind of ['native', 'matched', 'builtin', 'plugin', 'matched-builtin', 'session-only', 'host-builtin-no-local'] as const) {
-			test(`${kind} errors omit the trailing indicator and retain menu output routing`, async () => {
+			test(`${kind} errors show an icon and retain menu output routing`, async () => {
 				const ctx = createRenderer(erroring(), false);
 				disposables.add(ctx.store);
 				const native = nativeServer();
@@ -1552,7 +1581,7 @@ suite('mcpListWidget', () => {
 				await output[0].run();
 				const hostOwned = !['native', 'builtin', 'plugin'].includes(kind);
 				assert.deepStrictEqual({
-					badge: ctx.templateData.statusBadge.textContent,
+					badge: ctx.templateData.container.querySelector('.plugin-list-item-status')?.textContent,
 					trailingStatus: ctx.templateData.actions.querySelectorAll('.mcp-server-status').length,
 					managementButtons: ctx.templateData.actions.querySelectorAll('.test-management-action').length,
 					enabledOutput: output[0].enabled,
@@ -1560,7 +1589,7 @@ suite('mcpListWidget', () => {
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
 				}, {
-					badge: 'Error', trailingStatus: 0, managementButtons: 1, enabledOutput: true,
+					badge: undefined, trailingStatus: 1, managementButtons: 1, enabledOutput: true,
 					nativeCalls: hostOwned ? [] : ['native'],
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
@@ -1636,11 +1665,11 @@ suite('mcpListWidget', () => {
 				toggle.click();
 				more.click();
 				assert.deepStrictEqual({
-					badge: ctx.templateData.statusBadge.textContent,
+					badge: ctx.templateData.container.querySelector('.plugin-list-item-status')?.textContent,
 					controls: ctx.templateData.actions.childElementCount,
 					menu: ctx.menu(entry, native.server),
 					hostEnablementCount: ctx.hostEnablementCalls.length,
-				}, { badge: '', controls: 0, menu: [], hostEnablementCount: 1 });
+				}, { badge: undefined, controls: 0, menu: [], hostEnablementCount: 1 });
 
 				ctx.setServers([{ ...server, enablement }]);
 				const replacementSession = URI.parse('vscode-agent-session:///replacement');
@@ -1920,11 +1949,9 @@ suite('mcpListWidget', () => {
 			const button = ctx.actionNode();
 			assert.ok(button, 'expected an action for an erroring server');
 			assert.deepStrictEqual({
-				text: ctx.templateData.statusBadge.textContent,
-				className: ctx.templateData.statusBadge.className,
+				statusIcon: ctx.templateData.actions.querySelector('.mcp-server-status.error')?.className,
 			}, {
-				text: 'Error',
-				className: 'plugin-list-item-status mcp-runtime-status-badge error',
+				statusIcon: 'mcp-server-status mcp-server-state-icon error codicon codicon-error',
 			});
 
 			// What the autorun does in production while a server sits in error.
