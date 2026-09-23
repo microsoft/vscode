@@ -10,7 +10,10 @@ import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/browser/ui/sash/sash.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { clamp } from '../../../../base/common/numbers.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -66,6 +69,10 @@ function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carouse
 
 const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSections';
 const COMPLETED_SECTION_KEY = 'completed';
+const LIST_PANE_WIDTH_STORAGE_KEY = 'sessions.inboxNotifications.listPaneWidth';
+const DEFAULT_LIST_PANE_WIDTH = 400;
+const MIN_LIST_PANE_WIDTH = 280;
+const MIN_DETAIL_PANE_WIDTH = 320;
 
 interface IInboxTierSpec {
 	readonly key: string;
@@ -111,6 +118,25 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private isShowingAgentMergeAlwaysPrompt = false;
 	private readonly deferredUpdatesBanner = $('div.inbox-notifications-deferred-updates.hidden');
 	private readonly deferredUpdatesBannerLabel = $('span.inbox-notifications-deferred-updates-label');
+
+	private readonly contentElement = $('div.inbox-notifications-content.no-detail');
+	private readonly listPaneElement = $('div.inbox-notifications-list-pane');
+	private readonly detailPaneElement = $('div.inbox-notifications-detail-pane');
+	private readonly detailContentElement = $('div.inbox-notifications-detail-content');
+	private readonly detailScrollableElement = this._register(new DomScrollableElement(this.detailContentElement, {
+		horizontal: ScrollbarVisibility.Hidden,
+		vertical: ScrollbarVisibility.Auto,
+		consumeMouseWheelIfScrollbarIsNeeded: true,
+		className: 'inbox-notifications-detail-scrollable',
+	}));
+	private readonly detailDisposables = this._register(new DisposableStore());
+	private readonly selectedItemId = observableValue<string | undefined>('inboxNotificationsSelected', undefined);
+	private detailSash: Sash | undefined;
+	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
+	private layoutWidth = 0;
+	private layoutHeight = 0;
+	private hasSplit = false;
+	private lastDetailSignature: string | undefined;
 
 	static getActiveInstance(): InboxNotificationsView | undefined {
 		return InboxNotificationsView.activeInstance;
@@ -203,7 +229,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 			dispose: () => focusContext.reset(),
 		});
 
-		const toolbar = container.appendChild($('.inbox-notifications-toolbar'));
+		this.contentElement.appendChild(this.listPaneElement);
+		this.contentElement.appendChild(this.detailPaneElement);
+		this.detailPaneElement.appendChild(this.detailScrollableElement.getDomNode());
+		container.appendChild(this.contentElement);
+		this.loadListPaneWidth();
+		this.createDetailSash();
+
+		const toolbar = this.listPaneElement.appendChild($('.inbox-notifications-toolbar'));
 		const sortButtons = toolbar.appendChild($('.inbox-notifications-sort-buttons'));
 		const sortByPriorityButton = this._register(new Button(sortButtons, {
 			...defaultButtonStyles,
@@ -261,9 +294,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 		showNewNotificationsButton.label = localize('inboxNotifications.showNewNotifications', "Show New Notifications");
 		this._register(showNewNotificationsButton.onDidClick(() => this.applyDeferredUpdates(true)));
-		container.appendChild(this.deferredUpdatesBanner);
+		this.listPaneElement.appendChild(this.deferredUpdatesBanner);
 
-		container.appendChild(this.scrollableElement.getDomNode());
+		this.listPaneElement.appendChild(this.scrollableElement.getDomNode());
 		const list = this.listElement;
 		list.setAttribute('role', 'list');
 		list.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
@@ -295,6 +328,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 				this.lastRevealToken = request.token;
 				this.revealNotification(request.id);
 			}
+		}));
+
+		this._register(autorun(reader => {
+			this.selectedItemId.read(reader);
+			this.inboxNotificationsService.notifications.read(reader);
+			this.inboxNotificationsService.dismissedNotifications.read(reader);
+			this.renderDetailIfChanged();
 		}));
 	}
 
@@ -390,6 +430,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.agentMergeDropdownButtons.clear();
 
 		const completedItems = this.showCompleted.get() ? this.inboxNotificationsService.dismissedNotifications.get() : [];
+		this.updateSplit(items.length > 0 || completedItems.length > 0);
 		if (items.length === 0 && completedItems.length === 0) {
 			this.pendingRevealId = undefined;
 			list.appendChild($('.inbox-notifications-empty', undefined, localize('inboxNotifications.empty', "You're all caught up.")));
@@ -537,6 +578,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
+		if (this.selectedItemId.get() === item.id) {
+			card.classList.add('selected');
+		}
+		this.renderedListDisposables.add(addDisposableListener(card, EventType.CLICK, () => this.selectItem(item.id)));
+		this.renderedListDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if ((event.key === 'Enter' || event.key === ' ') && !isEditableElement(event.target as HTMLElement) && event.target === card) {
+				event.preventDefault();
+				this.selectItem(item.id);
+			}
+		}));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
@@ -591,13 +642,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
 			}));
 		}
-		this.renderNeedsInputPart(card, item);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 
 		return card;
 	}
 
-	private renderNeedsInputPart(card: HTMLElement, item: IInboxNotificationItem): void {
+	private renderNeedsInputPart(container: HTMLElement, item: IInboxNotificationItem, store: DisposableStore): void {
 		const part = item.needsInputPart;
 		if (!part) {
 			return;
@@ -607,7 +657,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const buttonLabels = part.buttons?.length
 				? part.buttons
 				: [localize('inboxNotifications.confirmation.accept', "Accept"), localize('inboxNotifications.confirmation.dismiss', "Dismiss")];
-			const confirmationWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+			const confirmationWidget = store.add(this.instantiationService.createInstance(
 				SimpleChatConfirmationWidget<{ buttonLabel: string; buttonIndex: number }>,
 				this.createChatContentPartRenderContext(),
 				{
@@ -620,16 +670,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 					})),
 				},
 			));
-			const host = card.appendChild($('.inbox-notifications-chat-part-host'));
+			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(confirmationWidget.domNode);
-			this.renderedListDisposables.add(confirmationWidget.onDidClick(({ button }) => {
+			store.add(confirmationWidget.onDidClick(({ button }) => {
 				void this.submitConfirmationPart(item, part, button.data.buttonLabel, button.data.buttonIndex);
 			}));
 			return;
 		}
 
 		if (part.kind === 'toolConfirmation') {
-			const toolConfirmationWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+			const toolConfirmationWidget = store.add(this.instantiationService.createInstance(
 				SimpleChatConfirmationWidget<{ buttonIndex: number }>,
 				this.createChatContentPartRenderContext(),
 				{
@@ -642,9 +692,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 					})),
 				},
 			));
-			const host = card.appendChild($('.inbox-notifications-chat-part-host'));
+			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(toolConfirmationWidget.domNode);
-			this.renderedListDisposables.add(toolConfirmationWidget.onDidClick(({ button }) => {
+			store.add(toolConfirmationWidget.onDidClick(({ button }) => {
 				void this.submitToolConfirmationPart(item, part, button.data.buttonIndex);
 			}));
 			return;
@@ -657,7 +707,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			message: part.message,
 			questions: [...part.questions],
 		};
-		const carouselWidget = this.renderedListDisposables.add(this.instantiationService.createInstance(
+		const carouselWidget = store.add(this.instantiationService.createInstance(
 			ChatQuestionCarouselPart,
 			carousel,
 			this.createChatContentPartRenderContext(),
@@ -668,11 +718,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 				},
 			},
 		));
-		const host = card.appendChild($('.inbox-notifications-chat-part-host.interactive-session'));
+		const host = container.appendChild($('.inbox-notifications-chat-part-host.interactive-session'));
 		const inputPartHost = host.appendChild($('.interactive-input-part'));
 		const widgetContainer = inputPartHost.appendChild($('.chat-question-carousel-widget-container'));
 		widgetContainer.appendChild(carouselWidget.domNode);
-		this.renderedListDisposables.add(carouselWidget.onDidChangeHeight(() => this.scrollableElement.scanDomNode()));
+		store.add(carouselWidget.onDidChangeHeight(() => this.detailScrollableElement.scanDomNode()));
 	}
 
 	private async submitConfirmationPart(
@@ -1184,7 +1234,216 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.inboxNotificationsService.dismissNotification(item.id);
 	}
 
-	layout(_width: number, _height: number): void {
+	private createDetailSash(): void {
+		const sash = this.detailSash = this._register(new Sash(this.contentElement, {
+			getVerticalSashLeft: () => this.listPaneWidth,
+			getVerticalSashTop: () => 0,
+			getVerticalSashHeight: () => this.layoutHeight,
+		}, { orientation: Orientation.VERTICAL }));
+		sash.state = SashState.Disabled;
+
+		let startWidth = this.listPaneWidth;
+		this._register(sash.onDidStart(() => { startWidth = this.listPaneWidth; }));
+		this._register(sash.onDidChange((event: ISashEvent) => {
+			this.listPaneWidth = this.clampListPaneWidth(startWidth + (event.currentX - event.startX));
+			this.layoutPanes();
+		}));
+		this._register(sash.onDidEnd(() => this.persistListPaneWidth()));
+		this._register(sash.onDidReset(() => {
+			this.listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
+			this.layoutPanes();
+			this.persistListPaneWidth();
+		}));
+	}
+
+	private clampListPaneWidth(width: number): number {
+		const max = this.layoutWidth > 0
+			? Math.max(MIN_LIST_PANE_WIDTH, this.layoutWidth - MIN_DETAIL_PANE_WIDTH)
+			: Math.max(MIN_LIST_PANE_WIDTH, width);
+		return clamp(Math.round(width), MIN_LIST_PANE_WIDTH, max);
+	}
+
+	private updateSplit(hasItems: boolean): void {
+		this.hasSplit = hasItems;
+		this.contentElement.classList.toggle('no-detail', !hasItems);
+		if (this.detailSash) {
+			this.detailSash.state = hasItems ? SashState.Enabled : SashState.Disabled;
+		}
+		if (!hasItems && this.selectedItemId.get() !== undefined) {
+			this.selectedItemId.set(undefined, undefined);
+		}
+		this.layoutPanes();
+	}
+
+	private layoutPanes(): void {
+		this.listPaneElement.style.width = this.hasSplit ? `${this.clampListPaneWidth(this.listPaneWidth)}px` : '';
+		this.detailSash?.layout();
 		this.scrollableElement.scanDomNode();
+		this.detailScrollableElement.scanDomNode();
+	}
+
+	private loadListPaneWidth(): void {
+		const stored = this.storageService.getNumber(LIST_PANE_WIDTH_STORAGE_KEY, StorageScope.APPLICATION);
+		if (typeof stored === 'number' && stored > 0) {
+			this.listPaneWidth = stored;
+		}
+	}
+
+	private persistListPaneWidth(): void {
+		this.storageService.store(LIST_PANE_WIDTH_STORAGE_KEY, Math.round(this.listPaneWidth), StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	private selectItem(id: string): void {
+		if (this.selectedItemId.get() === id) {
+			return;
+		}
+		this.selectedItemId.set(id, undefined);
+		for (const card of this.renderedCards) {
+			card.classList.toggle('selected', card.dataset.notificationId === id);
+		}
+	}
+
+	private selectedItem(): IInboxNotificationItem | undefined {
+		const id = this.selectedItemId.get();
+		if (!id) {
+			return undefined;
+		}
+		return this.inboxNotificationsService.notifications.get().find(candidate => candidate.id === id)
+			?? this.inboxNotificationsService.dismissedNotifications.get().find(candidate => candidate.id === id);
+	}
+
+	private renderDetailIfChanged(): void {
+		const item = this.selectedItem();
+		const signature = item ? this.detailSignature(item) : 'none';
+		if (signature === this.lastDetailSignature) {
+			return;
+		}
+		this.lastDetailSignature = signature;
+		this.renderDetail(item);
+	}
+
+	/**
+	 * Identity + content that affects the rendered artifact. Re-rendering only when this
+	 * changes keeps unrelated inbox churn (and preview arrivals) from disposing and
+	 * recreating a live interactive widget while the user is answering it.
+	 */
+	private detailSignature(item: IInboxNotificationItem): string {
+		const part = item.needsInputPart;
+		const partKey = part
+			? `${part.kind}:${part.requestId}:${part.kind === 'questionCarousel' ? part.resolveId ?? '' : part.kind === 'toolConfirmation' ? part.toolCallId : ''}`
+			: '';
+		return `${item.id}|${item.kind}|${item.priority}|${item.description}|${partKey}`;
+	}
+
+	private renderDetail(item: IInboxNotificationItem | undefined): void {
+		this.detailDisposables.clear();
+		clearNode(this.detailContentElement);
+
+		if (!item) {
+			this.detailContentElement.appendChild($('.inbox-notifications-detail-placeholder', undefined,
+				localize('inboxNotifications.detail.placeholder', "Select a notification to see its details.")));
+			this.detailScrollableElement.scanDomNode();
+			return;
+		}
+
+		const header = this.detailContentElement.appendChild($('.inbox-notifications-detail-header'));
+		const kindLabel = header.appendChild($('.inbox-notifications-detail-kind', undefined, this.kindLabel(item.kind)));
+		kindLabel.classList.add(`priority-${item.priority}`);
+		header.appendChild($('h2.inbox-notifications-detail-title', undefined, item.title));
+
+		const meta = header.appendChild($('.inbox-notifications-detail-meta'));
+		if (item.repositoryLabel) {
+			meta.appendChild($('span.inbox-notifications-detail-repo', undefined, item.repositoryLabel));
+		}
+		meta.appendChild($('span.inbox-notifications-detail-time', undefined,
+			localize('inboxNotifications.detail.updated', "Updated {0}", fromNowByDay(item.timestamp, true, true))));
+		if (item.sessionResource) {
+			const sessionResource = item.sessionResource;
+			const openButton = this.detailDisposables.add(new Button(meta, { ...defaultButtonStyles, secondary: true, small: true }));
+			openButton.label = localize('inboxNotifications.detail.openSession', "Open full session");
+			this.detailDisposables.add(openButton.onDidClick(() => {
+				void this.sessionsService.openSession(sessionResource, { source: 'notification' }).catch(onUnexpectedError);
+			}));
+		}
+
+		const body = this.detailContentElement.appendChild($('.inbox-notifications-detail-body'));
+		if (item.needsInputPart) {
+			this.renderNeedsInputPart(body, item, this.detailDisposables);
+		} else {
+			const summaryEl = body.appendChild($('.inbox-notifications-detail-summary', undefined, item.description));
+			if (item.previewSignature) {
+				const signature = item.previewSignature;
+				this.detailDisposables.add(autorun(reader => {
+					const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
+					summaryEl.textContent = preview ?? item.description;
+				}));
+			}
+			const transcript = this.getLatestResponseText(item);
+			if (transcript) {
+				body.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
+				body.appendChild($('.inbox-notifications-detail-transcript', undefined, transcript));
+			}
+		}
+
+		if (item.pullRequestStates?.length) {
+			const prSection = body.appendChild($('.inbox-notifications-detail-pr'));
+			for (const state of item.pullRequestStates) {
+				const row = prSection.appendChild($('.inbox-notifications-detail-pr-row'));
+				const icon = row.appendChild(renderIcon(state.icon));
+				icon.setAttribute('aria-hidden', 'true');
+				if (state.pullRequestUri) {
+					const uri = state.pullRequestUri;
+					const link = this.detailDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, small: true }));
+					link.label = state.label;
+					this.detailDisposables.add(link.onDidClick(() => {
+						void this.openerService.open(uri).catch(onUnexpectedError);
+					}));
+				} else {
+					row.appendChild($('span.inbox-notifications-detail-pr-label', undefined, state.label));
+				}
+				row.appendChild($('span.inbox-notifications-detail-pr-status', undefined, state.statusLabel));
+			}
+		}
+
+		this.detailScrollableElement.scanDomNode();
+	}
+
+	private getLatestResponseText(item: IInboxNotificationItem): string | undefined {
+		if (!item.sessionResource) {
+			return undefined;
+		}
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		const chatResource = session?.mainChat.get().resource;
+		if (!chatResource) {
+			return undefined;
+		}
+		const chatModel = this.chatService.getSession(chatResource);
+		if (!chatModel) {
+			return undefined;
+		}
+		for (const request of chatModel.getRequests().toReversed()) {
+			const response = request.response;
+			if (!response || response.isCanceled) {
+				continue;
+			}
+			const parts: string[] = [];
+			for (const part of response.response.value) {
+				if (part.kind === 'markdownContent') {
+					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+				}
+			}
+			const text = parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+			if (text) {
+				return text.length > 4000 ? `${text.slice(0, 4000).trimEnd()}…` : text;
+			}
+		}
+		return undefined;
+	}
+
+	layout(width: number, height: number): void {
+		this.layoutWidth = width;
+		this.layoutHeight = height;
+		this.listPaneWidth = this.clampListPaneWidth(this.listPaneWidth);
+		this.layoutPanes();
 	}
 }
