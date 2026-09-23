@@ -69,8 +69,6 @@ export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultA
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
-/** How long the last successful managed settings response survives failed refreshes. */
-const MANAGED_SETTINGS_FAILURE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The server-delivered managed settings slice of cached policy data, including whether the server
@@ -1243,11 +1241,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 						compatibilityError: this._managedSettingsCompatibilityError,
 					};
 				}
-				// A failed fetch is not evidence that policy was withdrawn, so ride out outages with the
-				// last successful response. Keep its timestamp so it is still refetched and eventually expires.
-				const retain = !this._managedSettingsCompatibilityError
-					&& scopedManagedSettingsFetchedAt !== undefined
-					&& Date.now() - scopedManagedSettingsFetchedAt < MANAGED_SETTINGS_FAILURE_RETENTION_MS;
+				// A failed fetch, including a 401/403 that a token refresh or SSO sign-in may resolve, is not
+				// evidence that policy was withdrawn. Keep the last successful response until the service answers,
+				// with its original timestamp so the failure neither renews it nor stops it being refetched.
+				const retain = !this._managedSettingsCompatibilityError;
 				return {
 					data: retain ? scopedManagedSettings : { managedSettings: undefined },
 					fetchedAt: retain ? scopedManagedSettingsFetchedAt : undefined,

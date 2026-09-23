@@ -1121,40 +1121,28 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('failed fetches retain the last successful managed settings for a bounded time without renewing them', async () => {
-		const requestService = new TestRequestService(async () => {
-			throw new Error('managed settings unavailable');
-		});
-		const provider = await createProvider(requestService);
-		const freshlyCached = createCachedPolicy(false);
-		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
-		const expiredFetchedAt = Date.now() - 25 * 60 * 60 * 1000; // beyond the one-day retention
+	test('failed fetches retain the last successful managed settings without renewing them', async () => {
+		const failures: { name: string; response: () => IRequestContext }[] = [
+			{ name: 'no response', response: () => { throw new Error('managed settings unavailable'); } },
+			{ name: '401', response: () => jsonResponse({}, 401) },
+			{ name: '403', response: () => jsonResponse({}, 403) },
+		];
+		const lastSuccessAt = Date.now() - 7 * 24 * 60 * 60 * 1000; // long past the one-hour cache boundary
+		const outcomes = [];
 
-		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
-		const onceStale = await provider['getManagedSettings'](
-			sessions,
-			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
-			{ forceRefresh: true }
-		);
-		const onceExpired = await provider['getManagedSettings'](
-			sessions,
-			{ ...freshlyCached, managedSettingsFetchedAt: expiredFetchedAt },
-			{ forceRefresh: true }
-		);
+		for (const failure of failures) {
+			const provider = await createProvider(new TestRequestService(async () => failure.response()));
+			const cachedPolicy = { ...createCachedPolicy(false), managedSettingsFetchedAt: lastSuccessAt };
+			const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+			outcomes.push({ name: failure.name, data: result.data, fetchedAt: result.fetchedAt });
+		}
 
-		assert.deepStrictEqual({
-			status: provider.managedSettingsFetchStatus,
-			whileFresh: { data: whileFresh.data, fetchedAt: whileFresh.fetchedAt },
-			onceStale: { data: onceStale.data, fetchedAt: onceStale.fetchedAt },
-			onceExpired: { data: onceExpired.data, fetchedAt: onceExpired.fetchedAt },
-		}, {
-			status: 'no-response',
-			// A transient outage does not withdraw policy, and the original timestamp is never renewed.
-			whileFresh: { data: freshlyCached.policyData, fetchedAt: freshlyCached.managedSettingsFetchedAt },
-			onceStale: { data: freshlyCached.policyData, fetchedAt: staleFetchedAt },
-			// Once retention ends it is dropped rather than replayed.
-			onceExpired: { data: { managedSettings: undefined }, fetchedAt: undefined },
-		});
+		// Only a service answer withdraws policy, and a failure never renews the cached timestamp.
+		assert.deepStrictEqual(outcomes, failures.map(failure => ({
+			name: failure.name,
+			data: createCachedPolicy(false).policyData,
+			fetchedAt: lastSuccessAt,
+		})));
 	});
 
 	test('an entitlements outage keeps the managed settings timestamp so later failures can retain them', async () => {
@@ -1182,8 +1170,7 @@ suite('DefaultAccountProvider', () => {
 	test('presence of unprojected server settings is retained and cleared with the managed settings', async () => {
 		const outage = () => { throw new Error('managed settings unavailable'); };
 		const scenarios: { name: string; fetchedAgoMs: number; response: () => IRequestContext }[] = [
-			{ name: 'outage within retention', fetchedAgoMs: 2 * 60 * 60 * 1000, response: outage },
-			{ name: 'outage after retention', fetchedAgoMs: 25 * 60 * 60 * 1000, response: outage },
+			{ name: 'outage', fetchedAgoMs: 25 * 60 * 60 * 1000, response: outage },
 			{ name: '404', fetchedAgoMs: 2 * 60 * 60 * 1000, response: () => jsonResponse({}, 404) },
 			{ name: 'empty response', fetchedAgoMs: 2 * 60 * 60 * 1000, response: () => jsonResponse({}) },
 		];
@@ -1209,8 +1196,7 @@ suite('DefaultAccountProvider', () => {
 		}
 
 		assert.deepStrictEqual(outcomes, [
-			{ name: 'outage within retention', managedSettingsActive: true },
-			{ name: 'outage after retention', managedSettingsActive: undefined },
+			{ name: 'outage', managedSettingsActive: true },
 			{ name: '404', managedSettingsActive: undefined },
 			{ name: 'empty response', managedSettingsActive: undefined },
 		]);
