@@ -72,6 +72,17 @@ const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 /** How long the last successful managed settings response survives failed refreshes. */
 const MANAGED_SETTINGS_FAILURE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The server-delivered managed settings slice of cached policy data, including whether the server
+ * delivered settings that have no VS Code projection, so both are retained or cleared together.
+ */
+function managedSettingsPayload(policyData: IPolicyData | undefined): Partial<IPolicyData> {
+	return {
+		managedSettings: policyData?.managedSettings,
+		...(policyData?.managedSettingsActive === true ? { managedSettingsActive: true } : {}),
+	};
+}
+
 interface ITokenEntitlementsResponse {
 	token: string;
 }
@@ -884,6 +895,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			}
 			if (managedSettingsResult?.data) {
 				policyData = { ...(policyData ?? {}), ...managedSettingsResult.data };
+				// Presence of unprojected server settings belongs to the payload, so it is replaced along with it.
+				if (managedSettingsResult.data.managedSettingsActive !== true) {
+					delete policyData.managedSettingsActive;
+				}
 			}
 
 			const defaultAccount: IDefaultAccount = {
@@ -1119,9 +1134,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		);
 		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)
 			? {
-				data: {
-					managedSettings: accountPolicyData.policyData.managedSettings,
-				},
+				data: managedSettingsPayload(accountPolicyData.policyData),
 				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
 			}
 			: undefined;
@@ -1137,7 +1150,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				});
 			}
 			const retained = requirement.effective
-				? { data: { managedSettings: accountPolicyData?.policyData.managedSettings }, fetchedAt: accountPolicyData?.managedSettingsFetchedAt }
+				? { data: managedSettingsPayload(accountPolicyData?.policyData), fetchedAt: accountPolicyData?.managedSettingsFetchedAt }
 				: cachedManagedSettings;
 			return {
 				data: retained?.data,
@@ -1152,7 +1165,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		// Only reuse a cache captured for the current provider and endpoint (a legacy cache with no recorded
 		// scope is trusted), so a previous GitHub Enterprise host's policy is not applied after a scope switch.
 		const cacheScopeMatches = !cachedScope || this.getManagedSettingsScopeKey(cachedScope) === this.getManagedSettingsScopeKey(scope);
-		const scopedManagedSettings = cacheScopeMatches ? accountPolicyData?.policyData.managedSettings : undefined;
+		const scopedManagedSettings = managedSettingsPayload(cacheScopeMatches ? accountPolicyData?.policyData : undefined);
 		const scopedManagedSettingsFetchedAt = cacheScopeMatches ? accountPolicyData?.managedSettingsFetchedAt : undefined;
 		const scopedCachedManagedSettings = cacheScopeMatches ? cachedManagedSettings : undefined;
 		if (requirement.effective && !this.canRequestManagedSettings(options, scope)) {
@@ -1162,7 +1175,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({ ...failedFreshness, source: requirement.source });
 			}
 			return {
-				data: { managedSettings: scopedManagedSettings },
+				data: scopedManagedSettings,
 				fetchedAt: scopedManagedSettingsFetchedAt,
 				scope,
 				compatibilityError: this._managedSettingsCompatibilityError,
@@ -1212,7 +1225,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					});
 				}
 				return {
-					data: requirement.effective ? { managedSettings: scopedManagedSettings } : { managedSettings: undefined },
+					data: requirement.effective ? scopedManagedSettings : { managedSettings: undefined },
 					fetchedAt: requirement.effective ? scopedManagedSettingsFetchedAt : Date.now(),
 					scope,
 					compatibilityError: result.error,
@@ -1224,7 +1237,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				if (requirement.effective) {
 					this.setManagedSettingsFreshness(this.toBlockedManagedSettingsFreshness(requirement.source, result, lastAttemptAt, scope));
 					return {
-						data: { managedSettings: scopedManagedSettings },
+						data: scopedManagedSettings,
 						fetchedAt: scopedManagedSettingsFetchedAt,
 						scope,
 						compatibilityError: this._managedSettingsCompatibilityError,
@@ -1236,7 +1249,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					&& scopedManagedSettingsFetchedAt !== undefined
 					&& Date.now() - scopedManagedSettingsFetchedAt < MANAGED_SETTINGS_FAILURE_RETENTION_MS;
 				return {
-					data: { managedSettings: retain ? scopedManagedSettings : undefined },
+					data: retain ? scopedManagedSettings : { managedSettings: undefined },
 					fetchedAt: retain ? scopedManagedSettingsFetchedAt : undefined,
 					scope,
 					compatibilityError: this._managedSettingsCompatibilityError,

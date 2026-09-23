@@ -1179,6 +1179,43 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
+	test('presence of unprojected server settings is retained and cleared with the managed settings', async () => {
+		const outage = () => { throw new Error('managed settings unavailable'); };
+		const scenarios: { name: string; fetchedAgoMs: number; response: () => IRequestContext }[] = [
+			{ name: 'outage within retention', fetchedAgoMs: 2 * 60 * 60 * 1000, response: outage },
+			{ name: 'outage after retention', fetchedAgoMs: 25 * 60 * 60 * 1000, response: outage },
+			{ name: '404', fetchedAgoMs: 2 * 60 * 60 * 1000, response: () => jsonResponse({}, 404) },
+			{ name: 'empty response', fetchedAgoMs: 2 * 60 * 60 * 1000, response: () => jsonResponse({}) },
+		];
+		const outcomes = [];
+
+		for (const scenario of scenarios) {
+			const provider = await createProvider(new TestRequestService(async options => {
+				if (options.url?.endsWith('/copilot_internal/user')) {
+					return jsonResponse({ chat_enabled: true });
+				}
+				return scenario.response();
+			}));
+			provider['_policyData'] = {
+				accountId,
+				policyData: { managedSettings: {}, managedSettingsActive: true },
+				managedSettingsFetchedAt: Date.now() - scenario.fetchedAgoMs,
+			};
+			const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
+				{ id: 'github', name: 'GitHub', enterprise: false },
+				sessions,
+			);
+			outcomes.push({ name: scenario.name, managedSettingsActive: account?.policyData?.policyData.managedSettingsActive });
+		}
+
+		assert.deepStrictEqual(outcomes, [
+			{ name: 'outage within retention', managedSettingsActive: true },
+			{ name: 'outage after retention', managedSettingsActive: undefined },
+			{ name: '404', managedSettingsActive: undefined },
+			{ name: 'empty response', managedSettingsActive: undefined },
+		]);
+	});
+
 	test('transient failure does not clear an update-required state', async () => {
 		let requestCount = 0;
 		const requestService = new TestRequestService(async () => {
