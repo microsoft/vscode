@@ -130,8 +130,8 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			getSessions: async (_providerId, scopes) => {
 				sessionLookups.push(Array.isArray(scopes) ? [...scopes] : []);
 				return sessionLookups.length === 1
-				? []
-				: createAuthenticationService('github-token').getSessions('github', ['repo']);
+					? []
+					: createAuthenticationService('github-token').getSessions('github', ['repo']);
 			},
 		};
 		const service = createService(createLocalGitStub({

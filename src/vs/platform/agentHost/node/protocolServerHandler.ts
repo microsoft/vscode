@@ -689,8 +689,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					!!this._agentService.removeSessionArtifact,
 					!!client.devContainers,
 					!!this._agentService.getSessionPluginMarketplaceSnapshot
-						&& !!this._agentService.refreshSessionPluginMarketplaces
-						&& !!this._agentService.installSessionPlugin,
+					&& !!this._agentService.refreshSessionPluginMarketplaces
+					&& !!this._agentService.installSessionPlugin,
 				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
