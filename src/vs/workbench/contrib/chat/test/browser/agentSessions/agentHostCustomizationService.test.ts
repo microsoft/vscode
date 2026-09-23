@@ -172,6 +172,23 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('uses local marketplace fallback when the host does not support the extension request', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([]);
+		target.getPluginMarketplaceSnapshot = () => Promise.reject(new Error('Method not found: vscode/sessionPluginMarketplaces/snapshot'));
+		target.refreshPluginMarketplaces = () => Promise.reject(new Error('Method not found: vscode/sessionPluginMarketplaces/refresh'));
+		sut.setTarget(session, target);
+
+		assert.deepStrictEqual({
+			snapshot: await sut.getPluginMarketplaceSnapshot(session, CancellationToken.None),
+			refresh: await sut.refreshPluginMarketplaces(session, CancellationToken.None),
+		}, {
+			snapshot: undefined,
+			refresh: undefined,
+		});
+	});
+
 	test('forwards live session marketplace operations', async () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');

@@ -6,13 +6,13 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { getErrorMessage } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
-import { supportsAgentHostSessionPluginMarketplaces } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -229,8 +229,15 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!operation || token.isCancellationRequested) {
 			return undefined;
 		}
-		const result = await operation();
-		return token.isCancellationRequested ? undefined : result;
+		try {
+			const result = await operation();
+			return token.isCancellationRequested ? undefined : result;
+		} catch (error) {
+			if (isUnsupportedPluginMarketplaceOperation(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 	}
 
 	async refreshPluginMarketplaces(sessionResource: URI, token: CancellationToken): Promise<ICustomizationPluginMarketplaceSnapshot | undefined> {
@@ -238,8 +245,15 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!operation || token.isCancellationRequested) {
 			return undefined;
 		}
-		const result = await operation();
-		return token.isCancellationRequested ? undefined : result;
+		try {
+			const result = await operation();
+			return token.isCancellationRequested ? undefined : result;
+		} catch (error) {
+			if (isUnsupportedPluginMarketplaceOperation(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 	}
 
 	installPlugin(sessionResource: URI, source: string): Promise<ICustomizationPluginInstallResult> {
@@ -600,8 +614,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		});
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
-		const supportsPluginMarketplaces = supportsAgentHostSessionPluginMarketplaces(target.connection.initializeResult?.get())
-			&& target.connection.getSessionPluginMarketplaceSnapshot !== undefined
+		const supportsPluginMarketplaces = target.connection.getSessionPluginMarketplaceSnapshot !== undefined
 			&& target.connection.refreshSessionPluginMarketplaces !== undefined
 			&& target.connection.installSessionPlugin !== undefined;
 		return {
@@ -746,6 +759,10 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 
 		return this._connectionsService.resolveSessionResource(sessionResource);
 	}
+}
+
+function isUnsupportedPluginMarketplaceOperation(error: unknown): boolean {
+	return /^Method not found\b/i.test(getErrorMessage(error));
 }
 
 registerSingleton(IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService, InstantiationType.Delayed);
