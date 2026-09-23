@@ -2748,7 +2748,6 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path {
-	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
