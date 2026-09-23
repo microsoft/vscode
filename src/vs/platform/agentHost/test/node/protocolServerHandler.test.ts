@@ -1548,6 +1548,38 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('server-only action rejections do not reach host action listeners', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+
+		const transport = connectClient('attacker-client', [sessionUri]);
+		transport.sent.length = 0;
+		const hostActions: ActionType[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => hostActions.push(envelope.action.type)));
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionChatRemoved,
+				chat: defaultChatUri,
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			hostActions,
+			rejectedAction: envelope?.action.type,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			handledActions: [],
+			hostActions: [],
+			rejectedAction: ActionType.SessionChatRemoved,
+			rejectionReason: `Server-only action: ${ActionType.SessionChatRemoved}`,
+		});
+	});
+
 	test('unsupported chat actions are rejected, not dispatched', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });

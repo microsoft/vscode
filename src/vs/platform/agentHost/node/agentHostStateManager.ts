@@ -1767,14 +1767,15 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Reject a client-originated action without applying it to state. Emits an
+	 * Reject a client-originated action without applying it to state. Returns an
 	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a
 	 * {@link ActionEnvelope.rejectionReason | rejectionReason} so the originating
 	 * client can reconcile (roll back) its optimistic write-ahead action through
 	 * the normal path instead of leaving it pending until reconnect. The reducer
-	 * is deliberately NOT run, so no synchronized state changes.
+	 * is deliberately NOT run and the envelope is not emitted to host-side action
+	 * consumers.
 	 */
-	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): void {
+	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): ActionEnvelope {
 		const envelope: ActionEnvelope = {
 			channel,
 			action,
@@ -1782,8 +1783,8 @@ export class AgentHostStateManager extends Disposable {
 			origin,
 			rejectionReason: reason,
 		};
-		this._logService.trace(`[AgentHostStateManager] Emitting rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
-		this._onDidEmitEnvelope.fire(envelope);
+		this._logService.trace(`[AgentHostStateManager] Created rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
+		return envelope;
 	}
 
 	// ---- Internal -----------------------------------------------------------

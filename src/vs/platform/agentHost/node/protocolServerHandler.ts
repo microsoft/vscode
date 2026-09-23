@@ -409,11 +409,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			this._replayBuffer.push(envelope);
-			if (this._replayBuffer.length > REPLAY_BUFFER_CAPACITY) {
-				this._replayBuffer.shift();
-			}
-			this._broadcastAction(envelope);
+			this._recordAndBroadcastAction(envelope);
 			// A client tool call may be issued for a client that is no longer
 			// connected — e.g. a stale stamp from a window that reloaded. The
 			// live-disconnect path (`_handleClientDisconnected`) does not cover
@@ -539,20 +535,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							// Rejected actions are echoed so optimistic clients roll back.
 							if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 								this._logService.warn(`[ProtocolServer] rejecting server-only client action: ${action.type}`);
-								this._stateManager.rejectClientAction(
+								const envelope = this._stateManager.rejectClientAction(
 									channel,
 									action,
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Server-only action: ${action.type}`,
 								);
+								this._recordAndBroadcastAction(envelope);
 							} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
-								this._stateManager.rejectClientAction(
+								const envelope = this._stateManager.rejectClientAction(
 									channel,
 									action,
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
 								);
+								this._recordAndBroadcastAction(envelope);
 							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							}
@@ -2173,6 +2171,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	// ---- Broadcasting -------------------------------------------------------
+
+	private _recordAndBroadcastAction(envelope: ActionEnvelope): void {
+		this._replayBuffer.push(envelope);
+		if (this._replayBuffer.length > REPLAY_BUFFER_CAPACITY) {
+			this._replayBuffer.shift();
+		}
+		this._broadcastAction(envelope);
+	}
 
 	private _broadcastAction(envelope: ActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
