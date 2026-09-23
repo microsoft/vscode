@@ -13,7 +13,9 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
@@ -115,11 +117,13 @@ suite('AgentHostFilterService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(providers: StubSessionsProvidersService, storage = store.add(new InMemoryStorageService()), remote = store.add(new StubRemoteAgentHostService())) {
+	function createService(providers: StubSessionsProvidersService, storage = store.add(new InMemoryStorageService()), remote = store.add(new StubRemoteAgentHostService()), configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true })) {
+		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsProvidersService, providers as unknown as ISessionsProvidersService);
 		instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>(remote));
 		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(IConfigurationService, configuration);
 		return store.add(instantiationService.createInstance(AgentHostFilterService));
 	}
 
@@ -293,6 +297,56 @@ suite('AgentHostFilterService', () => {
 			hosts: [SANDBOX_GROUP.id],
 		});
 	});
+
+	for (const disableBeforeRemoval of [true, false]) {
+		test(`clears a ${disableBeforeRemoval ? 'configured' : 'retained'} host when remote hosts are disabled`, async () => {
+			const providers = new StubSessionsProvidersService();
+			const remote = store.add(new StubRemoteAgentHostService());
+			remote.setConfiguredEntries([{ name: 'Host A', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:4321' } }]);
+			const host = new StubRemoteProvider('localhost:4321', 'Host A');
+			const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(host)));
+			const storage = store.add(new InMemoryStorageService());
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const service = createService(providers, storage, remote, configuration);
+			service.setSelectedHostId(host.id);
+
+			const setEnabled = async (enabled: boolean) => {
+				await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === RemoteAgentHostsEnabledSettingId,
+				}));
+			};
+			const getState = () => ({
+				selectedHostId: service.selectedHostId,
+				hosts: service.hosts.map(entry => entry.id),
+			});
+
+			if (disableBeforeRemoval) {
+				await setEnabled(false);
+			}
+			registration.dispose();
+			if (!disableBeforeRemoval) {
+				await setEnabled(false);
+			}
+			const disabled = getState();
+
+			await setEnabled(true);
+			const awaitingProvider = getState();
+			store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(host)));
+
+			assert.deepStrictEqual({
+				disabled,
+				awaitingProvider,
+				restored: getState(),
+				stored: storage.get('sessions.agentHostFilter.selectedProviderId', StorageScope.PROFILE),
+			}, {
+				disabled: { selectedHostId: undefined, hosts: [] },
+				awaitingProvider: { selectedHostId: undefined, hosts: [] },
+				restored: { selectedHostId: isWeb ? host.id : undefined, hosts: [host.id] },
+				stored: host.id,
+			});
+		});
+	}
 
 	test('keeps an explicit group selected through empty membership and reconnects', () => {
 		const providers = new StubSessionsProvidersService();

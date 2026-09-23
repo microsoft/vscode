@@ -9,7 +9,8 @@ import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isAgentHostProvider, IAgentHostGroup, IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -107,6 +108,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -116,6 +118,11 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		this._rewatchProviders();
 		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._rewatchProviders()));
 		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._rewatchProviders()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._rewatchProviders();
+			}
+		}));
 	}
 
 	get selectedHostId(): string | undefined {
@@ -322,6 +329,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 
 			const selectedHost = this.selectedHost;
 			if (isWeb && selectedHost?.address
+				&& this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& selectedHost.id === this._preferredHostId
 				&& !entries.some(entry => entry.id === selectedHost.id)
 				&& this._remoteAgentHostService.configuredEntries.some(entry => getEntryAddress(entry) === selectedHost.address)) {
