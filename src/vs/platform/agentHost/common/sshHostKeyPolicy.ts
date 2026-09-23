@@ -65,7 +65,7 @@ export function decideHostKeyTrust(
 		return { kind: 'deny', reason: 'revoked' };
 	}
 
-	if (request.knownHostsMatch === 'other-key-type') {
+	if (request.knownHostsMatch === 'other-key-type' && !storedKeyMatches) {
 		return { kind: 'deny', reason: 'mismatch', source: 'known-hosts' };
 	}
 

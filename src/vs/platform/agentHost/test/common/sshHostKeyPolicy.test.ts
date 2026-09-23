@@ -51,11 +51,13 @@ suite('sshHostKeyPolicy', () => {
 		assert.deepStrictEqual(
 			{
 				storedMatch: summarize(decideHostKeyTrust(makeRequest(), trusted(FINGERPRINT))),
+				storedMatchWithKnownHostsOtherKeyType: summarize(decideHostKeyTrust(makeRequest({ knownHostsMatch: 'other-key-type' }), trusted(FINGERPRINT))),
 				storedDiffers: summarize(decideHostKeyTrust(makeRequest(), trusted(OTHER_FINGERPRINT))),
 				storedOtherKeyType: summarize(decideHostKeyTrust(makeRequest(), trusted(OTHER_FINGERPRINT, 'ssh-rsa'))),
 			},
 			{
 				storedMatch: 'trust(stored)',
+				storedMatchWithKnownHostsOtherKeyType: 'trust(stored)',
 				storedDiffers: 'deny(mismatch)',
 				storedOtherKeyType: 'deny(mismatch)',
 			});
