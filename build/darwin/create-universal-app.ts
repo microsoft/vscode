@@ -59,6 +59,8 @@ async function main(buildDir?: string) {
 		for (const base of nodeModulesBases) {
 			// @github/copilot-{platform} packages (e.g. copilot-darwin-x64)
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', `copilot-${plat}`));
+			// @github/copilot-sdk-{platform} packages
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', `copilot-sdk-${plat}`));
 			// @vscode/os-proxy-resolver-{platform} packages
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@vscode', `os-proxy-resolver-${plat}`));
 			// @github/copilot/prebuilds/{platform} (pty.node, spawn-helper)

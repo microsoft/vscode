@@ -94,6 +94,7 @@ export interface IChatSessionProviderOptionModelMetadata {
 	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
+	readonly maxContextWindowTokens?: number;
 	readonly capabilities?: {
 		readonly vision?: boolean;
 		readonly toolCalling?: boolean;
@@ -157,6 +158,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** Groups session-list filters without changing this type's resource or content routing. */
+	readonly sessionListGroup?: string;
 	readonly when?: string;
 	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
@@ -429,6 +432,8 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
+	/** Updated persisted transcript; applying it must preserve the current draft and locally running requests. */
+	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 
 
 	readonly options?: ReadonlyChatSessionOptionsMap;

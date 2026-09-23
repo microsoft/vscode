@@ -2050,17 +2050,17 @@ class VersionsPickerAction extends Action2 {
 registerAction2(VersionsPickerAction);
 
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private readonly _summaryWidget: ChangesSummaryWidget | undefined;
+	private readonly _labelObs: IObservable<string | undefined>;
+	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
 
 	constructor(
 		action: MenuItemAction,
-		showSummary: boolean,
+		private readonly _showSummary: boolean,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IChangesViewService changesViewService: IChangesViewService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -2089,10 +2089,22 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._summaryWidget = showSummary ? this._register(instantiationService.createInstance(ChangesSummaryWidget)) : undefined;
+		this._labelObs = derivedObservableWithCache<string | undefined>(this, (reader, lastValue) => {
+			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+			if (!changeset && changesViewService.activeSessionLoadingObs.read(reader)) {
+				return lastValue;
+			}
+
+			return changeset?.label;
+		});
+
+		this._summaryObs = this._showSummary
+			? changesViewService.activeSessionChangesSummaryObs
+			: undefined;
+
 		this._register(autorun(reader => {
-			changesViewService.activeSessionChangesetObs.read(reader);
-			this._summaryWidget?.summary.read(reader);
+			this._labelObs.read(reader);
+			this._summaryObs?.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -2103,18 +2115,19 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+
 		container.classList.add('changes-picker-action-rich');
-		container.classList.toggle('changes-picker-action-with-summary', this._summaryWidget !== undefined);
+		container.classList.toggle('changes-picker-action-with-summary', this._showSummary);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
-		if (!changeset) {
+		const label = this._labelObs.get();
+		if (!label) {
 			return null;
 		}
 
-		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, changeset.label)];
-		const summary = this._summaryWidget?.summary.get();
+		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label)];
+		const summary = this._summaryObs?.get();
 		if (summary) {
 			contents.push(dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7'));
 			const summaryElement = dom.$('span.changes-picker-summary', { 'aria-hidden': 'true' });
@@ -2131,20 +2144,21 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		chevron.setAttribute('aria-hidden', 'true');
 		contents.push(chevron);
 		dom.reset(element, ...contents);
+
 		return null;
 	}
 
 	protected override getTooltip(): string {
+		const label = this._labelObs.get();
 		const title = super.getTooltip() || this.action.label;
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
-		if (!changeset) {
+		if (!label) {
 			return title;
 		}
 
-		const summary = this._summaryWidget?.summary.get();
+		const summary = this._summaryObs?.get();
 		return summary
-			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, changeset.label, getChangesSummaryLabel(summary))
-			: localize('changesView.picker.tooltip', "{0}: {1}", title, changeset.label);
+			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, label, getChangesSummaryLabel(summary))
+			: localize('changesView.picker.tooltip', "{0}: {1}", title, label);
 	}
 
 	protected override setAriaLabelAttributes(element: HTMLElement): void {

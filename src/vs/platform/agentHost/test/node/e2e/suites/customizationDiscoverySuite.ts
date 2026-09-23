@@ -8,8 +8,7 @@ import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../../common/agentHostCustomizationConfig.js';
-import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { ActionType, type SessionCustomizationsChangedAction } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
@@ -36,17 +35,12 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		return workspace;
 	}
 
-	async function createDiscoverySession(prefix: string, workspace: string, mode: SessionCustomizationDiscoveryMode, customizations?: readonly ClientPluginCustomization[]): Promise<string> {
+	async function createDiscoverySession(prefix: string, workspace: string, customizations?: readonly ClientPluginCustomization[]): Promise<string> {
 		const sessionUri = await createRealSession(context.client, config, `customizations-${prefix}`, createdSessions, URI.file(workspace));
-		context.client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq: 1,
-			action: { type: ActionType.RootConfigChanged, config: { [AgentHostConfigKey.SessionCustomizationDiscoveryMode]: mode } },
-		});
 		if (customizations) {
 			context.client.dispatch({
 				channel: sessionUri,
-				clientSeq: 2,
+				clientSeq: 1,
 				action: {
 					type: ActionType.SessionActiveClientSet,
 					activeClient: { clientId: `customizations-${prefix}`, tools: [], customizations: [...customizations] },
@@ -57,7 +51,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 				30_000,
 			);
 		}
-		await driveTurnToCompletion(context.client, sessionUri, `turn-${prefix}`, 'Reply exactly "READY".', customizations ? 3 : 2);
+		await driveTurnToCompletion(context.client, sessionUri, `turn-${prefix}`, 'Reply exactly "READY".', customizations ? 2 : 1);
 		return sessionUri;
 	}
 
@@ -119,21 +113,19 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			.sort((a, b) => a.uri.localeCompare(b.uri));
 	}
 
-	for (const mode of ['scan', 'discover'] as const) {
-		const supportedCustomizations = config.provider === 'copilotcli'
-			? 'workspace agents instructions skills and hooks'
-			: 'provider-supported workspace customizations';
-		customizationDiscoveryTest(`customization discovery: ${mode} finds ${supportedCustomizations}`, async function () {
-			const workspace = createWorkspace(`all-${mode}`);
-			const files = writeWorkspaceCustomizations(workspace);
-			const sessionUri = await createDiscoverySession(`all-${mode}`, workspace, mode);
-			const customizations = await sessionCustomizations(sessionUri);
+	const supportedCustomizations = config.provider === 'copilotcli'
+		? 'workspace agents instructions skills and hooks'
+		: 'provider-supported workspace customizations';
+	customizationDiscoveryTest(`customization discovery: discover finds ${supportedCustomizations}`, async function () {
+		const workspace = createWorkspace('all');
+		const files = writeWorkspaceCustomizations(workspace);
+		const sessionUri = await createDiscoverySession('all', workspace);
+		const customizations = await sessionCustomizations(sessionUri);
 
-			assert.deepStrictEqual(discoveredFixtureFiles(customizations, files), files
-				.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
-				.sort((a, b) => a.uri.localeCompare(b.uri)));
-		});
-	}
+		assert.deepStrictEqual(discoveredFixtureFiles(customizations, files), files
+			.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
+			.sort((a, b) => a.uri.localeCompare(b.uri)));
+	});
 
 	const fixedInstructionTitle = config.provider === 'copilotcli'
 		? 'customization discovery: discover groups fixed agent instruction files at the workspace root'
@@ -152,7 +144,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			writeFileSync(file, `Instructions from ${file}`);
 		}
 
-		const sessionUri = await createDiscoverySession('agent-instructions', workspace, 'discover');
+		const sessionUri = await createDiscoverySession('agent-instructions', workspace);
 		const customizations = await sessionCustomizations(sessionUri);
 
 		assert.deepStrictEqual(directoryChildren(customizations, workspace), files.map(file => URI.file(file).toString()).sort());
@@ -178,7 +170,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			nonce: '1',
 		};
 
-		const sessionUri = await createDiscoverySession('plugin', workspace, 'discover', [clientCustomization]);
+		const sessionUri = await createDiscoverySession('plugin', workspace, [clientCustomization]);
 		await context.client.waitForNotification(n => {
 			if (!isActionNotification(n, 'session/customizationUpdated') || getActionEnvelope(n).channel !== sessionUri) {
 				return false;
@@ -206,7 +198,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		const added = join(agentsDirectory, 'added.agent.md');
 		mkdirSync(agentsDirectory, { recursive: true });
 		writeFileSync(initial, '---\nname: Initial Agent\ndescription: Initial\n---\nInitial.');
-		const sessionUri = await createDiscoverySession('watch-agent', workspace, 'discover');
+		const sessionUri = await createDiscoverySession('watch-agent', workspace);
 		await sessionCustomizations(sessionUri);
 		context.client.clearReceived();
 
@@ -236,7 +228,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		mkdirSync(agentsDirectory, { recursive: true });
 		writeFileSync(retained, '---\nname: Retained Agent\ndescription: Retained\n---\nRetained.');
 		writeFileSync(removed, '---\nname: Removed Agent\ndescription: Removed\n---\nRemoved.');
-		const sessionUri = await createDiscoverySession('watch-agent-delete', workspace, 'discover');
+		const sessionUri = await createDiscoverySession('watch-agent-delete', workspace);
 		await sessionCustomizations(sessionUri);
 		context.client.clearReceived();
 
@@ -262,7 +254,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		const agentFile = join(agentsDirectory, 'editable.agent.md');
 		mkdirSync(agentsDirectory, { recursive: true });
 		writeFileSync(agentFile, '---\nname: Before Agent\ndescription: Before\n---\nBefore.');
-		const sessionUri = await createDiscoverySession('watch-agent-update', workspace, 'discover');
+		const sessionUri = await createDiscoverySession('watch-agent-update', workspace);
 		await sessionCustomizations(sessionUri);
 		context.client.clearReceived();
 

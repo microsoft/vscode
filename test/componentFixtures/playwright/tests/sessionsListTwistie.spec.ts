@@ -29,6 +29,52 @@ test('reveals the nested chat twistie only while hovering the session row', asyn
 	await expect(statusIcon).toHaveCSS('visibility', 'visible');
 });
 
+test('aligns the nested chat twistie with the compact session status icon', async ({ page }) => {
+	await openFixture(page, 'sessions/sessionsList/SessionsList_Compact/Dark', '.sessions-list-control');
+
+	const sessionRow = page.locator('.monaco-list-row').filter({ has: page.locator('.session-item') }).first();
+	const twistie = sessionRow.locator('.session-chat-twistie.collapsible');
+	const statusIcon = sessionRow.locator('.session-icon > .codicon');
+
+	await sessionRow.hover();
+	await expect(twistie).toBeVisible();
+
+	const twistieBounds = await twistie.boundingBox();
+	const statusIconBounds = await statusIcon.boundingBox();
+	expect(twistieBounds).not.toBeNull();
+	expect(statusIconBounds).not.toBeNull();
+	expect(twistieBounds!.y + twistieBounds!.height / 2).toBe(statusIconBounds!.y + statusIconBounds!.height / 2);
+});
+
+for (const theme of ['Dark', 'Light']) {
+	for (const { fixture, pinned, sticky } of [
+		{ fixture: 'SessionsList_NestedChats', pinned: false, sticky: false },
+		{ fixture: 'SessionsList_NestedChats_PinnedView', pinned: false, sticky: true },
+		{ fixture: 'SessionsList_NestedChatHierarchyGuides', pinned: true, sticky: true },
+	]) {
+		test(`renders nested chats with independent sidebar and view pinning (${fixture}, ${theme})`, async ({ page }) => {
+			await openFixture(page, `sessions/sessionsList/${fixture}/${theme}`, '.session-item');
+
+			const sessionRow = page.locator('.monaco-list-row').filter({ has: page.locator('.session-item') });
+			const chatTitles = page.locator('.session-chat-title');
+			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
+			await expect(page.locator('.session-item.pinned')).toHaveCount(pinned ? 1 : 0);
+			await expect(page.locator('.session-item.sticky')).toHaveCount(sticky ? 1 : 0);
+			await expect(page.locator('.session-chat-item.session-hierarchy-guides-visible')).toHaveCount(2);
+
+			const twistie = sessionRow.locator('.session-chat-twistie.collapsible');
+			await sessionRow.hover();
+			await twistie.click();
+			await expect(sessionRow).toHaveAttribute('aria-expanded', 'false');
+			await expect(chatTitles).toHaveCount(0);
+
+			await twistie.click();
+			await expect(sessionRow).toHaveAttribute('aria-expanded', 'true');
+			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
+		});
+	}
+}
+
 for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) {
 	for (const { name, fixture, ariaStatus, indicatorClass, color, count } of [
 		{ name: 'unread', fixture: 'SessionsList_CollapsedUnreadSections', ariaStatus: 'contains unread sessions', indicatorClass: '.codicon-circle-filled', color: '--vscode-textLink-foreground', count: 1 },

@@ -371,6 +371,11 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
+.automation-target-error {
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
 .automation-form-save-status {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
@@ -384,6 +389,10 @@
 .automation-session-controls .actions-container {
 	min-width: 0;
 	overflow: hidden;
+}
+
+.automation-dialog .automation-session-configuration .monaco-action-bar .actions-container {
+	padding-inline-start: 0;
 }
 
 .automation-session-configuration .compact-picker .sessions-chat-dropdown-label,

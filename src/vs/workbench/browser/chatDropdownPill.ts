@@ -18,7 +18,7 @@ import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItem, getChatPillEntries, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { ChatPillActionViewItem, getChatPillEntries, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -108,7 +108,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			if (previous.label !== current.label || previous.summarized !== current.summarized || !iconsEqual(previous.icon, current.icon)) {
 				this.updateLabel();
 			}
-			if (previous.hoverContent !== current.hoverContent) {
+			if (previous.hoverContent !== current.hoverContent || !actionsEqual(previous.toolbarActions, current.toolbarActions)) {
 				this.updateTooltip();
 			}
 			if (previous.ariaLabel !== current.ariaLabel) {
@@ -130,14 +130,16 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		}));
 	}
 
-	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly label: string; readonly hoverContent: IManagedHoverContent; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
+	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly label: string; readonly hoverContent: IManagedHoverContent; readonly toolbarActions: readonly IAction[]; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
+		const entry = this.isSummarized ? undefined : this.entries.at(0);
 		return {
 			summarized: this.isSummarized,
-			icon: this.isSummarized ? this._summaryIcon : this.entries.at(0)?.icon,
+			icon: this.isSummarized ? this._summaryIcon : entry?.icon,
 			label: this.getLabelText(),
 			hoverContent: this.getHoverContents(),
+			toolbarActions: entry ? getChatPillEntryToolbarActions(entry) : [],
 			ariaLabel: this.getAriaLabel(),
-			ariaDescription: this.isSummarized ? undefined : this.entries.at(0)?.ariaDescription,
+			ariaDescription: entry?.ariaDescription,
 		};
 	}
 
@@ -228,7 +230,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
-		const toolbarActions = this.isSummarized ? undefined : this.entries.at(0)?.toolbarActions;
+		const entry = this.isSummarized ? undefined : this.entries.at(0);
+		const toolbarActions = entry ? getChatPillEntryToolbarActions(entry) : undefined;
 		return toolbarActions?.length ? {
 			trapFocus: true,
 			actions: toolbarActions.map(action => ({
@@ -317,7 +320,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...(entry.className ? { className: entry.className } : {}),
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
-					...(entry.toolbarActions?.length ? { toolbarActions: [...entry.toolbarActions] } : {}),
+					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: entry.hover,
 					item: entry,
@@ -337,6 +340,10 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 
 function iconsEqual(first: ThemeIcon | undefined, second: ThemeIcon | undefined): boolean {
 	return first === second || (!!first && !!second && ThemeIcon.isEqual(first, second));
+}
+
+function actionsEqual(first: readonly IAction[], second: readonly IAction[]): boolean {
+	return first === second || (first.length === second.length && first.every((action, index) => action === second[index]));
 }
 
 /**

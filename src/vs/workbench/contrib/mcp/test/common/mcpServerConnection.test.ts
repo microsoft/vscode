@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
@@ -181,6 +181,44 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		assert.strictEqual(state.state, McpConnectionState.Kind.Error);
 		assert.ok(state.message);
+	});
+
+	for (const action of ['dispose', 'stop'] as const) {
+		test(`${action} settles every pending start while the transport is Starting`, async () => {
+			const connection = store.add(instantiationService.createInstance(
+				McpServerConnection, collection, serverDefinition, delegate, serverDefinition.launch,
+				new NullLogger(), false, store.add(new McpTaskManager()),
+			));
+			const pending = [connection.start({}), connection.start({})];
+			if (action === 'dispose') {
+				connection.dispose();
+			} else {
+				await connection.stop();
+			}
+			const states = await raceTimeout(Promise.all(pending), 1000);
+			assert.deepStrictEqual(states?.map(state => state.state), [
+				McpConnectionState.Kind.Stopped,
+				McpConnectionState.Kind.Stopped,
+			]);
+		});
+	}
+
+	test('a disposed connection does not start a transport', async () => {
+		const connection = store.add(instantiationService.createInstance(
+			McpServerConnection, collection, serverDefinition, delegate, serverDefinition.launch,
+			new NullLogger(), false, store.add(new McpTaskManager()),
+		));
+		let launches = 0;
+		delegate.start = () => {
+			launches++;
+			return transport;
+		};
+		connection.dispose();
+		const state = await raceTimeout(connection.start({}), 1000);
+		assert.deepStrictEqual({ state: state?.state, launches }, {
+			state: McpConnectionState.Kind.Stopped,
+			launches: 0,
+		});
 	});
 
 	test('should handle transport errors', async () => {

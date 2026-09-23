@@ -237,7 +237,7 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly address: string;
 	/** Source folder on the parent host containing the Dev Container configuration. */
 	readonly hostPath: string;
-	/** VS Code SSH or tunnel authority of the parent host, absent for local containers. */
+	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
 }
 
@@ -316,6 +316,8 @@ export interface IRemoteAgentHostConnectionFactory {
 	readonly kind: RemoteAgentHostEntryType;
 	/** Entries owned by this factory. */
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
+	/** Effective initiation mode staged by the factory for the next dial, before createConnection consumes it. */
+	getPendingConnectionInitiation?(entry: IRemoteAgentHostEntry): boolean | undefined;
 	/**
 	 * Build a client bound to a transport for `entry`.
 	 *
@@ -692,6 +694,11 @@ export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[];
 
+	/** In-flight setup and protocol connection attempts for enabled, configured hosts; excludes removed or disposed hosts even if setup has not settled. */
+	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[];
+	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
+	readonly onDidChangePendingConnections: Event<void>;
+
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
 
@@ -797,10 +804,19 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 }
 
+export interface IRemoteAgentHostPendingConnection {
+	/** Normalized host address, matching the connection catalog. */
+	readonly address: string;
+	readonly startedAt: number;
+	readonly userInitiated: boolean;
+}
+
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
+	readonly onDidChangePendingConnections = Event.None;
+	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	registerConnectionFactory(): IDisposable {

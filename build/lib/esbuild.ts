@@ -8,7 +8,21 @@ import * as path from 'path';
 
 const root = path.resolve(import.meta.dirname, '../..');
 
-// esbuild-based bundle tasks (drop-in replacement for bundle-vscode / minify-vscode)
+export type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
+
+export function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
+	switch (target) {
+		case 'desktop':
+			return ['main', 'cli', 'bootstrap-fork'];
+		case 'server':
+		case 'server-web':
+			return ['server-main', 'server-cli', 'bootstrap-fork'];
+		case 'web':
+			return [];
+		default:
+			throw new Error(`Unknown target: ${target}`);
+	}
+}
 
 export function runEsbuildTranspile(outDir: string, excludeTests: boolean): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -34,7 +48,7 @@ export function runEsbuildTranspile(outDir: string, excludeTests: boolean): Prom
 	});
 }
 
-export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' | 'web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
+export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: BuildTarget = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const scriptPath = path.join(root, 'build/next/index.ts');
 		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];

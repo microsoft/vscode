@@ -62,6 +62,7 @@ export interface IScreenshot {
 export class IssueReporterOverlay {
 
 	private readonly disposables = new DisposableStore();
+	private readonly screenshotDisposables = this.disposables.add(new DisposableStore());
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 	private readonly _onDidSubmit = new Emitter<{ title: string; body: string }>();
@@ -2038,6 +2039,7 @@ export class IssueReporterOverlay {
 	}
 
 	private updateScreenshotThumbnails(): void {
+		this.screenshotDisposables.clear();
 		this.screenshotContainer.textContent = '';
 
 		for (let i = 0; i < this.screenshots.length; i++) {
@@ -2052,8 +2054,8 @@ export class IssueReporterOverlay {
 			card.setAttribute('tabindex', '0');
 			card.title = localize('editScreenshot', "Click to edit screenshot");
 			const openEditor = () => this.openAnnotationEditor(i);
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
-			this.disposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
+			this.screenshotDisposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
+			this.screenshotDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 					e.preventDefault();
@@ -2065,7 +2067,7 @@ export class IssueReporterOverlay {
 			deleteBtn.setAttribute('role', 'button');
 			deleteBtn.setAttribute('aria-label', localize('deleteScreenshot', "Delete screenshot"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
+			this.screenshotDisposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
 				e.stopPropagation();
 				this.screenshots.splice(i, 1);
 				this.updateScreenshotThumbnails();
@@ -2081,7 +2083,7 @@ export class IssueReporterOverlay {
 			const card = this.renderRecordingCard(this.screenshotContainer, rec, i);
 
 			// Click to open from OS
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
+			this.screenshotDisposables.add(addDisposableListener(card, EventType.CLICK, () => {
 				this._onDidRequestOpenRecording.fire(rec.filePath);
 			}));
 
@@ -2089,7 +2091,7 @@ export class IssueReporterOverlay {
 			deleteBtn.setAttribute('role', 'button');
 			deleteBtn.setAttribute('aria-label', localize('deleteRecording', "Remove recording"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
+			this.screenshotDisposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
 				e.stopPropagation();
 				this.recordings.splice(i, 1);
 				this.updateScreenshotThumbnails();
@@ -2109,7 +2111,7 @@ export class IssueReporterOverlay {
 			}
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
-			this.disposables.add(addDisposableListener(addCard, EventType.CLICK, () => {
+			this.screenshotDisposables.add(addDisposableListener(addCard, EventType.CLICK, () => {
 				if (!addCard.classList.contains('disabled')) {
 					this._onDidRequestScreenshot.fire();
 				}
@@ -2129,18 +2131,19 @@ export class IssueReporterOverlay {
 		// editor handles save/cancel, then the previous one becomes visible
 		// again.
 		const screenshot = this.screenshots[index];
-		const editor = new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState);
-		this.disposables.add(editor);
+		const editorDisposables = this.disposables.add(new DisposableStore());
+		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
 
-		this.disposables.add(editor.onDidSave(({ dataUrl, state }) => {
+		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
 			screenshot.annotatedDataUrl = dataUrl;
 			screenshot.annotationState = state;
 			this.updateAttachmentViews();
 			this._onDidChangeAttachments.fire();
+			this.disposables.delete(editorDisposables);
 		}));
 
-		this.disposables.add(editor.onDidCancel(() => {
-			// nothing to do, editor disposes itself
+		editorDisposables.add(editor.onDidCancel(() => {
+			this.disposables.delete(editorDisposables);
 		}));
 	}
 

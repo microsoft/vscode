@@ -300,6 +300,71 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
+	test('user navigation supersedes a clamped restored scroll state', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const originalUri = URI.parse('inmemory://original/first.png');
+		const modifiedUri = URI.parse('inmemory://modified/first.png');
+		const firstItem = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, undefined),
+			modified: new DiffItemSource(modifiedUri, undefined),
+		}, { dispose() { } }));
+		const secondItem = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(URI.parse('inmemory://original/second.png'), undefined),
+			modified: new DiffItemSource(URI.parse('inmemory://modified/second.png'), undefined),
+		}, { dispose() { } }));
+		const container = document.createElement('div');
+		const widget = disposables.add(instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		));
+		widget.layout(new Dimension(800, 80));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const([firstItem, secondItem]) }));
+		await waitForState(viewModel.items, items => items.length === 2);
+		widget.setViewModel(viewModel);
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		try {
+			widget.setViewState({ scrollState: { top: 1000, left: 0 } });
+			const restoredTop = widget.getViewState().scrollState.top;
+			widget.setPaddingBottom(24);
+			const topAfterRetry = widget.getViewState().scrollState.top;
+			widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+			const topAfterReveal = widget.getViewState().scrollState.top;
+			widget.setPaddingBottom(64);
+			const topAfterGrowth = widget.getViewState().scrollState.top;
+			assert.deepStrictEqual({
+				restoredTop,
+				topAfterRetry,
+				topAfterReveal,
+				topAfterGrowth,
+			}, {
+				restoredTop: 200,
+				topAfterRetry: 224,
+				topAfterReveal: 0,
+				topAfterGrowth: 0,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
 	test('renders binary files as a placeholder', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());

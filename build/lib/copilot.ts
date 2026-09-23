@@ -11,7 +11,8 @@ import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOp
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
  * options with an override for the extension lockfile used to verify natives
- * fetched for the pinned version.
+ * fetched for the pinned version (defaults to the repo's copy; overridable in
+ * tests).
  */
 export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
 	extensionLockfilePath?: string;
@@ -26,6 +27,17 @@ export const copilotPlatforms = [
 	'linuxmusl-arm64', 'linuxmusl-x64',
 	'win32-arm64', 'win32-x64',
 ];
+
+export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): string {
+	const packageJsonPath = path.join(nodeModulesRoot, '@github', 'copilot-sdk', 'package.json');
+	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { readonly copilotCliVersion?: string };
+	const runtimeVersion = packageJson.copilotCliVersion;
+	if (typeof runtimeVersion !== 'string' || !runtimeVersion) {
+		throw new Error(`@github/copilot-sdk is missing copilotCliVersion in ${packageJsonPath}.`);
+	}
+
+	return runtimeVersion;
+}
 
 /**
  * Converts VS Code build platform/arch to the values that Node.js reports
@@ -106,6 +118,8 @@ function toCopilotPackagePlatformArch(platform: string, arch: string): string {
 }
 
 const copilotOptionalNativePayloadDirs = [
+	'builtin',
+	'builtin-skills',
 	'clipboard',
 	'foundry-local-sdk',
 	'mxc-bin',
@@ -115,7 +129,7 @@ const copilotOptionalNativePayloadDirs = [
 
 const copilotOptionalNativePayloadFiles = [
 	// Computer Use ships under plugins/computer-use/** in current
-	// @github/copilot platform packages. Do not productize it.
+	// @github/copilot-sdk platform packages. Do not productize it.
 	'plugins/computer-use/**',
 	'prebuilds/*/computer.node',
 	'prebuilds/*/keytar.node',
@@ -180,32 +194,25 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	const targetPlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
-	const excludes = nonTargetPlatforms.flatMap(p => [
-		`!**/node_modules/@github/copilot-${p}/**`,
-		`!**/node_modules/@github/copilot-sdk-${p}/**`,
-	]);
-
 	return [
 		'**',
-		...excludes,
+		...copilotPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
+		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-sdk-${p}/**`),
 	];
 }
 
 /**
- * Returns the paired Copilot CLI and SDK platform files that must survive
- * app/remote packaging for the target platform.
+ * Returns the SDK-owned runtime files that must survive app/remote packaging
+ * for the target platform.
  *
- * .moduleignore strips all Copilot platform packages globally. Re-add the
- * selected CLI executable and SDK package while keeping optional native
- * payloads out of the product build.
+ * .moduleignore strips all platform packages globally. Re-add the selected SDK
+ * package while keeping optional native payloads out of the product build.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
-	const copilotCliPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
 	const copilotSdkPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
 
 	return [
-		path.posix.join(copilotCliPackageDir, platform === 'win32' ? 'copilot.exe' : 'copilot'),
 		path.posix.join(copilotSdkPackageDir, '**'),
 		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotSdkPackageDir, dir, '**')}`),
 		...copilotOptionalNativePayloadFiles.map(file => `!${path.posix.join(copilotSdkPackageDir, file)}`),
@@ -213,9 +220,9 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 }
 
 /**
- * Ensures the selected CLI and SDK platform packages are present before
- * packaging. npm only installs host-compatible optional dependencies, but VS
- * Code packaging can cross-build targets such as darwin-x64 on arm64 hosts.
+ * Ensures the selected SDK platform package is present before packaging. npm
+ * only installs host-compatible optional dependencies, but VS Code packaging
+ * can cross-build targets such as darwin-x64 on arm64 hosts.
  */
 export function ensureCopilotPlatformPackage(platform: string, arch: string, nodeModulesRoot = 'node_modules', options: EnsureNpmPackageOptions = {}): void {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
@@ -223,8 +230,19 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 		return;
 	}
 
-	ensureNpmPackage(`@github/copilot-${copilotPackagePlatformArch}`, nodeModulesRoot, options);
-	ensureNpmPackage(`@github/copilot-sdk-${copilotPackagePlatformArch}`, nodeModulesRoot, options);
+	const packageName = `@github/copilot-sdk-${copilotPackagePlatformArch}`;
+	ensureNpmPackage(packageName, nodeModulesRoot, options);
+
+	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
+	const requiredFiles = [
+		'sdk/index.js',
+		path.join('prebuilds', copilotPackagePlatformArch, platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'),
+		path.join('prebuilds', copilotPackagePlatformArch, 'runtime.node'),
+	];
+	const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.join(packageDir, file)));
+	if (missingFiles.length > 0) {
+		throw new Error(`[ensureCopilotPlatformPackage] ${packageName} is missing SDK runtime files: ${missingFiles.join(', ')}.`);
+	}
 }
 
 /**

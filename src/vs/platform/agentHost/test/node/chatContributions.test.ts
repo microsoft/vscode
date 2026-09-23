@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import type { BrandedService, IConstructorSignature } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -32,7 +34,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
-import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -41,6 +43,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
@@ -51,6 +54,7 @@ import { TurnDelegationContribution } from '../../node/chatContributions/turnDel
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
@@ -77,6 +81,13 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	readonly seededTitles: string[] = [];
 	readonly provisionalTitles: string[] = [];
 	readonly renamedTitles: { channel: string; chatChannel: string | undefined }[] = [];
+	readonly refinedTitles: { channel: string; chatChannel: string | undefined; successful: boolean }[] = [];
+
+	readonly titleGenerationStrategies = new Map<string, AutomaticTitleGenerationStrategy>();
+	getAutomaticTitleGenerationStrategy(channel?: string): AutomaticTitleGenerationStrategy {
+		return channel ? this.titleGenerationStrategies.get(channel) ?? 'utility' : 'utility';
+	}
+	async restoreTitleGenerationStrategy(): Promise<void> { }
 
 	seedTitleFromFirstMessage(_channel: string, userPrompt: string): void {
 		this.seededTitles.push(userPrompt);
@@ -85,8 +96,11 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	seedProvisionalTitle(_channel: string, suggestedTitle: string): void {
 		this.provisionalTitles.push(suggestedTitle);
 	}
-	refineTitleFromFirstTurn(): void {
-		this._observed?.push('sessionTitle');
+	refineTitleFromFirstTurn(channel: string, chatChannel?: string, successful = true): void {
+		this.refinedTitles.push({ channel, chatChannel, successful });
+		if (successful) {
+			this._observed?.push('sessionTitle');
+		}
 	}
 	generateForkedTitle(): void { }
 	async generateExternalSessionTitle(): Promise<void> { }
@@ -119,6 +133,7 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 }
 
 class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
 
 	constructor(private readonly _observed: string[] | undefined) {
 		super();
@@ -127,6 +142,10 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	override async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
 		this._observed?.push('worktreeAnnouncement');
 		return turns;
+	}
+
+	override async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
+		this.archiveCalls.push({ handle, archived, strictCleanup });
 	}
 }
 
@@ -762,16 +781,21 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 	const database = new TestSessionDatabase();
 	const sessionDataService = createSessionDataService(database);
 	const titleController = new RecordingTitleController(undefined, undefined);
+	const telemetryService = new RecordingTelemetryService();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostSessionTitleController, titleController],
+		[IAgentHostTelemetryReporter, new AgentHostTelemetryReporter(telemetryService)],
+		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+	services.set(IAgentHostTurnTracker, turnTracker);
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	disposables.add(service.registerContribution(SessionTitleContribution));
-	return { service, stateManager, database, titleController, session, defaultChat, peerChat };
+	return { service, stateManager, database, titleController, session, defaultChat, peerChat, turnTracker, telemetryService };
 }
 
 function createTurnDelegationContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -789,7 +813,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string; readonly worktree: RecordingWorktreeIsolation; readonly additionalWorktreeLifecycle: IAdditionalWorktreeLifecycleService } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -823,6 +847,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	const agentConfigService = createConfigurationService(enableSendInstructions);
 	const sessionDataService = createSessionDataService(usageDatabase);
+	const worktree = new RecordingWorktreeIsolation(observed);
+	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -832,7 +858,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostGitStateService, new RecordingGitStateService(observed)],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
-		[IAgentHostWorktreeIsolation, new RecordingWorktreeIsolation(observed)],
+		[IAgentHostWorktreeIsolation, worktree],
+		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	services.set(ISessionWorkspaceConversionService, {
@@ -861,7 +888,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test' };
+	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -896,7 +923,11 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
-	mockAgent.setPendingMessages = (_chat, steeringMessage) => pendingMessages.push(steeringMessage);
+	const pendingMessageSenders: (string | undefined)[] = [];
+	mockAgent.setPendingMessages = (_chat, steeringMessage, _queuedMessages, steeringSender) => {
+		pendingMessages.push(steeringMessage);
+		pendingMessageSenders.push(steeringSender?.clientId);
+	};
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
@@ -920,7 +951,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
+	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1175,6 +1206,52 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain keeps steering sender ownership synchronized with replacement and removal', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const first: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'first',
+			message: { text: 'first', origin: { kind: MessageKind.User } },
+		};
+		const second: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'second',
+			message: { text: 'second', origin: { kind: MessageKind.User } },
+		};
+		const removeFirst: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: PendingMessageKind.Steering,
+			id: 'first',
+		};
+		const removeSecond: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: PendingMessageKind.Steering,
+			id: 'second',
+		};
+
+		queue.stateManager.dispatchServerAction(queue.chat, first);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, first, 'first-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, second);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, second, 'second-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, removeFirst);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, removeFirst, 'first-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, { type: ActionType.ChatQueuedMessagesReordered, order: [] }, 'other-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, removeSecond);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, removeSecond, 'second-client'));
+		queue.stateManager.dispatchServerAction(queue.chat, second);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, { type: ActionType.ChatQueuedMessagesReordered, order: [] }, 'other-client'));
+
+		assert.deepStrictEqual({
+			messages: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+		}, {
+			messages: ['first', 'second', 'second', 'second', undefined, 'second'],
+			senders: ['first-client', 'second-client', 'second-client', 'second-client', undefined, undefined],
+		});
+	});
+
 	test('queue drain defers stale queued actions until a resumable turn completes', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {
@@ -1418,6 +1495,49 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('captures each root turn title strategy before sending and preserves it through completion', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		const agent = disposables.add(new MockAgent());
+		const strategies = ['activeAgent', 'utility', 'deferred'] as const;
+		for (const strategy of strategies) {
+			titles.titleController.titleGenerationStrategies.set(titles.session, strategy);
+			titles.turnTracker.turnStarted(agent, titles.peerChat, strategy, undefined, undefined, 'default', undefined, undefined);
+			await titles.service.outgoingTurn({
+				session: titles.session, chat: titles.peerChat, turnId: strategy,
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+		}
+		titles.titleController.titleGenerationStrategies.set(titles.session, 'utility');
+		for (const strategy of strategies) {
+			titles.turnTracker.turnCompleted(titles.peerChat, strategy, 'success');
+		}
+		assert.deepStrictEqual(titles.telemetryService.events.map(event => {
+			const data = event.data as { turnId: string; titleGenerationStrategy?: string };
+			return { turnId: data.turnId, strategy: data.titleGenerationStrategy };
+		}), strategies.map(strategy => ({ turnId: strategy, strategy })));
+	});
+
+	test('does not attach root title strategy to subagent turns or turns that already ended', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		const agent = disposables.add(new MockAgent());
+		const child = buildSubagentChatUri(titles.session, 'child');
+		for (const chat of [titles.defaultChat, child]) {
+			titles.turnTracker.turnStarted(agent, chat, 'turn', undefined, undefined, 'default', undefined, undefined);
+			if (chat === titles.defaultChat) {
+				titles.turnTracker.turnCompleted(chat, 'turn', 'cancelled');
+			}
+			await titles.service.outgoingTurn({
+				session: titles.session, chat, turnId: 'turn',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			titles.turnTracker.turnCompleted(chat, 'turn', 'success');
+		}
+		assert.deepStrictEqual(titles.telemetryService.events.map(event => {
+			const data = event.data as { titleGenerationStrategy?: string };
+			return data.titleGenerationStrategy;
+		}), [undefined, undefined]);
+	});
+
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
 		const sideChat = buildChatUri(contributions.session, 'side');
@@ -1455,36 +1575,71 @@ suite('AgentHostChatContributions', () => {
 		const defaultChat = buildDefaultChatUri(contributions.session);
 		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
 		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
-		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored']] as const) {
+		const emptyRestoredChat = buildChatUri(contributions.session, 'empty-restored-artifacts');
+		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored'], [emptyRestoredChat, 'Empty']] as const) {
 			contributions.stateManager.addChat(contributions.session, chat, {
 				title,
 				origin: { kind: ChatOriginKind.User },
 			});
 		}
 		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat }, [hydrationTurn('restored-turn')]);
-		const hasArtifactInstruction = async (chat: string, turnId: string) => {
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: emptyRestoredChat }, []);
+		const getArtifactInstructions = async (chat: string, turnId: string) => {
 			const result = await contributions.service.outgoingTurn({
 				session: contributions.session,
 				chat,
 				message: { text: turnId, origin: { kind: MessageKind.User } },
 				turnId,
 			});
-			return result.instructions?.includes(ARTIFACT_TOOLS_INSTRUCTION) ?? false;
+			return result.instructions?.filter(instruction => instruction === ARTIFACT_TOOLS_INSTRUCTION) ?? [];
 		};
+		const expected = [ARTIFACT_TOOLS_INSTRUCTION];
 
 		assert.deepStrictEqual({
-			firstDefault: await hasArtifactInstruction(defaultChat, 'default-1'),
-			secondDefault: await hasArtifactInstruction(defaultChat, 'default-2'),
-			firstPeer: await hasArtifactInstruction(peerChat, 'peer-1'),
-			secondPeer: await hasArtifactInstruction(peerChat, 'peer-2'),
-			restored: await hasArtifactInstruction(restoredChat, 'restored-2'),
+			firstDefault: await getArtifactInstructions(defaultChat, 'default-1'),
+			secondDefault: await getArtifactInstructions(defaultChat, 'default-2'),
+			firstPeer: await getArtifactInstructions(peerChat, 'peer-1'),
+			secondPeer: await getArtifactInstructions(peerChat, 'peer-2'),
+			restored: await getArtifactInstructions(restoredChat, 'restored-2'),
+			firstEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-1'),
+			secondEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-2'),
 		}, {
-			firstDefault: true,
-			secondDefault: false,
-			firstPeer: true,
-			secondPeer: false,
-			restored: false,
+			firstDefault: expected,
+			secondDefault: [],
+			firstPeer: expected,
+			secondPeer: [],
+			restored: [],
+			firstEmptyRestored: expected,
+			secondEmptyRestored: [],
 		});
+	});
+
+	test('does not mention unavailable artifact tools', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const instructions = [];
+		for (const turnId of ['first', 'second']) {
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat: buildDefaultChatUri(contributions.session),
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+				turnId,
+			});
+			instructions.push(result.instructions);
+		}
+		assert.deepStrictEqual(instructions, [undefined, undefined]);
+	});
+
+	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {
+		const titles = createSessionTitleContributions(disposables);
+		const turn = { session: titles.session, channel: titles.defaultChat, turnId: 'turn-1' };
+		titles.service.turnEnd({ ...turn, reason: { kind: 'cancelled' } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'localCommand' } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'error', error: { errorType: 'test', message: 'Failed' }, resumable: false } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' } } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'success' } });
+		assert.deepStrictEqual(titles.titleController.refinedTitles, [false, false, false, true].map(successful => ({
+			channel: titles.session, chatChannel: titles.defaultChat, successful,
+		})));
 	});
 
 	test('updates and persists an independent chat title', async () => {
@@ -1704,6 +1859,47 @@ suite('AgentHostChatContributions', () => {
 		await Promise.resolve();
 
 		assert.strictEqual(await contributions.database.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY), '');
+	});
+
+	test('synchronizes additional worktrees for manual, automatic, and unarchive actions', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const session = URI.parse(contributions.session);
+		const handle = generateUuid();
+		await writeSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
+			handle,
+			workingDirectory: URI.file('/worktree').toString(),
+			repositoryRoot: URI.file('/repository').toString(),
+		}]);
+
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }));
+		await timeout(0);
+		contributions.additionalWorktreeLifecycle.runWithAutomaticArchive(session, () =>
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true })));
+		await timeout(0);
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
+		await timeout(0);
+
+		assert.deepStrictEqual(contributions.worktree.archiveCalls, [
+			{ handle, archived: true, strictCleanup: false },
+			{ handle, archived: true, strictCleanup: true },
+			{ handle, archived: false, strictCleanup: false },
+		]);
+	});
+
+	test('skips rejected and chat-scoped additional worktree archive actions', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const session = URI.parse(contributions.session);
+		await writeSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
+			handle: generateUuid(),
+			workingDirectory: URI.file('/worktree').toString(),
+			repositoryRoot: URI.file('/repository').toString(),
+		}]);
+
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'rejected'));
+		contributions.service.didDispatchAction(dispatchedAction(buildDefaultChatUri(contributions.session), contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual(contributions.worktree.archiveCalls, []);
 	});
 
 	test('persists turn usage from envelopes but skips subagent chats', async () => {

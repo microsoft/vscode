@@ -11,11 +11,11 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { buildMcpChannel, getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
@@ -59,7 +59,15 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 		pluginMcpServerSources: opts.pluginMcpServerSources,
 		resolveEnablement: opts.resolveEnablement,
 	}, stateManager);
-	return { controller, actions };
+	return {
+		controller,
+		actions,
+		getCustomizations: () => stateManager.getSessionState(session)?.customizations ?? [],
+		setCustomizations: (customizations: readonly Customization[]) => stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [...customizations],
+		}),
+	};
 }
 
 function server(name: string, state: McpServerState): ISdkMcpServer {
@@ -69,7 +77,7 @@ function server(name: string, state: McpServerState): ISdkMcpServer {
 function ready(): McpServerState { return { kind: McpServerStatus.Ready }; }
 function starting(): McpServerState { return { kind: McpServerStatus.Starting }; }
 function stopped(): McpServerState { return { kind: McpServerStatus.Stopped }; }
-function authRequired(): McpServerState {
+function authRequired(): Extract<McpServerState, { kind: McpServerStatus.AuthRequired }> {
 	return {
 		kind: McpServerStatus.AuthRequired,
 		reason: McpAuthRequiredReason.Required,
@@ -326,6 +334,81 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual([...controller.runtimeStates.get().keys()], ['mcp-top-level:copilot:session-1:search']);
 	});
 
+	test('retains child runtime states through a transient plugin loading snapshot', () => {
+		const serverNames = ['workiq-me', 'calendar', 'mail'] as const;
+		const child = (name: string, state: McpServerState): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id: `mcp-child:workiq:${name}`,
+			uri: `mcp-child:workiq:${name}`,
+			name,
+			state,
+		});
+		const plugin = (load: PluginCustomization['load'], children: McpServerCustomization[] | undefined): PluginCustomization => ({
+			type: CustomizationType.Plugin,
+			id: 'plugin:workiq',
+			uri: 'file:///plugins/workiq',
+			name: 'WorkIQ',
+			load,
+			children,
+		});
+		const initial = plugin(
+			{ kind: CustomizationLoadStatus.Loaded },
+			serverNames.map(name => child(name, stopped())),
+		);
+		const { controller, getCustomizations, setCustomizations } = harness(store, { customizations: [initial] });
+		store.add(controller);
+		controller.applyAll(serverNames.map(name => server(name, authRequired())));
+
+		setCustomizations([plugin({ kind: CustomizationLoadStatus.Loading }, undefined)]);
+		controller.applyOne(server('workiq-me', ready()));
+
+		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
+		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
+			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me') }],
+			['mcp-child:workiq:calendar', { state: authRequired(), channel: undefined }],
+			['mcp-child:workiq:mail', { state: authRequired(), channel: undefined }],
+		]));
+
+		const refreshed = plugin(
+			{ kind: CustomizationLoadStatus.Loaded },
+			serverNames.map(name => child(name, stopped())),
+		);
+		const overlaid = applyMcpServerRuntimeStates(refreshed, controller.runtimeStates.get());
+		setCustomizations([overlaid]);
+		controller.applyAll([
+			server('workiq-me', ready()),
+			server('calendar', authRequired()),
+			server('mail', authRequired()),
+		]);
+		const published = getCustomizations()[0];
+		if (published?.type !== CustomizationType.Plugin) {
+			assert.fail('Expected the plugin customization to remain published');
+		}
+		assert.deepStrictEqual(published.children?.map(entry => entry.type === CustomizationType.McpServer ? {
+			name: entry.name,
+			state: entry.state,
+		} : undefined), [
+			{ name: 'workiq-me', state: ready() },
+			{ name: 'calendar', state: authRequired() },
+			{ name: 'mail', state: authRequired() },
+		]);
+
+		setCustomizations([plugin({ kind: CustomizationLoadStatus.Loaded }, [
+			child('workiq-me', stopped()),
+			child('calendar', stopped()),
+		])]);
+		controller.applyOne(server('mail', authRequired()));
+		assert.deepStrictEqual(controller.topLevelCustomizations().map(customization => customization.name), ['mail']);
+	});
+
+	test('resolves a published child before the SDK reports it', () => {
+		const { controller } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:fs'), 'fs');
+		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:missing'), undefined);
+	});
+
 	test('top-level entry stays top-level across updates (id stable)', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);
@@ -389,7 +472,7 @@ suite('McpCustomizationController', () => {
 		]);
 	});
 
-	test('authRequired state is preserved across coarse starting updates', () => {
+	test('preserves authRequired across coarse starting updates by default', () => {
 		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
 
@@ -399,6 +482,45 @@ suite('McpCustomizationController', () => {
 		controller.applyOne(server('fs', ready()));
 
 		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: authState,
+				channel: undefined,
+			},
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: { kind: McpServerStatus.Ready },
+				channel: MCP_FS_CHANNEL,
+			},
+		]);
+	});
+
+	test('applies only an opted-in starting update after auth-required', () => {
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		const authState = authRequired();
+		controller.applyOne(server('fs', authState));
+		controller.applyOne({ name: 'fs', state: starting(), allowAuthRequiredToStarting: true });
+		controller.applyOne(server('fs', authState));
+		controller.applyOne(server('fs', starting()));
+		controller.applyOne(server('fs', ready()));
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: authState,
+				channel: undefined,
+			},
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: { kind: McpServerStatus.Starting },
+				channel: undefined,
+			},
 			{
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',

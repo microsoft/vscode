@@ -272,34 +272,17 @@ const DEFAULT_REPOSITORY_ID = '___vscode_repository_default___';
 
 const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
+const SEARCH_REPOSITORIES_COMMAND_ID = '_github.copilot.chat.cloudSessions.searchRepositories';
 const OPEN_ISSUE_COMMAND_ID = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequest';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
 
-type RepositoryQuickPickItem = vscode.QuickPickItem & {
+type RepositoryPickResult = {
 	readonly repository?: string;
 	readonly cloneUrl?: string;
 };
-
-export function getRepositoryQuickPickItems(
-	repositories: readonly vscode.ChatSessionProviderOptionItem[],
-	value: string,
-	allowRepositoryUrl: boolean,
-): RepositoryQuickPickItem[] {
-	const repositoryUrl = value.trim();
-	const canCloneUrl = allowRepositoryUrl
-		&& (/^(?:https?|ssh|git):\/\/\S+$/i.test(repositoryUrl) || /^[^@\s]+@[^:\s]+:\S+$/.test(repositoryUrl));
-	return [
-		...(canCloneUrl ? [{
-			label: l10n.t('Clone from URL'),
-			description: repositoryUrl,
-			cloneUrl: repositoryUrl,
-		}] : []),
-		...repositories.map(repo => ({ label: repo.name, repository: repo.name })),
-	];
-}
 
 export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullRequest'): { readonly repoId: string; readonly url: string; readonly label: string } | undefined {
 	const match = /^https:\/\/(?:www\.)?github\.com\/(?<owner>[^/?#]+)\/(?<repository>[^/?#]+)\/(?<resource>issues|pull)\/(?<number>[1-9]\d*)\/?(?:[?#].*)?$/i.exec(value.trim());
@@ -690,85 +673,32 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			});
 		this._register(vscode.commands.registerCommand('github.copilot.chat.openPullRequestReroute', openPullRequestReroute));
 
-		// Command for browsing repositories in the repository picker
+		this._register(vscode.commands.registerCommand(SEARCH_REPOSITORIES_COMMAND_ID, async (query: string) => {
+			const repositories = await this._octoKitService.getUserRepositories({}, query);
+			return repositories.map(repo => `${repo.owner}/${repo.name}`);
+		}));
+
 		const openRepositoryCommand = async (
 			sessionItemResource?: vscode.Uri,
 			options?: { readonly allowRepositoryUrl?: boolean },
 		): Promise<string | undefined> => {
-			const quickPick = vscode.window.createQuickPick<RepositoryQuickPickItem>();
-			const quickPickDisposables = new DisposableStore();
-			quickPick.placeholder = options?.allowRepositoryUrl
-				? l10n.t('Search for a repository or paste a repository URL...')
-				: l10n.t('Search for a repository...');
-			quickPick.matchOnDescription = true;
-			quickPick.matchOnDetail = true;
-			quickPick.busy = true;
-			quickPick.show();
-
-			// Load initial repositories
-			try {
-				const repos = await this.fetchAllRepositoriesFromGitHub();
-				quickPick.items = getRepositoryQuickPickItems(repos, '', options?.allowRepositoryUrl === true);
-			} catch (error) {
-				this.logService.error(`Error fetching initial repositories: ${error}`);
-			} finally {
-				quickPick.busy = false;
+			const selected = await vscode.commands.executeCommand<RepositoryPickResult>(
+				'_chat.pickRepository',
+				SEARCH_REPOSITORIES_COMMAND_ID,
+				options,
+			);
+			if (selected?.repository && sessionItemResource) {
+				this.sessionRepositoryMap.set(sessionItemResource, selected.repository);
+				this.saveUserSelectedRepository(selected.repository);
+				this._onDidChangeChatSessionOptions.fire({
+					resource: sessionItemResource,
+					updates: [{
+						optionId: REPOSITORIES_OPTION_GROUP_ID,
+						value: { id: selected.repository, name: selected.repository, icon: new vscode.ThemeIcon('repo') }
+					}]
+				});
 			}
-
-			// Handle dynamic search
-			let searchTimeout: ReturnType<typeof setTimeout> | undefined;
-
-			return new Promise<string | undefined>(resolve => {
-				let resolved = false;
-				const doResolve = (value: string | undefined) => {
-					if (!resolved) {
-						resolved = true;
-						resolve(value);
-					}
-				};
-
-				quickPickDisposables.add(quickPick.onDidChangeValue(async (value) => {
-					if (searchTimeout) {
-						clearTimeout(searchTimeout);
-					}
-					searchTimeout = setTimeout(async () => {
-						quickPick.busy = true;
-						try {
-							const searchResults = await this.fetchAllRepositoriesFromGitHub(value);
-							quickPick.items = getRepositoryQuickPickItems(searchResults, value, options?.allowRepositoryUrl === true);
-						} finally {
-							quickPick.busy = false;
-						}
-					}, 300);
-				}));
-
-				quickPickDisposables.add(quickPick.onDidAccept(() => {
-					const selected = quickPick.selectedItems[0];
-					if (selected?.repository && sessionItemResource) {
-						this.sessionRepositoryMap.set(sessionItemResource, selected.repository);
-						// Save user-selected repo so it appears in the recent repos list
-						this.saveUserSelectedRepository(selected.repository);
-						this._onDidChangeChatSessionOptions.fire({
-							resource: sessionItemResource,
-							updates: [{
-								optionId: REPOSITORIES_OPTION_GROUP_ID,
-								value: { id: selected.repository, name: selected.repository, icon: new vscode.ThemeIcon('repo') }
-							}]
-						});
-					}
-					doResolve(selected?.cloneUrl ?? selected?.repository);
-					quickPick.hide();
-				}));
-
-				quickPickDisposables.add(quickPick.onDidHide(() => {
-					if (searchTimeout) {
-						clearTimeout(searchTimeout);
-					}
-					quickPickDisposables.dispose();
-					quickPick.dispose();
-					doResolve(undefined);
-				}));
-			});
+			return selected?.cloneUrl ?? selected?.repository;
 		};
 		this._register(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, openRepositoryCommand));
 
@@ -1247,6 +1177,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							pricing: !isUBB && multiplier !== undefined ? `${multiplier}x` : undefined,
 							maxInputTokens: limits?.max_prompt_tokens ?? 0,
 							maxOutputTokens: limits?.max_output_tokens ?? 0,
+							maxContextWindowTokens: limits?.max_context_window_tokens,
 							inputCost: pricing?.default.inputPrice,
 							outputCost: pricing?.default.outputPrice,
 							cacheCost: pricing?.default.cachePrice,

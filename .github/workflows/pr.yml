@@ -302,7 +302,9 @@ jobs:
 
       - name: Validate telemetry events
         working-directory: extensions/copilot
-        run: npx --package=@vscode/telemetry-extractor@1.20.4 --yes vscode-telemetry-extractor -s . > /dev/null
+        run: |
+          version=$(node -p "require('../../package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)

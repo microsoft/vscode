@@ -23,12 +23,14 @@ suite('CustomizationMigrationDashboard', () => {
 
 	function createDashboard(callbacks: Partial<ICustomizationMigrationDashboardCallbacks> = {}) {
 		const parent = DOM.append(document.body, DOM.$('div'));
+		const telemetryActions: string[] = [];
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupDelayedHover() { return Disposable.None; }
 		});
 		const dashboard = store.add(instantiationService.createInstance(CustomizationMigrationDashboard, parent, {
+			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
 			configureLocations: () => { },
 			dismissResult: () => { },
 			reviewCategory: () => { },
@@ -36,7 +38,7 @@ suite('CustomizationMigrationDashboard', () => {
 			dismissActivity: () => { },
 			...callbacks,
 		}));
-		return { parent, dashboard };
+		return { parent, dashboard, telemetryActions };
 	}
 
 	function button(parent: HTMLElement, label: string): HTMLElement {
@@ -69,11 +71,13 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('orders high-risk categories first and sends scoped review and destination callbacks', () => {
 		const actions: string[] = [];
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, telemetryActions } = createDashboard({
 			configureLocations: storage => actions.push(`destinations:${storage}`),
 			reviewCategory: (id, storage) => actions.push(`review:${id}:${storage}`),
 		});
 		dashboard.showOverview(overview());
+		dashboard.focus();
+		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		button(parent, 'Review Prompts to skills from Your profile').click();
 		button(parent, 'Review User Data from Your profile').click();
 		button(parent, 'Review MCP Servers from vscode').click();
@@ -87,8 +91,10 @@ suite('CustomizationMigrationDashboard', () => {
 			progress: parent.querySelector('.migration-checklist-progress')?.textContent,
 			workspaceDescription: parent.querySelector('[data-storage="local"] .migration-scope-description')?.textContent,
 			workspaceDestinationButton: parent.querySelector('[aria-label="Change destinations for vscode"]') !== null,
+			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
+			telemetryActions,
 		}, {
 			title: 'Migrations',
 			categories: ['Prompts to skills', 'User Data', 'MCP Servers'],
@@ -96,15 +102,66 @@ suite('CustomizationMigrationDashboard', () => {
 			highRisk: 'High risk',
 			progress: '0 of 2 complete',
 			workspaceDescription: 'Workspace customizations. Skip this workspace if you do not own it.',
+			initialFocus: 'Review Prompts to skills from Your profile',
 			focus: 'Change destinations for Your profile',
 			workspaceDestinationButton: false,
 			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'destinations:user'],
+			telemetryActions: ['migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:mcpServers', 'destinationsClicked'],
+		});
+	});
+
+	test('moves initial loading focus to the first review action when the overview loads', () => {
+		const { dashboard } = createDashboard();
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.focus();
+		const loadingFocus = document.activeElement?.textContent;
+		dashboard.showOverview(overview());
+		assert.deepStrictEqual({
+			loadingFocus,
+			overviewFocus: document.activeElement?.getAttribute('aria-label'),
+		}, {
+			loadingFocus: 'Migrations',
+			overviewFocus: 'Review Prompts to skills from Your profile',
+		});
+	});
+
+	test('does not move focus into a completed overview', () => {
+		const { parent, dashboard } = createDashboard();
+		const model = overview();
+		const outside = DOM.append(document.body, DOM.$('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		dashboard.showOverview({
+			...model,
+			scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })),
+		});
+		dashboard.focus();
+		assert.deepStrictEqual({
+			focusRemainedOutside: document.activeElement === outside,
+			checklistContainsFocus: parent.querySelector('.migration-checklist-section')?.contains(document.activeElement),
+		}, {
+			focusRemainedOutside: true,
+			checklistContainsFocus: false,
+		});
+	});
+
+	test('does not restore loading focus into a completed overview', () => {
+		const { parent, dashboard } = createDashboard();
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.focus();
+		dashboard.showOverview({ scopes: [], activity: [] });
+		assert.deepStrictEqual({
+			focus: document.activeElement?.tagName,
+			checklistContainsFocus: parent.querySelector('.migration-checklist-section')?.contains(document.activeElement),
+		}, {
+			focus: 'BODY',
+			checklistContainsFocus: false,
 		});
 	});
 
 	test('skipping and including workspace preserves focus through loading and hides its categories', () => {
 		let model = overview();
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, telemetryActions } = createDashboard({
 			setWorkspaceSkipped: skipped => {
 				model = { ...model, scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? { ...scope, skipped } : scope) };
 				dashboard.showLoading('Migrations', 'Loading migrations');
@@ -127,11 +184,13 @@ suite('CustomizationMigrationDashboard', () => {
 			included: model.scopes[1].skipped,
 			categories: parent.querySelectorAll('.migration-category').length,
 			focus: document.activeElement?.getAttribute('aria-label'),
+			telemetryActions,
 		}, {
 			skipped: { progress: '1 of 2 complete', state: 'Skipped', categories: 0, focus: 'Include workspace vscode' },
 			included: false,
 			categories: 3,
 			focus: 'Skip workspace vscode',
+			telemetryActions: ['workspaceSkipped', 'workspaceIncluded'],
 		});
 	});
 
@@ -154,7 +213,7 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: parent.querySelector('.migration-empty')?.textContent,
 			buttons: parent.querySelectorAll('[role="button"]').length,
 			focus: document.activeElement?.tagName,
-		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'H1' });
+		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'BODY' });
 	});
 
 	test('View Changes expands newest activity and dismissals restore meaningful focus', () => {
@@ -167,7 +226,7 @@ suite('CustomizationMigrationDashboard', () => {
 			})),
 		};
 		let contentChanges = 0;
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, telemetryActions } = createDashboard({
 			dismissActivity: id => {
 				model = { ...model, activity: model.activity.filter(entry => entry.id !== id) };
 				dashboard.showOverview(model);
@@ -205,6 +264,7 @@ suite('CustomizationMigrationDashboard', () => {
 			activity: !!parent.querySelector('.migration-activity'),
 			focus: document.activeElement?.textContent,
 			notified: contentChanges > 0,
+			telemetryActions,
 		}, {
 			expanded: {
 				open: [true, false],
@@ -216,12 +276,13 @@ suite('CustomizationMigrationDashboard', () => {
 			},
 			remainedOpen: true, nextFocused: true, lastDismissFocus: 'Your migration checklist',
 			result: false, activity: false, focus: 'Your migration checklist', notified: true,
+			telemetryActions: ['viewChangesClicked', 'activityDismissed', 'activityDismissed', 'resultDismissed'],
 		});
 	});
 
 	test('retry loading uses standard keyboard-activated Button and focus remains usable', () => {
 		let retries = 0;
-		const { parent, dashboard } = createDashboard();
+		const { parent, dashboard, telemetryActions } = createDashboard();
 		dashboard.showLoading('Migrations unavailable', 'Try again.', () => retries++);
 		const retry = button(parent, 'Retry loading migrations');
 		retry.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
@@ -230,6 +291,7 @@ suite('CustomizationMigrationDashboard', () => {
 			retries,
 			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
 			focus: document.activeElement?.textContent,
-		}, { retries: 1, busy: 'false', focus: 'Migrations unavailable' });
+			telemetryActions,
+		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
 	});
 });
