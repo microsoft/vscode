@@ -214,12 +214,8 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			await assert.rejects(() => readFixture.provider.readFile(readFixture.resource), readError);
 		});
 
-		test('honors stream byte limits, byte ranges, and cancellation', async () => {
+		test('honors stream byte ranges and cancellation', async () => {
 			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'local', async () => 'éx');
-			await assert.rejects(
-				() => consumeStream(fixture.provider.readFileStream(fixture.resource, { limits: { size: 1 } }, CancellationToken.None), chunks => chunks),
-				error => error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_TOO_LARGE,
-			);
 			const ranged = await consumeStream(
 				fixture.provider.readFileStream(fixture.resource, { position: 2, length: 1 }, CancellationToken.None),
 				chunks => VSBuffer.concat(chunks.map(chunk => VSBuffer.wrap(chunk))).toString(),

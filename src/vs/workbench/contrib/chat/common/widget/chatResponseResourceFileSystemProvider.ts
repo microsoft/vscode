@@ -212,10 +212,6 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 				finish(undefined, canceled());
 				return;
 			}
-			if (typeof options.limits?.size === 'number' && value.byteLength > options.limits.size) {
-				finish(undefined, createFileSystemProviderError(localize('chat.terminalFullOutputTooLarge', "Terminal output is too large to open."), FileSystemProviderErrorCode.FileTooLarge));
-				return;
-			}
 			const start = Math.max(0, options.position ?? 0);
 			const end = typeof options.length === 'number' ? start + Math.max(0, options.length) : value.byteLength;
 			finish(value.subarray(start, end), undefined);
