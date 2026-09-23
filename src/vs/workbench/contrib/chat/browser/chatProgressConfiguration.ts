@@ -5,12 +5,14 @@
 
 import { localize } from '../../../../nls.js';
 import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from '../common/constants.js';
 
 export const chatProgressConfigurationProperties = {
 	[ChatConfiguration.PersistentProgress]: {
 		type: 'string',
-		default: ChatProgressAnimation.Weave,
+		default: ChatProgressAnimation.Draw,
 		enum: Object.values(ChatProgressAnimation),
 		enumItemLabels: [
 			localize('chat.progressAnimation.off.label', "Off"),
@@ -28,24 +30,29 @@ export const chatProgressConfigurationProperties = {
 			localize('chat.progressAnimation.accordion', "Compress the logo pieces toward the center, then open them back up."),
 			localize('chat.progressAnimation.dial', "Rotate the logo in three steps, then pause upright."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator with an animated VS Code logo at the bottom until the response finishes. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Off preserves the original thinking, tool, and progress rendering. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator with an animated VS Code logo at the bottom until the response finishes. Draw is the default animation. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Off preserves the original thinking, tool, and progress rendering. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
 	[ChatConfiguration.PersistentProgressVerbosity]: {
 		type: 'string',
-		default: ChatProgressVerbosity.Verbose,
+		default: ChatProgressVerbosity.Compact,
 		enum: Object.values(ChatProgressVerbosity),
 		enumItemLabels: [
 			localize('chat.progressVerbosity.verbose.label', "Verbose"),
-			localize('chat.progressVerbosity.notVerbose.label', "Not Verbose"),
+			localize('chat.progressVerbosity.compact.label', "Compact"),
 		],
 		enumDescriptions: [
 			localize('chat.progressVerbosity.verbose', "Keep tool calls in expanded, headerless chains without an internal scrolling limit."),
-			localize('chat.progressVerbosity.notVerbose', "Preview tool calls while they run, then collapse each group to a single expandable summary row when the response moves on."),
+			localize('chat.progressVerbosity.compact', "Preview tool calls while they run, then collapse each group to a single expandable summary row when the response moves on."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Not Verbose collapses tool groups in place when thinking or response text resumes, or the response finishes. Expand a summary to inspect its tool calls. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Compact is the default and collapses tool groups in place when thinking or response text resumes, or the response finishes. Expand a summary to inspect its tool calls. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: ChatConfiguration.PersistentProgressVerbosity,
+	migrateFn: value => value === 'notVerbose' ? { value: ChatProgressVerbosity.Compact } : [],
+}]);

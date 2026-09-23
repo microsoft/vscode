@@ -1099,11 +1099,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			treeStartIndex: 0,
 		};
 		const factory = this.createCarouselToolPartFactory(context, context.codeBlockStartIndex);
-		widget.inputPart.addToolToConfirmationCarousel(tool, factory, tool.subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
+		const inputPart = widget.inputPart;
+		inputPart.addToolToConfirmationCarousel(tool, factory, tool.subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 		for (const template of this.templateDataByRequestId.values()) {
 			this.updateWorkingProgressForPendingConfirmations(template);
 		}
-		return toDisposable(() => widget.inputPart.removeToolFromConfirmationCarousel(tool, response.sessionResource));
+		return toDisposable(() => inputPart.removeToolFromConfirmationCarousel(tool, response.sessionResource));
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -1468,7 +1469,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		const readOnly = !!this.rendererOptions.readOnly;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
-		const collapsedToolChains = persistentProgress && this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.NotVerbose;
+		const collapsedToolChains = persistentProgress && this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.Verbose;
 		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedCollapsedToolChains !== collapsedToolChains)) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element or presentation state into the template, index=${index}`);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
@@ -3750,7 +3751,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& isParentSubagentTool(content) && !!this.getThinkingPartOwner(renderedPart);
 			const groupsStandaloneTool = renderedPart instanceof ChatToolInvocationPart
 				&& this.isPersistentProgressEnabled()
-				&& this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.NotVerbose
+				&& this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.Verbose
 				&& this.shouldGroupToolInvocation(contentToRender, i, element);
 
 			if (promotesSubagent || groupsStandaloneTool || !renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
@@ -3883,7 +3884,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if ((tool.kind !== 'toolInvocation' && tool.kind !== 'toolInvocationSerialized') || !isResponseVM(element) || !this.shouldPinPart(tool, element)) {
 			return false;
 		}
-		if (!this.isPersistentProgressEnabled() || this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.NotVerbose) {
+		if (!this.isPersistentProgressEnabled() || this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose) {
 			return true;
 		}
 

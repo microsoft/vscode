@@ -506,7 +506,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		super(initialTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.isToolChain = !!context.suppressProgressShimmer && !!context.isToolChain;
-		this.isVerboseToolChain = this.isToolChain && configurationService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.NotVerbose;
+		this.isVerboseToolChain = this.isToolChain && configurationService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose;
 		this.isPersistentReasoning = !!context.suppressProgressShimmer && !this.isToolChain;
 		this.containsReasoning = containsReasoning;
 		this.reasoningDurationMs = content.reasoningDurationMs;

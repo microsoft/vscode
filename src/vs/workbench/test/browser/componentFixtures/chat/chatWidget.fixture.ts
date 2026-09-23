@@ -1144,7 +1144,7 @@ interface IPersistentProgressScenarioOptions {
 }
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
-	const { expectedText, progressAnimation = ChatProgressAnimation.Weave, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
@@ -1304,7 +1304,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (visibleParts.slice(1).some((part, index) => Math.abs(part.getBoundingClientRect().top - visibleParts[index].getBoundingClientRect().bottom - 16) > 0.1)) {
 		throw new Error('Visible response parts must use the shared item gap');
 	}
-	if (options.progressVerbosity !== ChatProgressVerbosity.NotVerbose && response.querySelector('.chat-tool-chain > .chat-used-context-label, .chat-tool-chain.chat-used-context-collapsed, .chat-tool-chain > .monaco-scrollable-element, .chat-tool-chain .chat-persistent-reasoning')) {
+	if (options.progressVerbosity === ChatProgressVerbosity.Verbose && response.querySelector('.chat-tool-chain > .chat-used-context-label, .chat-tool-chain.chat-used-context-collapsed, .chat-tool-chain > .monaco-scrollable-element, .chat-tool-chain .chat-persistent-reasoning')) {
 		throw new Error('Tool chains must be expanded, headerless, unbounded, and separate from reasoning');
 	}
 	for (const chain of response.querySelectorAll<HTMLElement>('.chat-tool-chain > .chat-thinking-collapsible')) {
@@ -1507,8 +1507,8 @@ function defineProgressAnimationScenarios(progressAnimation: ChatProgressAnimati
 async function renderPersistentToolPreview(context: ComponentFixtureContext, state: 'running' | 'collapsed' | 'expanded' | 'collapsing', reducedMotion = false): Promise<void> {
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 	await renderChatWidget(context, {
-		persistentProgress: ChatProgressAnimation.Weave,
-		persistentProgressVerbosity: ChatProgressVerbosity.NotVerbose,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: false,
 		height: 560,
 		listHeight: 340,
@@ -1537,7 +1537,7 @@ async function renderPersistentToolPreview(context: ComponentFixtureContext, sta
 	const chain = context.container.querySelector<HTMLElement>('.chat-tool-chain-collapsible');
 	const button = chain?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
 	if (!chain || !button) {
-		throw new Error('Non-verbose tool progress must have a summary disclosure');
+		throw new Error('Compact tool progress must have a summary disclosure');
 	}
 	if (state === 'expanded') {
 		button.click();
@@ -1553,7 +1553,7 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 		height: 340,
 		listHeight: 340,
 		inputVisible: false,
-		persistentProgress: ChatProgressAnimation.Weave,
+		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: verbosity,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
 		collapseCompletedResponses: false,
@@ -1577,8 +1577,8 @@ async function renderPersistentProgressHandoff(context: ComponentFixtureContext,
 		height: 480,
 		listHeight: 480,
 		inputVisible: false,
-		persistentProgress: ChatProgressAnimation.Weave,
-		persistentProgressVerbosity: ChatProgressVerbosity.NotVerbose,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		thinkingStyle: ThinkingDisplayMode.CollapsedPreview,
 		collapseCompletedResponses: false,
 		messages: [{
@@ -1623,8 +1623,8 @@ async function renderPersistentProgressAlignment(context: ComponentFixtureContex
 		width,
 		height: 820,
 		listHeight: 600,
-		persistentProgress: ChatProgressAnimation.Weave,
-		persistentProgressVerbosity: ChatProgressVerbosity.NotVerbose,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: false,
 		messages: [{
 			user: 'Compare the tool, reasoning, and answer indentation',
@@ -1653,7 +1653,7 @@ async function renderPersistentProgressAlignment(context: ComponentFixtureContex
 
 async function renderPersistentReasoningTitle(context: ComponentFixtureContext, multipleHeaders: boolean, complete: boolean): Promise<void> {
 	await renderChatWidget(context, {
-		persistentProgress: ChatProgressAnimation.Weave,
+		persistentProgress: ChatProgressAnimation.Draw,
 		collapseCompletedResponses: false,
 		inputVisible: false,
 		height: 420,
@@ -1680,7 +1680,7 @@ async function renderPersistentReasoningTitle(context: ComponentFixtureContext, 
 	}
 }
 
-function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weave): ReturnType<typeof defineThemedFixtureGroup> {
+function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw): ReturnType<typeof defineThemedFixtureGroup> {
 	const tool = (toolId: string, invocationMessage: string, complete = false): Extract<NonNullable<IFixtureMessage['assistant']>[number], { kind: 'tool' }> => ({
 		kind: 'tool', toolId, displayName: toolId, invocationMessage, complete,
 	});
@@ -1752,8 +1752,8 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 		CompletedStandaloneToolDetails: scenario(tools(standaloneToolDetails, true)),
 		StandaloneSimpleToolDetails: scenario(tools([{ ...readTerminalDetails, resultDetails: undefined, toolSpecificData: { kind: 'simpleToolInvocation', input: '{"shellId":"verification"}', output: 'No matching instances were found.' } }])),
 		GroupedToolDetails: scenario(tools([...before, { ...readTerminalDetails, toolId: 'read_terminal', source: ToolDataSource.Internal }])),
-		SharedItemSpacing: scenario(sharedItemSpacing, { activityRowSpacing: true }),
-		SharedItemSpacingNarrow: scenario(sharedItemSpacing, { activityRowSpacing: true, width: 420, height: 1000, listHeight: 780 }),
+		SharedItemSpacing: scenario(sharedItemSpacing, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose }),
+		SharedItemSpacingNarrow: scenario(sharedItemSpacing, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose, width: 420, height: 1000, listHeight: 780 }),
 		TerminalWithIntention: scenario(terminalSequence(), collapsibleTerminalOptions),
 		TerminalWithIntentionStandalone: scenario(terminalSequence(), { ...collapsibleTerminalOptions, terminalToolsInThinking: false }),
 		TerminalWithIntentionNarrow: scenario(terminalSequence(), { ...collapsibleTerminalOptions, width: 420, height: 1000, listHeight: 780 }),
@@ -1768,16 +1768,16 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 		]), { ...collapsibleTerminalOptions, expandThinking: true }),
 		ToolChain: scenario(tools([...before, tool('apply_patch', 'Updating the progress renderer...')])),
 		CompletedToolChain: scenario(tools([...before, tool('apply_patch', 'Updated the progress renderer', true)], true)),
-		SingleToolActive: scenario(tools([{ ...singleSearchTool, complete: false }]), { progressVerbosity: ChatProgressVerbosity.NotVerbose }),
+		SingleToolActive: scenario(tools([{ ...singleSearchTool, complete: false }]), { progressVerbosity: ChatProgressVerbosity.Compact }),
 		SingleTool: scenario(tools([
 			singleSearchTool,
 			{ kind: 'markdown', text: 'Found the matching files.' },
-		]), { progressVerbosity: ChatProgressVerbosity.NotVerbose }),
-		SingleToolCompleted: scenario(tools([singleSearchTool], true), { progressVerbosity: ChatProgressVerbosity.NotVerbose }),
+		]), { progressVerbosity: ChatProgressVerbosity.Compact }),
+		SingleToolCompleted: scenario(tools([singleSearchTool], true), { progressVerbosity: ChatProgressVerbosity.Compact }),
 		SingleToolWithDetails: scenario(tools([
 			{ ...readTerminalDetails, toolId: 'read_terminal', source: ToolDataSource.Internal },
 			{ kind: 'markdown', text: 'The command output is ready.' },
-		]), { progressVerbosity: ChatProgressVerbosity.NotVerbose, expandToolDetails: true }),
+		]), { progressVerbosity: ChatProgressVerbosity.Compact, expandToolDetails: true }),
 		LongToolChain: scenario(tools(Array.from({ length: 24 }, (_, index) => tool('read_file', `Read \`src/renderer-${index + 1}.ts\``, index < 23))), { height: 1200, listHeight: 980 }),
 		Thinking: scenario(PERSISTENT_PROGRESS_THINKING),
 		InterwovenThinking: scenario(interwoven, { activityRowSpacing: true }),
@@ -1816,7 +1816,7 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 			{ kind: 'markdown', text: '### What I found\n\nThe existing progress is rendered by several content parts:\n\n- Tool calls keep their own details.\n- Reasoning remains independently collapsible.\n- The response owns a single working indicator.' },
 			{ kind: 'thinking', text: '**Checking the implementation**\nVerify that the setting still restores the original rendering.' },
 			tool('read_file', 'Read `src/progress.test.ts`', true),
-			{ kind: 'markdown', text: 'Persistent progress is enabled by default. Tool verbosity is configured separately:\n\n```json\n{\n  "chat.experimental.persistentProgress": "weave",\n  "chat.experimental.persistentProgressVerbosity": "verbose"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
+			{ kind: 'markdown', text: 'Persistent progress defaults to Draw with Compact tool previews. Tool verbosity is configured separately:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
 		])),
 		StreamingToolCall: scenario(PERSISTENT_PROGRESS_STREAMING_TOOL),
 		StandaloneMcpTool: scenario(tools([...before, { kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Looking up the progress API...', source: mcpSource }]), { activityRowSpacing: true }),
@@ -1878,7 +1878,7 @@ function defineCompletedProgressScenarios(): ReturnType<typeof defineThemedFixtu
 		width?: number;
 	} = {}) => defineComponentFixture({
 		render: async context => {
-			const { progress = ChatProgressAnimation.Weave, collapse = true, state = 'restored', expanded = false } = options;
+			const { progress = ChatProgressAnimation.Draw, collapse = true, state = 'restored', expanded = false } = options;
 			const editParts = options.edits?.map(edit => options.markdownEdits ? {
 				kind: 'markdown' as const,
 				text: `\`\`\`typescript\n<vscode_codeblock_uri isEdit>${edit.uri.toString()}</vscode_codeblock_uri>\nexport const enabled = true;\n\`\`\`\n\n`,
@@ -2042,7 +2042,7 @@ function defineCompletedProgressScenarios(): ReturnType<typeof defineThemedFixtu
 		LegacyWithEdits: scenario({ edits, progress: ChatProgressAnimation.Off }),
 		SingleToolChain: defineComponentFixture({
 			render: context => renderChatWidget(context, {
-				persistentProgress: ChatProgressAnimation.Weave,
+				persistentProgress: ChatProgressAnimation.Draw,
 				collapseCompletedResponses: true,
 				messages: [{
 					user: 'Review the progress renderers',
@@ -2325,8 +2325,8 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		VerbosityComparison: defineThemedFixtureGroup({
 			VerboseStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, false) }),
 			VerboseCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, true) }),
-			NotVerboseStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.NotVerbose, false) }),
-			NotVerboseCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.NotVerbose, true) }),
+			CompactStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, false) }),
+			CompactCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, true) }),
 		}),
 		CollapseHandoff: defineThemedFixtureGroup({
 			ThinkingToMarkdown: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, true) }),
@@ -2338,7 +2338,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			MultipleHeadingsStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentReasoningTitle(context, true, false) }),
 			MultipleHeadingsCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentReasoningTitle(context, true, true) }),
 		}),
-		NotVerbose: defineThemedFixtureGroup({
+		Compact: defineThemedFixtureGroup({
 			Alignment: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentProgressAlignment(context) }),
 			AlignmentNarrow: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentProgressAlignment(context, 360) }),
 			Running: defineComponentFixture({ render: context => renderPersistentToolPreview(context, 'running') }),

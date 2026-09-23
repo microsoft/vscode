@@ -256,7 +256,7 @@ export enum ChatProgressAnimation {
 
 export enum ChatProgressVerbosity {
 	Verbose = 'verbose',
-	NotVerbose = 'notVerbose',
+	Compact = 'compact',
 }
 
 export enum CollapsedToolsDisplayMode {

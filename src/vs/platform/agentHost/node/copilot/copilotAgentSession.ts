@@ -892,15 +892,11 @@ export class CopilotAgentSession extends Disposable {
 	/** Delays cancelled callbacks until the SDK abort settles or the session is disposed. */
 	private _abortBarrier: DeferredPromise<void> | undefined;
 	/**
-	 * Signatures ({@link safeStringify}) of user-approved `read`/`write`
-	 * permission requests, keyed by tool call id. The Copilot CLI runtime emits
-	 * two identical `permission.requested` events for a single file read or
-	 * write (an internal `path` prompt followed by a `read`/`write` prompt), so
-	 * without this the user would be asked to approve the same operation twice
-	 * (issue #324477). An entry is single-use: it auto-approves exactly one
-	 * subsequent request that is byte-identical to the approved one, then is
-	 * removed, so approval never carries across a different tool call, a changed
-	 * path/diff/contents, or a different kind.
+	 * Reuses one user approval for repeated native read/write/shell requests
+	 * from the SDK's internal path and operation prompts. Grants are keyed by
+	 * tool call ID and consumed once, only when the full {@link safeStringify}
+	 * payload matches, including canonical paths and sandbox privileges.
+	 * Managed approval requests never reuse an approval.
 	 */
 	private readonly _approvedDuplicablePermissionSignatures = new Map<string, string>();
 	/** Pending user input requests awaiting a renderer-side answer. */
@@ -3972,6 +3968,7 @@ export class CopilotAgentSession extends Disposable {
 		request: PermissionRequest,
 	): Promise<PermissionRequestResult> {
 		try {
+			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
 			if (!toolCallId) {
 				// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
@@ -4028,7 +4025,7 @@ export class CopilotAgentSession extends Disposable {
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
 			if (approvedSignature !== undefined) {
 				this._approvedDuplicablePermissionSignatures.delete(toolCallId);
-				if (!managedApprovalRequired && (request.kind === 'write' || request.kind === 'read') && safeStringify(request) === approvedSignature) {
+				if (!managedApprovalRequired && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell') && safeStringify(request) === approvedSignature) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving duplicate ${request.kind} permission request for tool call ${toolCallId}`);
 					return { kind: 'approve-once' };
 				}
@@ -4207,7 +4204,7 @@ export class CopilotAgentSession extends Disposable {
 
 			const result = await pendingPermission;
 			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
-			if (!managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read')) {
+			if (!abortToken.isCancellationRequested && !managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
 			}
 			return result;

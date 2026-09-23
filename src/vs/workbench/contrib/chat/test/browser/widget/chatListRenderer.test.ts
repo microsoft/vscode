@@ -1942,7 +1942,7 @@ suite('ChatListRenderer', () => {
 	}
 
 	for (const toolId of ['copilot_askQuestions', 'vscode_askQuestions', 'ask_user', 'AskUserQuestion', 'request_user_input']) {
-		for (const verbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.NotVerbose]) {
+		for (const verbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Compact]) {
 			test(`persistent progress hides the ${toolId} tool row (${verbosity})`, async () => {
 				const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: verbosity });
 				const tool = new ChatToolInvocation(
@@ -3019,7 +3019,7 @@ suite('ChatListRenderer', () => {
 
 	for (const fontSize of [10, 13, 18]) {
 		test(`persistent reasoning, tool groups, and answers share nested geometry (fontSize=${fontSize})`, async () => {
-			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.NotVerbose });
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 			configurePersistentProgressTypography(container, fontSize);
 			container.style.width = '360px';
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -3998,7 +3998,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	async function createExpandedPersistentPreview(source: 'thinking' | 'tools', options: { incremental?: boolean; reducedMotion?: boolean } = {}) {
-		const setup = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.NotVerbose });
+		const setup = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 		const { configurationService, container, model, request, renderer, template, node } = setup;
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, options.incremental ?? false);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -4103,11 +4103,13 @@ suite('ChatListRenderer', () => {
 			if (source === 'tools') {
 				model.acceptResponseProgress(request, { kind: 'thinking', id: 'next-reasoning', value: '**Reviewing the results**\nChoose the next change.' });
 			} else {
-				model.acceptResponseProgress(request, new ChatToolInvocation(
-					{ invocationMessage: 'Read the next file' },
-					{ id: 'read', displayName: 'Read', modelDescription: 'Read', source: ToolDataSource.Internal },
-					'next-read', undefined, {},
-				));
+				for (const id of ['next-read', 'next-search']) {
+					model.acceptResponseProgress(request, new ChatToolInvocation(
+						{ invocationMessage: 'Read the next file' },
+						{ id: 'read', displayName: 'Read', modelDescription: 'Read', source: ToolDataSource.Internal },
+						id, undefined, {},
+					));
+				}
 			}
 			renderer.renderElement(node, 0, template);
 			const next = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart && part.domNode !== previous);
@@ -4239,8 +4241,8 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const { ending, incremental } of (['thinking', 'markdown', 'complete', 'cancel'] as const).flatMap(ending => [false, true].map(incremental => ({ ending, incremental })))) {
-		test(`non-verbose persistent tool chains collapse when followed by ${ending} (incremental=${incremental})`, async () => {
-			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.NotVerbose });
+		test(`compact persistent tool chains collapse when followed by ${ending} (incremental=${incremental})`, async () => {
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 			const tools = ['read-renderer', 'read-model'].map(id => new ChatToolInvocation(
@@ -4305,8 +4307,8 @@ suite('ChatListRenderer', () => {
 
 	for (const fontSize of [13, 18]) {
 		for (const reducedMotion of [false, true]) {
-			test(`non-verbose tool collapse keeps its top anchored and ends at one header row (fontSize=${fontSize}, reducedMotion=${reducedMotion})`, async () => {
-				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.NotVerbose });
+			test(`compact tool collapse keeps its top anchored and ends at one header row (fontSize=${fontSize}, reducedMotion=${reducedMotion})`, async () => {
+				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 				configurePersistentProgressTypography(container, fontSize);
 				container.classList.toggle('monaco-reduce-motion', reducedMotion);
@@ -4401,7 +4403,7 @@ suite('ChatListRenderer', () => {
 	for (const restored of [false, true]) {
 		for (const generatedTitle of [undefined, 'Searched for pokemon']) {
 			test(`persistent progress keeps a single tool inline (restored=${restored}, generatedTitle=${generatedTitle})`, async () => {
-				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.NotVerbose });
+				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 				configurePersistentProgressTypography(container, 13);
 				const tool = new ChatToolInvocation(
@@ -4434,7 +4436,7 @@ suite('ChatListRenderer', () => {
 					sameTool: template.value.querySelector('.chat-tool-invocation-part') === toolElement,
 					unchangedRendering: toolElement.innerHTML === originalRendering,
 					focusKept: mainWindow.document.activeElement === link,
-					searchIcon: !!toolElement.querySelector(':scope > .chat-tool-call-icon.codicon-search'),
+					searchIcon: !!toolElement.querySelector(':scope > .chat-tool-call-icon.codicon-search-compact'),
 					samePosition: Math.abs(link.getBoundingClientRect().top - initialPosition.top) < 0.1 && Math.abs(link.getBoundingClientRect().left - initialPosition.left) < 0.1,
 				}, { initiallyStandalone: true, inline: true, groups: 0, sameTool: true, unchangedRendering: true, focusKept: true, searchIcon: true, samePosition: true });
 				request.response?.complete();
@@ -4445,7 +4447,7 @@ suite('ChatListRenderer', () => {
 
 	for (const incremental of [false, true]) {
 		test(`persistent progress groups a single tool only when a second arrives (incremental=${incremental})`, async () => {
-			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.NotVerbose });
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 			const first = new ChatToolInvocation(
@@ -4517,6 +4519,31 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	test('persistent progress defaults to compact tool chains without explicit settings', async () => {
+		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, undefined);
+		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+		for (const id of ['read-renderer', 'read-tests']) {
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: id },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			await tool.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, tool);
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewed the renderer.') });
+		renderer.renderElement(node, 0, template);
+		const chain = template.value.querySelector('.chat-tool-chain');
+		assert.deepStrictEqual({
+			persistent: template.rowContainer.classList.contains('chat-persistent-progress'),
+			collapsed: chain?.classList.contains('chat-used-context-collapsed'),
+			headers: chain?.querySelectorAll(':scope > .chat-used-context-label').length,
+		}, { persistent: true, collapsed: true, headers: 1 });
+		request.response?.complete();
+	});
+
 	test('changing persistent verbosity rebuilds existing groups and is ignored when progress is Off', async () => {
 		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -4536,7 +4563,7 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, secondTool);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewed the renderer.') });
 		const snapshots = [];
-		for (const verbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.NotVerbose, ChatProgressVerbosity.Verbose]) {
+		for (const verbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
 			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, verbosity);
 			renderer.renderElement(node, 0, template);
 			const chain = template.value.querySelector('.chat-tool-chain');
@@ -4548,7 +4575,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		renderer.renderElement(node, 0, template);
 		const legacyParts = template.renderedParts;
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.NotVerbose);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
 		renderer.renderElement(node, 0, template);
 		assert.deepStrictEqual({
 			snapshots,
@@ -6367,8 +6394,9 @@ suite('ChatListRenderer', () => {
 					carousels.get(sessionResource.toString())?.removeToolInvocation(tool);
 				}
 			}();
+			let widgetInputPart: ChatInputPart | undefined = inputPart;
 			const widget = new class extends mock<IChatWidget>() {
-				override readonly inputPart = inputPart;
+				override get inputPart(): ChatInputPart { return widgetInputPart!; }
 				override get viewModel() { return currentViewModel; }
 				override reveal(item: ChatTreeItem): void { revealed.push(item); }
 				override focusInput(): void { }
@@ -6387,6 +6415,9 @@ suite('ChatListRenderer', () => {
 			return {
 				...context, inputPart, confirmationContainer, revealed, factoriesUsed,
 				get carousel() { return inputPart.currentCarousel; },
+				clearWidgetInputPart() {
+					widgetInputPart = undefined;
+				},
 				getConfirmationEditor() {
 					const editorService = context.instantiationService.invokeFunction(accessor => accessor.get(ICodeEditorService));
 					const editor = editorService.listCodeEditors().find(editor => confirmationContainer.contains(editor.getDomNode()));
@@ -6414,6 +6445,28 @@ suite('ChatListRenderer', () => {
 				.filter(part => part.style.display !== 'none' && !part.closest('[style*="display: none"]'));
 			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
+
+		test('removes confirmations when the widget input is cleared before renderer disposal', () => {
+			const context = createConfirmationRenderer();
+			const tool = createPendingTool('pending-during-session-switch');
+			context.model.acceptResponseProgress(context.request, tool);
+			const carousel = context.carousel;
+			assert.ok(carousel);
+			const before = carousel.pendingCount;
+			context.clearWidgetInputPart();
+			context.renderer.dispose();
+			assert.deepStrictEqual({
+				before,
+				after: carousel.pendingCount,
+				attached: context.confirmationContainer.contains(carousel.domNode),
+				state: tool.state.get().type,
+			}, {
+				before: 1,
+				after: 0,
+				attached: false,
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		test('shows offscreen retained subagent approvals and allows each original invocation independently', async () => {
 			const context = createConfirmationRenderer();

@@ -798,6 +798,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly kind: 'shell';
 	readonly fullCommandText?: string;
 	readonly requestSandboxBypass?: boolean;
+	readonly requestSandboxPermissive?: boolean;
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
@@ -5932,6 +5933,23 @@ suite('CopilotAgentSession', () => {
 
 	suite('permission handling', () => {
 
+		function createShellPermissionRequest(toolCallId = 'tc-duplicate-shell') {
+			return {
+				kind: 'shell',
+				toolCallId,
+				canOfferSessionApproval: false,
+				commands: [{ identifier: 'cat', readOnly: true }],
+				commandSegments: [{ identifier: 'cat', fullCommandText: 'cat /workspace/file.ts' }],
+				fullCommandText: 'cat /workspace/file.ts',
+				hasWriteFileRedirection: false,
+				intention: 'Read a file',
+				possiblePaths: ['/workspace/file.ts'],
+				possibleUrls: [],
+				resolvedPaths: { '/workspace/file.ts': '/real/workspace/file.ts' },
+				resolvedWorkingDirectory: '/real/workspace',
+			} satisfies Extract<PermissionRequest, { kind: 'shell' }>;
+		}
+
 		test('auto-approves reads within applied plugin directories', async () => {
 			const pluginDir = URI.file('/plugins/active');
 			const { runtime, signals } = await createAgentSession(disposables, {
@@ -6450,6 +6468,180 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(result, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
+		test('auto-approves only one identical native shell permission follow-up', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const request = createShellPermissionRequest();
+			const firstResultPromise = runtime.handlePermissionRequest(request);
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+			const firstResult = await firstResultPromise;
+
+			const duplicateResultPromise = runtime.handlePermissionRequest({ ...request });
+			await timeout(0);
+			const duplicatePrompted = session.respondToPermissionRequest(request.toolCallId, true);
+			const duplicateResult = await duplicateResultPromise;
+
+			const thirdResultPromise = runtime.handlePermissionRequest({ ...request });
+			await timeout(0);
+			const thirdPrompted = session.respondToPermissionRequest(request.toolCallId, false);
+			assert.deepStrictEqual({
+				results: [firstResult, duplicateResult, await thirdResultPromise],
+				duplicatePrompted,
+				thirdPrompted,
+				confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
+				duplicatePrompted: false,
+				thirdPrompted: true,
+				confirmations: 2,
+			});
+		});
+
+		for (const kind of ['shell', 'read', 'write'] as const) {
+			test(`does not cache a ${kind} approval that races with abort`, async () => {
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+				const toolCallId = `tc-racing-${kind}`;
+				const request: TestPermissionRequest = kind === 'shell'
+					? createShellPermissionRequest(toolCallId)
+					: kind === 'read'
+						? { kind, toolCallId, path: '/workspace/file.ts' }
+						: { kind, toolCallId, fileName: '/workspace/file.ts' };
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				const [firstResult] = await Promise.all([firstResultPromise, session.abort()]);
+				await session.resume('turn-after-racing-abort');
+
+				const resultPromise = runtime.handlePermissionRequest({ ...request });
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(toolCallId, false);
+				assert.deepStrictEqual({ firstResult, prompted, result: await resultPromise }, {
+					firstResult: { kind: 'reject' },
+					prompted: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+				});
+			});
+		}
+
+		const changedShellRequests: [string, Partial<Extract<PermissionRequest, { kind: 'shell' }>>][] = [
+			['command', { fullCommandText: 'cat /workspace/other.ts' }],
+			['parsed command', { commands: [{ identifier: 'cat', readOnly: false }] }],
+			['command segment', { commandSegments: [{ identifier: 'cat', fullCommandText: 'cat /workspace/other.ts' }] }],
+			['possible path', { possiblePaths: ['/workspace/other.ts'] }],
+			['possible URL', { possibleUrls: [{ url: 'https://example.com' }] }],
+			['canonical path', { resolvedPaths: { '/workspace/file.ts': '/real/other.ts' } }],
+			['canonical working directory', { resolvedWorkingDirectory: '/real/other-directory' }],
+			['sandbox bypass', { requestSandboxBypass: true }],
+			['managed approval', { managedApprovalRequired: true }],
+		];
+		for (const [name, changes] of changedShellRequests) {
+			test(`requires a new shell approval when the ${name} changes`, async () => {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const request = createShellPermissionRequest();
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+				await firstResultPromise;
+
+				const changedResultPromise = runtime.handlePermissionRequest({ ...request, ...changes });
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(request.toolCallId, false);
+				const changedResult = await changedResultPromise;
+				const originalResultPromise = runtime.handlePermissionRequest({ ...request });
+				await timeout(0);
+				const originalPrompted = session.respondToPermissionRequest(request.toolCallId, false);
+				assert.deepStrictEqual({
+					prompted,
+					originalPrompted,
+					results: [changedResult, await originalResultPromise],
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				}, {
+					prompted: true,
+					originalPrompted: true,
+					results: [
+						{ kind: 'reject', feedback: 'The user denied permission.' },
+						{ kind: 'reject', feedback: 'The user denied permission.' },
+					],
+					confirmations: 3,
+				});
+			});
+		}
+
+		test('requires a new shell approval when a permissive retry becomes a full sandbox bypass', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const request = { ...createShellPermissionRequest(), requestSandboxBypass: true, requestSandboxPermissive: true };
+			const firstResultPromise = runtime.handlePermissionRequest(request);
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+			await firstResultPromise;
+
+			const resultPromise = runtime.handlePermissionRequest({ ...request, requestSandboxPermissive: false });
+			await timeout(0);
+			const prompted = session.respondToPermissionRequest(request.toolCallId, false);
+			assert.deepStrictEqual({ prompted, result: await resultPromise }, {
+				prompted: true,
+				result: { kind: 'reject', feedback: 'The user denied permission.' },
+			});
+		});
+
+		for (const followUp of ['another tool call', 'another permission kind', 'a denied shell request', 'a custom shell tool'] as const) {
+			test(`does not reuse shell approval for ${followUp}`, async () => {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const shellRequest = createShellPermissionRequest();
+				const request: TestPermissionRequest = followUp === 'a custom shell tool'
+					? { kind: 'custom-tool', toolCallId: shellRequest.toolCallId, toolName: 'bash', args: { command: shellRequest.fullCommandText } }
+					: shellRequest;
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(shellRequest.toolCallId, followUp !== 'a denied shell request'));
+				await firstResultPromise;
+
+				const nextRequest: TestPermissionRequest = followUp === 'another tool call'
+					? { ...shellRequest, toolCallId: 'another-shell-call' }
+					: followUp === 'another permission kind'
+						? { kind: 'read', toolCallId: shellRequest.toolCallId, path: '/workspace/file.ts' }
+						: { ...request };
+				assert.ok(nextRequest.toolCallId);
+				const resultPromise = runtime.handlePermissionRequest(nextRequest);
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(nextRequest.toolCallId, false);
+				assert.deepStrictEqual({
+					prompted,
+					result: await resultPromise,
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				}, {
+					prompted: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+					confirmations: 2,
+				});
+			});
+		}
+
+		for (const ending of ['tool completion', 'abort'] as const) {
+			test(`clears a duplicate shell approval on ${ending}`, async () => {
+				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+				const request = createShellPermissionRequest();
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+				await firstResultPromise;
+				if (ending === 'tool completion') {
+					mockSession.fire('tool.execution_complete', { toolCallId: request.toolCallId, success: true });
+				} else {
+					await session.abort();
+					await session.resume('turn-after-abort');
+				}
+
+				const resultPromise = runtime.handlePermissionRequest({ ...request });
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(request.toolCallId, false);
+				assert.deepStrictEqual({ prompted, result: await resultPromise }, {
+					prompted: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+				});
+			});
+		}
+
 		test('shell permissions carry the tracked shell language when known', async () => {
 			const cases = [
 				{ toolCallId: 'tc-powershell-language', trackedToolName: 'powershell', expected: 'powershell' },
@@ -6839,7 +7031,7 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('managed read and write approvals do not auto-approve duplicate requests', async () => {
+		test('managed read, write, and shell approvals do not auto-approve duplicate requests', async () => {
 			const testCases = [
 				{
 					name: 'read',
@@ -6856,6 +7048,13 @@ suite('CopilotAgentSession', () => {
 						kind: 'write' as const,
 						fileName: '/workspace/src/file.ts',
 						toolCallId: 'tc-managed-duplicate-write',
+						managedApprovalRequired: true,
+					},
+				},
+				{
+					name: 'shell',
+					request: {
+						...createShellPermissionRequest('tc-managed-duplicate-shell'),
 						managedApprovalRequired: true,
 					},
 				},

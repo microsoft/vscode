@@ -199,7 +199,7 @@ suite('ChatThinkingContentPart', () => {
 
 	suite('Persistent tool previews', () => {
 		setup(() => {
-			mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.NotVerbose);
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
 			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 		});
 
@@ -209,6 +209,24 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			return part;
+		}
+
+		for (const verbosity of [undefined, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
+			test(`renders ${verbosity ?? 'default'} tool previews while running and after completion`, async () => {
+				await mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, verbosity);
+				const verbose = verbosity === ChatProgressVerbosity.Verbose;
+				assert.deepStrictEqual([false, true].map(complete => {
+					const part = createToolChain(complete);
+					return {
+						expanded: part.expanded.get(),
+						summary: !!part.domNode.querySelector(':scope > .chat-used-context-label'),
+						preview: part.domNode.classList.contains('chat-tool-chain-preview'),
+					};
+				}), [
+					{ expanded: true, summary: !verbose, preview: !verbose },
+					{ expanded: verbose, summary: !verbose, preview: false },
+				]);
+			});
 		}
 
 		test('restores a generated summary without materializing its tools', async () => {

@@ -66,7 +66,7 @@ suite('ChatWorkingLogo', () => {
 		return { configuration, fireChange };
 	}
 
-	test('configured progress defaults to Weave and switches motions without replacing its faces', async () => {
+	test('configured progress defaults to Draw and switches motions without replacing its faces', async () => {
 		const { configuration, fireChange } = createConfiguration();
 		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService())));
 		mainWindow.document.body.appendChild(logo.domNode);
@@ -94,7 +94,7 @@ suite('ChatWorkingLogo', () => {
 			sameAnimations,
 			motionAfterDisposal: logo.domNode.dataset.animation,
 		}, {
-			initial: { animation: 'weave', animated: true },
+			initial: { animation: 'draw', animated: true },
 			snapshots: [
 				{ animation: 'off', duration: 1200, classApplied: true },
 				{ animation: 'weave', duration: 1200, classApplied: true },
