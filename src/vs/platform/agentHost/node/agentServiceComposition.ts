@@ -144,6 +144,7 @@ export function createAgentServiceComposition(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
 			session => agentMergeController.getTurnContext(session),
+			(session, enabled, overrides) => agentMergeController.setEnabled(session, enabled, overrides),
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };

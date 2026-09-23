@@ -312,7 +312,8 @@ suite('Agent Merge gate', () => {
 			...configuration,
 			mergePullRequest: 'never',
 		}), [
-			'Agent Merge is enabled for `feature`. It will wait for a pull request on this branch, then monitor it.',
+			'Agent Merge is enabled for `feature`. Monitoring only; automatic merge is off.',
+			'It will wait for a pull request on this branch, then monitor it.',
 			'It will ask the agent to address new pull request review comments.',
 			'It will ask the agent to fix failing CI checks.',
 			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
@@ -320,6 +321,33 @@ suite('Agent Merge gate', () => {
 			'After each update, it will wait for new CI results and review comments.',
 			'It will not merge the pull request automatically and will keep monitoring it.',
 		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
+	});
+
+	test('keeps the effective merge policy in the visible notice summary', () => {
+		const target = { branchName: 'feature', pullRequestUrl: 'https://github.com/octo/repo/pull/1' };
+		assert.deepStrictEqual((['always', 'ifUnchanged', 'never'] as const).map(mergePullRequest =>
+			agentMergeEnabledNotice(target, { ...configuration, mergePullRequest }).split('\n')[0]
+		), [
+			'Agent Merge is enabled for `feature`. Automatic merge is on.',
+			'Agent Merge is enabled for `feature`. Automatic merge is on only while unchanged.',
+			'Agent Merge is enabled for `feature`. Monitoring only; automatic merge is off.',
+		]);
+	});
+
+	test('identifies the expected and current branch and explains how to resume', () => {
+		assert.deepStrictEqual({
+			changed: agentMergeDisableReasons.branchChanged('feature', 'main'),
+			unavailable: agentMergeDisableReasons.branchUnavailable('feature'),
+		}, {
+			changed: {
+				log: 'branch changed from feature to main',
+				notice: 'Agent Merge was disabled because the checked-out branch changed from `feature` to `main`. To resume, check out the branch you want to monitor and enable Agent Merge again.',
+			},
+			unavailable: {
+				log: 'the checked-out branch could not be confirmed while refreshing pull request state; expected feature',
+				notice: 'Agent Merge was disabled because it could not confirm that `feature` is still checked out. To resume, check out the branch you want to monitor and enable Agent Merge again.',
+			},
+		});
 	});
 
 	test('reports when Agent Merge merges a pull request', () => {
@@ -369,8 +397,8 @@ suite('Agent Merge gate', () => {
 			session: agentMergeConfigurationChangedNotice(previous, current, 'session'),
 			global: agentMergeConfigurationChangedNotice(previous, current, 'global'),
 		}, {
-			session: noticeFor('Agent Merge settings changed for this session.'),
-			global: noticeFor('Agent Merge default settings changed for all sessions.'),
+			session: noticeFor('Agent Merge settings changed for this session. Automatic merge is on.'),
+			global: noticeFor('Agent Merge default settings changed for all sessions. For this session: Automatic merge is on.'),
 		});
 	});
 
@@ -384,7 +412,8 @@ suite('Agent Merge gate', () => {
 			mergePullRequest: 'always',
 			mergeMethod: 'squash',
 		}), [
-			'Agent Merge is enabled for `feature` and is monitoring its pull request.',
+			'Agent Merge is enabled for `feature`. Automatic merge is on.',
+			'It is monitoring the pull request for this branch.',
 			'It will ask the agent to fix failing CI checks.',
 			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
 			'After each update, it will wait for new CI results.',
@@ -402,7 +431,7 @@ suite('Agent Merge gate', () => {
 				'session',
 			),
 		}, {
-			enabled: 'Agent Merge settings changed for this session.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
+			enabled: 'Agent Merge settings changed for this session. Automatic merge is on.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
 			reviewsDisabled: undefined,
 		});
 	});

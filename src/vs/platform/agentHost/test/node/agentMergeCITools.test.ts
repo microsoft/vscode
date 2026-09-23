@@ -569,7 +569,7 @@ class CIHarness extends Disposable {
 		const logService = new NullLogService();
 		const stateManager = this._register(new AgentHostStateManager(logService));
 		const configurationService = this._register(new AgentConfigurationService(stateManager, logService));
-		this.tools = this._register(new AgentMergeTools(() => this.enabled, session => session === this.context.session ? this.context : this.peerContexts.get(session), service, logService, stateManager, configurationService));
+		this.tools = this._register(new AgentMergeTools(() => this.enabled, session => session === this.context.session ? this.context : this.peerContexts.get(session), async () => { assert.fail('Unexpected enablement call'); }, service, logService, configurationService));
 	}
 
 	async read(request: AgentMergeCIRequest = {}, session = this.context.session): Promise<CIResult> {

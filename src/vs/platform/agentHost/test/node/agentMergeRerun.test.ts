@@ -441,6 +441,7 @@ class RerunTestHarness extends Disposable {
 			new class extends mock<IAgentHostGitStateService>() {
 				override readonly onDidRefreshSessionGitState = Event.None;
 				override readonly onDidChangeSessionGitHubState = Event.None;
+				override async refreshSessionGitState(): Promise<void> { }
 				override async attachSessionGitHubPullRequest(): Promise<void> { }
 			}(),
 			new class extends mock<IAgentHostGitService>() { }(),
@@ -451,7 +452,7 @@ class RerunTestHarness extends Disposable {
 			}(),
 			this.logService,
 		));
-		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), gitHubService, this.logService, this.stateManager, this.configurationService));
+		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), (session, enabled, overrides) => this.controller.setEnabled(session, enabled, overrides), gitHubService, this.logService, this.configurationService));
 		this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
 	}
 

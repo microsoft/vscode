@@ -12,12 +12,10 @@ import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeSessionState } from '../common/agentMerge.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { isSessionStatusArchived } from '../common/state/sessionState.js';
+import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentMergeCIEvidence, AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciEvidenceMetadata, ciFailureExcerpt, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from './agentMergeCIEvidence.js';
+import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 import { AgentMergeCIRequest, IAgentMergeToolAccessor, parseAgentMergeCIRequest } from './shared/agentMergeServerTools.js';
 
 export interface IAgentMergeTurnContext {
@@ -46,9 +44,9 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 	constructor(
 		private readonly _isFeatureEnabled: () => boolean,
 		private readonly _getTurnContext: (session: string) => IAgentMergeTurnContext | undefined,
+		private readonly _setEnabled: (session: string, enabled: boolean, overrides?: AgentMergeSessionOverrides) => Promise<void>,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
@@ -59,32 +57,20 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		return this._isFeatureEnabled();
 	}
 
-	setEnabled(session: string, enabled: boolean): string {
-		if (!this.isEnabled()) {
-			throw new Error('Agent Merge is disabled in the host configuration.');
+	async setEnabled(session: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string> {
+		await this._setEnabled(session, enabled, overrides);
+		const updated = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(session));
+		if (!updated) {
+			throw new Error('Agent Merge configuration is unavailable after the update.');
 		}
-		const state = this._stateManager.getSessionState(session);
-		if (!state) {
-			throw new Error(`Cannot update Agent Merge for unknown session: ${session}`);
-		}
-		if (enabled && isSessionStatusArchived(state.status)) {
-			throw new Error('Cannot enable Agent Merge for an archived session.');
-		}
-		const values = this._configurationService.getSessionConfigValues(session);
-		if (!values) {
-			throw new Error('Cannot update Agent Merge before session configuration is available.');
-		}
-		const current = readAgentMergeSessionState(values);
-		if (current?.enabled !== enabled) {
-			this._configurationService.updateSessionConfig(session, {
-				[SessionConfigKey.AgentMerge]: {
-					enabled,
-					...(current?.overrides ? { overrides: current.overrides } : {}),
-				},
-			});
-		}
-		this._logService.info(`[AgentMergeTools] Set session enablement: session=${session}, enabled=${enabled}`);
-		return JSON.stringify({ enabled });
+		const configuration = getAgentMergeConfiguration(this._configurationService, updated.overrides);
+		this._logService.info(`[AgentMergeTools] Updated session configuration: session=${session}, enabled=${updated.enabled}, mergePullRequest=${configuration.mergePullRequest}`);
+		return JSON.stringify({
+			enabled: updated.enabled,
+			configuration,
+			monitoring: !updated.enabled ? 'disabled' : !updated.target ? 'pending' : updated.target.pullRequestUrl ? 'bound' : 'waitingForPullRequest',
+			...(updated.enabled && updated.target ? { target: { branchName: updated.target.branchName, pullRequestUrl: updated.target.pullRequestUrl } } : {}),
+		});
 	}
 
 	async readFailedCI(session: string, input: AgentMergeCIRequest = {}): Promise<string> {
