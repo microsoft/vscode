@@ -99,6 +99,9 @@ export interface IOnboardingScenarioService {
 	/** Whether the scenario has already been shown to the user. */
 	hasBeenShown(id: string): boolean;
 
+	/** Checks automatic eligibility before a pre-tour nudge, ignoring the tour trigger and recording experiment exposure in both arms. */
+	shouldShowNudge(id: string): boolean;
+
 	/** Clear persisted and in-memory "shown" state so a single scenario can be retried. */
 	reset(id: string): void;
 

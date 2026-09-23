@@ -33,12 +33,13 @@ const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';
  * still visible in the sessions grid (so we don't interrupt a session the user
  * immediately closed or navigated away from). Pressing the pulsing button opens
  * the new-session view and flips the tour's trigger signal. The onboarding
- * engine handles showing the tour at most once.
+ * engine gates the pulse on the tour's experiment and handles showing the tour
+ * at most once.
  *
  * The `onboarding.developerMode` setting bypasses the session-count gate so the
  * tour can be triggered on demand for testing.
  */
-class NewSessionTourContribution extends Disposable implements IWorkbenchContribution {
+export class NewSessionTourContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.onboardingTours.newSessionTour';
 
@@ -101,7 +102,7 @@ class NewSessionTourContribution extends Disposable implements IWorkbenchContrib
 		}
 
 		const target = findOnboardingTarget(mainWindow, NEW_SESSION_BUTTON_TARGET);
-		if (!target) {
+		if (!target || !this.onboardingScenarioService.shouldShowNudge(NEW_SESSION_TOUR_ID)) {
 			return;
 		}
 

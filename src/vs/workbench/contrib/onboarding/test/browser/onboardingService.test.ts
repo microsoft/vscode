@@ -465,6 +465,87 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, []);
 	});
 
+	for (const { name, treatments, developerMode, enabled, expected } of [
+		{ name: 'inactive experiment', treatments: {}, developerMode: false, enabled: true, expected: false },
+		{ name: 'missing assignment id', treatments: { 'exp.show': true }, developerMode: false, enabled: true, expected: false },
+		{ name: 'missing behavior', treatments: { 'exp.id': 'onb-nudge' }, developerMode: false, enabled: true, expected: false },
+		{ name: 'control', treatments: { 'exp.show': false, 'exp.id': 'onb-nudge' }, developerMode: false, enabled: true, expected: false },
+		{ name: 'treatment', treatments: { 'exp.show': true, 'exp.id': 'onb-nudge' }, developerMode: false, enabled: true, expected: true },
+		{ name: 'developer preview', treatments: {}, developerMode: true, enabled: true, expected: true },
+		{ name: 'disabled treatment', treatments: { 'exp.show': true, 'exp.id': 'onb-nudge' }, developerMode: false, enabled: false, expected: false },
+		{ name: 'disabled developer preview', treatments: {}, developerMode: true, enabled: false, expected: false },
+	]) {
+		test(`pre-tour nudge respects ${name}`, async () => {
+			const presentation = new RecordingPresentation(uniqueKind());
+			registerPresentation(presentation);
+			const flags: Record<string, string | number | boolean> = {};
+			if (treatments['exp.show'] !== undefined) {
+				flags['exp.show'] = treatments['exp.show'];
+			}
+			if (treatments['exp.id'] !== undefined) {
+				flags['exp.id'] = treatments['exp.id'];
+			}
+			const assignment = new FakeAssignmentService(flags);
+			registerScenario({
+				id: 'nudge',
+				experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+				trigger: { kind: 'observable', signal: observableValue('trigger', false) },
+				presentation: { kind: presentation.kind, payload: undefined },
+			});
+			const { service } = createService({
+				[ONBOARDING_ENABLED_CONFIG]: enabled,
+				[ONBOARDING_DEVELOPER_MODE_CONFIG]: { nudge: developerMode },
+			}, assignment);
+
+			service.start();
+			const beforeResolution = service.shouldShowNudge('nudge');
+			await timeout(0);
+			const excludedBeforeNudge = assignment.isExcluded('onb-nudge:12345');
+			const showNudge = service.shouldShowNudge('nudge');
+
+			assert.deepStrictEqual({
+				beforeResolution,
+				excludedBeforeNudge,
+				showNudge,
+				excludedAfterNudge: assignment.isExcluded('onb-nudge:12345'),
+				shown: service.hasBeenShown('nudge'),
+				runs: presentation.runs,
+			}, {
+				beforeResolution: developerMode && enabled,
+				excludedBeforeNudge: true,
+				showNudge: expected,
+				excludedAfterNudge: !(enabled && !developerMode && typeof flags['exp.show'] === 'boolean' && flags['exp.id']),
+				shown: false,
+				runs: [],
+			});
+		});
+	}
+
+	test('pre-tour nudge respects context, shown state and the global switch', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'nudge',
+			when: ContextKeyExpr.has('nudgeReady'),
+			trigger: { kind: 'observable', signal: observableValue('trigger', false) },
+			presentation: { kind: presentation.kind, payload: undefined },
+		});
+		const { service, contextKeyService, config } = createService();
+		const ready = contextKeyService.createKey('nudgeReady', false);
+		const contextBlocked = service.shouldShowNudge('nudge');
+		ready.set(true);
+		const eligible = service.shouldShowNudge('nudge');
+		await config.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+		const disabled = service.shouldShowNudge('nudge');
+		await config.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, true);
+		await service.runScenario('nudge');
+		assert.deepStrictEqual({
+			contextBlocked, eligible, disabled, alreadyShown: service.shouldShowNudge('nudge'),
+		}, {
+			contextBlocked: false, eligible: true, disabled: false, alreadyShown: false,
+		});
+	});
+
 	test('an assignment-context id without the reserved prefix is rejected as inactive', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
@@ -487,8 +568,8 @@ suite('OnboardingScenarioService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(
-				{ runs: presentation.runs, shown: service.hasBeenShown('exp-badid'), reported: errors.length === 1 },
-				{ runs: [], shown: false, reported: true }
+				{ runs: presentation.runs, shown: service.hasBeenShown('exp-badid'), nudge: service.shouldShowNudge('exp-badid'), reported: errors.length === 1 },
+				{ runs: [], shown: false, nudge: false, reported: true }
 			);
 		} finally {
 			setUnexpectedErrorHandler(origErrorHandler);
