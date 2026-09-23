@@ -17,7 +17,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
-import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionChatRenderer, AgentSessionRenderer, AgentSessionsListDelegate, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -45,6 +45,8 @@ function createMockSession(overrides: Partial<IAgentSession> & { label: string; 
 		override readonly description = overrides.description;
 		override readonly tooltip = overrides.tooltip;
 		override readonly changes = overrides.changes;
+		override readonly children = overrides.children;
+		override readonly parentSession = overrides.parentSession;
 		override readonly timing = overrides.timing ?? {
 			created: now - 60 * 60 * 1000,
 			lastRequestStarted: undefined,
@@ -95,8 +97,8 @@ function createMockApprovalModel(sessionResource: URI, info: IAgentSessionApprov
 	}();
 }
 
-function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession, approvalModel?: AgentSessionApprovalModel): void {
-	const { container, disposableStore } = ctx;
+function createAgentSessionInstantiationService(ctx: ComponentFixtureContext) {
+	const { disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -129,6 +131,13 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	const markdownRendererService = instantiationService.get(IMarkdownRendererService);
 	markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
+	return instantiationService;
+}
+
+function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession, approvalModel?: AgentSessionApprovalModel): void {
+	const { container, disposableStore } = ctx;
+	const instantiationService = createAgentSessionInstantiationService(ctx);
+
 	const renderer = disposableStore.add(
 		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, approvalModel ?? undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
 	);
@@ -149,6 +158,90 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	disposableStore.add(toDisposable(() => {
 		renderer.disposeElement(treeNode, 0, template);
 		renderer.disposeTemplate(template);
+	}));
+}
+
+function renderSessionHierarchy(ctx: ComponentFixtureContext): void {
+	const { container, disposableStore } = ctx;
+	const instantiationService = createAgentSessionInstantiationService(ctx);
+	const sessionRenderer = disposableStore.add(
+		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
+	);
+	const chatRenderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer);
+	const now = Date.now();
+	const parentResource = URI.parse('vscode-chat-session://local/hierarchy');
+	const child = createMockSession({
+		resource: parentResource.with({ fragment: 'peer-chat' }),
+		label: 'Add some random comment',
+		status: AgentSessionStatus.Completed,
+		providerType: AgentSessionProviders.Local,
+		parentSession: {
+			resource: parentResource,
+			label: 'Hello Chat',
+			isLastChild: true,
+		},
+		timing: {
+			created: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestStarted: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestEnded: now - 4 * 24 * 60 * 60 * 1000 + 30 * 1000,
+		},
+	});
+	const parent = createMockSession({
+		resource: parentResource,
+		label: 'Hello Chat',
+		status: AgentSessionStatus.Completed,
+		providerType: AgentSessionProviders.Local,
+		children: [child],
+		changes: { files: 1, insertions: 2, deletions: 0 },
+		timing: {
+			created: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestStarted: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestEnded: now - 4 * 24 * 60 * 60 * 1000 + 30 * 1000,
+		},
+	});
+
+	container.classList.add('monaco-workbench', 'modern-ui');
+	container.style.width = '350px';
+	container.style.height = `${AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT + AgentSessionsListDelegate.CHAT_ITEM_HEIGHT}px`;
+	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+
+	const viewer = document.createElement('div');
+	viewer.classList.add('agent-sessions-viewer');
+	viewer.style.position = 'relative';
+	viewer.style.height = '100%';
+	container.appendChild(viewer);
+
+	const createRow = (top: number, height: number): { row: HTMLElement; contents: HTMLElement } => {
+		const row = document.createElement('div');
+		row.classList.add('monaco-list-row');
+		row.style.top = `${top}px`;
+		row.style.height = `${height}px`;
+		const treeRow = document.createElement('div');
+		treeRow.classList.add('monaco-tl-row');
+		const contents = document.createElement('div');
+		contents.classList.add('monaco-tl-contents');
+		treeRow.appendChild(contents);
+		row.appendChild(treeRow);
+		viewer.appendChild(row);
+		return { row, contents };
+	};
+
+	const parentNode = wrapAsTreeNode(parent);
+	const parentRow = createRow(0, AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT);
+	parentRow.row.setAttribute('aria-expanded', 'true');
+	const parentTemplate = sessionRenderer.renderTemplate(parentRow.contents);
+	sessionRenderer.renderElement(parentNode, 0, parentTemplate);
+
+	const childNode = wrapAsTreeNode(child);
+	const childRow = createRow(AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT, AgentSessionsListDelegate.CHAT_ITEM_HEIGHT);
+	const childTemplate = chatRenderer.renderTemplate(childRow.contents);
+	chatRenderer.renderElement(childNode, 0, childTemplate);
+
+	disposableStore.add(toDisposable(() => {
+		chatRenderer.disposeElement(childNode, 0, childTemplate);
+		chatRenderer.disposeTemplate(childTemplate);
+		sessionRenderer.disposeElement(parentNode, 0, parentTemplate);
+		sessionRenderer.disposeTemplate(parentTemplate);
 	}));
 }
 
@@ -194,6 +287,12 @@ function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionS
 // ============================================================================
 
 export default defineThemedFixtureGroup({
+
+	SessionWithPeerChat: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A completed session titled "Hello Chat" has one compact peer chat child. A single uninterrupted vertical guide connects the parent to a rounded elbow ending at the child status dot, with no gap between rows.'],
+		render: renderSessionHierarchy,
+	}),
 
 	// --- Status variants ---
 

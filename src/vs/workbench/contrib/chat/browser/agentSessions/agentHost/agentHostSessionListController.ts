@@ -228,14 +228,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return this._makeItem(rawId, base);
 		}
 
+		const defaultChat = summary.chats.find(chat => this._isDefaultChat(summary, chat));
+		const peerChats = summary.chats.filter(chat => chat !== defaultChat);
 		return this._makeItem(rawId, {
 			...base,
-			children: summary.chats.map(chat => this._makeItem(rawId, {
+			title: defaultChat?.title || summary.title,
+			children: peerChats.length ? peerChats.map(chat => this._makeItem(rawId, {
 				...base,
 				title: chat.title || summary.title,
 				chat,
-				isDefaultChat: this._isDefaultChat(summary, chat),
-			})),
+			})) : undefined,
 		});
 	}
 
@@ -252,7 +254,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
 		adoptable?: boolean;
 		chat?: SessionChatSummary;
-		isDefaultChat?: boolean;
 		children?: readonly IChatSessionItem[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
@@ -261,7 +262,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
 			: this._buildMetadata(opts.workingDirectory);
 		return {
-			resource: opts.chat ? this._chatResource(rawId, opts.chat, opts.isDefaultChat === true) : this._resource(rawId),
+			resource: opts.chat ? this._chatResource(rawId, opts.chat) : this._resource(rawId),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			children: opts.children,
 			description,
@@ -290,10 +291,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		};
 	}
 
-	private _chatResource(rawId: string, chat: SessionChatSummary, isDefaultChat: boolean): URI {
-		if (isDefaultChat) {
-			return this._resource(rawId);
-		}
+	private _chatResource(rawId: string, chat: SessionChatSummary): URI {
 		const parsed = parseChatUri(chat.resource);
 		if (!parsed) {
 			throw new Error(`Invalid chat URI '${chat.resource}' in session '${rawId}'`);

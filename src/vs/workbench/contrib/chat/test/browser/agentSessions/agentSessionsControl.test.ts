@@ -97,10 +97,9 @@ suite('AgentSessionsControl', () => {
 		assert.strictEqual(newChatCount, 1);
 	});
 
-	test('activating a session parent toggles its chat children', async () => {
+	test('activating a session parent opens its main chat', async () => {
 		const resource = URI.parse('test:/session');
 		const children = [
-			createSession(resource, 'Default chat'),
 			createSession(resource.with({ fragment: 'peer' }), 'Peer chat'),
 		];
 		const parent = createSession(resource, 'Session', children);
@@ -130,6 +129,7 @@ suite('AgentSessionsControl', () => {
 		});
 
 		const container = document.createElement('div');
+		let openedResource: URI | undefined;
 		const control = store.add(instantiationService.createInstance(AgentSessionsControl, container, {
 			overrideStyles: {},
 			filter: createFilter(),
@@ -137,16 +137,24 @@ suite('AgentSessionsControl', () => {
 			createNewChat: () => { },
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
+			overrideSessionOpen: async resource => { openedResource = resource; },
 		}));
 		control.layout(500, 500);
 		await control.update();
 		await timeout(0);
 
 		const rowsBefore = control.element?.querySelectorAll('.monaco-list-row');
-		assert.strictEqual(rowsBefore?.length, 3);
+		assert.strictEqual(rowsBefore?.length, 2);
+		assert.strictEqual(rowsBefore?.[0].querySelector<HTMLElement>('.agent-session-chat-twistie')?.style.paddingLeft, '0px');
 		rowsBefore?.[0].dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true, button: 0 }));
 		await timeout(0);
 
-		assert.strictEqual(control.element?.querySelectorAll('.monaco-list-row').length, 1);
+		assert.deepStrictEqual({
+			openedResource: openedResource?.toString(),
+			visibleRows: control.element?.querySelectorAll('.monaco-list-row').length,
+		}, {
+			openedResource: resource.toString(),
+			visibleRows: 2,
+		});
 	});
 });

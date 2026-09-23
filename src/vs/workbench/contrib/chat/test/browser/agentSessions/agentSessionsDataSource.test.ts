@@ -15,7 +15,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
-import { NotSelectableGroupId } from '../../../../../../base/browser/ui/list/list.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -218,11 +217,11 @@ suite('AgentSessionsDataSource', () => {
 			});
 		});
 
-		test('gives a session parent and its default chat distinct identities', () => {
+		test('keeps session parents selectable when they have peer chats', () => {
 			const resource = URI.parse('test://session/parent');
 			const child = createMockSession({
-				label: 'Default chat',
-				resource,
+				label: 'Peer chat',
+				resource: resource.with({ fragment: 'peer' }),
 				parentSession: { resource, label: 'Parent session' },
 			});
 			const parent = createMockSession({ label: 'Parent session', resource, children: [child] });
@@ -235,8 +234,8 @@ suite('AgentSessionsDataSource', () => {
 				childGroup: identityProvider.getGroupId(child),
 			}, {
 				parentId: resource.toString(),
-				childId: `chat-${resource.toString()}`,
-				parentGroup: NotSelectableGroupId,
+				childId: `chat-${resource.with({ fragment: 'peer' }).toString()}`,
+				parentGroup: 1,
 				childGroup: 1,
 			});
 		});

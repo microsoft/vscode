@@ -2767,7 +2767,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items[0].resource.path, '/aaa');
 		});
 
-		test('refresh projects catalog chats as children of their session', async () => {
+		test('refresh projects peer chats as children of the default chat', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 			const session = AgentSession.uri('copilot', 'multi-chat');
 			const defaultChat = URI.parse(buildDefaultChatUri(session.toString()));
@@ -2793,10 +2793,9 @@ suite('AgentHostChatContribution', () => {
 					resource: child.resource.toString(),
 				})),
 			})), [{
-				label: 'Session title',
+				label: 'Main chat',
 				resource: 'agent-host-copilot:/multi-chat',
 				children: [
-					{ label: 'Main chat', resource: 'agent-host-copilot:/multi-chat' },
 					{ label: 'Peer chat', resource: 'agent-host-copilot:/multi-chat#peer-chat' },
 				],
 			}]);
@@ -2839,8 +2838,8 @@ suite('AgentHostChatContribution', () => {
 				currentItems: listController.items[0].children?.map(item => item.resource.toString()),
 				deltas,
 			}, {
-				initialItems: ['agent-host-copilot:/changing-chats', 'agent-host-copilot:/changing-chats#removed-peer'],
-				currentItems: ['agent-host-copilot:/changing-chats'],
+				initialItems: ['agent-host-copilot:/changing-chats#removed-peer'],
+				currentItems: undefined,
 				deltas: [{
 					addedOrUpdated: ['agent-host-copilot:/changing-chats'],
 					removed: undefined,
@@ -4087,7 +4086,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			await listController.refresh(CancellationToken.None);
 
-			await listController.deleteChatSessionItem(listController.items[0].children![1].resource, CancellationToken.None);
+			await listController.deleteChatSessionItem(listController.items[0].children![0].resource, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				disposedChats: agentHostService.disposedChats.map(chat => chat.toString()),

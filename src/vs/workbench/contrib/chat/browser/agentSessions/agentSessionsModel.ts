@@ -89,6 +89,7 @@ interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'childre
 	readonly parentSession?: {
 		readonly resource: URI;
 		readonly label: string;
+		readonly isLastChild?: boolean;
 	};
 }
 
@@ -749,7 +750,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
-				const toInternalSession = (item: IChatSessionItem, parentSession?: { readonly resource: URI; readonly label: string }): IInternalAgentSessionData => {
+				const toInternalSession = (item: IChatSessionItem, parentSession?: { readonly resource: URI; readonly label: string; readonly isLastChild?: boolean }): IInternalAgentSessionData => {
 					const previous = parentSession
 						? this.getSession(item.resource)
 						: this._sessions.get(item.resource);
@@ -786,7 +787,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						metadata: item.metadata,
 						legacyResource: item.legacyResource,
 						parentSession,
-						children: item.children?.map(child => toInternalSession(child, { resource: item.resource, label })),
+						children: item.children?.map((child, index, children) => toInternalSession(child, {
+							resource: item.resource,
+							label,
+							isLastChild: index === children.length - 1,
+						})),
 					};
 				};
 
@@ -1223,7 +1228,7 @@ export class AgentSessionsCache {
 
 		try {
 			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[];
-			const deserialize = (session: ISerializedAgentSession, parentSession?: { readonly resource: URI; readonly label: string }): IInternalAgentSessionData => {
+			const deserialize = (session: ISerializedAgentSession, parentSession?: { readonly resource: URI; readonly label: string; readonly isLastChild?: boolean }): IInternalAgentSessionData => {
 				const resource = typeof session.resource === 'string' ? URI.parse(session.resource) : URI.revive(session.resource);
 				return {
 					providerType: session.providerType,
@@ -1251,7 +1256,11 @@ export class AgentSessionsCache {
 					metadata: session.metadata,
 					legacyResource: session.legacyResource ? URI.parse(session.legacyResource) : undefined,
 					parentSession,
-					children: session.children?.map(child => deserialize(child, { resource, label: session.label })),
+					children: session.children?.map((child, index, children) => deserialize(child, {
+						resource,
+						label: session.label,
+						isLastChild: index === children.length - 1,
+					})),
 				};
 			};
 			return cached.map(session => deserialize(session));

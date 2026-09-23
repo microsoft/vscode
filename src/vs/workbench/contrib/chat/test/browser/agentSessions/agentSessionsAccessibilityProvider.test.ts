@@ -111,7 +111,7 @@ suite('AgentSessionsAccessibilityProvider', () => {
 			parent: accessibilityProvider.getAriaLabel(parent),
 			child: accessibilityProvider.getAriaLabel(child),
 		}, {
-			parent: `${parent.providerLabel} session Parent session, 1 chat (Completed), created ${new Date(parent.timing.created).toLocaleString()}`,
+			parent: `${parent.providerLabel} session Parent session, 1 peer chat (Completed), created ${new Date(parent.timing.created).toLocaleString()}`,
 			child: 'Peer chat, chat in session Parent session (Completed)',
 		});
 	});

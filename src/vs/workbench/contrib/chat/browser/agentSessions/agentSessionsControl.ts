@@ -13,7 +13,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
-import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
+import { AgentSessionChatRenderer, AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -273,6 +273,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
 			pauseSessionUpdates: () => this.pauseUpdates(),
 		}, approvalModel, activeSessionResource));
+		const chatRenderer = this.instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer);
 		const compact = this.options.compactShowMore;
 		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
 		const listDelegate = new AgentSessionsListDelegate(
@@ -288,6 +289,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsCompressionDelegate(),
 			[
 				sessionRenderer,
+				chatRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer, { hideSectionCount: this.options.hideSectionCount }),
 				new AgentSessionShowMoreRenderer({ compactLabel: this.options.compactShowMore }),
 				new AgentSessionShowLessRenderer(),
@@ -303,12 +305,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				overrideStyles: this.options.overrideStyles,
-				twistieAdditionalCssClass: (element: unknown) => isAgentSession(element) && element.children?.length ? undefined : 'force-no-twistie',
+				twistieAdditionalCssClass: (element: unknown) => isAgentSession(element) && element.children?.length ? 'agent-session-chat-twistie' : 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
 				expandOnlyOnTwistieClick: true,
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
+		list.updateOptions({ indent: 0, defaultIndent: 0 });
 
 		ChatContextKeys.agentSessionsViewerFocused.bindTo(list.contextKeyService);
 
@@ -657,11 +660,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		if (isAgentSessionShowLess(element)) {
 			this.sessionsDataSource?.collapseRepositoryGroup(element.sectionLabel);
-			return;
-		}
-
-		if (element.children?.length) {
-			this.sessionsList?.toggleCollapsed(element);
 			return;
 		}
 
