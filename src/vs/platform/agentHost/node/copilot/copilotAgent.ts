@@ -40,7 +40,7 @@ import { createContextSizeConfigSchemaProperty } from '../../common/agentModelCo
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -1045,7 +1045,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
-			// window reload), so nothing reacts to it here.
+			// window reload), so nothing reacts to it here. Refreshing BYOK models
+			// republishes the whole catalog, which also re-applies the Claude default
+			// thinking level (see `_withClaudeDefaultReasoningEffort`).
 			this._refreshByokModels();
 		}));
 
@@ -2184,7 +2186,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: true,
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
-		this._models.set([...this._capiModels, ...hydraFusionModels, ...this._byokModels], undefined);
+		this._models.set([...this._withClaudeDefaultReasoningEffort(this._capiModels), ...hydraFusionModels, ...this._byokModels], undefined);
+	}
+
+	private _getClaudeDefaultReasoningEffort(): string | undefined {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeDefaultReasoningEffort) || undefined;
+	}
+
+	/**
+	 * Applies {@link CopilotCliConfigKey.ClaudeDefaultReasoningEffort} to the Claude models'
+	 * thinking-level picker at publish time, so a setting change takes effect without re-listing.
+	 * Models that do not support the configured level keep their built-in default.
+	 *
+	 * The SDK model list carries no family, so a model is classified by its configured
+	 * `family` capability override when present, falling back to its id.
+	 */
+	private _withClaudeDefaultReasoningEffort(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+		const effort = this._getClaudeDefaultReasoningEffort();
+		if (!effort) {
+			return models;
+		}
+		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+		const isClaudeFamily = (modelId: string) => {
+			const family = resolveModelCapabilityOverrideField(capabilityOverrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
+			return (family ?? modelId).toLowerCase().startsWith('claude');
+		};
+		return models.map(model => {
+			const configSchema = model.configSchema;
+			const thinkingLevel = configSchema?.properties[ThinkingLevelConfigKey];
+			if (!configSchema || !thinkingLevel?.enum?.includes(effort) || !isClaudeFamily(model.id)) {
+				return model;
+			}
+			return {
+				...model,
+				configSchema: { ...configSchema, properties: { ...configSchema.properties, [ThinkingLevelConfigKey]: { ...thinkingLevel, default: effort } } },
+			};
+		});
 	}
 
 	/**
