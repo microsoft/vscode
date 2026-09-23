@@ -55,6 +55,7 @@ export interface ISessionComparisonHarness {
 	readonly modelLabel?: string;
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	readonly modelConfigurationLabel?: string;
+	readonly modeId?: string;
 	readonly permissionId?: string;
 	readonly permissionLabel?: string;
 }
@@ -70,6 +71,7 @@ export interface ISessionComparisonParticipant {
 	readonly harness: ISessionComparisonHarness;
 	readonly sessionResource?: URI;
 	readonly launchError?: string;
+	readonly missingSession?: boolean;
 	readonly completion?: {
 		readonly elapsedMs?: number;
 		readonly tokenCount?: number;
@@ -157,6 +159,7 @@ export interface ISessionComparison {
 	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly participants: readonly ISessionComparisonParticipant[];
 	readonly cancelledAt?: number;
+	readonly archivedAt?: number;
 	readonly selectedParticipantId?: string;
 	readonly verdict?: ISessionComparisonVerdict;
 	readonly synthesisPlan?: ISessionComparisonSynthesisPlan;
@@ -181,8 +184,10 @@ export interface ISessionComparisonService {
 	getComparison(comparisonId: string): ISessionComparison | undefined;
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
 	cancelComparison(comparisonId: string): void;
+	archiveComparison(comparisonId: string): void;
 	selectAttempt(comparisonId: string, participantId: string): void;
 	submitVerdict(comparisonId: string, verdict: ISessionComparisonVerdict): void;
+	canRetryJudge(comparisonId: string): boolean;
 	retryJudge(comparisonId: string): void;
 	setSynthesisPlan(comparisonId: string, plan: ISessionComparisonSynthesisPlan | undefined): void;
 	synthesize(comparisonId: string): Promise<void>;

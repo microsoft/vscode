@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService, OpenSessionsInGridOutcome } from '../../../services/sessions/browser/sessionsService.js';
 import { getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -45,7 +45,10 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		if (!availableAttempts.length) {
 			throw new Error(localize('sessionComparison.noAttempts', "No comparison attempts are available to open."));
 		}
-		await this.sessionsService.openSessionsInGrid(availableAttempts);
+		const outcome = await this.sessionsService.openSessionsInGrid(availableAttempts);
+		if (outcome !== OpenSessionsInGridOutcome.Committed) {
+			return;
+		}
 		this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}

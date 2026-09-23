@@ -7,10 +7,13 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -18,7 +21,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
@@ -415,12 +418,31 @@ export class SessionComparisonToolContribution extends Disposable implements IWo
 
 	static readonly ID = 'sessions.contrib.sessionComparisonTool';
 	private readonly _toolRegistrations = this._register(new DisposableStore());
+	private _toolsRegistered = false;
 
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionComparisonService comparisonService: ISessionComparisonService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		const enabled = observableConfigValue(COMPARE_AGENTS_ENABLED_SETTING, false, configurationService);
+		this._register(autorun(reader => {
+			const shouldRegister = enabled.read(reader)
+				|| comparisonService.comparisons.read(reader).some(comparison => comparison.archivedAt === undefined);
+			if (shouldRegister === this._toolsRegistered) {
+				return;
+			}
+			this._toolsRegistered = shouldRegister;
+			this._toolRegistrations.clear();
+			if (shouldRegister) {
+				this._registerComparisonTools(toolsService, instantiationService);
+			}
+		}));
+	}
+
+	private _registerComparisonTools(toolsService: ILanguageModelToolsService, instantiationService: IInstantiationService): void {
 		const toolSet = this._toolRegistrations.add(toolsService.createToolSet(
 			ToolDataSource.Internal,
 			'vscode_sessionComparison',

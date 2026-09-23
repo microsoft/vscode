@@ -54,7 +54,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -2307,7 +2307,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' = 'all') {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set()) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress });
@@ -2359,7 +2359,7 @@ suite('Sessions - SessionsList', () => {
 					? [synthesis.session, judge.session, attempt1.session]
 					: [];
 			const memberships = new Map(sessions.map(session => [session.sessionId, group.id]));
-			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison] });
+			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison], pinnedSessionIds });
 			const container = harness.createContainer();
 			container.style.setProperty('--vscode-errorForeground', 'rgb(255, 0, 0)');
 			container.style.setProperty('--vscode-descriptionForeground', 'rgb(128, 128, 128)');
@@ -2371,7 +2371,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(400, 400);
-			return { attempt1, attempt2, judge, synthesis, container, harness };
+			return { attempt1, attempt2, judge, synthesis, container, harness, list };
 		}
 
 		test('renders synthesis and Judge before connected compact attempts', async () => {
@@ -2526,9 +2526,13 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('stops all running comparison participants from the group header', async () => {
-			const { attempt1, attempt2, judge, synthesis, container, harness } = renderComparison();
+		test('stops and archives complete comparison membership including pinned and filtered input waits', async () => {
+			const { attempt1, attempt2, judge, synthesis, container, harness, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
 			attempt1.status.set(SessionStatus.Completed, undefined);
+			attempt2.status.set(SessionStatus.NeedsInput, undefined);
+			judge.status.set(SessionStatus.NeedsInput, undefined);
+			synthesis.status.set(SessionStatus.Completed, undefined);
+			list.setStatusExcluded(SessionStatus.NeedsInput, true);
 			const stopAll = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-stop-all');
 			assert.ok(stopAll);
 			assert.deepStrictEqual({
@@ -2558,7 +2562,6 @@ suite('Sessions - SessionsList', () => {
 
 			attempt2.status.set(SessionStatus.Completed, undefined);
 			judge.status.set(SessionStatus.Completed, undefined);
-			synthesis.status.set(SessionStatus.Completed, undefined);
 			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
 
 			assert.deepStrictEqual({
@@ -2570,12 +2573,12 @@ suite('Sessions - SessionsList', () => {
 				participantStopDisplays: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => mainWindow.getComputedStyle(button).display),
 				archiveHidden: archive?.hidden,
 			}, {
-				cancelled: ['attempt-2', 'judge', 'synthesis'],
+				cancelled: ['attempt-2', 'judge'],
 				cancelledComparisons: ['comparison-1'],
 				stopAllHidden: true,
 				stopAllDisplay: 'none',
-				participantStopsHidden: [true, true, true, true],
-				participantStopDisplays: ['none', 'none', 'none', 'none'],
+				participantStopsHidden: [true, true],
+				participantStopDisplays: ['none', 'none'],
 				archiveHidden: false,
 			});
 
@@ -2583,10 +2586,48 @@ suite('Sessions - SessionsList', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
+				archivedComparisonIds: harness.archivedComparisonIds,
 				deletedGroupIds: harness.deletedGroupIds,
 			}, {
 				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
+				archivedComparisonIds: ['comparison-1'],
 				deletedGroupIds: [group.id],
+			});
+		});
+
+		test('allows regrouping sessions from archived comparisons while retaining history lookup', () => {
+			const session = createTestSession('Former attempt', { resourceId: 'former-attempt' }).session;
+			const targetGroup: ISessionGroup = { id: 'target-group', name: 'Target', createdAt: 2 };
+			const comparison: ISessionComparison = {
+				id: 'archived-comparison',
+				groupId: 'deleted-comparison-group',
+				title: 'Archived comparison',
+				createdAt: 1,
+				archivedAt: 2,
+				workspace: URI.parse('file:///workspace'),
+				prompt: 'Implement',
+				participants: [{
+					id: 'attempt',
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				}],
+			};
+			const harness = createListHarness(disposables, [session], { groups: [targetGroup], comparisons: [comparison] });
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+
+			list.addSessionsToGroup([session], targetGroup.id);
+
+			assert.deepStrictEqual({
+				historicalComparisonId: harness.instantiationService.get(ISessionComparisonService).getComparisonForSession(session.resource)?.id,
+				addedToGroups: harness.addedToGroups,
+			}, {
+				historicalComparisonId: comparison.id,
+				addedToGroups: [{ groupId: targetGroup.id, sessionIds: [session.sessionId] }],
 			});
 		});
 

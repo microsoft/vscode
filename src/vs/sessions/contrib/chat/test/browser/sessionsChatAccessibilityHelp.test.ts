@@ -333,6 +333,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();

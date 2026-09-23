@@ -362,7 +362,7 @@ suite('Sessions - Sessions Part', () => {
 		});
 	});
 
-	test('keeps inactive panes legible and outlines only the selected pane', () => {
+	test('preserves ordinary inactive styling and outlines only comparison grids', () => {
 		const workbench = document.createElement('div');
 		workbench.className = 'monaco-workbench';
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
@@ -400,6 +400,18 @@ suite('Sessions - Sessions Part', () => {
 		mainWindow.document.body.appendChild(workbench);
 
 		try {
+			const ordinaryInactiveStyles = {
+				headerOpacity: mainWindow.getComputedStyle(header).opacity,
+				transcriptOpacity: mainWindow.getComputedStyle(transcript).opacity,
+				toolInvocationOpacity: mainWindow.getComputedStyle(toolInvocation).opacity,
+				inputToolbarOpacity: mainWindow.getComputedStyle(inputToolbar).opacity,
+				inputToolbarPointerEvents: mainWindow.getComputedStyle(inputToolbar).pointerEvents,
+				inputToolbarVisibility: mainWindow.getComputedStyle(inputToolbar).visibility,
+				editorOpacity: mainWindow.getComputedStyle(editor).opacity,
+				executeToolbarOpacity: mainWindow.getComputedStyle(executeToolbar).opacity,
+				executeToolbarFilter: mainWindow.getComputedStyle(executeToolbar).filter,
+			};
+			workbench.classList.add('session-comparison-grid-active');
 			const selectedIndicatorStyle = mainWindow.getComputedStyle(active, '::after');
 			const selectedBorder = {
 				top: `${selectedIndicatorStyle.borderTopWidth} ${selectedIndicatorStyle.borderTopStyle} ${selectedIndicatorStyle.borderTopColor}`,
@@ -408,7 +420,7 @@ suite('Sessions - Sessions Part', () => {
 				left: `${selectedIndicatorStyle.borderLeftWidth} ${selectedIndicatorStyle.borderLeftStyle} ${selectedIndicatorStyle.borderLeftColor}`,
 				zIndex: selectedIndicatorStyle.zIndex,
 			};
-			const inactiveStyles = {
+			const comparisonInactiveStyles = {
 				headerOpacity: mainWindow.getComputedStyle(header).opacity,
 				transcriptOpacity: mainWindow.getComputedStyle(transcript).opacity,
 				toolInvocationOpacity: mainWindow.getComputedStyle(toolInvocation).opacity,
@@ -428,7 +440,8 @@ suite('Sessions - Sessions Part', () => {
 				selectedBorder,
 				highContrastBorderColor,
 				singlePaneBorderWidth,
-				inactiveStyles,
+				ordinaryInactiveStyles,
+				comparisonInactiveStyles,
 			}, {
 				selectedBorder: {
 					top: '1px solid rgb(0, 122, 204)',
@@ -439,7 +452,18 @@ suite('Sessions - Sessions Part', () => {
 				},
 				highContrastBorderColor: 'rgb(255, 255, 0)',
 				singlePaneBorderWidth: '0px',
-				inactiveStyles: {
+				ordinaryInactiveStyles: {
+					headerOpacity: '0.6',
+					transcriptOpacity: '0.9',
+					toolInvocationOpacity: '0.6',
+					inputToolbarOpacity: '0',
+					inputToolbarPointerEvents: 'none',
+					inputToolbarVisibility: 'hidden',
+					editorOpacity: '0.6',
+					executeToolbarOpacity: '0.6',
+					executeToolbarFilter: 'grayscale(1)',
+				},
+				comparisonInactiveStyles: {
 					headerOpacity: '1',
 					transcriptOpacity: '1',
 					toolInvocationOpacity: '1',

@@ -163,7 +163,7 @@ suite('Session comparison grid controller', () => {
 		};
 	}
 
-	test('keeps the whole side pane hidden while an attempt comparison grid is visible', () => {
+	test('restores initially hidden parts and honors explicit opens', () => {
 		const fixture = setup();
 		assert.deepStrictEqual(fixture.hiddenParts, [
 			{ hidden: true, part: Parts.AUXILIARYBAR_PART },
@@ -172,8 +172,13 @@ suite('Session comparison grid controller', () => {
 
 		fixture.partVisibility.set(Parts.EDITOR_PART, true);
 		fixture.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		fixture.sessionGridLayout.set('columns', undefined);
 
-		assert.deepStrictEqual(fixture.hiddenParts.at(-1), { hidden: true, part: Parts.EDITOR_PART });
+		assert.deepStrictEqual(fixture.hiddenParts, [
+			{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			{ hidden: true, part: Parts.EDITOR_PART },
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+		]);
 	});
 
 	test('closes other panes on the first Judge focus', () => {
@@ -190,7 +195,7 @@ suite('Session comparison grid controller', () => {
 
 		fixture.partVisibility.set(Parts.EDITOR_PART, true);
 		fixture.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-		assert.deepStrictEqual(fixture.hiddenParts.at(-1), { hidden: true, part: Parts.EDITOR_PART });
+		assert.strictEqual(fixture.partVisibility.get(Parts.EDITOR_PART), true);
 	});
 
 	test('closes other panes when Judge becomes active without a focus event', async () => {
@@ -241,6 +246,7 @@ suite('Session comparison grid controller', () => {
 		const mixedGrid = setup('grid', { hideInactiveInputs: true });
 		const screenReaderGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
+		const activeClassName = 'session-comparison-grid-active';
 		const shownByDefault = !defaultGrid.mainContainer.classList.contains(className);
 		const hiddenWhenEnabled = enabledGrid.mainContainer.classList.contains(className);
 
@@ -266,6 +272,9 @@ suite('Session comparison grid controller', () => {
 			afterLeavingGrid,
 			mixedGrid: mixedGrid.mainContainer.classList.contains(className),
 			screenReaderGrid: screenReaderGrid.mainContainer.classList.contains(className),
+			defaultComparisonGrid: defaultGrid.mainContainer.classList.contains(activeClassName),
+			mixedComparisonGrid: mixedGrid.mainContainer.classList.contains(activeClassName),
+			afterLeavingComparisonGrid: enabledGrid.mainContainer.classList.contains(activeClassName),
 		}, {
 			shownByDefault: true,
 			hiddenWhenEnabled: true,
@@ -276,6 +285,9 @@ suite('Session comparison grid controller', () => {
 			afterLeavingGrid: false,
 			mixedGrid: false,
 			screenReaderGrid: false,
+			defaultComparisonGrid: true,
+			mixedComparisonGrid: true,
+			afterLeavingComparisonGrid: false,
 		});
 	});
 });

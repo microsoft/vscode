@@ -20,7 +20,6 @@ import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConver
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
-import { SessionComparisonJudgeLaunchContribution } from './sessionComparisonJudgeLaunch/sessionComparisonJudgeLaunchContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
@@ -41,7 +40,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
-	registrations.add(contributions.registerContribution(SessionComparisonJudgeLaunchContribution));
 	registrations.add(contributions.registerContribution(SessionInputNeededContribution));
 	registrations.add(contributions.registerContribution(GitHubReferencesContribution));
 	registrations.add(contributions.registerContribution(SessionTitleContribution));

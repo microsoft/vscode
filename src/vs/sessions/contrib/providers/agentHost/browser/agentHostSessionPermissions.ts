@@ -33,6 +33,7 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				label: localize('sessionComparison.permissions.copilot.allowAll', "Allow all"),
 				description: localize('sessionComparison.permissions.copilot.allowAllDescription', "Runs all tool calls without asking for approval."),
 				isAllowAll: true,
+				comparisonModeId: 'autopilot',
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}];

@@ -567,6 +567,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			};
 			const applyPermission = (harness: ISessionComparisonHarness, permission: ISessionPermissionOption): ISessionComparisonHarness => ({
 				...harness,
+				modeId: undefined,
 				permissionId: permission.id,
 				permissionLabel: permission.label,
 			});
@@ -1239,6 +1240,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 			const permission = options.find(option => (allowAll ? option.isAllowAll : option.isDefault) && !option.locked);
 			return permission ? {
 				...harness,
+				modeId: allowAll ? permission.comparisonModeId : undefined,
 				permissionId: permission.id,
 				permissionLabel: permission.label,
 			} : harness;

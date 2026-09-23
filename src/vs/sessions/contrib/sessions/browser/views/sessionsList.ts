@@ -51,7 +51,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -261,8 +261,18 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	return mainChatStatus;
 }
 
-function isSessionInProgress(session: ISession, reader: IReader | undefined): boolean {
-	return getSessionRowStatus(session, reader, true) === SessionStatus.InProgress;
+function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
+	return isActiveSessionStatus(session.status.read(reader));
+}
+
+function getComparisonSessions(comparison: ISessionComparison, sessionsManagementService: ISessionsManagementService): ISession[] {
+	return comparison.participants.flatMap(participant => {
+		if (!participant.sessionResource) {
+			return [];
+		}
+		const session = sessionsManagementService.getSession(participant.sessionResource);
+		return session ? [session] : [];
+	});
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
@@ -1535,7 +1545,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				default:
 					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptPending', "Pending");
 			}
-			const canStop = isComparisonParticipant && sessionStatus === SessionStatus.InProgress;
+			const canStop = isComparisonParticipant && isActiveSessionStatus(sessionStatus);
 			if (!canStop && template.comparisonParticipantStop.element.dataset.pendingSessionId === element.sessionId) {
 				delete template.comparisonParticipantStop.element.dataset.pendingSessionId;
 			}
@@ -2375,30 +2385,31 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		template.icon.className = 'session-section-icon';
 		template.icon.classList.add(...ThemeIcon.asClassNameArray(isComparison ? Codicon.layers : Codicon.folderLibrary));
 		template.label.textContent = element.comparison?.title ?? element.group.name;
-		if (element.comparison) {
+		const comparison = element.comparison;
+		if (comparison) {
+			const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
+			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, this.sessionsManagementService) : [];
 			template.elementDisposables.add(autorun(reader => {
-				template.description.textContent = element.comparison?.summary(reader) ?? '';
+				template.description.textContent = comparison.summary(reader);
 			}));
 			template.elementDisposables.add(autorun(reader => {
-				const runningSessions = element.sessions.filter(session => isSessionInProgress(session, reader));
-				if (runningSessions.length === 0) {
+				const activeSessions = comparisonSessions.filter(session => isSessionActive(session, reader));
+				if (activeSessions.length === 0) {
 					delete template.comparisonStopAll.element.dataset.pending;
 				}
-				template.comparisonStopAll.element.hidden = runningSessions.length === 0;
-				template.comparisonStopAll.enabled = runningSessions.length > 0 && template.comparisonStopAll.element.dataset.pending !== 'true';
-				template.comparisonArchive.element.hidden = runningSessions.length > 0;
+				template.comparisonStopAll.element.hidden = activeSessions.length === 0;
+				template.comparisonStopAll.enabled = activeSessions.length > 0 && template.comparisonStopAll.element.dataset.pending !== 'true';
+				template.comparisonArchive.element.hidden = activeSessions.length > 0;
 			}));
 			template.elementDisposables.add(template.comparisonStopAll.onDidClick(async () => {
-				const runningSessions = element.sessions.filter(session => isSessionInProgress(session, undefined));
-				if (runningSessions.length === 0) {
+				const activeSessions = comparisonSessions.filter(session => isSessionActive(session, undefined));
+				if (activeSessions.length === 0) {
 					return;
 				}
-				if (element.comparison) {
-					this.sessionComparisonService.cancelComparison(element.comparison.id);
-				}
+				this.sessionComparisonService.cancelComparison(comparison.id);
 				template.comparisonStopAll.element.dataset.pending = 'true';
 				template.comparisonStopAll.enabled = false;
-				const results = await Promise.allSettled(runningSessions.map(session => this.sessionsManagementService.cancelCurrentRequest(session)));
+				const results = await Promise.allSettled(activeSessions.map(session => this.sessionsManagementService.cancelCurrentRequest(session)));
 				const failures = results.filter(result => result.status === 'rejected');
 				const stoppedCount = results.length - failures.length;
 				if (stoppedCount > 0) {
@@ -2413,14 +2424,15 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				}
 			}));
 			template.elementDisposables.add(template.comparisonArchive.onDidClick(async () => {
-				if (element.sessions.some(session => isSessionInProgress(session, undefined))) {
+				if (comparisonSessions.some(session => isSessionActive(session, undefined))) {
 					return;
 				}
 				template.comparisonArchive.enabled = false;
 				try {
-					for (const session of element.sessions) {
+					for (const session of comparisonSessions) {
 						await this.sessionsManagementService.archiveSession(session);
 					}
+					this.sessionComparisonService.archiveComparison(comparison.id);
 					this.sessionGroupsService.deleteGroup(element.group.id);
 					status(localize('comparisonArchived', "Comparison archived"));
 				} catch (error) {
@@ -4864,7 +4876,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Archived (Done) sessions are ignored.
 	 */
 	createGroupFromSessions(sessions: ISession[]): void {
-		if (sessions.some(session => this.sessionComparisonService.getComparisonForSession(session.resource))) {
+		if (sessions.some(session => this.isActiveComparisonSession(session))) {
 			return;
 		}
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
@@ -5022,7 +5034,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
-		if (this.isComparisonGroup(groupId) || sessions.some(session => this.sessionComparisonService.getComparisonForSession(session.resource))) {
+		if (this.isComparisonGroup(groupId) || sessions.some(session => this.isActiveComparisonSession(session))) {
 			return;
 		}
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
@@ -5039,7 +5051,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * of that section.
 	 */
 	private removeSessionsFromGroup(sessions: ISession[], target?: ISession, position?: 'before' | 'after'): void {
-		if (sessions.some(session => this.sessionComparisonService.getComparisonForSession(session.resource))) {
+		if (sessions.some(session => this.isActiveComparisonSession(session))) {
 			return;
 		}
 		const groupedSessions = sessions.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined);
@@ -5287,7 +5299,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private getGroupSessionActions(selected: ISession[]): IAction[] {
 		const actions: IAction[] = [];
-		if (selected.some(session => session.isArchived.get() || this.sessionComparisonService.getComparisonForSession(session.resource))) {
+		if (selected.some(session => session.isArchived.get() || this.isActiveComparisonSession(session))) {
 			return actions;
 		}
 
@@ -5320,6 +5332,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		return actions;
+	}
+
+	private isActiveComparisonSession(session: ISession): boolean {
+		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
+		return comparison !== undefined && comparison.archivedAt === undefined;
 	}
 
 	private getCreateGroupAction(sessions?: ISession[]): IAction {
@@ -5376,6 +5393,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
+		const comparison = groupItem.comparison;
 		if (this.options.grouping() === SessionsGrouping.Workspace && !groupItem.isEmpty) {
 			actions.push(this.getMarkAllSessionsReadAction(() => {
 				const sessionIds = new Set(this._sessionGroupsService.getSessionIdsInGroup(groupItem.group.id));
@@ -5383,7 +5401,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}), new Separator());
 		}
 		actions.push(this.getCreateGroupAction());
-		if (!groupItem.comparison) {
+		if (!comparison) {
 			actions.push(
 				new Separator(),
 				toAction({
@@ -5393,8 +5411,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}),
 				this.getDeleteGroupAction(groupItem),
 			);
-		} else if (!groupItem.sessions.some(session => isSessionInProgress(session, undefined))) {
-			actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
+		} else {
+			if (this.sessionComparisonService.canRetryJudge(comparison.id)) {
+				actions.push(
+					new Separator(),
+					toAction({
+						id: 'sessions.retryComparisonJudge',
+						label: localize('retryComparisonJudge', "Retry Judge"),
+						run: () => this.sessionComparisonService.retryJudge(comparison.id),
+					}),
+				);
+			}
+			const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
+			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, this._sessionsManagementService) : [];
+			if (!comparisonSessions.some(session => isSessionActive(session, undefined))) {
+				actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
+			}
 		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,

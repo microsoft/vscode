@@ -358,14 +358,14 @@ suite('SessionComparisonDialogResizeController', () => {
 			const dialog = Object.create(SessionComparisonSetupDialog.prototype);
 			Reflect.set(dialog, 'sessionsProvidersService', {
 				getProvider: () => ({
-					getPermissionOptionsForCreation: () => [
+					getPermissionOptionsForCreation: (sessionTypeId: string) => [
 						{ id: 'default', label: 'Default', description: 'Default permissions', isDefault: true },
-						{ id: 'allowAll', label: 'Allow All', description: 'Allow all permissions', isAllowAll: true },
+						{ id: 'allowAll', label: 'Allow All', description: 'Allow all permissions', isAllowAll: true, comparisonModeId: sessionTypeId === 'copilotcli' ? 'autopilot' : undefined },
 					],
 				}),
 			});
 			const attempts = [
-				{ id: 'one', harness: { providerId: 'provider', sessionTypeId: 'one', label: 'One', permissionId: 'default', permissionLabel: 'Default' } },
+				{ id: 'one', harness: { providerId: 'provider', sessionTypeId: 'copilotcli', label: 'One', permissionId: 'default', permissionLabel: 'Default' } },
 				{ id: 'two', harness: { providerId: 'provider', sessionTypeId: 'two', label: 'Two', permissionId: 'default', permissionLabel: 'Default' } },
 			];
 			const judgeHarness = { providerId: 'provider', sessionTypeId: 'judge', label: 'Judge', permissionId: 'default', permissionLabel: 'Default' };
@@ -376,10 +376,14 @@ suite('SessionComparisonDialogResizeController', () => {
 
 			assert.deepStrictEqual({
 				allowed: [...allowed.attempts.map(attempt => attempt.harness.permissionId), allowed.judgeHarness.permissionId, allowed.synthesisHarness.permissionId],
+				allowedModes: [...allowed.attempts.map(attempt => attempt.harness.modeId), allowed.judgeHarness.modeId, allowed.synthesisHarness.modeId],
 				defaults: [...defaults.attempts.map(attempt => attempt.harness.permissionId), defaults.judgeHarness.permissionId, defaults.synthesisHarness.permissionId],
+				defaultModes: [...defaults.attempts.map(attempt => attempt.harness.modeId), defaults.judgeHarness.modeId, defaults.synthesisHarness.modeId],
 			}, {
 				allowed: ['allowAll', 'allowAll', 'allowAll', 'allowAll'],
+				allowedModes: ['autopilot', undefined, undefined, undefined],
 				defaults: ['default', 'default', 'default', 'default'],
+				defaultModes: [undefined, undefined, undefined, undefined],
 			});
 		});
 
