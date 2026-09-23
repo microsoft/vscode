@@ -22638,7 +22638,7 @@ suite('AgentService (node dispatcher)', () => {
 			const resolver = service as unknown as {
 				_resolveWorkingDirectoryBeforeSend: (p: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
 			};
-			const resolve = (resource: string) => resolver._resolveWorkingDirectoryBeforeSend({ session: resource, chat: `${resource}/chat`, turnId: 't', prompt: 'hi' });
+			const resolve = (resource: string, chat = buildDefaultChatUri(resource)) => resolver._resolveWorkingDirectoryBeforeSend({ session: resource, chat, turnId: 't', prompt: 'hi' });
 			const inject = (resource: string, dirs?: readonly URI[]) => getStateManager(service).restoreSession({
 				resource,
 				provider: 'copilot',
@@ -22659,14 +22659,17 @@ suite('AgentService (node dispatcher)', () => {
 			inject(multi, [a, b, c]);
 			inject(single, [a]);
 			inject(none, undefined);
+			const peerDirectory = URI.file('/roots/peer');
+			const peerChat = buildChatUri(URI.parse(multi), 'peer');
+			getStateManager(service).addChat(multi, peerChat, { workingDirectories: [peerDirectory.toString()] });
 
 			// No worktree isolation is configured, so index 0 resolves to itself and
 			// the additional roots are preserved as-is; a session with no roots
 			// resolves to `undefined` (the agent runs in its own scratch dir).
 			const toStrings = (r: readonly URI[] | undefined) => r?.map(d => d.toString());
 			assert.deepStrictEqual(
-				[toStrings(await resolve(multi)), toStrings(await resolve(single)), toStrings(await resolve(none))],
-				[[a, b, c].map(d => d.toString()), [a.toString()], undefined],
+				[toStrings(await resolve(multi)), toStrings(await resolve(multi, peerChat)), toStrings(await resolve(single)), toStrings(await resolve(none))],
+				[[a, b, c].map(d => d.toString()), [peerDirectory.toString()], [a.toString()], undefined],
 			);
 		});
 

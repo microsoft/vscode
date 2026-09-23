@@ -1106,7 +1106,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Host-owned first-send hook (invoked by {@link AgentSideEffects} before the
-	 * agent locks its subprocess cwd). Resolves the working directories the session
+	 * agent locks its subprocess cwd). Resolves the working directories the chat
 	 * will actually run in and hands them to the agent at send time:
 	 *  - index 0 is the process root: for `worktree` isolation the isolated
 	 *    worktree (created here on the first send, see
@@ -1117,7 +1117,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
 		const sessionId = AgentSession.id(params.session);
-		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.session);
+		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.chat);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
 
