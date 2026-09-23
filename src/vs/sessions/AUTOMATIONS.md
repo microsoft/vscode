@@ -4,18 +4,21 @@
 
 ## Scope and authority
 
-Automations schedule or manually start agent sessions on a selected Agent Host. AHP is the only execution path, for both local and remote hosts.
+Automations schedule or manually start agent sessions through their owning provider. Local and remote Agent Hosts use AHP; GitHub cloud automations use GitHub's automation and task APIs.
 
-The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported host never falls back to browser execution or to another host.
+The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable provider never falls back to browser execution or another provider.
 
 ```mermaid
 flowchart TD
 	UI["Automations UI, blueprints, and tools"] --> Service["IAutomationService<br/>ProviderAutomationService"]
-	Service --> Providers["ISessionsProvider.automations<br/>one per concrete Agent Host"]
+	Service --> Providers["ISessionsProvider.automations<br/>AHP host authority"]
 	Providers --> Connection["ReconnectableAgentHostAutomationStore<br/>connection and capability boundary"]
 	Connection --> Projection["AgentHostAutomationStore<br/>AHP dispatch and state projection"]
 	Projection --> Authority["AgentHostAutomationService<br/>durable execution authority"]
 	Archive["Read-only historical run archive"] --> Projection
+	Service --> Cloud["CloudAutomationStore<br/>account-scoped GitHub catalogue"]
+	Cloud --> API["GitHub automation and task APIs"]
+	API --> CloudSessions["Existing Copilot Cloud session viewer"]
 ```
 
 The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-provider contributions consume provider-neutral Automation contracts. AHP adaptation stays under `contrib/providers/agentHost`.
@@ -32,13 +35,16 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](contrib/providers/agentHost/browser/agentHostAutomationStore.ts) |
 | Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
 | Definitions, schedules, run claims, sessions, lifecycle, history, and recovery | [`IAgentHostAutomationService` / `AgentHostAutomationService`](../platform/agentHost/node/agentHostAutomationService.ts) |
+| Cloud definitions, UTC schedules, and task execution | GitHub's automation service |
+| Account-scoped cloud catalogue, mutations, and recent run projection | `contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts` |
+| Cloud run conversation, follow-up, and session presentation | Existing Copilot Cloud task/session provider |
 | Portable blueprint format and validation | Workbench Automation common code |
 | Inert plugin blueprint discovery and enablement | `IAgentPluginService` |
 | Definition review, draft configuration, cards, and history presentation | Automations contributions |
 
-The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency.
+The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency. An accepted cloud dispatch can have no correlated task ID yet; it is not represented as a synthetic run or a session-creation failure.
 
-`IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one host's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. The common interfaces live in Workbench, and the provider specialization lives in Sessions, preserving the layer direction.
+`IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one authority's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. Optional integrations can disable catalogue participation without reporting a disconnected host or turning a provider-less window into an empty ready catalogue.
 
 `ProviderAutomationService` aggregates the objects exposed by `ISessionsProvider.automations`. For AHP providers, that object is a stable `ReconnectableAgentHostAutomationStore`; its inner `AgentHostAutomationStore` lasts only for one usable connection. Neither client-side object is the host-process `AgentHostAutomationService`, which owns execution and durable storage.
 
@@ -50,7 +56,7 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
-An `AutomationTarget` separates concrete host identity (`providerId`) from the agent on that host (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider; providers without AHP Automations do not offer Automation creation.
+An `AutomationTarget` separates provider identity (`providerId`) from the agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider. A provider can restrict which of its session types support automations; enabling cloud automation configuration does not enable non-AHP local execution.
 
 Projected definition and run identifiers are opaque, concrete-provider-scoped identities containing the complete host resource URI. Equal resource URIs on different hosts, or equal final path segments within one host, do not share identity. Commands resolve the scoped identity to the original host resource; they never reconstruct a host resource from a displayed ID. Historical archive rows use the same definition identity and a distinct provider-scoped history identity.
 
@@ -69,6 +75,24 @@ Standalone `.automation.md` files and plugins use the same blueprint format. Plu
 Import, duplication, and templates open the same review dialog and use the same AHP-only creation path. File imports and plugin templates start disabled. The user selects an available host and provider-owned configuration locally. Export transfers only portable state, not execution authority or history.
 
 Blueprint schedules are manual, hourly, or five-field cron schedules interpreted in the importing user's local time zone. Import rejects schedule semantics the editor cannot preserve rather than silently changing their meaning.
+
+Cloud daily/weekly schedules have an explicit UTC time basis and quarter-hour minutes. They cannot be exported through the local-time-only blueprint format. Unsupported server triggers remain visible as read-only custom schedules rather than being reinterpreted as manual definitions.
+
+## GitHub cloud authority
+
+Cloud automation management is opt-in through `chat.automations.cloud.enabled`. It uses the selected GitHub.com account with repository access and supports private repositories. Turning off cloud management, disabling AI UI, signing out, or closing VS Code does not disable schedules already stored on GitHub.
+
+The stable Copilot provider exposes the cloud store; it is not a synthetic Agent Host. The catalogue tracks private GitHub repositories selected in the profile, including recently selected GitHub workspaces. Discovery references are stored per account, but definitions, prompts, schedules, and run state remain server-owned. Account changes clear cached data and cancel pending reads before another account is presented.
+
+Cloud mutations use the account-bound Copilot API transport. Creation grants an explicit reviewed tool selection and starts disabled unless the user chooses enablement. The form retains the draft while the actual mutation is pending and on definite errors. An uncertain mutation result blocks blind resubmission; closing the form does not roll back a request already sent.
+
+Cloud guarded edits compare a fresh definition with the reviewed editable state before PATCH. This is an optimistic preflight, not atomic server-side compare-and-swap. Only changed fields are sent and unknown trigger fields are preserved. Repository/authority retargeting requires explicit duplication rather than moving history.
+
+Manual cloud dispatch returns an acceptance receipt without a task ID. The client reports acceptance without guessing which subsequent task belongs to it. Recent run history is read independently from the automation's task endpoint. No saved prompt is sent through the session UI.
+
+Run projection uses the real task ID to address the existing `copilot-cloud-agent:/task/<id>` viewer. Cloud conversations do not require AHP, an environment binding, or an Agent Host connection. Unhydrated and terminal runs remain visible with session/web opening actions; normal cloud-session refresh resolves the viewer when needed.
+
+History retains up to 50 recent runs per automation plus previously observed active runs. Requests have bounded concurrency. Active and recently requested histories refresh while observed; full history sweeps are less frequent. Leaving the history view cancels observation requests, not remote execution. Loading or refresh errors cannot become an authoritative empty history or a fabricated terminal outcome.
 
 ## Availability and routing
 
@@ -130,7 +154,7 @@ Existing AHP definitions and history are not deleted because an obsolete migrati
 
 ## Cross-component invariants
 
-1. The selected Agent Host is the only execution and lifecycle authority.
+1. The selected Agent Host or GitHub service is the only execution and lifecycle authority.
 2. Concrete provider identity determines ownership; agent type alone does not.
 3. Missing capability or connection fails closed without creating local definitions or sessions.
 4. Browser startup, clocks, and window leadership cannot dispatch an Automation run.

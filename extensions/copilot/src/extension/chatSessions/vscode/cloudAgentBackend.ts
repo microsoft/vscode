@@ -56,6 +56,8 @@ export interface TaskContent {
 }
 
 export interface CloudAgentBackend {
+	fetchSession(taskId: string): Promise<CloudSessionData>;
+
 	fetchSessionList(
 		repoIds: GithubRepoId[] | undefined,
 		isAgentWorkspace: boolean,

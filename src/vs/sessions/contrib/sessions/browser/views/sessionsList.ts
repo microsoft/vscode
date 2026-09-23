@@ -31,7 +31,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -133,6 +133,7 @@ export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
+type SessionContextKeyProvider = (session: ISession, reader: IReader | undefined) => Iterable<[string, ContextKeyValue]>;
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
 export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
@@ -1114,6 +1115,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			archiveOnboardingSession?: IObservable<ISession | undefined>;
+			getAdditionalContextKeys?: SessionContextKeyProvider;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1338,6 +1340,36 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
+		const getAdditionalContextKeys = this.options.getAdditionalContextKeys;
+		if (getAdditionalContextKeys !== undefined) {
+			const contextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+			template.elementDisposables.add(autorun(reader => {
+				const values = new Map(getAdditionalContextKeys(element, reader));
+				template.contextKeyService.bufferChangeEvents(() => {
+					for (const [key, contextKey] of contextKeys) {
+						if (!values.has(key)) {
+							contextKey.reset();
+							contextKeys.delete(key);
+						}
+					}
+					for (const [key, value] of values) {
+						let contextKey = contextKeys.get(key);
+						if (contextKey === undefined) {
+							contextKey = template.contextKeyService.createKey<ContextKeyValue>(key, undefined);
+							contextKeys.set(key, contextKey);
+						}
+						contextKey.set(value);
+					}
+				});
+			}));
+			template.elementDisposables.add(toDisposable(() => {
+				template.contextKeyService.bufferChangeEvents(() => {
+					for (const contextKey of contextKeys.values()) {
+						contextKey.reset();
+					}
+				});
+			}));
+		}
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -5720,6 +5752,8 @@ export interface ISessionsFlatListOptions {
 	readonly contextMenuId?: MenuId;
 	/** Allows focused list surfaces to handle actions from their custom context menu. */
 	readonly onContextMenuAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
+	/** Additional per-session context values shared by the inline toolbar and context menu. */
+	readonly getAdditionalContextKeys?: SessionContextKeyProvider;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
 	readonly markSessionReadOnOpen?: boolean;
 	/**
@@ -5805,6 +5839,7 @@ export class SessionsFlatList extends Disposable {
 				toolbarMenuId: this.options.toolbarMenuId ?? Menus.SessionItemToolbar,
 				inlineRename: false,
 				handleToolbarAction: this.options.onToolbarAction,
+				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
 			},
 			approvalModel,
 			this.options.ciFixModel,
@@ -5893,6 +5928,7 @@ export class SessionsFlatList extends Disposable {
 			[SessionSupportsDeleteContext.key, session.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, session.isQuickChat?.get() ?? false],
 			[SessionItemStatusContext.key, session.status.get()],
+			...(this.options.getAdditionalContextKeys?.(session, undefined) ?? []),
 		]);
 		const menu = disposables.add(this.menuService.createMenu(this.options.contextMenuId, contextKeyService));
 		const actions = Separator.join(...menu.getActions({ shouldForwardArgs: true }).map(([, groupActions]) => groupActions));

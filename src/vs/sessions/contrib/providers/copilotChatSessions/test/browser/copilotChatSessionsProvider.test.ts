@@ -25,6 +25,10 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
+import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
@@ -146,6 +150,7 @@ function createMockAgentSession(resource: URI, opts?: {
 // ---- Mock Agent Sessions Service --------------------------------------------
 
 class MockAgentSessionsModel {
+	onResolve: ((provider: string | string[] | undefined) => Promise<void>) | undefined;
 	private readonly _sessions: IAgentSession[] = [];
 	private readonly _onDidChangeSessions = new Emitter<void>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
@@ -184,7 +189,9 @@ class MockAgentSessionsModel {
 		this._onDidChangeSessions.fire();
 	}
 
-	async resolve(): Promise<void> { }
+	async resolve(provider?: string | string[]): Promise<void> {
+		await this.onResolve?.(provider);
+	}
 
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
@@ -321,6 +328,10 @@ function createProviderWithConfig(
 	opts?: ICreateProviderOptions,
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean>; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IRequestService, {});
+	instantiationService.stub(IAuthenticationService, {});
+	instantiationService.stub(ISessionsRecentWorkspacesService, { onDidChangeRecentWorkspaces: Event.None, getRecentWorkspaces: () => [] });
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
@@ -359,6 +370,7 @@ function createProviderWithConfig(
 		getSession: (resource: URI) => model.getSession(resource),
 	});
 	instantiationService.stub(IChatSessionsService, {
+		activateChatSessionItemProvider: async () => { },
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -447,6 +459,10 @@ function createProviderForSendTests(
 	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; chatModeService?: IChatModeService; languageModelsService?: Partial<ILanguageModelsService>; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; chatContentProviders?: IChatSessionContentProvider[] },
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IRequestService, {});
+	instantiationService.stub(IAuthenticationService, {});
+	instantiationService.stub(ISessionsRecentWorkspacesService, { onDidChangeRecentWorkspaces: Event.None, getRecentWorkspaces: () => [] });
 
 	const configService = opts?.configurationService ?? new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', true);
@@ -725,6 +741,61 @@ suite('CopilotChatSessionsProvider', () => {
 			workspaces: [undefined, undefined],
 			sessions: [[], []],
 		});
+	});
+
+	test('only the default provider owns the cloud automation catalogue', () => {
+		const providers = (['default', 'sandbox'] as const).map(providerMode => createProvider(disposables, model, { providerMode }));
+		assert.deepStrictEqual(providers.map(provider => ({
+			automationCatalogue: provider.automations !== undefined,
+			automationConfiguration: provider.supportsAutomationSessionConfiguration,
+		})), [
+			{ automationCatalogue: true, automationConfiguration: true },
+			{ automationCatalogue: false, automationConfiguration: false },
+		]);
+	});
+
+	test('opening a cloud task waits for exact task resolution and the projected session catalogue', async () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/task-to-open');
+		const commands: IExecutedCommand[] = [];
+		const resolvedProviders: (string | string[] | undefined)[] = [];
+		const resolving = new DeferredPromise<void>();
+		const publish = new DeferredPromise<void>();
+		model.onResolve = async provider => {
+			resolvedProviders.push(provider);
+			await resolving.complete();
+			await publish.p;
+			model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud }));
+		};
+		const provider = createProvider(disposables, model, { commandExecutions: commands });
+		const opening = provider.resolveSessionResource(resource);
+		await resolving.p;
+		assert.strictEqual(provider.getSessions().length, 0);
+		await publish.complete();
+		const resolved = await opening;
+		await provider.resolveSessionResource(resource);
+		assert.deepStrictEqual({
+			resolved: resolved?.toString(),
+			commands,
+			resolvedProviders,
+			sessions: provider.getSessions().map(session => session.resource.toString()),
+		}, {
+			resolved: resource.toString(),
+			commands: [{ id: 'github.copilot.chat.cloudSessions.resolveTask', args: [resource] }],
+			resolvedProviders: [AgentSessionProviders.Cloud],
+			sessions: [resource.toString()],
+		});
+	});
+
+	test('cloud task opening declines unrelated resources and sandbox creation without a command', async () => {
+		const commands: IExecutedCommand[] = [];
+		const provider = createProvider(disposables, model, { commandExecutions: commands });
+		const sandbox = createProvider(disposables, model, { providerMode: 'sandbox', commandExecutions: commands });
+		const results = await Promise.all([
+			provider.resolveSessionResource(URI.parse('copilotcli:/session')),
+			provider.resolveSessionResource(URI.parse('copilot-cloud-agent:/untitled-draft')),
+			sandbox.resolveSessionResource(URI.parse('copilot-cloud-agent:/task/task-to-open')),
+		]);
+		assert.deepStrictEqual({ results, commands }, { results: [undefined, undefined, undefined], commands: [] });
 	});
 
 	(isWeb ? test : test.skip)('authenticates before opening the original picker and supplies browser repository data', async () => {

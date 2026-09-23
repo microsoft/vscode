@@ -29,8 +29,10 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
@@ -80,6 +82,9 @@ class FixtureActionViewItemService extends Disposable implements IActionViewItem
 }
 
 class FixtureAutomationService extends mock<IAutomationService>() {
+	override getProviderConfiguration(id: string | undefined): IAutomationProviderConfiguration | undefined {
+		return id === 'cloud' ? { sessionTypes: ['copilot-cloud-agent'], label: 'GitHub Cloud', description: 'Cloud automation', timeZone: 'UTC', defaultEnabled: false, tools: [] } : undefined;
+	}
 
 	override readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	override readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -175,9 +180,19 @@ interface IAutomationsFixtureOptions {
 	readonly unavailableProviders?: readonly IAutomationProviderDescriptor[];
 	readonly pluginTemplate?: boolean;
 	readonly showDropTarget?: boolean;
+	readonly cloud?: boolean;
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
+	Cloud: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, cloud: true }),
+	}),
+	CloudNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, cloud: true }),
+	}),
 	Populated: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true }),
@@ -241,7 +256,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 });
 
 function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
-	const data = options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 	});
@@ -249,7 +264,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const actionViewItemService = new FixtureActionViewItemService();
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const automationService = new FixtureAutomationService(data.automations, data.runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
-	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
+	const sessionsManagementService = new FixtureSessionsManagementService(data.runs.filter(run => run.externalResource === undefined || run.status === 'running'));
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
 		override readonly plugins = constObservable(options.pluginTemplate ? [
 			new class extends mock<IAgentPlugin>() {
@@ -271,6 +286,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		] : []);
 	}();
 	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -314,6 +330,9 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
 				override readonly chatModels = constObservable([]);
 			}());
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override async refreshChatSessionItems(): Promise<void> { }
+			}());
 			reg.defineInstance(ITestAgentSessionsService, {
 				model: {
 					observeSession: () => constObservable(undefined),
@@ -327,6 +346,29 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const descriptor = customViewService.activeCustomView.get();
 	if (!descriptor) {
 		throw new Error('Automations custom view was not registered');
+	}
+
+	function createCloudData(): IAutomationsFixtureData {
+		const data = createPopulatedData();
+		const cloud = createAutomation({
+			id: 'cloud-triage', name: 'Cloud issue triage', prompt: 'Summarize new issues for maintainers.',
+			schedule: { interval: 'daily', scheduleHour: 12, scheduleMinute: 30, scheduleDay: 0, timeZone: 'UTC' },
+			target: { kind: 'workspace', providerId: 'cloud', sessionTypeId: 'copilot-cloud-agent', folderUri: URI.parse('github-remote-file://github/example/private-repo/HEAD'), isolation: { kind: 'default' } },
+		});
+		const now = new Date().toISOString();
+		return {
+			automations: [cloud, data.automations[0]],
+			runs: [
+				...(['pending', 'running', 'completed', 'failed'] as const).map((status, index) => ({
+					id: `cloud-run-${index}`, automationId: cloud.id, status, trigger: 'external' as const,
+					startedAt: now, ...(status === 'completed' || status === 'failed' ? { completedAt: now } : {}),
+					...(status === 'failed' ? { errorMessage: 'Repository permission was removed.' } : {}),
+					sessionResource: URI.parse(`copilot-cloud-agent:/task/task-${index}`),
+					externalResource: URI.parse(`https://github.com/example/private-repo/tasks/task-${index}?author=octocat`),
+				})),
+				data.runs[1],
+			],
+		};
 	}
 
 	ctx.container.classList.add('monaco-workbench');

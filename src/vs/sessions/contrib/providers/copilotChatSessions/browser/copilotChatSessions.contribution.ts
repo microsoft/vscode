@@ -17,10 +17,17 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CLOUD_AUTOMATIONS_ENABLED_SETTING } from './cloudAutomationStore.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
+		[CLOUD_AUTOMATIONS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			tags: ['preview'],
+			description: localize('cloudAutomations.enabled', "Enables managing cloud automations for private GitHub repositories in the Agents Window. Disabling this setting hides cloud management; existing cloud schedules continue running on GitHub."),
+		},
 		[COPILOT_MULTI_CHAT_SETTING]: {
 			type: 'boolean',
 			default: true,

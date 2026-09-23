@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
@@ -53,6 +53,7 @@ suite('AutomationRunner', () => {
 
 	function setup(request: () => Promise<IAutomationRunRequestResult>, available = true, exists = true, providers: readonly ISessionsProvider[] = [provider(available ? 'ready' : 'unavailable')]) {
 		const errors: string[] = [];
+		const warnings: string[] = [];
 		const calls: string[] = [];
 		const service = upcastPartial<IAutomationService>({
 			getAutomation: () => exists ? automation : undefined,
@@ -65,9 +66,31 @@ suite('AutomationRunner', () => {
 				return providers.find(provider => provider.id === id) as T | undefined;
 			}
 		}();
-		const runner = new AutomationRunner(service, providersService, new NullLogService(), upcastPartial<INotificationService>({ error: message => errors.push(String(message)) }));
-		return { runner, errors, calls };
+		const runner = new AutomationRunner(service, providersService, new NullLogService(), upcastPartial<INotificationService>({
+			error: message => errors.push(String(message)),
+			warn: message => warnings.push(String(message)),
+		}));
+		return { runner, errors, calls, warnings };
 	}
+
+	test('cloud acceptance does not invent a run or report a missing session as failure', async () => {
+		const { runner, calls, errors } = setup(async () => ({ kind: 'accepted' }));
+		const operation = runner.runOnce(automation);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'accepted' }, calls: ['automation'], errors: [] });
+	});
+
+	test('uncertain cloud dispatch warns without reporting that no run started or retrying', async () => {
+		const error = new AutomationMutationUncertainError(new Error('Connection lost.'));
+		const { runner, calls, errors, warnings } = setup(async () => { throw error; });
+		const operation = runner.runOnce(automation);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, calls, errors, warnings }, {
+			dispatch: { kind: 'uncertain', message: error.message }, calls: ['automation'], errors: [], warnings: [error.message],
+		});
+	});
 
 	test('dispatches through the host and observes completion without local lifecycle writes', async () => {
 		const completion = new DeferredPromise<void>();
@@ -116,20 +139,20 @@ suite('AutomationRunner', () => {
 		});
 		assert.deepStrictEqual(await operation.whenDispatched, { kind: 'notStarted', reason: 'targetUnavailable' });
 		await operation.whenCompleted;
-		assert.match(errors[0], /Duplicate it and select an Agent Host/);
+		assert.match(errors[0], /Duplicate it and select an automation provider/);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	for (const scenario of [
-		{ name: 'unregistered', providers: [], guidance: /Connect to this automation's Agent Host and try again/ },
+		{ name: 'unregistered', providers: [], guidance: /Connect to this automation's provider and try again/ },
 		{
 			name: 'unsupported provider',
 			providers: [upcastPartial<ISessionsProvider>({ id: 'host', label: 'Copilot Chat' })],
-			guidance: /Copilot Chat does not support automations\. Use an Agent Host that supports automations/,
+			guidance: /Copilot Chat does not support automations\. Use a provider that supports automations/,
 		},
 		{ name: 'loading', providers: [provider('loading')], guidance: /still loading\. Wait for loading to finish/ },
-		{ name: 'catalogue failure', providers: [provider('error')], guidance: /could not be loaded\. Reconnect to the Agent Host/ },
-		{ name: 'disconnected', providers: [provider('unavailable')], guidance: /Remote host is unavailable\. Reconnect to the Agent Host/ },
+		{ name: 'catalogue failure', providers: [provider('error')], guidance: /could not be loaded\. Reconnect or refresh the provider/ },
+		{ name: 'disconnected', providers: [provider('unavailable')], guidance: /Remote host is unavailable\. Reconnect or refresh the provider/ },
 		{
 			name: 'disabled',
 			providers: [provider('unavailable', 'Automations are disabled. Enable chat.automations.enabled and try again.')],

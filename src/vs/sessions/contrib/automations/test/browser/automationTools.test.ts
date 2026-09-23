@@ -77,6 +77,7 @@ function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomati
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
+	override readonly availableProviders = constObservable([]);
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly automations = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
@@ -88,6 +89,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	updatesAllowed = true;
 
 	override canCreateAutomation(): boolean { return this.available && this.creationAllowed; }
+	override getProviderConfiguration() { return undefined; }
 	override canRunAutomation(): boolean { return this.available; }
 	override canUpdateAutomation(): boolean { return this.available && this.updatesAllowed; }
 	override canDeleteAutomation(): boolean { return this.available; }
@@ -397,6 +399,7 @@ suite('AutomationTools', () => {
 
 		assert.deepStrictEqual(JSON.parse(getText(result)), {
 			catalogueState: 'ready',
+			providers: [],
 			automations: [{
 				id: 'automation-1',
 				name: 'Daily review',
@@ -450,7 +453,7 @@ suite('AutomationTools', () => {
 				},
 				populatedMessage: populated.toolResultMessage,
 			}, {
-				empty: { catalogueState, automations: [] },
+				empty: { catalogueState, automations: [], providers: [] },
 				emptyMessage: 'Listed 0 available automations; catalogue is incomplete',
 				populated: { state: catalogueState, ids: ['automation-1'], sessionTemplate },
 				populatedMessage: 'Listed 1 available automations; catalogue is incomplete',

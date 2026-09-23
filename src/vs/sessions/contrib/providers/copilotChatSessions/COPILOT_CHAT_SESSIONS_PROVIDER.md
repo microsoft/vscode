@@ -30,6 +30,12 @@ Local and cloud drafts implement the same `ISession` contract while adapting dif
 
 Both expose observable loading, workspace, model, mode, and capabilities. Shared new-session UI consumes those contracts and does not branch on draft classes.
 
+## Cloud automations
+
+The provider exposes an opt-in, account-scoped cloud automation store through the shared automation contract. Only the cloud session type is eligible; ordinary local CLI sessions do not gain browser-owned automation execution.
+
+Automation configuration reuses an uncommitted cloud draft for repository/model selection. GitHub's APIs own saved definitions, schedules, and manual dispatch. Existing cloud tasks open through the normal task-backed cloud session viewer, without provisioning another session, resending the prompt, or converting the task to AHP. Cloud automation ownership and catalogue behavior are defined in [AUTOMATIONS.md](../../../AUTOMATIONS.md).
+
 ## Existing sessions
 
 `AgentSessionAdapter` projects an existing `IAgentSession` into a stable `ISession` facade. It updates observable state in a transaction and preserves resource identity while metadata changes.

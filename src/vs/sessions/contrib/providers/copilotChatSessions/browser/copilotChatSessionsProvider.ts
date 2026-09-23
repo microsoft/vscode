@@ -71,6 +71,8 @@ import { IPathService } from '../../../../../workbench/services/path/common/path
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { ReadOnlyChatSession } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
+import { CloudAutomationApiClient } from './cloudAutomationApiClient.js';
+import { CloudAutomationStore } from './cloudAutomationStore.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -185,6 +187,7 @@ export interface ICopilotChatSession {
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const OPEN_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+const RESOLVE_TASK_COMMAND = 'github.copilot.chat.cloudSessions.resolveTask';
 
 interface IGitHubContextSelection {
 	readonly repoId: string;
@@ -1555,6 +1558,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	get label(): string { return this.providerMode === 'sandbox' ? localize('sandboxCreationProvider', "GitHub Sandboxes") : localize('copilotChatSessionsProvider', "Copilot Chat"); }
 	readonly icon = Codicon.copilot;
 	readonly order = 0;
+	get supportsAutomationSessionConfiguration(): boolean { return this.providerMode === 'default'; }
+	readonly automations: CloudAutomationStore | undefined;
 
 	get sessionTypes(): readonly ISessionType[] {
 		if (this.providerMode === 'sandbox') {
@@ -1693,6 +1698,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return chat;
 				},
 			}));
+		} else {
+			const automationApi = this._register(this.instantiationService.createInstance(CloudAutomationApiClient));
+			this.automations = this._register(this.instantiationService.createInstance(
+				CloudAutomationStore, this.id, CopilotCloudSessionType.id,
+				uri => {
+					if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+						return uri;
+					}
+					const workspace = this.resolveWorkspace(uri);
+					return workspace === undefined ? undefined : this._getCloudWorkspaceForLocalRepository(workspace)?.folders[0]?.root;
+				},
+				automationApi,
+			));
 		}
 
 		this._register(runOnChange(this.agentHostEnablementService.enabled, () => {
@@ -1799,6 +1817,25 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return sessions;
 	}
 
+	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
+		if (this.providerMode !== 'default' || resource.scheme !== AgentSessionProviders.Cloud || !/^\/task\/[^/]+$/.test(resource.path)) {
+			return undefined;
+		}
+		if (this.agentSessionsService.getSession(resource) === undefined) {
+			await this.chatSessionsService.activateChatSessionItemProvider(resource.scheme);
+			await this.commandService.executeCommand(RESOLVE_TASK_COMMAND, resource);
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			await this.agentSessionsService.model.resolve(resource.scheme);
+		}
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		this._refreshSessionCache();
+		return this._sessionCache.has(resource.toString()) ? resource : undefined;
+	}
+
 	// -- Session Lifecycle --
 
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
@@ -1902,7 +1939,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
-		return this._newSessions.get(sessionId)?.modelConfiguration;
+		const session = this._newSessions.get(sessionId);
+		return session instanceof CopilotCLISession ? session.modelConfiguration : undefined;
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -1911,9 +1949,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return undefined;
 		}
 		const modelId = session.modelId.get();
-		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
 		const initialConfiguration = session.initialAutomationSessionConfiguration;
 		const initialTemplate = initialConfiguration?.sessionTemplate;
+		if (session instanceof RemoteNewSession) {
+			if (initialTemplate?.modelConfiguration !== undefined || initialConfiguration?.mode !== undefined || initialConfiguration?.permissionLevel !== undefined) {
+				throw new Error(localize('cloudAutomationConfigurationUnsupported', "Cloud automations do not support local mode, approval, or model-specific settings. Remove those settings before saving."));
+			}
+			return {
+				sessionTemplate: {
+					...(modelId !== undefined ? { modelId } : {}),
+					...(initialTemplate?.config !== undefined ? { config: initialTemplate.config } : {}),
+				},
+			};
+		}
+		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
 		const initialMode = initialConfiguration?.mode ?? initialTemplate?.config?.[SessionConfigKey.Mode];
 		const mode = session instanceof CopilotCLISession
 			? session.mode.get()?.id

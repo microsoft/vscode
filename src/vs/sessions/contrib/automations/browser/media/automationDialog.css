@@ -753,3 +753,17 @@
 .hc-light .automation-target-toolbar .automation-form-branch-slot:focus-visible {
 	outline-color: var(--vscode-contrastActiveBorder);
 }
+.automation-provider-details {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automation-provider-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.automation-provider-tools > p {
+	flex-basis: 100%;
+}
