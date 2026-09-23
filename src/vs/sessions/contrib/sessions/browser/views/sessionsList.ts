@@ -476,6 +476,7 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 	constructor(
 		private readonly header: HTMLElement,
+		private readonly headerContainer: HTMLElement,
 		private readonly layoutHeader: () => void,
 	) { }
 
@@ -495,39 +496,51 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			}
 			template.container.append(this.header);
 			if (this.elementToRefocusAfterRerender) {
-				this.elementToRefocusAfterRerender.focus({ preventScroll: true });
+				const activeElement = DOM.getActiveElement();
+				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
+					this.elementToRefocusAfterRerender.focus({ preventScroll: true });
+				}
 				this.elementToRefocusAfterRerender = undefined;
 			}
 			this.layoutHeader();
 		}
 	}
 
-	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
+	private preserveFocusedElement(): void {
 		const activeElement = DOM.getActiveElement();
 		if (DOM.isHTMLElement(activeElement) && DOM.isAncestor(activeElement, this.header)) {
 			this.elementToRefocusAfterRerender = activeElement;
 		}
+	}
+
+	private restoreHeader(template: ISessionsHeaderTemplate): void {
+		if (this.header.parentElement !== template.container) {
+			return;
+		}
+		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
+		const restoredToSource = target !== this.headerContainer;
+		target.append(this.header);
+		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
+		if (restoredToSource) {
+			this.elementToRefocusAfterRerender = undefined;
+		}
+		this.layoutHeader();
+	}
+
+	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
+		this.preserveFocusedElement();
 		if (!template.isSticky && this.sourceContainer === template.container) {
 			this.sourceContainer = undefined;
 		}
-		if (this.header.parentElement === template.container) {
-			if (template.isSticky && this.sourceContainer?.isConnected) {
-				this.sourceContainer.append(this.header);
-				this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
-				this.elementToRefocusAfterRerender = undefined;
-			} else {
-				this.header.remove();
-			}
-		}
+		this.restoreHeader(template);
 	}
 
 	disposeTemplate(template: ISessionsHeaderTemplate): void {
+		this.preserveFocusedElement();
 		if (!template.isSticky && this.sourceContainer === template.container) {
 			this.sourceContainer = undefined;
 		}
-		if (this.header.parentElement === template.container) {
-			this.header.remove();
-		}
+		this.restoreHeader(template);
 		template.disposables.dispose();
 	}
 }
@@ -2929,16 +2942,13 @@ function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 
 
 //#region Sessions List Control
 
-export interface ISessionsListControlOptions {
+interface ISessionsListControlBaseOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly findWidgetContainer?: HTMLElement;
-	readonly sessionsHeader?: HTMLElement;
-	readonly sessionsHeaderContainer?: HTMLElement;
-	readonly layoutSessionsHeader?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -2957,6 +2967,16 @@ export interface ISessionsListControlOptions {
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
 }
+
+export type ISessionsListControlOptions = ISessionsListControlBaseOptions & ({
+	readonly sessionsHeader: HTMLElement;
+	readonly sessionsHeaderContainer: HTMLElement;
+	readonly layoutSessionsHeader?: () => void;
+} | {
+	readonly sessionsHeader?: undefined;
+	readonly sessionsHeaderContainer?: undefined;
+	readonly layoutSessionsHeader?: undefined;
+});
 
 /**
  * @deprecated Use {@link ISessionsListControlOptions} instead.
@@ -3175,6 +3195,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
+		if ((this.options.sessionsHeader === undefined) !== (this.options.sessionsHeaderContainer === undefined)) {
+			throw new Error('Sessions header and its container must be provided together.');
+		}
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
@@ -3336,6 +3359,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 		);
 		this._delegate = delegate;
+		const sessionsHeaderRenderer = this.options.sessionsHeader
+			? [new SessionsHeaderRenderer(this.options.sessionsHeader, this.options.sessionsHeaderContainer, () => this.options.layoutSessionsHeader?.())]
+			: [];
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -3345,7 +3371,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[
 				sessionRenderer,
 				chatRenderer,
-				...(this.options.sessionsHeader ? [new SessionsHeaderRenderer(this.options.sessionsHeader, () => this.options.layoutSessionsHeader?.())] : []),
+				...sessionsHeaderRenderer,
 				shortcutSectionRenderer,
 				sectionRenderer,
 				groupRenderer,

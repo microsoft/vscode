@@ -519,13 +519,15 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(showHeader ? '.agent-sessions-control-container' : 'div'));
+	const sessionsHeaderOptions = sessionsHeader && sessionsHeaderContainer
+		? { sessionsHeader, sessionsHeaderContainer }
+		: { sessionsHeader: undefined, sessionsHeaderContainer: undefined };
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
 		compact: () => options.compact ?? false,
 		showNavigationShortcuts: () => options.showCustomizationsNavigation ?? false,
-		sessionsHeader,
-		sessionsHeaderContainer,
+		...sessionsHeaderOptions,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
