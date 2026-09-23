@@ -66,12 +66,12 @@ suite('ChatWorkingLogo', () => {
 		return { configuration, fireChange };
 	}
 
-	test('configured progress defaults to static and switches motions without replacing its faces', async () => {
+	test('configured progress defaults to Weave and switches motions without replacing its faces', async () => {
 		const { configuration, fireChange } = createConfiguration();
 		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService())));
 		mainWindow.document.body.appendChild(logo.domNode);
 		const faces = [...logo.domNode.children];
-		const initial = { animation: logo.domNode.dataset.animation, animations: logo.domNode.getAnimations({ subtree: true }).length };
+		const initial = { animation: logo.domNode.dataset.animation, animated: logo.domNode.getAnimations({ subtree: true }).length > 0 };
 		const snapshots = [];
 		for (const motion of Object.values(ChatProgressAnimation)) {
 			await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, motion);
@@ -94,7 +94,7 @@ suite('ChatWorkingLogo', () => {
 			sameAnimations,
 			motionAfterDisposal: logo.domNode.dataset.animation,
 		}, {
-			initial: { animation: 'off', animations: 0 },
+			initial: { animation: 'weave', animated: true },
 			snapshots: [
 				{ animation: 'off', duration: 1200, classApplied: true },
 				{ animation: 'weave', duration: 1200, classApplied: true },

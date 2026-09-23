@@ -31,7 +31,7 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('defines persistent progress as an opt-in experimental setting', () => {
+	test('enables persistent progress by default as an experimental setting', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -39,13 +39,13 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: 'off',
+			default: 'weave',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
 	});
 
-	test('defines exactly one persistent progress setting, defaulting to Off', () => {
+	test('defines persistent progress animations and a separate verbosity setting', () => {
 		const setting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
 		assert.deepStrictEqual({
 			settings: Object.keys(chatProgressConfigurationProperties),
@@ -55,12 +55,31 @@ suite('Chat configuration', () => {
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
 		}, {
-			settings: ['chat.experimental.persistentProgress'],
+			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: 'off',
+			default: 'weave',
 			values: ['off', 'weave', 'draw', 'orbit', 'accordion', 'dial'],
 			labels: ['Off', 'Weave', 'Draw', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
 			descriptions: 6,
+		});
+	});
+
+	test('defaults persistent progress verbosity to expanded tool chains', () => {
+		const setting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgressVerbosity];
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			values: setting.enum,
+			labels: setting.enumItemLabels,
+			descriptions: setting.enumDescriptions.length,
+			tags: setting.tags,
+		}, {
+			type: 'string',
+			default: 'verbose',
+			values: ['verbose', 'notVerbose'],
+			labels: ['Verbose', 'Not Verbose'],
+			descriptions: 2,
+			tags: ['experimental'],
 		});
 	});
 
