@@ -98,7 +98,7 @@ export interface IGitHubStateFolder {
 	 * folder changeset owner no longer matches any chat (`false`).
 	 */
 	readonly folderKey: string | undefined;
-	/** Whether the folder is the session's first folder, whose state is also copied to the original single-folder entry. */
+	/** Whether the folder is the session's first folder, whose pull request Agent Merge and the pull request lifecycle follow. */
 	readonly isSessionFolder: boolean;
 	/** The folder's working directory, when known. */
 	readonly workingDirectory: ProtocolURI | undefined;

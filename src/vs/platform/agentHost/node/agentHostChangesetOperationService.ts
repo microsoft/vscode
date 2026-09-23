@@ -107,7 +107,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// Each folder has its own GitHub state; callers may pass the session folder's.
 		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, ownerKey);
 		if (!gitHubFolder.isSessionFolder || !gitHubState) {
-			gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubFolder.folderKey, gitHubFolder.isSessionFolder);
+			gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubFolder.folderKey);
 		}
 
 		// In a multi-folder session the per-turn `turn` and `compare-turns`
@@ -258,7 +258,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		if (!gitHubState) {
 			const sessionState = this._stateManager.getSessionState(containingSessionKey);
-			gitHubState = readSessionGitHubState(sessionState?._meta);
+			gitHubState = readSessionGitHubState(sessionState?._meta, sessionState?.workingDirectories?.[0]);
 		}
 
 		for (const changeset of unsuppressed) {

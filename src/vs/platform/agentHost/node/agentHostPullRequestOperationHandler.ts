@@ -197,7 +197,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, parsed.ownerUri);
-		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey, gitHubFolder.isSessionFolder);
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey);
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		// The session's saved Git state describes the session folder only.

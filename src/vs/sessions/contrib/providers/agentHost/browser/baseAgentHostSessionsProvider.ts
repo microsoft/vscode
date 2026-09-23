@@ -40,7 +40,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getWorkingDirectoryKey } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -225,7 +225,10 @@ interface ISerializedSessionMetadata {
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ProtocolChatInteractivity;
 	}[];
+	/** Session folder's GitHub state, written by earlier versions; migrated on read. */
 	readonly github?: ISessionGitHubState;
+	/** GitHub state of each session folder, keyed by working-directory key. */
+	readonly githubData?: Record<string, ISessionGitHubState>;
 	/**
 	 * Whether the session is a workspace-less quick chat. Persisted because the
 	 * adapter seeds its session-kind from this tag at construction (see
@@ -252,6 +255,7 @@ interface ISerializedSessionMetadata {
 const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionStatus.IsArchived;
 
 function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSessionDiscoveryMetadata): ISerializedSessionMetadata {
+	const gitHubData = readSessionGitHubData(meta._meta);
 	return {
 		session: meta.session.toString(),
 		startTime: meta.startTime,
@@ -268,7 +272,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			origin: chat.origin,
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		})),
-		github: readSessionGitHubState(meta._meta),
+		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		external: readSessionExternal(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
@@ -304,7 +308,10 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		let _meta = withSessionWorkspaceless(undefined, raw.workspaceless === true);
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
-		_meta = withSessionGitHubState(_meta, raw.github);
+		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
+		if (raw.github && raw.workingDirectory) {
+			_meta = withMigratedSessionGitHubState(_meta, fromAgentHostUri(URI.parse(raw.workingDirectory)).toString(), raw.github);
+		}
 		if (raw.createdBySession) {
 			_meta = withSessionCreationReference(_meta, raw.createdBySession);
 		}
@@ -484,13 +491,18 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 	return refs.length > 0 ? refs : undefined;
 }
 
+/** The host keys folder state by backend working directory; client folders carry mapped URIs. */
+function toFolderGitHubKey(workingDirectory: URI): string {
+	return getWorkingDirectoryKey(fromAgentHostUri(workingDirectory).toString());
+}
+
 /**
- * Maps session metadata to GitHub info. Pass `folderKey` to use a folder's own
- * GitHub state; omit it for the session folder's state in the original
- * single-folder entry.
+ * Maps session metadata to the GitHub info of the folder with working-directory
+ * key `folderKey`. The session folder also falls back to the session's Git state
+ * and recorded pull requests for its repository.
  */
-function toGitHubInfo(meta: SessionMeta | undefined, folderKey?: string, isSessionFolder = folderKey === undefined): IGitHubInfo | undefined {
-	const state = readFolderGitHubState(meta, folderKey, isSessionFolder);
+function toGitHubInfo(meta: SessionMeta | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
+	const state = readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
 	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
 	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
@@ -1223,7 +1235,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual
 		}, reader => {
-			return toGitHubInfo(this._metaObs.read(reader));
+			return toGitHubInfo(this._metaObs.read(reader), this._getSessionFolderKey(reader), true);
 		}));
 		this.completedStateIcon = derived(this, reader => {
 			const sourceControlState = readSessionSourceControlState(this._metaObs.read(reader));
@@ -2133,20 +2145,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => gitHubInfoWithIcon.read(reader));
 	}
 
-	/** Resolves the GitHub info each session folder reports from its own state. */
-	private _getFolderGitHubInfoResolver(reader: IReader): IFolderGitHubInfoResolver {
+	/** Working-directory key of the session folder, the main chat's first folder. */
+	private _getSessionFolderKey(reader: IReader): string | undefined {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
-		// The host keys folder state by backend working directory; client folders carry mapped URIs.
-		const toFolderKey = (workingDirectory: URI) => getWorkingDirectoryKey(fromAgentHostUri(workingDirectory).toString());
-		// The session folder is the main chat's first folder.
 		const defaultChatWorkingDirectory = this._defaultChatWorkingDirectories.read(reader)?.[0];
 		const sessionWorkingDirectory = this._workingDirectories?.[0];
-		const sessionFolderKey = defaultChatWorkingDirectory !== undefined
+		return defaultChatWorkingDirectory !== undefined
 			? getWorkingDirectoryKey(defaultChatWorkingDirectory)
-			: sessionWorkingDirectory ? toFolderKey(sessionWorkingDirectory) : undefined;
+			: sessionWorkingDirectory ? toFolderGitHubKey(sessionWorkingDirectory) : undefined;
+	}
+
+	/** Resolves the GitHub info each session folder reports from its own state. */
+	private _getFolderGitHubInfoResolver(reader: IReader): IFolderGitHubInfoResolver {
+		const sessionFolderKey = this._getSessionFolderKey(reader);
 		return workingDirectory => {
-			const folderKey = toFolderKey(workingDirectory);
+			const folderKey = toFolderGitHubKey(workingDirectory);
 			const isSessionFolder = folderKey === sessionFolderKey;
 			const cacheKey = `${folderKey}\u0001${isSessionFolder}`;
 			let gitHubInfo = this._folderGitHubInfos.get(cacheKey);
@@ -2586,7 +2600,8 @@ class NewSession extends Disposable {
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
 	setTitle(title: string): void { this._title.set(title, undefined); }
 
-	applySessionMeta(meta: SessionMeta | undefined): boolean {
+	/** Applies the session's Git and GitHub state; `sessionWorkingDirectory` is the backend URI of its first folder. */
+	applySessionMeta(meta: SessionMeta | undefined, sessionWorkingDirectory: string | undefined): boolean {
 		const workspace = this._workspace.get();
 		const primaryFolder = workspace?.folders[0];
 		if (!workspace || !primaryFolder) {
@@ -2594,7 +2609,7 @@ class NewSession extends Disposable {
 		}
 
 		const gitState = readSessionGitState(meta);
-		const gitHubInfo = toGitHubInfo(meta);
+		const gitHubInfo = toGitHubInfo(meta, sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory), true);
 		if (!gitState && !gitHubInfo) {
 			return false;
 		}
@@ -6169,7 +6184,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		this._newSessions.get(sessionId)?.applySessionMeta(state._meta);
+		this._newSessions.get(sessionId)?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
 		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();

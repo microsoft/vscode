@@ -187,12 +187,13 @@ suite('AgentHostSessionInputPills', () => {
 		];
 		const meta = withSessionGitHubState(
 			withSessionArtifacts(undefined, entries),
+			'file:///repo',
 			{
 				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
 			},
 		);
 
-		const metadata = getAgentHostSessionPillMetadata(meta);
+		const metadata = getAgentHostSessionPillMetadata(meta, 'file:///repo');
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
@@ -228,7 +229,7 @@ suite('AgentHostSessionInputPills', () => {
 			{ id: 'new-issue', type: SessionArtifactType.Issue, label: 'New Issue', link: 'https://github.com/microsoft/vscode/issues/2', isGitHub: true, isArtifact: true },
 		];
 
-		const metadata = getAgentHostSessionPillMetadata(withSessionArtifacts(undefined, entries));
+		const metadata = getAgentHostSessionPillMetadata(withSessionArtifacts(undefined, entries), undefined);
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
@@ -704,7 +705,8 @@ suite('AgentHostSessionInputPills', () => {
 			[StateComponents.Session, {
 				defaultChat: buildDefaultChatUri(backendSession),
 				chats: [],
-				_meta: withSessionGitHubState(undefined, {
+				workingDirectories: ['file:///repo'],
+				_meta: withSessionGitHubState(undefined, 'file:///repo', {
 					pullRequestUrls: [
 						'https://github.com/microsoft/vscode/pull/1',
 						'https://github.com/microsoft/vscode/pull/2',
@@ -776,7 +778,8 @@ suite('AgentHostSessionInputPills', () => {
 		connection.setState(StateComponents.Session, {
 			defaultChat: buildDefaultChatUri(backendSession),
 			chats: [],
-			_meta: withSessionGitHubState(undefined, {
+			workingDirectories: ['file:///repo'],
+			_meta: withSessionGitHubState(undefined, 'file:///repo', {
 				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
 				pullRequestState: 'merged',
 				pullRequestStateUrl: 'https://github.com/microsoft/vscode/pull/1',

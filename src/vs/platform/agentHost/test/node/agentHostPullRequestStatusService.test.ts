@@ -25,9 +25,11 @@ import { AgentHostPullRequestStatusService } from '../../node/agentHostPullReque
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
 
+const REPOSITORY = 'file:///repo';
+
 function summary(resource: string): SessionSummary {
 	const now = new Date().toISOString();
-	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now };
+	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY] };
 }
 
 function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; readonly headSha?: string }): PullRequestSnapshot {
@@ -232,8 +234,8 @@ suite('AgentHostPullRequestStatusService', () => {
 			override async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
 				gitHubStates.push(state);
 				const currentMeta = stateManager.getSessionState(sessionKey)?._meta;
-				stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, {
-					...readSessionGitHubState(currentMeta),
+				stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, REPOSITORY, {
+					...readSessionGitHubState(currentMeta, REPOSITORY),
 					...state,
 				}));
 			}
@@ -252,6 +254,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		// shape the watcher is eligible for.
 		stateManager.setSessionMeta(session, withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature' }),
+			REPOSITORY,
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
@@ -506,6 +509,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		});
 		stateManager.setSessionMeta(session, withSessionGitHubState(
 			stateManager.getSessionState(session)?._meta,
+			REPOSITORY,
 			{
 				pullRequestUrls: [pullRequestUrl],
 				pullRequestBranchName: 'feature',

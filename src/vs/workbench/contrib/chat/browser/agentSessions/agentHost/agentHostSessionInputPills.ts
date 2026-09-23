@@ -18,7 +18,7 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -112,9 +112,9 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
  * pills. Every list is most recent first, so each pill's dropdown opens on what
  * the session did last.
  */
-export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
+export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
-	const github = readSessionGitHubState(meta);
+	const github = readSessionGitHubState(meta, sessionWorkingDirectory);
 	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest));
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
@@ -376,8 +376,11 @@ export class AgentHostSessionInputPills extends Disposable {
 					deletions: diffs.reduce((total, diff) => total + diff.removed, 0),
 				};
 		});
-		const metadata = derived(this, reader => getAgentHostSessionPillMetadata(sessionState.read(reader)?._meta));
-		const gitHubState = derived(this, reader => readSessionGitHubState(sessionState.read(reader)?._meta));
+		const metadata = derived(this, reader => {
+			const state = sessionState.read(reader);
+			return getAgentHostSessionPillMetadata(state?._meta, state?.workingDirectories?.[0]);
+		});
+		const gitHubState = derived(this, reader => readSessionFolderGitHubState(sessionState.read(reader)));
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));
 		this._refreshBrowserListeners();

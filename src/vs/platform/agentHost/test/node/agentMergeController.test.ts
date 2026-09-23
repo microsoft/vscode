@@ -634,6 +634,7 @@ suite('AgentMergeController', () => {
 			const { stateManager, configurationService, session, notices } = createControllerHarness(disposables, snapshot);
 			stateManager.setSessionMeta(session, withSessionGitHubState(
 				withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+				REPOSITORY,
 				{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 			));
 			const disabled = new Promise<void>(resolve => {
@@ -698,6 +699,7 @@ suite('AgentMergeController', () => {
 		});
 		stateManager.setSessionMeta(session, withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+			REPOSITORY,
 			{
 				pullRequestUrls: ['https://github.com/octo/repo/pull/1'],
 				pullRequestBranchName: 'other',
@@ -746,6 +748,7 @@ suite('AgentMergeController', () => {
 		const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
 		stateManager.setSessionMeta(session, withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+			REPOSITORY,
 			{
 				pullRequestUrls: [pullRequestUrl],
 				pullRequestBranchName: 'feature',
@@ -961,6 +964,8 @@ suite('AgentMergeController', () => {
 	});
 });
 
+const REPOSITORY = 'file:///repo';
+
 function summary(resource: string): SessionSummary {
 	const now = new Date().toISOString();
 	return {
@@ -970,5 +975,6 @@ function summary(resource: string): SessionSummary {
 		status: SessionStatus.Idle,
 		createdAt: now,
 		modifiedAt: now,
+		workingDirectories: [REPOSITORY],
 	};
 }

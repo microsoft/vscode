@@ -279,7 +279,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			link: event.pullRequestUrl,
 		}, generateUuid));
 
-		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey, folder.isSessionFolder);
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);

@@ -1742,13 +1742,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		previousHost.addSession(createSession('cached-pr', {
 			summary: 'Cached PR',
 			project: { uri: URI.file('/repo'), displayName: 'repo' },
+			workingDirectory: URI.file('/repo'),
 		}));
 		createProvider(disposables, previousHost, undefined, { storageService });
 		await timeout(0);
 		await storageService.flush();
 
 		fireSessionSummaryChanged(previousHost, 'cached-pr', {
-			_meta: withSessionGitHubState(undefined, {
+			_meta: withSessionGitHubState(undefined, 'file:///repo', {
 				owner: 'owner',
 				repo: 'repo',
 				pullRequestUrls: ['https://github.com/owner/repo/pull/42'],
@@ -8477,7 +8478,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			private readonly _model = { pullRequest } as unknown as GitHubPullRequestModel;
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
-		agentHost.addSession(createSession('github-stable', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('github-stable', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8491,7 +8492,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+			_meta: withSessionGitHubState(undefined, 'file:///repo', { owner: 'owner', repo: 'repo', pullRequestUrls: ['https://github.com/owner/repo/pull/42'] }),
 		});
 		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
 		let updateCount = 0;
@@ -8585,7 +8586,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 
-		agentHost.addSession(createSession('pr-default-icon', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('pr-default-icon', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8600,16 +8601,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: {
-				github: {
-					owner: 'owner',
-					repo: 'repo',
-					pullRequestUrls: [
-						'https://github.com/owner/repo/pull/42',
-						'https://github.com/owner/repo/pull/41',
-					]
-				}
-			},
+			_meta: withSessionGitHubState(undefined, 'file:///repo', {
+				owner: 'owner',
+				repo: 'repo',
+				pullRequestUrls: [
+					'https://github.com/owner/repo/pull/42',
+					'https://github.com/owner/repo/pull/41',
+				]
+			}),
 		});
 
 		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
@@ -8653,7 +8652,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
-		agentHost.addSession(createSession('completed-state-icon', { summary: 'Completed Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('completed-state-icon', { summary: 'Completed Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8676,7 +8675,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const mergeIcon = session.completedStateIcon?.get();
 
-		const pullRequestState = withSessionSourceControlState(withSessionGitHubState(mergeState, {
+		const pullRequestState = withSessionSourceControlState(withSessionGitHubState(mergeState, 'file:///repo', {
 			owner: 'owner',
 			repo: 'repo',
 			pullRequestUrls: ['https://github.com/owner/repo/pull/42'],
@@ -8714,7 +8713,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 
-		agentHost.addSession(createSession('pr-baseline', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('pr-baseline', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8727,17 +8726,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: {
-				github: {
-					owner: 'owner',
-					repo: 'repo',
-					pullRequestUrls: [
-						'https://github.com/owner/repo/pull/42',
-						'https://github.com/owner/repo/pull/41',
-					],
-					initialPullRequestUrls: ['https://github.com/owner/repo/pull/42'],
-				}
-			},
+			_meta: withSessionGitHubState(undefined, 'file:///repo', {
+				owner: 'owner',
+				repo: 'repo',
+				pullRequestUrls: [
+					'https://github.com/owner/repo/pull/42',
+					'https://github.com/owner/repo/pull/41',
+				],
+				initialPullRequestUrls: ['https://github.com/owner/repo/pull/42'],
+			}),
 		});
 
 		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
@@ -8755,7 +8752,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			private readonly _model = upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) });
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
-		agentHost.addSession(createSession('pr-associations', { summary: 'PR Associations', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('pr-associations', { summary: 'PR Associations', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8774,7 +8771,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.setSessionState('pr-associations', 'copilotcli', {
 				provider: 'copilotcli', title: 'PR Associations', status: ProtocolSessionStatus.Idle,
 				lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
-				_meta: withSessionGitHubState(undefined, { owner: 'owner', repo: 'repo', ...state }),
+				_meta: withSessionGitHubState(undefined, 'file:///repo', { owner: 'owner', repo: 'repo', ...state }),
 			});
 			const info = session.workspace.get()!.folders[0].gitRepository!.gitHubInfo.get();
 			snapshots.push({
@@ -8795,7 +8792,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 
-		agentHost.addSession(createSession('pr-artifacts', { summary: 'Artifact Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('pr-artifacts', { summary: 'Artifact Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8803,7 +8800,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session);
 
 		provider.getSessionConfig(session.sessionId);
-		const meta = withSessionArtifacts(withSessionGitHubState(undefined, {
+		const meta = withSessionArtifacts(withSessionGitHubState(undefined, 'file:///repo', {
 			owner: 'owner',
 			repo: 'repo',
 			pullRequestUrls: ['https://github.com/owner/repo/pull/41', 'https://github.com/owner/repo/pull/42'],
@@ -8879,7 +8876,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 
-		agentHost.addSession(createSession('pr-reappear', { summary: 'Reappear Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('pr-reappear', { summary: 'Reappear Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8887,7 +8884,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session);
 		provider.getSessionConfig(session.sessionId);
 
-		const recordedAndDiscovered = withSessionArtifacts(withSessionGitHubState(undefined, {
+		const recordedAndDiscovered = withSessionArtifacts(withSessionGitHubState(undefined, 'file:///repo', {
 			owner: 'owner',
 			repo: 'repo',
 			pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
@@ -8903,7 +8900,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// Simulate the host persisting the removal of the recorded entry: its
 		// artifact record is gone, but the git-discovered URL is unaffected.
-		const afterRemoval = withSessionGitHubState(undefined, {
+		const afterRemoval = withSessionGitHubState(undefined, 'file:///repo', {
 			owner: 'owner', repo: 'repo', pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
 		});
 		agentHost.setSessionState('pr-reappear', 'copilotcli', {
@@ -8929,7 +8926,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 
-		agentHost.addSession(createSession('pr-unsurfaced', { summary: 'Unsurfaced Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		agentHost.addSession(createSession('pr-unsurfaced', { summary: 'Unsurfaced Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -8953,7 +8950,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: withSessionArtifacts(withSessionGitHubState(undefined, { owner: 'owner', repo: 'repo' }), [
+			_meta: withSessionArtifacts(withSessionGitHubState(undefined, 'file:///repo', { owner: 'owner', repo: 'repo' }), [
 				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Same repo', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
 				{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Other repo', isArtifact: true, link: 'https://github.com/other/project/pull/9', isGitHub: true },
 			]),

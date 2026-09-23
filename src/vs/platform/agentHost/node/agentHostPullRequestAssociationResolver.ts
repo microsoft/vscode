@@ -263,7 +263,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		if (!sessionState || gitState?.branchName !== branchName || !context.isRestrictedMode()) {
 			return undefined;
 		}
-		const gitHubState = readSessionGitHubState(sessionState._meta);
+		const gitHubState = readSessionGitHubState(sessionState._meta, sessionState.workingDirectories?.[0]);
 		if (gitHubState?.owner !== owner || gitHubState.repo !== repo) {
 			return undefined;
 		}

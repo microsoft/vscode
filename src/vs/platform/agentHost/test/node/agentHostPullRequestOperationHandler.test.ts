@@ -267,7 +267,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		githubRepo: 'vscode',
 		branchName: 'feature/test',
 		baseBranchName: options?.baseBranch ?? 'main',
-	}), {
+	}), URI.file('/repo').toString(), {
 		owner: 'microsoft',
 		repo: 'vscode',
 	});
