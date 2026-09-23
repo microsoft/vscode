@@ -29,8 +29,6 @@ function createSession(id: string, isArchived = false, creatorSession?: URI): IS
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, new Date()),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
-		changesets: observableValue(`changesets-${id}`, []),
-		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),

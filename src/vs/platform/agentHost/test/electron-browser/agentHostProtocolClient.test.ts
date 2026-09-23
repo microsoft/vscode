@@ -18,7 +18,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetSessionPluginMarketplaceSnapshotExtensionMethod, InstallSessionPluginExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetSessionPluginMarketplaceSnapshotExtensionMethod, InstallSessionPluginExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostSessionPluginMarketplaces } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -42,6 +43,7 @@ import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../comm
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -1853,6 +1855,50 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(request, error);
 	});
 
+	test('timing and session plugin marketplace capabilities are independent', () => {
+		const capabilities = [];
+		for (const timing of [false, true]) {
+			for (const marketplaces of [false, true]) {
+				const result = { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta(true, false, timing, marketplaces) };
+				capabilities.push({
+					timing: supportsAgentHostTiming(result),
+					marketplaces: supportsAgentHostSessionPluginMarketplaces(result),
+				});
+			}
+		}
+		assert.deepStrictEqual(capabilities, [
+			{ timing: false, marketplaces: false },
+			{ timing: false, marketplaces: true },
+			{ timing: true, marketplaces: false },
+			{ timing: true, marketplaces: true },
+		]);
+	});
+
+	test('first-response diagnostics require an enabled host capability, not product telemetry', async () => {
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			provider: 'copilot', requestId: 'request-1', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown',
+			trustInteractionRequired: true, totalElapsedMs: 0, hasResponseText: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await client.reportFirstResponse(diagnostic);
+			assert.strictEqual(transport.sentMessages.length, 0);
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, enabled));
+			transport.sentMessages.length = 0;
+			const report = client.reportFirstResponse(diagnostic);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportAgentHostFirstResponse', params: diagnostic,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
+	});
+
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
@@ -1922,7 +1968,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('session plugin marketplace methods do not send requests without the advertised capability', async () => {
 		const { client, transport } = createClient();
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false));
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true, false));
 		transport.sentMessages.length = 0;
 		const session = URI.parse('copilotcli:/session-1');
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Host does not support session plugin marketplaces' };

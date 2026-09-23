@@ -443,6 +443,8 @@ Copilot also has no AH-session container:
 
 No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
 
+`CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
+
 ### Codex (`node/codex/codexAgent.ts`)
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.

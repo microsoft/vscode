@@ -18,6 +18,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
+import { agentIdentityAttributes } from '../../../platform/otel/common/otelIdentity';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { toErrorMessage } from '../../../util/common/errorMessage';
@@ -204,6 +205,7 @@ class InlineChatToolCalling {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) { }
 
 	async run(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
@@ -216,6 +218,7 @@ class InlineChatToolCalling {
 				kind: SpanKind.INTERNAL,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
+					...agentIdentityAttributes(this._otelService.config, this._authenticationService),
 					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.AGENT_NAME]: 'Inline Chat',
 					[GenAiAttr.CONVERSATION_ID]: conversation.sessionId,

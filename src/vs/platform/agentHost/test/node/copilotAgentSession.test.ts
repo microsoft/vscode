@@ -6586,6 +6586,39 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual((await resultPromise).kind, 'reject');
 		});
 
+		for (const toolName of ['bash', 'powershell']) {
+			for (const retry of [false, true]) {
+				test(`sandbox bypass ${retry ? 'retry' : 'permission'} retains ${toolName} presentation metadata`, async () => {
+					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+					const toolCallId = 'tc-sandbox-preview';
+					const command = 'git status';
+					mockSession.fire('tool.execution_start', {
+						toolCallId, toolName, arguments: { command },
+					} as SessionEventPayload<'tool.execution_start'>['data']);
+
+					const resultPromise = retry
+						? runtime.requestUnsandboxedCommandConfirmation({ toolCallId, toolName, shellExecutable: toolName, command })
+						: runtime.handlePermissionRequest({ kind: 'shell', toolCallId, fullCommandText: command, requestSandboxBypass: true });
+					const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === toolCallId);
+					assert.ok(signal.kind === 'pending_confirmation');
+					const meta = readToolCallMeta(signal.state);
+					assert.deepStrictEqual({
+						toolKind: meta.toolKind,
+						language: meta.language,
+						command: getInlineToolInput(signal.state.toolInput),
+						bypass: signal.requestSandboxBypass,
+					}, {
+						toolKind: 'terminal',
+						language: toolName === 'bash' ? 'shellscript' : 'powershell',
+						command,
+						bypass: true,
+					});
+					session.respondToPermissionRequest(toolCallId, false);
+					assert.deepStrictEqual(await resultPromise, retry ? false : { kind: 'reject', feedback: 'The user denied permission.' });
+				});
+			}
+		}
+
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
@@ -14330,7 +14363,7 @@ Use the attached image as context.
 		});
 
 		test('discovers and executes deferred artifact tools in new and restored chats', async () => {
-			for (const [resume, useCompactPrompts] of [[false, false], [false, true], [true, false], [true, true]]) {
+			for (const resume of [false, true]) {
 				const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
 				const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 				stateManager.createSession({
@@ -14344,7 +14377,6 @@ Use the attached image as context.
 				let enabled = true;
 				const serverToolHost = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 					isEnabled: () => enabled,
-					useCompactPrompts: () => useCompactPrompts,
 					persist: () => { },
 				})]);
 				const clientSnapshot: IActiveClientSnapshot = {

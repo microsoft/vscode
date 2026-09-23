@@ -258,6 +258,28 @@ suite('SessionDatabase', () => {
 			}]);
 		});
 
+		test('retrieve file edits by the turn event ID', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.createTurn('request-1');
+			await db.setTurnEventId('request-1', 'event-1');
+			await db.storeFileEdit({
+				turnId: 'request-1',
+				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
+				filePath: '/workspace/file.ts',
+				beforeContent: new TextEncoder().encode('before'),
+				afterContent: new TextEncoder().encode('after'),
+				addedLines: 1,
+				removedLines: 1,
+			});
+
+			assert.deepStrictEqual(
+				await db.getFileEditsByTurn('event-1'),
+				await db.getFileEditsByTurn('request-1'),
+			);
+		});
+
 		test('retrieve multiple edits for a single tool call', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 

@@ -39,6 +39,8 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -76,6 +78,20 @@ const SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-1');
 const SECOND_SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-2');
 const FOLDER = URI.parse('file:///workspace');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
+
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && isTelemetryData(data)) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -408,8 +424,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.isRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -417,7 +431,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	readonly secondSession = upcastPartial<ISession>({
 		resource: SECOND_SESSION_RESOURCE,
@@ -440,8 +457,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.secondIsRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -449,7 +464,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	markAllReadCalls = 0;
 	markAllReadSessionCount = 0;
@@ -593,6 +611,7 @@ suite('AutomationsCardsWidget', () => {
 		const logService = new TestLogService();
 		const commandService = new TestCommandService();
 		const keybindingService = new TestKeybindingService();
+		const telemetryService = new TestTelemetryService();
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -622,6 +641,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, hoverService);
 		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
@@ -652,8 +672,16 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget };
 	}
+
+	test('reports the Automations view when rendered', () => {
+		const { telemetryService } = setup();
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'automation.viewShown', data: { surface: 'agentsWindow' } },
+		]);
+	});
 
 	function dispatchContextMenu(target: HTMLElement): void {
 		target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));

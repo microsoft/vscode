@@ -1302,8 +1302,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
 				sessionResource => {
-					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
-					return chatURI ? URI.parse(chatURI) : undefined;
+					const backendSession = this._resolveSessionUri(sessionResource);
+					return backendSession ? URI.parse(this._getChatURIOrDefault(sessionResource, backendSession)) : undefined;
 				},
 				this._logService,
 			)),
@@ -2014,6 +2014,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			});
 			this._telemetryService.publicLog2<IAgentHostFirstResponseEvent, AgentHostFirstResponseClassification>('agentHost.firstResponse', timing);
 			this._logService.info(`[AgentHostFirstResponse] ${JSON.stringify({ ...timing, sessionId, turnId: request.requestId })}`);
+			void this._config.connection.reportFirstResponse?.({
+				...timing,
+				agentSessionId: sessionId ? AgentSession.id(sessionId) : undefined,
+				chatId: chatId ? parseChatUri(chatId)?.chatId : undefined,
+			}).catch(() => this._logService.debug('[AgentHostFirstResponse] OTel diagnostic could not be delivered'));
 		}
 	}
 

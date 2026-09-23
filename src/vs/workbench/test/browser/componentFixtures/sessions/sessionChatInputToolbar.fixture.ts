@@ -6,7 +6,6 @@
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
@@ -22,8 +21,6 @@ import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestModel.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
 // eslint-disable-next-line local/code-import-patterns
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
@@ -32,7 +29,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChangeset, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFileChange, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -40,6 +37,7 @@ import { ISessionsProvidersService } from '../../../../../sessions/services/sess
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
+import { createFixtureGitHubService } from './githubFixtureUtils.js';
 
 // ============================================================================
 // Mock helpers
@@ -131,8 +129,6 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly isRead = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(spec.turnChanges ?? []);
-		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly artifacts: IObservable<readonly ISessionArtifact[]> = constObservable(spec.artifacts ?? []);
 	}();
 	const browsers = (spec.browsers ?? []).map((browser, index) => {
@@ -170,22 +166,7 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 		override async openChangesEditor(): Promise<undefined> { return undefined; }
 	}());
-	registration.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
-		override readonly activeSessionPullRequestObs = constObservable(undefined);
-		override readonly activeSessionPullRequestCIObs = constObservable(undefined);
-		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override createPullRequestModelReference(owner: string, repo: string, prNumber: number) {
-			const model = new class extends mock<GitHubPullRequestModel>() {
-				override readonly pullRequest = constObservable(undefined);
-				override readonly owner = owner;
-				override readonly repo = repo;
-				override readonly prNumber = prNumber;
-				override refresh(): Promise<void> { return Promise.resolve(); }
-				override startPolling() { return Disposable.None; }
-			}();
-			return { object: model, dispose: () => { } };
-		}
-	}());
+	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
 }
 
 // ============================================================================

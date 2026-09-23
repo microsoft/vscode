@@ -10,6 +10,8 @@ import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnosti
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostTimingCapabilityMetaKey } from './meta/agentHostTimingMeta.js';
+import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostSessionPluginMarketplacesCapabilityMetaKey } from './meta/agentHostSessionPluginMarketplacesMeta.js';
 
@@ -50,6 +52,7 @@ export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifac
 export const GetSessionPluginMarketplaceSnapshotExtensionMethod = 'vscode/sessionPluginMarketplaces/snapshot';
 export const RefreshSessionPluginMarketplacesExtensionMethod = 'vscode/sessionPluginMarketplaces/refresh';
 export const InstallSessionPluginExtensionMethod = 'vscode/sessionPluginMarketplaces/install';
+export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -61,6 +64,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionPluginMarketplacesCapabilityMetaKey]?: true;
+	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
@@ -70,7 +74,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, sessionPluginMarketplaces = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionPluginMarketplaces = true): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
@@ -78,6 +82,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 		[AgentHostSessionPluginMarketplacesCapabilityMetaKey]: sessionPluginMarketplaces ? true : undefined,
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
+		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 	};
 }
 
@@ -119,6 +124,7 @@ export const installSessionPluginParamsValidator = vObj({
 });
 
 export interface IAgentHostExtensionCommandMap {
+	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };

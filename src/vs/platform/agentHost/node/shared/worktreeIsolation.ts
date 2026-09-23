@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, GitRefType, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -763,7 +763,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		let worktreeCreateNewBranchProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
-			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
+			const branch = isolationValue === 'worktree' && request.workingDirectory
+				? await this._gitService.getBranch(request.workingDirectory, gitInfo.currentBranch)
+				: undefined;
+			branchDefault = isolationValue === 'worktree'
+				? (branch?.kind === GitRefType.Head ? branch.upstream?.name : undefined) ?? gitInfo.defaultBranch.name
+				: gitInfo.currentBranch;
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
 				? request.config[SessionConfigKey.Branch] as string
 				: branchDefault;
@@ -920,10 +925,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				})
 				: undefined;
 
-			const branchStartPoint = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
-
 			const baseBranch = worktreeCreateNewBranch
-				? branchStartPoint
+				? selectedBranch
 				: (await this._gitService.getDefaultBranch(repositoryRoot))?.startPoint;
 
 			// Git suppresses progress for the first couple of seconds, so name
@@ -938,11 +941,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
-					commitish: worktreeCreateNewBranch
-						? branchStartPoint
-						: selectedBranch,
+					commitish: selectedBranch,
 					newBranchName,
-					preferRemoteBranch: worktreeCreateNewBranch,
 					track: worktreeBranchTrack,
 					onProgress: progress,
 				}));
@@ -1447,13 +1447,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
 		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? { name: currentBranch, startPoint: currentBranch };
 		return { currentBranch, defaultBranch };
-	}
-
-	private async _resolveBranchStartPoint(repositoryRoot: URI, selectedBranch: string): Promise<string> {
-		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot);
-		return defaultBranch?.name === selectedBranch
-			? defaultBranch.startPoint
-			: selectedBranch;
 	}
 
 	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {

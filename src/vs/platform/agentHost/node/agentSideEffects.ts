@@ -924,7 +924,11 @@ export class AgentSideEffects extends Disposable {
 			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._changesets.onToolCallEditsApplied(sessionUri, turnId, this._turnTracker.getClientTelemetryContext(sessionKey, turnId));
+				const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
+				this._changesets.onToolCallEditsApplied(sessionKey, turnId, clientContext);
+				if (sessionKey !== sessionUri) {
+					this._changesets.onToolCallEditsApplied(sessionUri, turnId, clientContext);
+				}
 			}
 		}
 

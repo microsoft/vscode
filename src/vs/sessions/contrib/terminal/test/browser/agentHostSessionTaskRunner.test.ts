@@ -55,8 +55,6 @@ function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStat
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),

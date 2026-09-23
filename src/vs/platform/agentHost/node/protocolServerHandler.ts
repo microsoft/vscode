@@ -21,7 +21,9 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, GetSessionPluginMarketplaceSnapshotExtensionMethod, getSessionPluginMarketplaceSnapshotParamsValidator, InstallSessionPluginExtensionMethod, installSessionPluginParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, refreshSessionPluginMarketplacesParamsValidator, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, GetSessionPluginMarketplaceSnapshotExtensionMethod, getSessionPluginMarketplaceSnapshotParamsValidator, InstallSessionPluginExtensionMethod, installSessionPluginParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RefreshSessionPluginMarketplacesExtensionMethod, refreshSessionPluginMarketplacesParamsValidator, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -395,6 +397,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -688,6 +691,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				_meta: getAgentHostExtensionInitializeResultMeta(
 					!!this._agentService.removeSessionArtifact,
 					!!client.devContainers,
+					this._otelService?.diagnosticsEnabled,
 					!!this._agentService.getSessionPluginMarketplaceSnapshot
 					&& !!this._agentService.refreshSessionPluginMarketplaces
 					&& !!this._agentService.installSessionPlugin,
@@ -1985,6 +1989,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === ReportAgentHostFirstResponseExtensionMethod) {
+			if (!this._otelService?.diagnosticsEnabled) {
+				return Promise.resolve();
+			}
+			const validated = agentHostFirstResponseValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid first-response diagnostic'));
+			}
+			this._otelService.emitFirstResponse(validated.content);
+			return Promise.resolve();
+		}
 		// Session-data methods operate on state the client already drives through
 		// the data plane, so they are available to every connected client. Only
 		// host-control methods below are gated by `allowExtensionMethods`.

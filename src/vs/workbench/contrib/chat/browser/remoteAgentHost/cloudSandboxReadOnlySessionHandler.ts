@@ -37,8 +37,8 @@ export interface ICloudSandboxReadOnlyConfig {
 	readonly prefetchedHistory?: Promise<IReplayedTaskHistory | undefined>;
 }
 
-/** A resolved chat session backed entirely by replayed history. */
-class ReadOnlyChatSession extends Disposable implements IChatSession {
+/** A resolved chat session backed entirely by read-only history. */
+export class ReadOnlyChatSession extends Disposable implements IChatSession {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
