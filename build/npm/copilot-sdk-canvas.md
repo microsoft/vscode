@@ -10,6 +10,22 @@ runtime support: the selected runtime must implement launch-provider contract
 version 1, `session.retain`, and the initial create/resume script-classification option. The client rejects failed or unsupported
 negotiation rather than falling back to unadmitted extension execution.
 
+## Client/runtime boundary
+
+The canvas client uses the public SDK JSON-RPC contract, not runtime-native
+exports. Internal runtime changes to how `session.retain` dispatches do not
+require a different client call or package patch when that contract is unchanged.
+
+Keep the connection-level `client.rpc.session.retain({ sessionId })` call during
+launch admission: create/resume may not yet have returned a session object.
+Missing session/default-launch context denies execution, retention errors must
+propagate, and only a successful `null` acknowledgement can allow startup.
+Cancellation or loss of authority must still reject a late acknowledgement.
+Do not replace retention with the non-equivalent `sessions.save` operation.
+
+The focused `copilotCanvases.test.ts` suite covers these client-side boundaries.
+It does not replace integration qualification against the actual selected runtime.
+
 ## Source and payload
 
 | File | Purpose |

@@ -184,6 +184,22 @@ suite('Copilot canvases', () => {
 		assert.strictEqual(f.adapter.available, true);
 	});
 
+	for (const field of ['sessionId', 'defaultLaunch'] as const) {
+		test(`a launch without ${field} is denied without approval or retention`, async () => {
+			const f = createFixture(store);
+			f.start();
+			f.bind();
+			delete f.request[field];
+			assert.deepStrictEqual({
+				result: await f.admit(), approvals: f.approvals, calls: f.calls,
+				trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+			}, {
+				result: { launch: null }, approvals: [], calls: [],
+				trust: { status: CanvasTrustStatus.Pending },
+			});
+		});
+	}
+
 	test('explicit source admission binds the exact chat and retains before returning the original recipe', async () => {
 		const f = createFixture(store);
 		f.request.source = 'user';
@@ -325,6 +341,73 @@ suite('Copilot canvases', () => {
 		assert.deepStrictEqual({
 			result: await f.admit(), approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
 		}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
+	});
+
+	for (const message of ['Session persistence is not available', 'Session persistence write failed', 'Remote sessions cannot be retained locally']) {
+		test(`retention RPC failure is preserved without admitting the source: ${message}`, async () => {
+			const f = createFixture(store);
+			f.start();
+			f.bind();
+			const retained = new DeferredPromise<void>();
+			f.setRetainGate(retained.p);
+			const failure = new Error(message);
+			const rejected = assert.rejects(f.admit(), error => error === failure);
+			while (!f.calls.length) {
+				await timeout(0);
+			}
+			await retained.error(failure);
+			await rejected;
+			assert.deepStrictEqual({
+				approvals: f.approvals, calls: f.calls, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+			}, {
+				approvals: [], calls: ['retain:native-session'], trust: { status: CanvasTrustStatus.Pending },
+			});
+		});
+	}
+
+	test('retention failure permits an explicit retry without replacing the owning session', async () => {
+		const f = createFixture(store);
+		f.start();
+		f.bind();
+		const retained = new DeferredPromise<void>();
+		f.setRetainGate(retained.p);
+		const failure = new Error('Session persistence write failed');
+		const rejected = assert.rejects(f.admit(), error => error === failure);
+		while (!f.calls.length) {
+			await timeout(0);
+		}
+		await retained.error(failure);
+		await rejected;
+		const failedTrust = f.adapter.getTrust(canvasChat, canvasIdentity.source);
+		f.setRetainGate(Promise.resolve());
+		assert.deepStrictEqual({
+			failedTrust, retry: await f.admit(), calls: f.calls,
+			trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+		}, {
+			failedTrust: { status: CanvasTrustStatus.Pending }, retry: { launch: f.request.defaultLaunch },
+			calls: ['retain:native-session', 'retain:native-session'], trust: { status: CanvasTrustStatus.Trusted },
+		});
+	});
+
+	test('cancellation while retention is pending rejects a late successful acknowledgement', async () => {
+		const f = createFixture(store);
+		f.start();
+		f.bind();
+		const retained = new DeferredPromise<void>();
+		f.setRetainGate(retained.p);
+		const cancellation = store.add(new CancellationTokenSource());
+		const rejected = assert.rejects(f.adapter.launchProvider.resolve(f.request, cancellation.token), isCancellationError);
+		while (!f.calls.length) {
+			await timeout(0);
+		}
+		cancellation.cancel();
+		await rejected;
+		await retained.complete();
+		assert.deepStrictEqual({
+			approvals: f.approvals, calls: f.calls, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+		}, {
+			approvals: [], calls: ['retain:native-session'], trust: { status: CanvasTrustStatus.Pending },
+		});
 	});
 
 	test('a cancelled trusted-workspace launch cannot start retention', async () => {
