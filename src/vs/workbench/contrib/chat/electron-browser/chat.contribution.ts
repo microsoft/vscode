@@ -47,6 +47,7 @@ import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
+import { ChatSessionHandoffController } from './chatSessionHandoff.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
@@ -62,6 +63,8 @@ class ChatCommandLineHandler extends Disposable {
 
 	static readonly ID = 'workbench.contrib.chatCommandLineHandler';
 
+	private readonly chatSessionHandoffController: ChatSessionHandoffController;
+
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -69,10 +72,13 @@ class ChatCommandLineHandler extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService chatWidgetService: IChatWidgetService
 	) {
 		super();
 
+		this.chatSessionHandoffController = new ChatSessionHandoffController(chatWidgetService, async sessionResource => {
+			await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		});
 		this.registerListeners();
 	}
 
@@ -91,7 +97,7 @@ class ChatCommandLineHandler extends Disposable {
 			this.logService.trace('vscode:openChatSession', sessionUriString);
 
 			const sessionResource = URI.parse(sessionUriString);
-			Promise.resolve(this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget))
+			void this.chatSessionHandoffController.open(sessionResource)
 				.catch(err => this.logService.error('vscode:openChatSession failed', err));
 		};
 		ipcRenderer.on('vscode:openChatSession', handleOpenChatSession);
