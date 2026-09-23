@@ -5883,6 +5883,8 @@ export class CopilotAgentSession extends Disposable {
 			const modelId = this._lastSeenModelId;
 			const abortToken = this._abortToken;
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
+			let terminalOutputStored = false;
+			let completionPublished = false;
 			const complete = (authoritativeOutput?: string) => {
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
@@ -5899,6 +5901,7 @@ export class CopilotAgentSession extends Disposable {
 					},
 					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
 				}, parentToolCallId);
+				completionPublished = true;
 				if (retireNonPtyShellTracking) {
 					// Preserve the result in chat state before removing its live output resource.
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
@@ -5917,7 +5920,10 @@ export class CopilotAgentSession extends Disposable {
 						const output = await this._fileService.readFile(URI.file(outputFilePath), { limits: { size: MAX_TERMINAL_OUTPUT_BYTES } }, abortToken);
 						if (isCurrent()) {
 							await outputDatabase.object.storeTerminalOutput(turnId, e.data.toolCallId, output.value.buffer);
-							authoritativeOutput = output.value.toString();
+							terminalOutputStored = true;
+							if (isCurrent()) {
+								authoritativeOutput = output.value.toString();
+							}
 						}
 					} catch (error) {
 						this._logService.warn(`[Copilot:${sessionId}] Failed to persist shell output for ${e.data.toolCallId}`, error);
@@ -5941,7 +5947,17 @@ export class CopilotAgentSession extends Disposable {
 				if (isCurrent()) {
 					complete(authoritativeOutput);
 				}
-			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(() => {
+			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(async () => {
+				if (terminalOutputStored && !completionPublished) {
+					try {
+						await this._databaseRef.object.deleteTerminalOutput(e.data.toolCallId);
+					} catch (error) {
+						this._logService.warn(`[Copilot:${sessionId}] Failed to clean up unpublished shell output for ${e.data.toolCallId}`, error);
+					}
+				}
+				if (nonPtyCompletion?.shouldRetire) {
+					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode);
+				}
 				if (retireNonPtyShellTracking) {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}

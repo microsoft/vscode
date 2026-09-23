@@ -10203,6 +10203,58 @@ Use the attached image as context.
 			});
 		});
 
+		test('finalizes and retires a large-output terminal when capture is cancelled', async () => {
+			const storing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const database = new class extends TestSessionDatabase {
+				override async storeTerminalOutput(turnId: string, toolCallId: string, output: Uint8Array): Promise<void> {
+					storing.complete();
+					await release.p;
+					await super.storeTerminalOutput(turnId, toolCallId, output);
+				}
+			}();
+			await database.createTurn('cancel-output');
+			const { session, mockSession, signals, terminalManager } = await createAgentSession(disposables, {
+				sessionDatabase: database,
+				fileContents: { [URI.file('/cancelled-output.txt').toString()]: 'complete output' },
+			});
+			session.resetTurnState('cancel-output');
+			mockSession.fire('tool.execution_start', { toolCallId: 'cancelled-output', toolName: 'bash', arguments: { command: 'build' } });
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'cancelled-output', partialOutput: 'partial output' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'cancelled-output',
+				success: true,
+				result: {
+					content: 'Saved to: /cancelled-output.txt',
+					contents: [{
+						type: 'shell_exit',
+						shellId: '0',
+						exitCode: 130,
+						outputPreview: 'partial output',
+						outputTruncated: true,
+						outputFilePath: '/cancelled-output.txt',
+					}],
+				},
+			});
+			await storing.p;
+			await session.abort();
+			release.complete();
+			await database.whenIdle();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				completed: getActions(signals).some(action => action.type === ActionType.ChatToolCallComplete),
+				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
+				storedOutput: await database.readTerminalOutput('cancelled-output'),
+			}, {
+				completed: false,
+				finalized: [{ uri: defaultNonPtyShellTerminalUri('cancelled-output'), exitCode: 130 }],
+				disposed: [defaultNonPtyShellTerminalUri('cancelled-output')],
+				storedOutput: undefined,
+			});
+		});
+
 		test('a failed artifact capture preserves completion fallback and retires the channel without a resource reference', async () => {
 			const database = new TestSessionDatabase();
 			const { session, mockSession, signals, terminalManager, waitForSignal } = await createAgentSession(disposables, {

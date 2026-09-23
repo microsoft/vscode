@@ -936,6 +936,12 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	deleteTerminalOutput(toolCallId: string): Promise<void> {
+		return this._mutateTurnUsage(async db => {
+			await dbRun(db, 'DELETE FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+		});
+	}
+
 	getTerminalOutputSize(toolCallId: string): Promise<number | undefined> {
 		return this._queueTurnData(async db => {
 			const row = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);

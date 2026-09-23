@@ -353,6 +353,11 @@ export interface ISessionDatabase extends IDisposable {
 	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void>;
 
 	/**
+	 * Delete terminal output for a tool invocation.
+	 */
+	deleteTerminalOutput(toolCallId: string): Promise<void>;
+
+	/**
 	 * Return the stored terminal output size in bytes without loading its content.
 	 */
 	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;

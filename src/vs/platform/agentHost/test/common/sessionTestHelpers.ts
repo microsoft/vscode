@@ -96,6 +96,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._terminalOutputs.set(toolCallId, { turnId, content: content.slice() });
 	}
 
+	async deleteTerminalOutput(toolCallId: string): Promise<void> {
+		this._terminalOutputs.delete(toolCallId);
+	}
+
 	async getTerminalOutputSize(toolCallId: string): Promise<number | undefined> {
 		return this._terminalOutputs.get(toolCallId)?.content.byteLength;
 	}

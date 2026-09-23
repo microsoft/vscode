@@ -517,6 +517,24 @@ suite('SessionDatabase', () => {
 			});
 		});
 
+		test('deletes unpublished output without affecting other tool calls', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-1', 'tool-2', new Uint8Array([2]));
+
+			await db.deleteTerminalOutput('tool-1');
+			await db.deleteTerminalOutput('missing');
+
+			assert.deepStrictEqual({
+				deleted: await db.readTerminalOutput('tool-1'),
+				retained: await db.readTerminalOutput('tool-2'),
+			}, {
+				deleted: undefined,
+				retained: new Uint8Array([2]),
+			});
+		});
+
 		test('reads and whenIdle wait for an earlier output write', async () => {
 			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
 			db = database;
