@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IActivityService } from '../../../services/activity/common/activity.js';
 import { ISCMHistoryProvider } from '../../../scm/common/history.js';
 import { ISCMProvider, ISCMRepository, ISCMResource, ISCMResourceGroup, ISCMService } from '../../../scm/common/scm.js';
 import { ScmMultiDiffSourceResolver, ScmHistoryItemResolver } from '../../browser/scmMultiDiffSourceResolver.js';
@@ -49,10 +48,9 @@ suite('ScmMultiDiffSourceResolver', () => {
 			}
 		}();
 
-		const activityChange = disposables.add(new Emitter<void>());
 		const activityService = new class extends mock<IActivityService>() {
-			override readonly onDidChangeActivity = activityChange.event;
-			override getViewContainerActivities(): readonly any[] { return []; }
+			override readonly onDidChangeActivity = Event.None;
+			override getViewContainerActivities() { return []; }
 		}();
 		const resolver = new ScmMultiDiffSourceResolver(scmService, activityService);
 		const sourceUri = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(provider.rootUri.toString(), group.id);
@@ -72,7 +70,7 @@ suite('ScmMultiDiffSourceResolver', () => {
 
 		const source = await sourcePromise;
 		assert.deepStrictEqual(
-			source.resources.value.map(resource => resource.goToFileUri?.fsPath),
+			source.resources.value.map(resource => resource.goToFileUri?.path),
 			[
 				'/repository/env.ts',
 				'/repository/githubServer.ts',
