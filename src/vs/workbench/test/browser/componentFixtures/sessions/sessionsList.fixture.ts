@@ -53,7 +53,7 @@ import { ICustomViewService } from '../../../../../sessions/services/customView/
 // eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -200,6 +200,8 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly resource = mainChatResource;
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.mainChatStatus ?? spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly changes: IObservable<readonly never[]> = constObservable([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();
 	const nestedChats = (spec.chats ?? []).map(chatSpec => createChat(spec.id, chatSpec, updatedAt, approvals));
 	const chats: readonly IChat[] = [mainChat, ...nestedChats];

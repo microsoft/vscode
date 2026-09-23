@@ -39,7 +39,7 @@ import { AgentFeedbackOverlayController, IAgentFeedbackOverlayEditorGroup } from
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../../agentFeedback/browser/agentFeedbackEditorActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 
@@ -148,6 +148,9 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 		}
 		override getSessionForFile(resource: URI): ISession | undefined {
 			return resource.toString() === MODIFIED_FIRST_RESOURCE.toString() ? session : undefined;
+		}
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 		override getFeedbackSessionResource(resource: URI): URI | undefined {
 			return resource.toString() === feedbackScopeResource.toString() ? SESSION_RESOURCE : undefined;

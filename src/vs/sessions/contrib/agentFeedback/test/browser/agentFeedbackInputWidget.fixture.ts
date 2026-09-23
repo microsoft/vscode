@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AgentFeedbackEditorInputContribution, AgentFeedbackInputWidget } from '../../browser/agentFeedbackEditorInputContribution.js';
 import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
@@ -152,6 +152,9 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 		}
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			return isEqual(resourceUri, fileResource) ? session : undefined;
+		}
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {
 			return isEqual(resourceUri, fileResource) ? sessionResource : undefined;
