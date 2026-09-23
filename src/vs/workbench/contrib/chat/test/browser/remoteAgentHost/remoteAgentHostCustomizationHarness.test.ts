@@ -193,6 +193,9 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getClientWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
 			return [];
 		},
+		getPluginMarketplaceSnapshot: async () => undefined,
+		refreshPluginMarketplaces: async () => undefined,
+		installPlugin: async () => ({}),
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},

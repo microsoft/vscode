@@ -11,7 +11,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
  */
 export async function getExistingGitHubAuthenticationToken(authenticationService: IAuthenticationService, logService: ILogService, requiredScopes: readonly string[] = []): Promise<string | undefined> {
 	try {
-		const sessions = await authenticationService.getSessions('github', requiredScopes, { silent: true });
+		const sessions = await authenticationService.getSessions('github', [], { silent: true });
 		if (requiredScopes.length) {
 			return sessions.find(session => requiredScopes.every(scope => session.scopes.includes(scope)))?.accessToken;
 		}

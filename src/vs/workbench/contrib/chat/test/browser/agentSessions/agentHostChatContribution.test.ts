@@ -210,7 +210,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	/** Error to fail a subscription with, when the default generic error is not what is under test. */
 	public failNextSubscriptionError = new Map<string, Error>();
-	public agents: RootState['agents'] = [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+	public agents: RootState['agents'] = [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [] }];
 
 	// ---- Pending→error subscription support (repro for #5242) --------------
 	// Models a subscription that is first observed *pending* (value === undefined)
@@ -1324,7 +1324,7 @@ suite('AgentHostChatContribution', () => {
 		test('registers agent', () => {
 			const { agentHostService, chatAgentService, harnessDescriptors } = createContribution(disposables);
 			agentHostService.setRootState({
-				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', requiresAuth: true }],
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', models: [] }],
 				activeSessions: 0,
 			});
 

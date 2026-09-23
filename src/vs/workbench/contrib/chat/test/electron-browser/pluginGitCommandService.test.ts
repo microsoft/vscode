@@ -31,12 +31,12 @@ suite('NativePluginGitCommandService', () => {
 		} as ILocalGitService;
 	}
 
-	function createAuthenticationService(accessToken?: string): IAuthenticationService {
+	function createAuthenticationService(accessToken?: string, scopes: readonly string[] = ['repo']): IAuthenticationService {
 		const sessions: AuthenticationSession[] = accessToken ? [{
 			id: 'session',
 			accessToken,
 			account: { id: 'account', label: 'account' },
-			scopes: ['repo'],
+			scopes,
 		}] : [];
 		return {
 			getSessions: async () => sessions,
@@ -103,12 +103,32 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		assert.strictEqual(deleted, true);
 	});
 
+	test('cloneRepository accepts a GitHub session whose scopes include repo', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
+		const authenticationService = createAuthenticationService('github-token', ['read:user', 'repo', 'user:email', 'workflow']);
+		const service = createService(createLocalGitStub({
+			clone: async (_operationId, _url, _path, _ref, options) => {
+				authentications.push(options?.authentication);
+				if (!options?.authentication) {
+					throw createSerializedAuthenticationError();
+				}
+			},
+		}), undefined, createFileService(), authenticationService);
+
+		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
+
+		assert.deepStrictEqual(authentications, [undefined, {
+			urlPrefix: 'https://github.com/',
+			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
+		}]);
+	});
+
 	test('cloneRepository retries session lookup after native authentication failure', async () => {
 		let authentication: IGitAuthentication | undefined;
 		const sessionLookups: string[][] = [];
 		const authenticationService: Partial<IAuthenticationService> = {
 			getSessions: async (_providerId, scopes) => {
-				sessionLookups.push([...scopes]);
+				sessionLookups.push(Array.isArray(scopes) ? [...scopes] : []);
 				return sessionLookups.length === 1
 				? []
 				: createAuthenticationService('github-token').getSessions('github', ['repo']);
@@ -129,7 +149,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			sessionLookups,
 			authentication,
 		}, {
-			sessionLookups: [['repo'], ['repo']],
+			sessionLookups: [[], []],
 			authentication: {
 				urlPrefix: 'https://github.com/',
 				authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
