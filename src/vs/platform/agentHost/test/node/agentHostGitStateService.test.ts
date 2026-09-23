@@ -13,7 +13,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
 import { META_FOLDER_GITHUB_STATE, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -523,6 +524,44 @@ suite('AgentHostGitStateService', () => {
 			copy: migrated,
 			persistedFolders: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: migrated },
 			persistedCopy: migrated,
+		});
+	}));
+
+	test('never records state for a folder changeset owner that no longer matches a chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+		const staleOwner = buildFolderChangesetOwnerUri(SESSION, getWorkingDirectoryScopeId(['file:///removed']));
+
+		await h.service.setSessionGitHubState(staleOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/9'] });
+
+		const meta = h.stateManager.getSessionState(SESSION)?._meta;
+		assert.deepStrictEqual({
+			read: h.service.getGitHubState(staleOwner),
+			session: readSessionGitHubState(meta),
+			folders: Object.fromEntries(readSessionFolderGitHubStates(meta)),
+		}, {
+			read: undefined,
+			session: { owner: 'microsoft', repo: 'vscode' },
+			folders: {},
+		});
+	}));
+
+	test('persists concurrent updates of different folders without losing either', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const firstChat = buildChatUri(SESSION, 'first');
+		const secondChat = buildChatUri(SESSION, 'second');
+		h.stateManager.addChat(SESSION, firstChat, { workingDirectories: ['file:///first'] });
+		h.stateManager.addChat(SESSION, secondChat, { workingDirectories: ['file:///second'] });
+
+		await Promise.all([
+			h.service.setSessionGitHubState(firstChat, { owner: 'contoso', repo: 'first' }),
+			h.service.setSessionGitHubState(secondChat, { owner: 'contoso', repo: 'second' }),
+		]);
+
+		assert.deepStrictEqual(JSON.parse(await h.db.getMetadata(META_FOLDER_GITHUB_STATE) ?? 'null'), {
+			[getWorkingDirectoryKey('file:///first')]: { owner: 'contoso', repo: 'first' },
+			[getWorkingDirectoryKey('file:///second')]: { owner: 'contoso', repo: 'second' },
 		});
 	}));
 

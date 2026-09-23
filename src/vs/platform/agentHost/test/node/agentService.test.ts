@@ -35,7 +35,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
-import { IAgentHostGitStateService, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, META_FOLDER_GITHUB_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -63,7 +63,7 @@ import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -4983,6 +4983,35 @@ suite('AgentService (node dispatcher)', () => {
 				session: session.toString(),
 				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'],
 				action: 'delete',
+			}]);
+		});
+
+		test('enumerates sessions whose pull requests belong to any folder', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.UTC(2026, 8, 5);
+			const session = AgentSession.uri('copilot', 'other-folder-pr');
+			await registry.register(session, {
+				provider: 'copilot',
+				startTime: now - 10 * 24 * 60 * 60 * 1000,
+				modifiedTime: now - 8 * 24 * 60 * 60 * 1000,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			await perSession.database(session).setMetadata(META_FOLDER_GITHUB_STATE, JSON.stringify({
+				[getWorkingDirectoryKey('file:///other')]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'] },
+			}));
+
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined);
+
+			assert.deepStrictEqual(candidates.map(candidate => ({
+				session: candidate.session.toString(),
+				pullRequestUrls: candidate.pullRequestUrls,
+				action: candidate.action,
+			})), [{
+				session: session.toString(),
+				pullRequestUrls: ['https://github.com/contoso/tools/pull/7'],
+				action: 'archive',
 			}]);
 		});
 

@@ -200,7 +200,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey, gitHubFolder.isSessionFolder);
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
-		const storedGitState = readSessionGitState(sessionState._meta);
+		// The session's saved Git state describes the session folder only.
+		const storedGitState = gitHubFolder.isSessionFolder ? readSessionGitState(sessionState._meta) : undefined;
 		const effectiveBaseBranch = await this._resolveBaseBranchName(scope.sourceUri);
 
 		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch);

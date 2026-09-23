@@ -22,7 +22,7 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVI
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
@@ -511,11 +511,12 @@ function toGitHubInfo(meta: SessionMeta | undefined, folderKey?: string, isSessi
 			allPullRequests.push(discovered);
 		}
 	}
+	// Another folder's repository comes only from its own state, never from session-wide artifacts.
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
 			? { owner: gitState.githubOwner, repo: gitState.githubRepo }
-			: allPullRequests?.[0];
+			: isSessionFolder ? allPullRequests?.[0] : undefined;
 
 	if (!repository) {
 		return undefined;
@@ -2136,17 +2137,16 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _getFolderGitHubInfoResolver(reader: IReader): IFolderGitHubInfoResolver {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
-		const sessionWorkingDirectories = this._workingDirectories?.map(directory => directory.toString()) ?? [];
+		// The host keys folder state by backend working directory; client folders carry mapped URIs.
+		const toFolderKey = (workingDirectory: URI) => getWorkingDirectoryKey(fromAgentHostUri(workingDirectory).toString());
 		// The session folder is the main chat's first folder.
-		const sessionFolder = (this._defaultChatWorkingDirectories.read(reader) ?? sessionWorkingDirectories)[0];
-		const sessionFolderKey = sessionFolder !== undefined ? getWorkingDirectoryKey(sessionFolder) : undefined;
-		const mapWorkingDirectoryUri = this._options.mapWorkingDirectoryUri ?? (uri => uri);
+		const defaultChatWorkingDirectory = this._defaultChatWorkingDirectories.read(reader)?.[0];
+		const sessionWorkingDirectory = this._workingDirectories?.[0];
+		const sessionFolderKey = defaultChatWorkingDirectory !== undefined
+			? getWorkingDirectoryKey(defaultChatWorkingDirectory)
+			: sessionWorkingDirectory ? toFolderKey(sessionWorkingDirectory) : undefined;
 		return workingDirectory => {
-			const backendWorkingDirectory = sessionWorkingDirectories.find(directory => isEqual(mapWorkingDirectoryUri(URI.parse(directory)), workingDirectory));
-			if (backendWorkingDirectory === undefined) {
-				return undefined;
-			}
-			const folderKey = getWorkingDirectoryKey(backendWorkingDirectory);
+			const folderKey = toFolderKey(workingDirectory);
 			const isSessionFolder = folderKey === sessionFolderKey;
 			const cacheKey = `${folderKey}\u0001${isSessionFolder}`;
 			let gitHubInfo = this._folderGitHubInfos.get(cacheKey);

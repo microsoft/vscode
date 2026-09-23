@@ -1966,11 +1966,11 @@ export function readSessionFolderGitHubStates(meta: SessionSummaryMeta | undefin
  * Reads the GitHub state of a folder. For the session folder, falls back to the
  * original single-folder entry until the folder's own entry is recorded. Omit
  * `folderKey` for a session without working directories, which only has the
- * original entry.
+ * original entry; an omitted `folderKey` for another folder reads nothing.
  */
 export function readFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined, isSessionFolder: boolean): ISessionGitHubState | undefined {
 	if (folderKey === undefined) {
-		return readSessionGitHubState(meta);
+		return isSessionFolder ? readSessionGitHubState(meta) : undefined;
 	}
 	return readSessionFolderGitHubStates(meta).get(folderKey) ?? (isSessionFolder ? readSessionGitHubState(meta) : undefined);
 }
@@ -1983,7 +1983,7 @@ export function readFolderGitHubState(meta: SessionSummaryMeta | undefined, fold
  */
 export function withFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined, isSessionFolder: boolean, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
 	if (folderKey === undefined) {
-		return withSessionGitHubState(meta, gitHubState);
+		return isSessionFolder ? withSessionGitHubState(meta, gitHubState) : meta;
 	}
 	const folders = new Map(readSessionFolderGitHubStates(meta));
 	if (gitHubState !== undefined) {
