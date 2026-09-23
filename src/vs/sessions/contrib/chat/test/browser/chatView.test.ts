@@ -31,6 +31,7 @@ import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../.
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
@@ -150,16 +151,26 @@ suite('Sessions - Chat View', () => {
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
+		const maximumWidths: number[] = [];
+		let layouts = 0;
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_isPrimaryObs: observableValue(disposables, true),
+			_isSplit: false,
 			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
 			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
+			_widget: { setMaximumWidth: (value: number) => maximumWidths.push(value) },
+			_layoutChatWidget: () => layouts++,
 		}) as ChatView;
 
-		view.setPrimary(false);
-		view.setPrimary(true);
+		view.setPrimary(false, true);
+		view.setPrimary(true, true);
+		view.setPrimary(true, false);
 
-		assert.deepStrictEqual(bannerSessions, [undefined, session]);
+		assert.deepStrictEqual({ bannerSessions, maximumWidths, layouts }, {
+			bannerSessions: [undefined, session],
+			maximumWidths: [Number.POSITIVE_INFINITY, AGENTS_CENTERED_CONTENT_MAX_WIDTH],
+			layouts: 2,
+		});
 	});
 
 	test('updates chat visibility before making the archive nudge eligible for exposure', () => {
