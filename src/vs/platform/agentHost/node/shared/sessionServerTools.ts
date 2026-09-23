@@ -78,7 +78,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new chat or session.' },
 		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
-		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace. A worktree is not needed for read-only work. Only valid when `workspace` is also set.' },
+		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
@@ -250,6 +250,18 @@ export type IAddSessionWorkingDirectoryOptions = {
 	readonly forceNewWorktree?: boolean;
 };
 
+/** A folder prepared for a new chat and added to its session. */
+export interface IPreparedChatWorkingDirectory {
+	/** The effective checkout to assign to the chat. */
+	readonly directory: URI;
+	/**
+	 * Undoes the preparation when the chat could not be created: removes a
+	 * folder this preparation added, and a worktree it created, unless a chat
+	 * uses it by then. Never throws.
+	 */
+	release(): Promise<void>;
+}
+
 /** AgentService-owned operations used by the session server-tool group. */
 export interface IAgentServiceSessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
@@ -263,7 +275,7 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[] }) => Promise<void>;
-	readonly addSessionWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<URI>;
+	readonly prepareChatWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<IPreparedChatWorkingDirectory>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
 	readonly deleteSession: (session: URI) => Promise<void>;
@@ -824,16 +836,22 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
 		// A requested folder joins the session and is assigned only to the new chat.
-		const workingDirectory = args.workspace !== undefined
-			? await accessor.addSessionWorkingDirectory(currentSession, args.workspace, getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt))
+		const prepared = args.workspace !== undefined
+			? await accessor.prepareChatWorkingDirectory(currentSession, args.workspace, getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt))
 			: undefined;
-		const result = await createChat(accessor, {
-			session: currentSession,
-			prompt: args.prompt,
-			title: args.title,
-			model: args.model,
-			...(workingDirectory !== undefined ? { workingDirectories: [workingDirectory] } : {}),
-		}, source, sourceTurnId);
+		let result: ICreateChatResult;
+		try {
+			result = await createChat(accessor, {
+				session: currentSession,
+				prompt: args.prompt,
+				title: args.title,
+				model: args.model,
+				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
+			}, source, sourceTurnId);
+		} catch (error) {
+			await prepared?.release();
+			throw error;
+		}
 		return { relationship: args.relationship, ...result };
 	}
 

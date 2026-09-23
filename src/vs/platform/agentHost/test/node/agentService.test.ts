@@ -4669,6 +4669,102 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('create_session with currentSession removes the folder it added when the chat cannot be created', async () => {
+			class FailingChatAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async createChat(): Promise<void> {
+					throw new Error('chat creation failed');
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new FailingChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [primary] });
+			const defaultChat = buildDefaultChatUri(session);
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'source-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'Delegate work in another folder', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			const create = async (workspace: URI) => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.CreateSession, {
+				workspace: workspace.toString(),
+				prompt: 'do it there',
+				title: 'Other Folder',
+			});
+
+			await assert.rejects(create(other), /chat creation failed/);
+			const afterNewFolder = getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories;
+			await assert.rejects(create(primary), /chat creation failed/);
+
+			assert.deepStrictEqual({
+				afterNewFolder,
+				// A folder that was already in the session is never removed.
+				afterExistingFolder: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+			}, {
+				afterNewFolder: [primary.toString()],
+				afterExistingFolder: [primary.toString()],
+			});
+		});
+
+		test('releasing a prepared chat worktree deletes it unless a chat reused it', async () => {
+			const perSession = createPerSessionDataService();
+			const repository = URI.file('/workspace/repository');
+			const worktree = URI.file('/workspace/repository.worktrees/task');
+			const handle = generateUuid();
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => repository,
+				getWorktreeRoots: async () => [repository, worktree],
+				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [primary] });
+			const deleted: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				createDetachedWorktree: async () => ({ handle, worktree }),
+				claimDetachedWorktree: async () => { },
+				deleteDetachedWorktree: async deletedHandle => { deleted.push(deletedHandle); },
+			}));
+
+			const firstAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
+			await firstAttempt.release();
+			const afterRelease = {
+				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				records: await readSessionAdditionalWorktrees(perSession.service, session),
+				deleted: [...deleted],
+			};
+			const secondAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
+			await svc.createChat(session, URI.parse(buildChatUri(session, 'reusing')), { workingDirectories: [secondAttempt.directory] });
+			await secondAttempt.release();
+
+			assert.deepStrictEqual({
+				afterRelease,
+				// A chat uses the worktree by the time of release, so it stays.
+				afterReuse: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+			}, {
+				afterRelease: { session: [primary.toString()], records: [], deleted: [handle] },
+				afterReuse: [primary.toString(), worktree.toString()],
+			});
+		});
+
 		test('creates, reuses, and explicitly duplicates additional repository worktrees', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');

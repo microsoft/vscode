@@ -43,6 +43,7 @@ import {
 	sessionToolRequiresConfirmation,
 	serializeSessions,
 	type IChatContextSnapshot,
+	type IPreparedChatWorkingDirectory,
 	type ISessionServerToolAccessor,
 } from '../../node/shared/sessionServerTools.js';
 
@@ -62,6 +63,10 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' };
 	}
 
+	function prepared(directory: URI, release: () => Promise<void> = async () => { }): IPreparedChatWorkingDirectory {
+		return { directory, release };
+	}
+
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
@@ -76,7 +81,7 @@ suite('SessionServerTools', () => {
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
-			addSessionWorkingDirectory: overrides?.addSessionWorkingDirectory ?? (async (_session, directory) => directory),
+			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
@@ -123,7 +128,7 @@ suite('SessionServerTools', () => {
 				},
 				prompt: { type: 'string', description: 'Initial prompt to send to the new chat or session.' },
 				workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
-				worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace. A worktree is not needed for read-only work. Only valid when `workspace` is also set.' },
+				worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 			},
@@ -1258,12 +1263,12 @@ suite('SessionServerTools', () => {
 		});
 
 		test(`create_session honors explicit currentSession worktree=${worktree} over inherited isolation`, async () => {
-			let addOptions: Parameters<ISessionServerToolAccessor['addSessionWorkingDirectory']>[2] | undefined;
+			let addOptions: Parameters<ISessionServerToolAccessor['prepareChatWorkingDirectory']>[2] | undefined;
 			const accessor = createAccessor({
 				getCreationDefaults: () => ({ isolation: worktree ? 'folder' : 'worktree' }),
-				addSessionWorkingDirectory: async (_session, directory, options) => {
+				prepareChatWorkingDirectory: async (_session, directory, options) => {
 					addOptions = options;
-					return directory;
+					return prepared(directory);
 				},
 			});
 
@@ -1567,14 +1572,14 @@ suite('SessionServerTools', () => {
 		const preparedWorkspace = URI.file('/workspace/other.worktrees/task');
 		const operations: string[] = [];
 		let createdChat: { session: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
-		let addOptions: Parameters<ISessionServerToolAccessor['addSessionWorkingDirectory']>[2] | undefined;
+		let addOptions: Parameters<ISessionServerToolAccessor['prepareChatWorkingDirectory']>[2] | undefined;
 		const accessor = createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)],
 			getCreationDefaults: () => ({ isolation: 'worktree', project: workspace }),
-			addSessionWorkingDirectory: async (session, directory, options) => {
+			prepareChatWorkingDirectory: async (session, directory, options) => {
 				operations.push(`add:${session.toString()}:${directory.toString()}`);
 				addOptions = options;
-				return preparedWorkspace;
+				return prepared(preparedWorkspace);
 			},
 			onCreateChat: (session, _chat, options) => {
 				operations.push('create');
@@ -1607,13 +1612,13 @@ suite('SessionServerTools', () => {
 	});
 
 	test('create_session with currentSession prepares a requested folder by the inherited isolation', async () => {
-		const addOptions: Parameters<ISessionServerToolAccessor['addSessionWorkingDirectory']>[2][] = [];
+		const addOptions: Parameters<ISessionServerToolAccessor['prepareChatWorkingDirectory']>[2][] = [];
 		let isolation: 'folder' | 'worktree' | undefined;
 		const accessor = createAccessor({
 			getCreationDefaults: () => ({ isolation, project: workspace }),
-			addSessionWorkingDirectory: async (_session, directory, options) => {
+			prepareChatWorkingDirectory: async (_session, directory, options) => {
 				addOptions.push(options);
-				return directory;
+				return prepared(directory);
 			},
 		});
 		const create = () => applyCreateSessionTool(accessor, {
@@ -1635,9 +1640,9 @@ suite('SessionServerTools', () => {
 		let added = false;
 		let createdChatOptions: Parameters<ISessionServerToolAccessor['createChat']>[2];
 		const accessor = createAccessor({
-			addSessionWorkingDirectory: async (_session, directory) => {
+			prepareChatWorkingDirectory: async (_session, directory) => {
 				added = true;
-				return directory;
+				return prepared(directory);
 			},
 			onCreateChat: (_session, _chat, options) => { createdChatOptions = options; },
 		});
@@ -1650,7 +1655,7 @@ suite('SessionServerTools', () => {
 	test('create_session with currentSession does not create a chat when its folder cannot be prepared', async () => {
 		let createdChat = false;
 		const accessor = createAccessor({
-			addSessionWorkingDirectory: async () => { throw new Error('Provider does not support chat working directories: copilot'); },
+			prepareChatWorkingDirectory: async () => { throw new Error('Provider does not support chat working directories: copilot'); },
 			onCreateChat: () => { createdChat = true; },
 		});
 
@@ -1689,6 +1694,22 @@ suite('SessionServerTools', () => {
 			independentDisplay: 'Create New Session',
 			unknownDisplay: 'Create Session',
 		});
+	});
+
+	test('create_session with currentSession releases a prepared folder when the chat cannot be created', async () => {
+		let released = 0;
+		const accessor = createAccessor({
+			prepareChatWorkingDirectory: async (_session, directory) => prepared(directory, async () => { released++; }),
+			createChat: async () => { throw new Error('chat creation failed'); },
+		});
+
+		await assert.rejects(applyCreateSessionTool(accessor, {
+			relationship: 'currentSession',
+			workspace: 'file:///workspace/other',
+			prompt: 'do it there',
+			title: 'Other Folder',
+		}, URI.parse('copilot:/s1')), /chat creation failed/);
+		assert.strictEqual(released, 1);
 	});
 
 	test('create_session with currentSession rejects a model from another provider', async () => {

@@ -754,7 +754,7 @@
           },
           "worktree": {
             "type": "boolean",
-            "description": "Set true when the work needs an isolated Git worktree for the workspace. A worktree is not needed for read-only work. Only valid when `workspace` is also set."
+            "description": "Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session's isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set."
           },
           "title": {
             "type": "string",

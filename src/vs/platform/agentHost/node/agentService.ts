@@ -67,7 +67,7 @@ import { AgentSessionResidency } from './agentSessionResidency.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
-import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
+import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IPreparedChatWorkingDirectory, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
@@ -1366,7 +1366,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
 				}
 				: undefined),
-			addSessionWorkingDirectory: (session, directory, options) => this.addSessionWorkingDirectoryForChat(session, directory, options),
+			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
 			deleteSession: session => this.disposeSession(session),
@@ -6404,8 +6404,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the chat when creating it.
 	 */
 	async addSessionWorkingDirectoryForChat(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<URI> {
-		return this._additionalWorktreeSequencer.queue(session.toString(), async () => {
+		return (await this._prepareChatWorkingDirectory(session, directory, options)).directory;
+	}
+
+	/**
+	 * Like {@link addSessionWorkingDirectoryForChat}, and returns a release that
+	 * undoes the preparation when the chat cannot be created.
+	 */
+	async prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<IPreparedChatWorkingDirectory> {
+		const prepared = await this._prepareChatWorkingDirectory(session, directory, options);
+		return {
+			directory: prepared.directory,
+			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, prepared.createdWorktree) : Promise.resolve(),
+		};
+	}
+
+	private async _prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<{ readonly directory: URI; readonly added: boolean; readonly createdWorktree?: ISessionAdditionalWorktree }> {
+		let createdWorktree: ISessionAdditionalWorktree | undefined;
+		let previousWorkingDirectories: readonly string[] = [];
+		const effective = await this._additionalWorktreeSequencer.queue(session.toString(), async () => {
 			const { workingDirectories } = this._getChatWorkingDirectoryContext(session);
+			previousWorkingDirectories = workingDirectories;
 			const existing = workingDirectories.find(candidate => isEqual(URI.parse(candidate), directory));
 			if (existing !== undefined && !(options.isolation === 'worktree' && options.forceNewWorktree)) {
 				return URI.parse(existing);
@@ -6461,7 +6480,9 @@ export class AgentService extends Disposable implements IAgentService {
 				await writeSessionAdditionalWorktrees(this._sessionDataService, session, [...records, record]);
 				recorded = true;
 				await this._worktree.claimDetachedWorktree(detached.handle);
-				return await this._attachSessionWorkingDirectoryForChat(session, detached.worktree);
+				const attached = await this._attachSessionWorkingDirectoryForChat(session, detached.worktree);
+				createdWorktree = record;
+				return attached;
 			} catch (error) {
 				try {
 					await this._worktree.deleteDetachedWorktree(detached.handle);
@@ -6473,6 +6494,40 @@ export class AgentService extends Disposable implements IAgentService {
 					this._logService.error(`[AgentService] Failed to clean up additional worktree ${detached.handle}: ${toErrorMessage(cleanupError)}`);
 				}
 				throw error;
+			}
+		});
+		const added = !previousWorkingDirectories.some(candidate => isEqual(URI.parse(candidate), effective));
+		return { directory: effective, added, ...(added && createdWorktree ? { createdWorktree } : {}) };
+	}
+
+	/**
+	 * Removes a folder added for a chat that could not be created, together with
+	 * the worktree created for it. The folder stays when a chat uses it by then,
+	 * including a chat that inherits the complete session workspace.
+	 */
+	private _releaseChatWorkingDirectory(session: URI, directory: URI, createdWorktree: ISessionAdditionalWorktree | undefined): Promise<void> {
+		const sessionKey = session.toString();
+		return this._additionalWorktreeSequencer.queue(sessionKey, async () => {
+			try {
+				const state = this._stateManager.getSessionState(sessionKey);
+				const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
+				const isDirectory = (candidate: string) => isEqual(URI.parse(candidate), directory);
+				if (!state || !workingDirectories?.some(isDirectory)
+					|| state.chats.some(chat => chat.workingDirectories === undefined || chat.workingDirectories.some(isDirectory))) {
+					return;
+				}
+				const { capability } = this._getChatWorkingDirectoryContext(session);
+				this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction({
+					type: ActionType.SessionWorkingDirectoryRemoved,
+					directory: directory.toString(),
+				}, workingDirectories, capability));
+				if (createdWorktree) {
+					await this._worktree.deleteDetachedWorktree(createdWorktree.handle);
+					const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+					await writeSessionAdditionalWorktrees(this._sessionDataService, session, records.filter(record => record.handle !== createdWorktree.handle));
+				}
+			} catch (error) {
+				this._logService.error(`[AgentService] Failed to release working directory ${directory.toString()} of session ${sessionKey}: ${toErrorMessage(error)}`);
 			}
 		});
 	}
