@@ -11,6 +11,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 suite('AgentHostLanguageModelProvider', () => {
@@ -514,6 +515,24 @@ suite('AgentHostLanguageModelProvider', () => {
 		})), [
 			{ identifier: 'claude:@provider=copilot:claude-opus-4.6', name: 'Claude Opus 4.6', group: { id: 'copilot' } },
 			{ identifier: 'claude:@provider=anthropic:claude-opus-4.6', name: 'Claude Opus 4.6', group: { id: 'anthropic' } },
+		]);
+	});
+
+	test('marks the model the host reports as default as the chat default', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			makeModel('gpt-5'),
+			makeModel('claude-sonnet', { isDefault: true }),
+			// Only a boolean `true` counts; other values in the open `_meta` bag are ignored.
+			makeModel('auto', { isDefault: 'yes' }),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+
+		assert.deepStrictEqual(infos.map(info => [info.metadata.id, info.metadata.isDefaultForLocation]), [
+			['gpt-5', {}],
+			['claude-sonnet', { [ChatAgentLocation.Chat]: true }],
+			['auto', {}],
 		]);
 	});
 

@@ -13,10 +13,12 @@ import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentH
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { readAgentModelIsDefault } from '../../../../../../platform/agentHost/common/agentModelDefaultMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -129,7 +131,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
-						isDefaultForLocation: {},
+						// A host marks its runtime-reported default (for example an organization-managed default model).
+						isDefaultForLocation: readAgentModelIsDefault(m) ? { [ChatAgentLocation.Chat]: true } : {},
 						isUserSelectable: true,
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
 						warningText: notices?.warningText,

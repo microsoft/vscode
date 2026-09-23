@@ -86,6 +86,7 @@ import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotManagedModelDefaults } from '../../node/copilot/copilotManagedModelDefaults.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -526,6 +527,9 @@ interface ITestCopilotModelInfo {
 	readonly infoMessages?: CopilotModelInfo['infoMessages'];
 	readonly warningMessages?: CopilotModelInfo['warningMessages'];
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
+	/** Runtime overlay fields not yet in the published SDK types; see `copilotManagedModelDefaults.ts`. */
+	readonly isDefault?: boolean;
+	readonly managed?: ICopilotManagedModelDefaults;
 }
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
@@ -550,7 +554,7 @@ interface ITestCopilotSessionOptions {
 }
 
 function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
-	return {
+	const sdkModel: CopilotModelInfo = {
 		id: model.id,
 		name: model.name,
 		capabilities: {
@@ -573,6 +577,11 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 		...(model.warningMessages ? { warningMessages: model.warningMessages } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
 	};
+	// The runtime's managed-default overlay is not in the published SDK types yet, so attach it untyped.
+	return Object.assign(sdkModel, {
+		...(model.isDefault !== undefined ? { isDefault: model.isDefault } : {}),
+		...(model.managed ? { managed: model.managed } : {}),
+	});
 }
 
 class TestCopilotClient implements ITestCopilotClient {
@@ -7266,6 +7275,60 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('configSchema applies runtime-managed model defaults and marks the default model', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'auto',
+				name: 'Auto',
+				managed: { autoTier: { value: 'efficiency', overridable: false, source: 'server' } },
+			}, {
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: { multiplier: 1, tokenPrices: { contextMax: 200_000, longContext: { contextMax: 1_000_000, inputPrice: 2 } } },
+				supportedReasoningEfforts: ['low', 'medium', 'high'],
+				isDefault: true,
+				managed: {
+					model: { value: 'claude-sonnet', overridable: true, source: 'server' },
+					reasoningEffort: { value: 'low', overridable: false, source: 'device' },
+					contextTier: { value: 'long_context', overridable: true, source: 'server' },
+				},
+			}, {
+				id: 'gpt-5',
+				name: 'GPT-5',
+				capabilities: { limits: { max_context_window_tokens: 128_000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high'],
+				// A level the picker does not offer keeps the built-in default and stays unlocked.
+				managed: { reasoningEffort: { value: 'max', overridable: false, source: 'server' } },
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length === 3);
+			const byId = new Map(models.map(model => [model.id, model]));
+			const pick = (id: string, key: string) => {
+				const property = byId.get(id)?.configSchema?.properties[key];
+				return { default: property?.default, readOnly: property?.readOnly };
+			};
+
+			assert.deepStrictEqual({
+				autoTier: pick('auto', 'tier'),
+				sonnetThinking: pick('claude-sonnet', 'thinkingLevel'),
+				sonnetContext: pick('claude-sonnet', 'contextSize'),
+				gptThinking: pick('gpt-5', 'thinkingLevel'),
+				defaults: models.map(model => [model.id, model._meta?.isDefault]),
+			}, {
+				autoTier: { default: 'efficiency', readOnly: true },
+				sonnetThinking: { default: 'low', readOnly: true },
+				sonnetContext: { default: 1_000_000, readOnly: undefined },
+				gptThinking: { default: 'medium', readOnly: undefined },
+				defaults: [['auto', undefined], ['claude-sonnet', true], ['gpt-5', undefined]],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('BYOK model configSchema exposes the advertised reasoning efforts', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const agent = createTestAgent(disposables, { byokBridgeRegistry });
@@ -7648,6 +7711,25 @@ suite('CopilotAgent', () => {
 			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('a managed context tier replaces the free long-context fallback', async () => {
+			const managedDefaultModel: ITestCopilotModelInfo = {
+				id: 'free-long-ctx',
+				name: 'Free Long Ctx',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 200_000,
+						longContext: { contextMax: 1_000_000 },
+					},
+				},
+				managed: { contextTier: { value: 'default', overridable: true, source: 'server' } },
+			};
+			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [managedDefaultModel]);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, undefined);
 		});
 	});
 
