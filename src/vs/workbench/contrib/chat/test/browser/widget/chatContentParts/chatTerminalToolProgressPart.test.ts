@@ -12,12 +12,10 @@ import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRen
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { toAction, type IAction } from '../../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { buildTerminalOutputDbUri } from '../../../../../../../platform/agentHost/common/sessionDbUri.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -25,7 +23,6 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTr
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
-import { createFileSystemProviderError, FileSystemProviderErrorCode, getLargeFileConfirmationLimit, IFileService, type IFileStatWithPartialMetadata } from '../../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -49,13 +46,12 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalInstance, ITerminalService, type IChatTerminalOutputSource, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
 import type { ITerminalFont } from '../../../../../terminal/common/terminal.js';
 import { createFakeDetachedTerminal } from '../../../../../terminal/test/browser/chatTerminalMirrorTestUtils.js';
-import { createTerminalOutputTestFixture } from '../../../common/widget/terminalFullOutputTestUtils.js';
+import { ChatTerminalOutputResource, IChatTerminalOutputTextModelService } from '../../../../browser/agentSessions/agentHost/chatTerminalOutputTextModelContentProvider.js';
 
 function listenerCount<T>(emitter: Emitter<T>): number {
 	return (emitter as unknown as { _size: number })._size ?? 0;
@@ -266,7 +262,6 @@ interface ITerminalFullOutputPartOptions {
 	readonly hasReference?: boolean;
 	readonly truncated?: boolean;
 	readonly artifactAvailable?: boolean;
-	readonly artifactSize?: number;
 	readonly availability?: Promise<void>;
 }
 
@@ -324,26 +319,25 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 	}());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { }());
 
-	const availabilityByResource = new Map<string, { readonly ready: Promise<void>; readonly size: number }>();
+	const availabilityByResource = new Map<string, { readonly ready: Promise<void>; readonly available: boolean }>();
 	const probes: URI[] = [];
-	instantiationService.stub(IFileService, new class extends mock<IFileService>() {
-		override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+	instantiationService.stub(IChatTerminalOutputTextModelService, new class extends mock<IChatTerminalOutputTextModelService>() {
+		override async canResolve(resource: URI): Promise<boolean> {
 			probes.push(resource);
 			const availability = availabilityByResource.get(resource.toString());
 			if (!availability) {
-				throw createFileSystemProviderError('Full output unavailable', FileSystemProviderErrorCode.FileNotFound);
+				return false;
 			}
-			await availability.ready;
-			const artifactSize = availability.size;
-			return new class extends mock<IFileStatWithPartialMetadata>() {
-				override readonly size = artifactSize;
-			}();
+			try {
+				await availability.ready;
+				return availability.available;
+			} catch {
+				return false;
+			}
 		}
 	}());
 
 	const openedEditors: IResourceEditorInput[] = [];
-	const editorOpenHandlers: ((input: IResourceEditorInput) => Promise<void>)[] = [];
-	const editorOpenOperations: Promise<void>[] = [];
 	instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 		override async openEditor(...args: unknown[]): Promise<undefined> {
 			const input = args[0];
@@ -351,9 +345,6 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 				throw new Error('Expected a resource editor input');
 			}
 			openedEditors.push(input);
-			const operation = Promise.all(editorOpenHandlers.map(handler => handler(input))).then(() => undefined);
-			editorOpenOperations.push(operation);
-			await operation;
 			return undefined;
 		}
 	}());
@@ -395,7 +386,6 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			terminalCommandOutput: {
 				text: options.fallback ?? 'Saved to: /artifact/terminal-output.txt',
 				truncated: options.truncated ?? !!terminal,
-				fullOutputResource: terminal ? buildTerminalOutputDbUri(sessionResource.toString(), toolCallId) : undefined,
 				...(options.hasPreview === false ? {} : { fullOutputPreview: options.preview ?? 'preview output' }),
 			},
 		};
@@ -434,12 +424,10 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			onDidChangeVisibility: Event.None,
 		};
 		if (terminal && data.terminalCommandOutput?.truncated) {
-			const resource = ChatResponseResource.createTerminalOutputUri(sessionResource, toolCallId, terminal, terminalOutputName(toolCallId));
+			const resource = ChatTerminalOutputResource.create(sessionResource, toolCallId, terminal, terminalOutputName(toolCallId));
 			availabilityByResource.set(resource.toString(), {
-				ready: options.availability ?? (options.artifactAvailable === false
-					? Promise.reject(createFileSystemProviderError('Full output unavailable', FileSystemProviderErrorCode.FileNotFound))
-					: Promise.resolve()),
-				size: options.artifactSize ?? 128,
+				ready: options.availability ?? Promise.resolve(),
+				available: options.artifactAvailable !== false,
 			});
 		}
 		const part = store.add(instantiationService.createInstance(
@@ -501,7 +489,6 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		expand,
 		collapse,
 		openedEditors,
-		editorOpenOperations,
 		container: host,
 		terminal: (part: ChatTerminalToolProgressPart) => {
 			const container = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-terminal');
@@ -514,9 +501,6 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			const terminal = container && outputTerminals.get(container);
 			assert.ok(terminal);
 			return terminal.raw;
-		},
-		addEditorOpenHandler: (handler: (input: IResourceEditorInput) => Promise<void>) => {
-			editorOpenHandlers.push(handler);
 		},
 		probes,
 		get terminalActivationCount() { return terminalActivationCount; },
@@ -615,29 +599,6 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ action: part.fullOutputAction, probes: harness.probes.length }, { action: undefined, probes: 1 });
 	});
-
-	for (const oversized of [false, true]) {
-		test(`preserves the saved-path fallback above the host read limit (oversized: ${oversized})`, async () => {
-			const harness = await createTerminalFullOutputHarness(store);
-			const { part } = harness.createPart({
-				mode: 'plain',
-				artifactSize: getLargeFileConfirmationLimit('agent-host') + (oversized ? 1 : 0),
-				fallback: 'Saved to: /artifact/output.txt',
-				preview: 'preview',
-			});
-			await harness.expand(part, 'plain');
-			await timeout(0);
-			assert.deepStrictEqual({
-				action: !!part.fullOutputAction,
-				inlineLink: !!part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link'),
-				rendered: snapshotText(harness.raw(part)),
-			}, {
-				action: !oversized,
-				inlineLink: !oversized,
-				rendered: oversized ? 'Saved to: /artifact/output.txt' : 'preview',
-			});
-		});
-	}
 
 	test('does not publish a stale action after terminal identity replacement', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
@@ -917,7 +878,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		const expectedResources = entries.map(entry => {
 			const terminal = entry.terminal;
 			assert.ok(terminal);
-			return ChatResponseResource.createTerminalOutputUri(entry.sessionResource, entry.toolCallId, terminal, terminalOutputName(entry.toolCallId)).toString();
+			return ChatTerminalOutputResource.create(entry.sessionResource, entry.toolCallId, terminal, terminalOutputName(entry.toolCallId)).toString();
 		});
 		assert.deepStrictEqual({
 			resources: harness.openedEditors.map(input => input.resource.toString()),
@@ -940,9 +901,8 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 	});
 
-	test('the header action opens the unchanged readonly resource and authoritative bytes', async () => {
+	test('the header action opens the subscription-backed readonly resource', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
-		const authority = 'local';
 		const terminalResource = URI.parse('agenthost-terminal://shell/provider-backed/output');
 		const sessionResource = URI.parse('chat-session://test/provider-backed-output');
 		const entry = harness.createPart({
@@ -952,49 +912,27 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			terminalUri: terminalResource,
 			preview: 'preview only',
 		});
-		const completeOutput = `complete output\n${'x'.repeat(4096)}\nend`;
-		const fixture = createTerminalOutputTestFixture(store, sessionResource, entry.invocation, authority, async resource => {
-			assert.strictEqual(resource.toString(), buildTerminalOutputDbUri(sessionResource.toString(), 'provider-backed-tool').toString());
-			return completeOutput;
-		}, { size: VSBuffer.fromString(completeOutput).byteLength });
-		let openedText: string | undefined;
-		harness.addEditorOpenHandler(async input => {
-			const content = await fixture.fileService.readFile(input.resource);
-			openedText = content.value.toString();
-		});
 		await harness.expand(entry.part, entry.mode);
-		assert.deepStrictEqual({
-			readsBeforeActivation: fixture.reads.length,
-			openedEditorsBeforeActivation: harness.openedEditors.length,
-		}, {
-			readsBeforeActivation: 0,
-			openedEditorsBeforeActivation: 0,
-		});
+		assert.strictEqual(harness.openedEditors.length, 0);
 
 		showFullOutputElement(entry.part).click();
-		const openOperation = harness.editorOpenOperations[0];
-		assert.ok(openOperation);
-		await openOperation;
-		const expectedResource = ChatResponseResource.createTerminalOutputUri(sessionResource, 'provider-backed-tool', terminalResource, terminalOutputName('provider-backed-tool'));
+		await timeout(0);
+		const expectedResource = ChatTerminalOutputResource.create(sessionResource, 'provider-backed-tool', terminalResource, terminalOutputName('provider-backed-tool'));
 
 		assert.deepStrictEqual({
 			openedResources: harness.openedEditors.map(input => input.resource.toString()),
 			expectedResource: expectedResource.toString(),
-			openedText,
 			editorName: harness.openedEditors[0].resource.path.split('/').at(-1),
 			editorLabels: harness.openedEditors.map(input => input.label),
 			fallback: entry.invocation.toolSpecificData?.kind === 'terminal' ? entry.invocation.toolSpecificData.terminalCommandOutput?.text : undefined,
 			preview: entry.invocation.toolSpecificData?.kind === 'terminal' ? entry.invocation.toolSpecificData.terminalCommandOutput?.fullOutputPreview : undefined,
-			reads: fixture.reads.map(resource => resource.toString()),
 		}, {
 			openedResources: [expectedResource.toString()],
 			expectedResource: expectedResource.toString(),
-			openedText: completeOutput,
 			editorName: terminalOutputName('provider-backed-tool'),
 			editorLabels: [terminalOutputLabel('provider-backed-tool')],
 			fallback: 'Saved to: /artifact/terminal-output.txt',
 			preview: 'preview only',
-			reads: [buildTerminalOutputDbUri(sessionResource.toString(), 'provider-backed-tool').toString()],
 		});
 	});
 });

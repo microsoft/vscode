@@ -13,6 +13,7 @@ import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRou
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
 	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
@@ -1045,7 +1046,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: ToolResultContentType.Text, text: 'Saved to: /tmp/artifact-b.txt' },
 			{
 				type: ToolResultContentType.Terminal,
-				resource: 'agenthost-terminal://shell/test-session/tc-1',
+				resource: buildNonPtyShellTerminalUri(session, session, URI.parse(buildChatUri(session, 'default')), 'tc-1'),
 				title: 'Run Shell Command',
 				isPty: false,
 				result: { exitCode: 0, preview: 'hi\n', truncated: true },
@@ -1114,7 +1115,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.success, true);
 		assert.deepStrictEqual(part.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal), {
 			type: ToolResultContentType.Terminal,
-			resource: 'agenthost-terminal://shell/test-session/tc-1',
+			resource: buildNonPtyShellTerminalUri(session, session, URI.parse(buildChatUri(session, 'default')), 'tc-1'),
 			title: 'Run Shell Command',
 			isPty: false,
 			result: { exitCode: 127 },
@@ -1862,6 +1863,10 @@ suite('mapSessionEvents — subagent routing', () => {
 suite('appendSdkToolResultContent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+	const session = AgentSession.uri('copilot', 'test-session');
+	const chat = URI.parse(buildChatUri(session, 'default'));
+	const terminalDescriptor = { storage: session, session, chat, toolCallId: 'tc-1', title: 'Run Shell Command' };
+	const terminalResource = buildNonPtyShellTerminalUri(session, session, chat, 'tc-1');
 
 	for (const existingTerminal of [false, true]) {
 		for (const outputPreview of [undefined, null, '', 'preview\n']) {
@@ -1874,7 +1879,7 @@ suite('appendSdkToolResultContent', () => {
 					exitCode: 2,
 					outputPreview,
 					outputFilePath: '/tmp/full output #1.txt',
-				}], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+				}], terminalDescriptor);
 				const expectedResult = {
 					exitCode: 2,
 					...(typeof outputPreview === 'string' ? { preview: outputPreview } : {}),
@@ -1884,7 +1889,7 @@ suite('appendSdkToolResultContent', () => {
 					content: [{
 						...(existingTerminal ? terminal : {
 							type: ToolResultContentType.Terminal,
-							resource: 'agenthost-terminal://shell/test-session/tc-1',
+							resource: terminalResource,
 							title: 'Run Shell Command',
 							isPty: false,
 						}),
@@ -1902,7 +1907,7 @@ suite('appendSdkToolResultContent', () => {
 
 		const result = appendSdkToolResultContent(content, [
 			{ type: 'shell_exit', shellId: '0', exitCode: 2, outputPreview: 'boom\n', outputTruncated: false },
-		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+		], terminalDescriptor);
 
 		assert.deepStrictEqual(result, { shellId: '0', result: { exitCode: 2, preview: 'boom\n', truncated: false } });
 		assert.deepStrictEqual(content, [
@@ -1920,14 +1925,14 @@ suite('appendSdkToolResultContent', () => {
 
 		const result = appendSdkToolResultContent(content, [
 			{ type: 'shell_exit', shellId: '0', exitCode: 7, outputPreview: null, outputTruncated: false },
-		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+		], terminalDescriptor);
 
 		assert.deepStrictEqual({ result, content }, {
 			result: { shellId: '0', result: { exitCode: 7, truncated: false } },
 			content: [
 				{
 					type: ToolResultContentType.Terminal,
-					resource: 'agenthost-terminal://shell/test-session/tc-1',
+					resource: terminalResource,
 					title: 'Run Shell Command',
 					isPty: false,
 					result: { exitCode: 7, truncated: false },

@@ -16,7 +16,7 @@ import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationCon
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { CompletionItemKind, ContentEncoding, type CompletionsResult, type ResourceReadResult, type ResourceResolveResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
@@ -518,11 +518,10 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			.find(action => action.toolCallId === shellStart.toolCallId);
 		const terminalContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal);
 		assert.ok(terminalContent);
-		const outputContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Resource);
-		assert.ok(outputContent);
-		const metadata = await context.client.call<ResourceResolveResult>('resourceResolve', { channel: ROOT_STATE_URI, uri: outputContent.uri });
-		const output = await context.client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: outputContent.uri, encoding: ContentEncoding.Utf8 });
-		assert.deepStrictEqual({ size: metadata.size, output: output.data }, { size: Buffer.byteLength(expected), output: expected });
+		const output = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const outputState = output.snapshot!.state as TerminalState;
+		const outputText = outputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.strictEqual(outputText, expected);
 		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
 		const snapshot = await fetchSessionWithChat(context.client, sessionUri);
 		const restoredCall = snapshot.turns.flatMap(turn => turn.responseParts)
@@ -531,26 +530,23 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)
 			: undefined;
 		assert.ok(restoredTerminal);
-		const restoredOutput = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
-			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Resource)
-			: undefined;
 		await context.restartServer();
 		await initialize('full-output-restored', workspace);
-		const coldOutput = await context.client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: outputContent.uri, encoding: ContentEncoding.Utf8 });
+		const coldOutput = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const coldOutputState = coldOutput.snapshot!.state as TerminalState;
+		const coldOutputText = coldOutputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
 		assert.deepStrictEqual({
 			exitCode: terminalContent.result?.exitCode,
 			truncated: terminalContent.result?.truncated,
 			firstResource: terminalContent.resource,
 			restoredResource: restoredTerminal.resource,
-			outputResource: restoredOutput?.uri,
-			firstOutput: output.data,
-			coldOutput: coldOutput.data,
+			firstOutput: outputText,
+			coldOutput: coldOutputText,
 		}, {
 			exitCode: 0,
 			truncated: true,
 			firstResource: terminalContent.resource,
 			restoredResource: terminalContent.resource,
-			outputResource: outputContent.uri,
 			firstOutput: expected,
 			coldOutput: expected,
 		});

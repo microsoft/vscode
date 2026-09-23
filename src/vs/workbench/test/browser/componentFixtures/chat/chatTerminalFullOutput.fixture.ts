@@ -12,12 +12,10 @@ import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { buildTerminalOutputDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileService, type IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
@@ -35,6 +33,7 @@ import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigura
 import type { ITerminalFont } from '../../../../contrib/terminal/common/terminal.js';
 import { createFakeDetachedTerminal } from '../../../../contrib/terminal/test/browser/chatTerminalMirrorTestUtils.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatTerminalOutputTextModelService } from '../../../../contrib/chat/browser/agentSessions/agentHost/chatTerminalOutputTextModelContentProvider.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
@@ -110,11 +109,9 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 			registration.defineInstance(ITerminalEditorService, new class extends mock<ITerminalEditorService>() { }());
 			registration.defineInstance(ITerminalGroupService, new class extends mock<ITerminalGroupService>() { }());
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
-			registration.defineInstance(IFileService, new class extends mock<IFileService>() {
-				override async stat(): Promise<IFileStatWithPartialMetadata> {
-					return new class extends mock<IFileStatWithPartialMetadata>() {
-						override readonly size = 128;
-					}();
+			registration.defineInstance(IChatTerminalOutputTextModelService, new class extends mock<IChatTerminalOutputTextModelService>() {
+				override async canResolve(): Promise<boolean> {
+					return options.hasFullOutput;
 				}
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
@@ -165,7 +162,6 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 		terminalCommandOutput: {
 			text: options.hasFullOutput ? 'Saved to: /artifact/terminal-output.txt' : options.preview.replace(/\r?\n/g, '\r\n'),
 			truncated: options.hasFullOutput,
-			fullOutputResource: options.hasFullOutput ? buildTerminalOutputDbUri('copilot:/fixture', 'fixture-terminal-tool-call') : undefined,
 			...(options.hasFullOutput ? { fullOutputPreview: options.preview.replace(/\r?\n/g, '\r\n') } : {}),
 		},
 	};

@@ -43,7 +43,7 @@ import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildTerminalOutputDbUri } from '../../common/sessionDbUri.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
@@ -54,7 +54,6 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
-import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
@@ -1289,6 +1288,11 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
  */
 const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
 const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
+
+function defaultNonPtyShellTerminalUri(toolCallId: string): string {
+	const session = AgentSession.uri('copilot', 'test-session-1');
+	return buildNonPtyShellTerminalUri(session, session, buildDefaultChatUri(session), toolCallId);
+}
 
 function createTestShellManager(disposables: DisposableStore, workingDirectory: URI, preflightError?: Error, setErrors: Array<Error | undefined> = []): {
 	readonly shellManager: ShellManager;
@@ -2537,7 +2541,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.getMessages();
 
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-replay-output';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-replay-output');
 			assert.strictEqual(terminalManager.getTerminalState(terminalUri), undefined);
 		});
 	}
@@ -2565,8 +2569,8 @@ suite('CopilotAgentSession', () => {
 			resource: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Resource),
 			liveChannels: terminalManager.outputTerminalsCreated,
 		}, {
-			terminal: { type: ToolResultContentType.Terminal, title: 'Run Shell Command', isPty: false, resource: buildNonPtyShellTerminalUri(session.ownerSessionUri, 'saved-tool'), result: { truncated: true, preview: '' } },
-			resource: { type: ToolResultContentType.Resource, uri: buildTerminalOutputDbUri(session.resourceUri.toString(), 'saved-tool').toString(), contentType: 'text/plain', sizeHint: 15 },
+			terminal: { type: ToolResultContentType.Terminal, title: 'Run Shell Command', isPty: false, resource: buildNonPtyShellTerminalUri(session.resourceUri, session.ownerSessionUri, session.chatChannelUri, 'saved-tool'), result: { truncated: true, preview: '' } },
+			resource: undefined,
 			liveChannels: [],
 		});
 	});
@@ -9806,21 +9810,23 @@ Use the attached image as context.
 		});
 
 		test('non-pty shell terminal URIs are scoped by session and tool call', () => {
+			const session1 = AgentSession.uri('copilot', 'session-1');
+			const session2 = AgentSession.uri('copilot', 'session-2');
 			assert.deepStrictEqual([
-				buildNonPtyShellTerminalUri(AgentSession.uri('copilot', 'session-1'), 'tool-call-1'),
-				buildNonPtyShellTerminalUri(AgentSession.uri('copilot', 'session-1'), 'tool-call-2'),
-				buildNonPtyShellTerminalUri(AgentSession.uri('copilot', 'session-2'), 'tool-call-1'),
+				URI.parse(buildNonPtyShellTerminalUri(session1, session1, buildDefaultChatUri(session1), 'tool-call-1')).path,
+				URI.parse(buildNonPtyShellTerminalUri(session1, session1, buildDefaultChatUri(session1), 'tool-call-2')).path,
+				URI.parse(buildNonPtyShellTerminalUri(session2, session2, buildDefaultChatUri(session2), 'tool-call-1')).path,
 			], [
-				'agenthost-terminal://shell/session-1/tool-call-1',
-				'agenthost-terminal://shell/session-1/tool-call-2',
-				'agenthost-terminal://shell/session-2/tool-call-1',
+				'/session-1/tool-call-1',
+				'/session-1/tool-call-2',
+				'/session-2/tool-call-1',
 			]);
 		});
 
 		test('completed non-pty shell calls retire their distinct live output resources', async () => {
 			const { session, mockSession, signals, terminalManager } = await createAgentSession(disposables);
 			const terminalUris = ['tc-retire-1', 'tc-retire-2', 'tc-retire-3']
-				.map(toolCallId => buildNonPtyShellTerminalUri(session.resourceUri, toolCallId));
+				.map(toolCallId => buildNonPtyShellTerminalUri(session.resourceUri, session.ownerSessionUri, session.chatChannelUri, toolCallId));
 
 			for (let i = 0; i < terminalUris.length; i++) {
 				const toolCallId = `tc-retire-${i + 1}`;
@@ -9956,7 +9962,7 @@ Use the attached image as context.
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-stream');
 
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-stream';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-stream');
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-stream',
 				toolName: 'bash',
@@ -10037,7 +10043,7 @@ Use the attached image as context.
 			});
 			session.resetTurnState('turn-truncated-stream');
 
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-rewrite';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-rewrite');
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-rewrite',
 				toolName: 'bash',
@@ -10085,6 +10091,7 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				data: terminalManager.outputTerminalData,
 				resets: terminalManager.outputTerminalResets,
+				replacements: terminalManager.outputTerminalReplacements,
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
 				result: terminalResult?.result,
@@ -10097,6 +10104,7 @@ Use the attached image as context.
 					{ uri: terminalUri, data: 'line 501\n' },
 				],
 				resets: [],
+				replacements: [{ uri: terminalUri, data: output.toString() }],
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
 				disposed: [terminalUri],
 				result: {
@@ -10112,7 +10120,7 @@ Use the attached image as context.
 
 		test('truncated shell output without an artifact disposes its exited terminal resource', async () => {
 			const { session, mockSession, terminalManager } = await createAgentSession(disposables);
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-truncated-no-artifact';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-truncated-no-artifact');
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-truncated-no-artifact',
 				toolName: 'bash',
@@ -10181,13 +10189,15 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				before,
 				stored: VSBuffer.wrap(stored).toString(),
-				reference: completed?.type === ActionType.ChatToolCallComplete && completed.result.content?.some(content => content.type === ToolResultContentType.Resource),
+				hasFileResource: completed?.type === ActionType.ChatToolCallComplete && completed.result.content?.some(content => content.type === ToolResultContentType.Resource),
+				replacements: terminalManager.outputTerminalReplacements,
 				disposed: terminalManager.disposedTerminals.length,
 				disconnected: mockSession.disconnectCalls,
 			}, {
 				before: { completed: false, disposed: 0, disconnected: 0 },
 				stored: 'complete \u03bb output',
-				reference: true,
+				hasFileResource: false,
+				replacements: [{ uri: defaultNonPtyShellTerminalUri('persisted'), data: 'complete \u03bb output' }],
 				disposed: 1,
 				disconnected: 1,
 			});
@@ -10219,7 +10229,7 @@ Use the attached image as context.
 		test('zero-partial shell completion creates, seeds, and finalizes the output channel', async () => {
 			const { mockSession, signals, terminalManager } = await createAgentSession(disposables);
 
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-quiet';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-quiet');
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-quiet',
 				toolName: 'bash',
@@ -10254,7 +10264,7 @@ Use the attached image as context.
 
 		test('empty shell preview still retires the completed output channel', async () => {
 			const { mockSession, terminalManager } = await createAgentSession(disposables);
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-empty-preview';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-empty-preview');
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-empty-preview',
@@ -10320,22 +10330,22 @@ Use the attached image as context.
 				disposed: terminalManager.disposedTerminals,
 			}, {
 				data: [
-					{ uri: 'agenthost-terminal://shell/test-session-1/tc-err', data: 'boom\n' },
-					{ uri: 'agenthost-terminal://shell/test-session-1/tc-ok', data: 'fine\n' },
+					{ uri: defaultNonPtyShellTerminalUri('tc-err'), data: 'boom\n' },
+					{ uri: defaultNonPtyShellTerminalUri('tc-ok'), data: 'fine\n' },
 				],
 				finalized: [],
 				disposed: [],
 			});
 			session.dispose();
 			assert.deepStrictEqual(terminalManager.disposedTerminals, [
-				'agenthost-terminal://shell/test-session-1/tc-err',
-				'agenthost-terminal://shell/test-session-1/tc-ok',
+				defaultNonPtyShellTerminalUri('tc-err'),
+				defaultNonPtyShellTerminalUri('tc-ok'),
 			]);
 		});
 
 		test('stable shell completion fallback finalizes when the SDK strips shell_exit', async () => {
 			const { mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-exit-fallback';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-exit-fallback');
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-exit-fallback',
@@ -10410,7 +10420,7 @@ Use the attached image as context.
 
 		test('background shell output remains live until its session is disposed', async () => {
 			const { session, mockSession, terminalManager } = await createAgentSession(disposables);
-			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-background-stream';
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-background-stream');
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-background-stream',
@@ -10568,7 +10578,7 @@ Use the attached image as context.
 					{ type: ToolResultContentType.Text, text: 'command not found\n' },
 					{
 						type: ToolResultContentType.Terminal,
-						resource: 'agenthost-terminal://shell/test-session-1/tc-shell-exit',
+						resource: defaultNonPtyShellTerminalUri('tc-shell-exit'),
 						title: 'Run Shell Command',
 						isPty: false,
 						result: { exitCode: 127, preview: 'command not found\n' },
@@ -10582,13 +10592,13 @@ Use the attached image as context.
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
 			}, {
-				created: ['agenthost-terminal://shell/test-session-1/tc-shell-exit'],
-				data: [{ uri: 'agenthost-terminal://shell/test-session-1/tc-shell-exit', data: 'command not found\n' }],
-				finalized: [{ uri: 'agenthost-terminal://shell/test-session-1/tc-shell-exit', exitCode: 127 }],
-				disposed: ['agenthost-terminal://shell/test-session-1/tc-shell-exit'],
+				created: [defaultNonPtyShellTerminalUri('tc-shell-exit')],
+				data: [{ uri: defaultNonPtyShellTerminalUri('tc-shell-exit'), data: 'command not found\n' }],
+				finalized: [{ uri: defaultNonPtyShellTerminalUri('tc-shell-exit'), exitCode: 127 }],
+				disposed: [defaultNonPtyShellTerminalUri('tc-shell-exit')],
 			});
 			session.dispose();
-			assert.deepStrictEqual(terminalManager.disposedTerminals, ['agenthost-terminal://shell/test-session-1/tc-shell-exit']);
+			assert.deepStrictEqual(terminalManager.disposedTerminals, [defaultNonPtyShellTerminalUri('tc-shell-exit')]);
 		});
 
 		test('live read_bash completion does not render shell_exit metadata as a terminal command', async () => {

@@ -3644,12 +3644,6 @@ export namespace ChatResponseResource {
 		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
 	}
 
-	export function createTerminalOutputUri(sessionResource: URI, toolCallId: string, terminal: URI, displayName?: string): URI {
-		const query = new URLSearchParams({ terminal: terminal.toString() });
-		const name = displayName?.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^[.-]+/, '').slice(0, 64) ?? '';
-		return createScopedUri(sessionResource, `/terminal/${encodeURIComponent(toolCallId)}/${name || 'terminal-output.txt'}`, query.toString());
-	}
-
 	function createScopedUri(sessionResource: URI, path: string, query?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
@@ -3657,27 +3651,6 @@ export namespace ChatResponseResource {
 			path,
 			query,
 		});
-	}
-
-	export function parseTerminalOutputUri(uri: URI): undefined | { sessionResource: URI; toolCallId: string; terminal: URI } {
-		const parts = uri.path.split('/');
-		if (uri.scheme !== scheme || parts.length !== 4 || parts[1] !== 'terminal' || !parts[2] || !parts[3]) {
-			return undefined;
-		}
-		let toolCallId: string;
-		try {
-			toolCallId = decodeURIComponent(parts[2]);
-		} catch (error) {
-			if (error instanceof URIError) {
-				return undefined;
-			}
-			throw error;
-		}
-		const terminal = new URLSearchParams(uri.query).get('terminal');
-		if (!terminal) {
-			return undefined;
-		}
-		return { sessionResource: parseSessionResource(uri), toolCallId, terminal: URI.parse(terminal) };
 	}
 
 	export function parseUri(uri: URI): undefined | { sessionResource: URI; toolCallId: string; index: number } {

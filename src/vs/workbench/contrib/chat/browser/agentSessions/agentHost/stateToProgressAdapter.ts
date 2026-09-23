@@ -49,7 +49,6 @@ import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableE
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
-import { parseTerminalOutputDbUri } from '../../../../../../platform/agentHost/common/sessionDbUri.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
@@ -1551,9 +1550,6 @@ function getTerminalOutput(tc: ToolCallState) {
 		&& terminalContent?.isPty === false
 		&& terminalResult?.truncated === true;
 	const completionText = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
-	const fullOutput = retainedOutputCandidate ? tc.content?.find(content =>
-		content.type === ToolResultContentType.Resource
-		&& parseTerminalOutputDbUri(URI.parse(content.uri))?.toolCallId === tc.toolCallId) : undefined;
 	let text = terminalResult?.preview;
 	if (retainedOutputCandidate) {
 		text = completionText ?? terminalResult.preview ?? '';
@@ -1572,15 +1568,13 @@ function getTerminalOutput(tc: ToolCallState) {
 		text: text.replace(/\r?\n/g, '\r\n'),
 		...(terminalResult?.truncated !== undefined ? { truncated: terminalResult.truncated } : {}),
 		...(retainedOutputCandidate && terminalResult.preview !== undefined ? { fullOutputPreview: terminalResult.preview.replace(/\r?\n/g, '\r\n') } : {}),
-		...(fullOutput?.type === ToolResultContentType.Resource ? { fullOutputResource: URI.parse(fullOutput.uri) } : {}),
 	};
 }
 
 function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
 	return a?.text === b?.text
 		&& a?.truncated === b?.truncated
-		&& a?.fullOutputPreview === b?.fullOutputPreview
-		&& isEqual(URI.revive(a?.fullOutputResource), URI.revive(b?.fullOutputResource));
+		&& a?.fullOutputPreview === b?.fullOutputPreview;
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {

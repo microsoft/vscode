@@ -28,6 +28,7 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	readonly outputTerminalsCreated: { uri: string; title: string; claim: TerminalClaim }[] = [];
 	readonly outputTerminalData: { uri: string; data: string }[] = [];
 	readonly outputTerminalResets: string[] = [];
+	readonly outputTerminalReplacements: { uri: string; data: string }[] = [];
 	readonly outputTerminalsFinalized: { uri: string; exitCode: number | undefined }[] = [];
 	private readonly _outputTerminalStates = new Map<string, TerminalState>();
 
@@ -94,6 +95,13 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 		const state = this._outputTerminalStates.get(uri);
 		if (state) {
 			state.content = [];
+		}
+	}
+	replaceOutputTerminalData(uri: string, data: string): void {
+		this.outputTerminalReplacements.push({ uri, data });
+		const state = this._outputTerminalStates.get(uri);
+		if (state) {
+			state.content = data ? [{ type: 'unclassified', value: data }] : [];
 		}
 	}
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void {

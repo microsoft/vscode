@@ -56,13 +56,13 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
-import { buildTerminalOutputDbUri } from '../../common/sessionDbUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
@@ -76,7 +76,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
-import { buildNonPtyShellTerminalUri, NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
+import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
@@ -1316,7 +1316,7 @@ export class CopilotAgentSession extends Disposable {
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
-		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
+		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -3689,39 +3689,36 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents): Promise<void> {
-		const turns = [
-			...mapped.turns,
-			...Array.from(mapped.subagentTurnsByToolCallId.values()).flat(),
-		];
+		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri);
+		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
+			await this._restoreStoredShellOutputsForChat(turns, URI.parse(buildSubagentChatUri(this._ownerSessionUri.toString(), parentToolCallId)));
+		}
+	}
+
+	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI): Promise<void> {
 		for (const turn of turns) {
 			for (const part of turn.responseParts) {
-				if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed) {
-					continue;
-				}
-				if (!isShellTool(part.toolCall.toolName)) {
+				if (part.kind !== ResponsePartKind.ToolCall
+					|| part.toolCall.status !== ToolCallStatus.Completed
+					|| !isShellTool(part.toolCall.toolName)) {
 					continue;
 				}
 				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
 				if (terminal && terminal.isPty !== false) {
 					continue;
 				}
-				const size = await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId);
-				if (size !== undefined) {
-					const terminalContent: ToolResultTerminalContent = {
-						type: ToolResultContentType.Terminal,
-						title: part.toolCall.displayName,
-						isPty: false,
-						result: { truncated: true, preview: '' },
-						...terminal,
-						resource: buildNonPtyShellTerminalUri(this._ownerSessionUri, part.toolCall.toolCallId),
-					};
-					part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent, {
-						type: ToolResultContentType.Resource,
-						uri: buildTerminalOutputDbUri(this._storageUri.toString(), part.toolCall.toolCallId).toString(),
-						contentType: 'text/plain',
-						sizeHint: size,
-					}];
+				if (await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
+					continue;
 				}
+				const terminalContent: ToolResultTerminalContent = {
+					type: ToolResultContentType.Terminal,
+					title: part.toolCall.displayName,
+					isPty: false,
+					result: { truncated: true, preview: '' },
+					...terminal,
+					resource: buildNonPtyShellTerminalUri(this._storageUri, this._ownerSessionUri, chat, part.toolCall.toolCallId),
+				};
+				part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
 			}
 		}
 	}
@@ -5850,24 +5847,31 @@ export class CopilotAgentSession extends Disposable {
 			const shellExit = appendSdkToolResultContent(
 				content,
 				e.data.result?.contents,
-				isShellCommandTool ? { session: this.resourceUri, toolCallId: e.data.toolCallId, title: tracked.displayName } : undefined,
+				isShellCommandTool ? {
+					storage: this._storageUri,
+					session: this._ownerSessionUri,
+					chat: this._chatChannelUri,
+					toolCallId: e.data.toolCallId,
+					title: tracked.displayName,
+				} : undefined,
 			);
+			let nonPtyCompletion: INonPtyShellToolCompletion | undefined;
 			if (isShellCommandTool && !ptyTerminalUri) {
-				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
-				if (completion) {
-					retireNonPtyShellTracking = completion.shouldRetire;
+				nonPtyCompletion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
+				if (nonPtyCompletion) {
+					retireNonPtyShellTracking = nonPtyCompletion.shouldRetire;
 					const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 					if (terminalIndex === -1) {
 						content.push({
 							type: ToolResultContentType.Terminal,
-							resource: completion.uri,
+							resource: nonPtyCompletion.uri,
 							title: tracked.displayName,
 							isPty: false,
-							...(completion.result ? { result: completion.result } : {}),
+							...(nonPtyCompletion.result ? { result: nonPtyCompletion.result } : {}),
 						});
-					} else if (completion.result) {
+					} else if (nonPtyCompletion.result) {
 						const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
-						content[terminalIndex] = { ...terminalBlock, resource: completion.uri, result: completion.result };
+						content[terminalIndex] = { ...terminalBlock, resource: nonPtyCompletion.uri, result: nonPtyCompletion.result };
 					}
 				}
 			}
@@ -5879,7 +5883,10 @@ export class CopilotAgentSession extends Disposable {
 			const modelId = this._lastSeenModelId;
 			const abortToken = this._abortToken;
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
-			const complete = () => {
+			const complete = (authoritativeOutput?: string) => {
+				if (nonPtyCompletion?.shouldRetire) {
+					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
+				}
 				this._emitAction({
 					type: ActionType.ChatToolCallComplete,
 					turnId,
@@ -5904,17 +5911,13 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const outputDatabase = outputFilePath ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
 			const completion = (async () => {
+				let authoritativeOutput: string | undefined;
 				if (outputFilePath && outputDatabase) {
 					try {
 						const output = await this._fileService.readFile(URI.file(outputFilePath), { limits: { size: MAX_TERMINAL_OUTPUT_BYTES } }, abortToken);
 						if (isCurrent()) {
 							await outputDatabase.object.storeTerminalOutput(turnId, e.data.toolCallId, output.value.buffer);
-							content.push({
-								type: ToolResultContentType.Resource,
-								uri: buildTerminalOutputDbUri(this._storageUri.toString(), e.data.toolCallId).toString(),
-								contentType: 'text/plain',
-								sizeHint: output.value.byteLength,
-							});
+							authoritativeOutput = output.value.toString();
 						}
 					} catch (error) {
 						this._logService.warn(`[Copilot:${sessionId}] Failed to persist shell output for ${e.data.toolCallId}`, error);
@@ -5936,7 +5939,7 @@ export class CopilotAgentSession extends Disposable {
 					}
 				}
 				if (isCurrent()) {
-					complete();
+					complete(authoritativeOutput);
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(() => {
 				if (retireNonPtyShellTracking) {

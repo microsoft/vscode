@@ -2610,69 +2610,6 @@ suite('serializeSendOptions', () => {
 suite('ChatResponseResource', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('terminal output URI round-trips reserved tool IDs and distinguishes terminal identities', () => {
-		const session = URI.parse('vscode-chat-session://local/session1');
-		const terminal = URI.parse('agenthost-terminal://shell/session/call-1');
-		const resource = ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', terminal, 'terminal-output-abc12.txt');
-		const parsed = ChatResponseResource.parseTerminalOutputUri(URI.parse(resource.toString()));
-		const variants = [
-			resource,
-			ChatResponseResource.createTerminalOutputUri(session.with({ path: '/session2' }), 'call/1?#', terminal, 'terminal-output-abc12.txt'),
-			ChatResponseResource.createTerminalOutputUri(session, 'call-2', terminal, 'terminal-output-abc12.txt'),
-			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', URI.parse('agenthost-terminal://shell/session/other'), 'terminal-output-abc12.txt'),
-			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', terminal, 'terminal-output-def34.txt'),
-		];
-		assert.deepStrictEqual({
-			session: parsed?.sessionResource.toString(),
-			toolCallId: parsed?.toolCallId,
-			legacyParser: ChatResponseResource.parseUri(resource),
-			terminal: parsed?.terminal.toString(),
-			identical: ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', terminal, 'terminal-output-abc12.txt').toString(),
-			name: resource.path.split('/').at(-1),
-			identities: new Set(variants.map(uri => uri.toString())).size,
-		}, {
-			session: session.toString(),
-			toolCallId: 'call/1?#',
-			terminal: terminal.toString(),
-			legacyParser: undefined,
-			identical: resource.toString(),
-			name: 'terminal-output-abc12.txt',
-			identities: 5,
-		});
-	});
-
-	test('terminal output parser rejects malformed or unrelated resources', () => {
-		const base = ChatResponseResource.createTerminalOutputUri(URI.parse('vscode-chat-session://local/session1'), 'call-1', URI.parse('agenthost-terminal:/output'));
-		assert.deepStrictEqual([
-			base.with({ scheme: 'invalid' }),
-			base.with({ path: '/terminal//full-output.txt' }),
-			base.with({ path: '/terminal/%E0%A4%A/full-output.txt' }),
-			base.with({ path: '/terminal/call-1/' }),
-			ChatResponseResource.createUri(URI.parse('vscode-chat-session://local/session1'), 'call-1', 0),
-		].map(uri => ChatResponseResource.parseTerminalOutputUri(uri)), [undefined, undefined, undefined, undefined, undefined]);
-	});
-
-	test('terminal output URI sanitizes an unsafe or oversized display name', () => {
-		const resource = ChatResponseResource.createTerminalOutputUri(
-			URI.parse('vscode-chat-session://local/session1'),
-			'call-1',
-			URI.parse('agenthost-terminal:/output'),
-			`../../My unsafe output ${'x'.repeat(100)}.txt`,
-		);
-		const name = resource.path.split('/').at(-1);
-		assert.deepStrictEqual({
-			name,
-			length: name?.length,
-			hasPathSeparator: name?.includes('/'),
-			startsHidden: name?.startsWith('.'),
-		}, {
-			name: `My-unsafe-output-${'x'.repeat(47)}`,
-			length: 64,
-			hasPathSeparator: false,
-			startsHidden: false,
-		});
-	});
-
 	test('createUri roundtrips through parseUri without basename', () => {
 		const sessionResource = URI.parse('vscode-chat-session://local/session1');
 		const uri = ChatResponseResource.createUri(sessionResource, 'call-123', 2);

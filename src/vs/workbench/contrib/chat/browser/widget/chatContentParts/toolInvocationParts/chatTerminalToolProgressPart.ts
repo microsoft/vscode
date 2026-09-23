@@ -24,7 +24,6 @@ import { extractImagesFromToolInvocationOutputDetails } from '../../../../common
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
-import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
@@ -66,8 +65,8 @@ import { editorBackground } from '../../../../../../../platform/theme/common/col
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { FileOperationResult, getLargeFileConfirmationLimit, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
 import { Link } from '../../../../../../../platform/opener/browser/link.js';
+import { ChatTerminalOutputResource, IChatTerminalOutputTextModelService } from '../../../agentSessions/agentHost/chatTerminalOutputTextModelContentProvider.js';
 
 /**
  * Minimum number of rows to display in the terminal output view.
@@ -366,7 +365,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IFileService private readonly _fileService: IFileService,
+		@IChatTerminalOutputTextModelService private readonly _terminalOutputTextModelService: IChatTerminalOutputTextModelService,
 	) {
 		super(toolInvocation);
 
@@ -422,11 +421,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const hasRetainedOutputCandidate = terminalUri
 			&& this._terminalData.isPty === false
 			&& this._terminalData.terminalCommandOutput?.truncated === true
-			&& this._terminalData.terminalCommandOutput.fullOutputResource !== undefined
 			&& IChatToolInvocation.isComplete(toolInvocation);
 		const runId = (hash(toolInvocation.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
 		const outputName = `terminal-output-${runId}.txt`;
-		const resource = hasRetainedOutputCandidate ? ChatResponseResource.createTerminalOutputUri(this._sessionResource, toolInvocation.toolCallId, terminalUri, outputName) : undefined;
+		const resource = hasRetainedOutputCandidate ? ChatTerminalOutputResource.create(this._sessionResource, toolInvocation.toolCallId, terminalUri, outputName) : undefined;
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
@@ -823,16 +821,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _probeFullOutput(resource: URI, terminalUri: URI, runId: string): Promise<void> {
-		try {
-			const stat = await this._fileService.stat(resource);
-			if (stat.size > getLargeFileConfirmationLimit(terminalUri.authority)) {
-				return;
-			}
-		} catch (error) {
-			const result = toFileOperationResult(error);
-			if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_PERMISSION_DENIED) {
-				onUnexpectedError(error);
-			}
+		if (!await this._terminalOutputTextModelService.canResolve(resource)) {
 			return;
 		}
 		if (this._store.isDisposed) {

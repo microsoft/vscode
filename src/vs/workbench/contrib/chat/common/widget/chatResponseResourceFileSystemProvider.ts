@@ -10,23 +10,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { localize } from '../../../../../nls.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { parseTerminalOutputDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
-import { ContentEncoding, ResourceType } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
-import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentLocation } from '../constants.js';
 import { ChatResponseResource, IChatModel } from '../model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
@@ -106,7 +95,6 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService,
-		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this._register(this.chatService.onDidDisposeSession(e => {
@@ -220,29 +208,6 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		const terminalOutput = await this.resolveTerminalOutput(resource);
-		if (terminalOutput) {
-			try {
-				const result = await terminalOutput.connection.resourceResolve({ channel: ROOT_STATE_URI, uri: terminalOutput.outputResource.toString() });
-				const resolvedUri = typeof result.uri === 'string' ? URI.parse(result.uri) : URI.revive(result.uri);
-				if (result.type !== ResourceType.File
-					|| !resolvedUri
-					|| !isEqual(resolvedUri, terminalOutput.outputResource)
-					|| typeof result.size !== 'number'
-					|| !Number.isFinite(result.size)
-					|| result.size < 0) {
-					throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
-				}
-				return {
-					type: FileType.File,
-					ctime: result.ctime ? Date.parse(result.ctime) : 0,
-					mtime: result.mtime ? Date.parse(result.mtime) : 0,
-					size: result.size,
-				};
-			} catch (error) {
-				throw this.mapTerminalResourceError(error);
-			}
-		}
 		const r = await this.lookupURI(resource);
 		return {
 			type: FileType.File,
@@ -289,82 +254,6 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 	}
 
-	/** Restored output editors can resolve before their chat is opened, so load the chat on demand. */
-	private async findTerminalOutputInvocation(sessionResource: URI, toolCallId: string): Promise<IChatToolInvocation | IChatToolInvocationSerialized> {
-		const existing = this.chatService.getSession(sessionResource);
-		if (existing) {
-			return this.findMatchingInvocationInSession(existing, toolCallId);
-		}
-
-		const modelRef = await this.chatService.acquireOrLoadSession(
-			sessionResource,
-			ChatAgentLocation.Chat,
-			CancellationToken.None,
-			'ChatResponseResourceFileSystemProvider#findTerminalOutputInvocation',
-		);
-		if (!modelRef) {
-			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
-		}
-		try {
-			return this.findMatchingInvocationInSession(modelRef.object, toolCallId);
-		} finally {
-			modelRef.dispose();
-		}
-	}
-
-	private async lookupTerminalOutput(uri: URI): Promise<Uint8Array | undefined> {
-		const resolved = await this.resolveTerminalOutput(uri);
-		if (!resolved) {
-			return undefined;
-		}
-		try {
-			const result = await resolved.connection.resourceRead(resolved.outputResource, ContentEncoding.Utf8);
-			return result.encoding === ContentEncoding.Base64
-				? decodeBase64(result.data).buffer
-				: VSBuffer.fromString(result.data).buffer;
-		} catch (error) {
-			throw this.mapTerminalResourceError(error);
-		}
-	}
-
-	private async resolveTerminalOutput(uri: URI): Promise<{ readonly connection: IAgentConnection; readonly outputResource: URI } | undefined> {
-		const parsed = ChatResponseResource.parseTerminalOutputUri(uri);
-		if (!parsed) {
-			return undefined;
-		}
-		const result = await this.findTerminalOutputInvocation(parsed.sessionResource, parsed.toolCallId);
-		const data = result.toolSpecificData;
-		const terminalData = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data) : undefined;
-		const terminal = URI.revive(terminalData?.terminalCommandUri);
-		const outputResource = URI.revive(terminalData?.terminalCommandOutput?.fullOutputResource);
-		const name = uri.path.split('/').at(-1);
-		if (terminalData?.isPty !== false
-			|| terminalData.terminalCommandOutput?.truncated !== true
-			|| !IChatToolInvocation.isComplete(result)
-			|| !terminal
-			|| !outputResource
-			|| parseTerminalOutputDbUri(outputResource)?.toolCallId !== parsed.toolCallId
-			|| !isEqual(terminal, parsed.terminal)
-			|| !isEqual(uri, ChatResponseResource.createTerminalOutputUri(parsed.sessionResource, parsed.toolCallId, terminal, name))) {
-			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
-		}
-		const resolved = this._agentHostConnectionsService.resolveSessionResource(parsed.sessionResource);
-		if (!resolved) {
-			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
-		}
-		return { connection: resolved.connection, outputResource };
-	}
-
-	private mapTerminalResourceError(error: unknown): unknown {
-		if (error instanceof ProtocolError && error.code === AhpErrorCodes.PermissionDenied) {
-			return createFileSystemProviderError(error.message, FileSystemProviderErrorCode.NoPermissions);
-		}
-		if (error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound) {
-			return createFileSystemProviderError(error.message, FileSystemProviderErrorCode.FileNotFound);
-		}
-		return error;
-	}
-
 	private async lookupURI(uri: URI): Promise<Uint8Array> {
 		const associated = this._associated.get(uri);
 		if (associated) {
@@ -374,11 +263,6 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			const decoded = decodeBase64(associated.data.base64).buffer;
 			associated.data = decoded;
 			return decoded;
-		}
-
-		const terminalOutput = await this.lookupTerminalOutput(uri);
-		if (terminalOutput) {
-			return terminalOutput;
 		}
 
 		const parsed = ChatResponseResource.parseUri(uri);

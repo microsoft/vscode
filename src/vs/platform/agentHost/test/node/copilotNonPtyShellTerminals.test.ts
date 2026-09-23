@@ -9,17 +9,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NonPtyShellTerminalStreams } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionUri = URI.parse('agenthost-session://test/session-1');
+	const chatUri = URI.parse(buildDefaultChatUri(sessionUri));
 	let manager: TestAgentHostTerminalManager;
 	let streams: NonPtyShellTerminalStreams;
 
 	setup(() => {
 		manager = store.add(new TestAgentHostTerminalManager());
-		streams = store.add(new NonPtyShellTerminalStreams(sessionUri, URI.parse(buildDefaultChatUri(sessionUri)), manager));
+		streams = store.add(new NonPtyShellTerminalStreams(sessionUri, sessionUri, chatUri, manager));
 	});
 
 	function channelContent(): string {
@@ -64,6 +66,26 @@ suite('NonPtyShellTerminalStreams', () => {
 				outputFilePath: artifact.fsPath,
 			});
 			ok(completion);
+			strictEqual(manager.getTerminalState(completion.uri)?.lifecycle.status, 'running');
+			streams.finalizeToolCall('spilled', completion.result?.exitCode, 'authoritative output');
+			deepStrictEqual({
+				replacements: manager.outputTerminalReplacements,
+				state: manager.getTerminalState(completion.uri),
+			}, {
+				replacements: [{ uri: completion.uri, data: 'authoritative output' }],
+				state: {
+					title: 'shell',
+					content: [{ type: 'unclassified', value: 'authoritative output' }],
+					lifecycle: { status: 'exited', exitCode: 0 },
+					claim: {
+						kind: 'session',
+						session: sessionUri.toString(),
+						chat: chatUri.toString(),
+						toolCallId: 'spilled',
+					},
+					isPty: false,
+				},
+			});
 			streams.retire('spilled');
 			streams.dispose();
 			deepStrictEqual({
@@ -270,12 +292,12 @@ suite('NonPtyShellTerminalStreams', () => {
 				finalized: manager.outputTerminalsFinalized,
 			}, {
 				completion: {
-					uri: 'agenthost-terminal://shell/session-1/call-12',
+					uri: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, 'call-12'),
 					result: { exitCode: -1, preview: 'fallback output\r\n' },
 					shouldRetire: true,
 				},
 				content: 'fallback output\r\n',
-				finalized: [{ uri: 'agenthost-terminal://shell/session-1/call-12', exitCode: -1 }],
+				finalized: [{ uri: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, 'call-12'), exitCode: -1 }],
 			});
 		});
 
