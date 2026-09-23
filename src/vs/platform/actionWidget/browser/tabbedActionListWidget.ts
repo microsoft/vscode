@@ -252,6 +252,9 @@ export class TabbedActionListWidget extends Disposable {
 				let refreshPending = false;
 
 				const widget = dom.append(container, dom.$('.action-widget'));
+				// Programmatic page focus can match :focus-visible even after a pointer click.
+				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, () => widget.classList.add('keyboard-navigation'), true));
+				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.POINTER_DOWN, () => widget.classList.remove('keyboard-navigation'), true));
 				if (options.width !== undefined) {
 					widget.style.width = `${options.width}px`;
 				}

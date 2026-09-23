@@ -428,6 +428,71 @@ suite('TabbedModelPicker', () => {
 		}, { active: 'High', collapsed: true, visible: true, selections: [] });
 	});
 
+	test('cached details reread configuration and reset state after returning to the list', () => {
+		const currentModel = models[0];
+		const result = createPicker({ details: currentModel.identifier });
+		const card = element(result.popup, '.chat-model-card');
+		goBack(result.popup);
+
+		const reopen = (configuration: IStringDictionary<unknown>) => {
+			result.values.set(currentModel.identifier, configuration);
+			result.changed.fire(currentModel.identifier);
+			const row = Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === currentModel.metadata.name)!;
+			const summary = row.querySelector('.description')?.textContent;
+			openDetails(result.popup, currentModel.metadata.name);
+			const state = {
+				sameCard: element(result.popup, '.chat-model-card') === card,
+				summary,
+				selected: Array.from(card.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent),
+				reset: !!result.popup.querySelector('[aria-label="Reset to Default"]'),
+			};
+			goBack(result.popup);
+			return state;
+		};
+
+		assert.deepStrictEqual({
+			configured: reopen({ effort: 'high', context: 64000 }),
+			defaults: reopen({}),
+			selections: result.selections,
+		}, {
+			configured: { sameCard: true, summary: 'High · 64K', selected: ['High', '64K'], reset: true },
+			defaults: { sameCard: true, summary: 'Low · 32K', selected: ['Low', '32K'], reset: false },
+			selections: [],
+		});
+	});
+
+	test('cached details reread scoped schema defaults before reopening', () => {
+		const currentModel = models[0];
+		const providerSchema = currentModel.metadata.configurationSchema!;
+		let schema = providerSchema;
+		const changed = disposables.add(new Emitter<string>());
+		const result = createPicker({
+			details: currentModel.identifier,
+			access: {
+				getModelConfiguration: () => undefined,
+				getModelConfigurationSchema: () => schema,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async () => { },
+				onDidChange: changed.event,
+			},
+		});
+		goBack(result.popup);
+		schema = {
+			properties: {
+				effort: { ...providerSchema.properties!.effort, default: 'high' },
+				context: { ...providerSchema.properties!.context, default: 64000 },
+			},
+		};
+		changed.fire(currentModel.identifier);
+		openDetails(result.popup, currentModel.metadata.name);
+		assert.deepStrictEqual({
+			selected: Array.from(result.popup.querySelectorAll('.chat-model-card [role="radio"][aria-checked="true"]'), option => option.textContent),
+			reset: !!result.popup.querySelector('[aria-label="Reset to Default"]'),
+			providerDefaults: [providerSchema.properties!.effort.default, providerSchema.properties!.context.default],
+			selections: result.selections,
+		}, { selected: ['High', '64K'], reset: false, providerDefaults: ['low', 32000], selections: [] });
+	});
+
 	test('removing the inspected model returns to the remaining list', () => {
 		const result = createPicker({ details: models[1].identifier });
 		result.picker.refresh([models[0]]);

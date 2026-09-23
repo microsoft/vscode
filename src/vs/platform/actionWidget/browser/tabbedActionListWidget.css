@@ -120,3 +120,8 @@
 .action-widget.showing-details .tabbed-action-list-details:focus {
 	outline: none;
 }
+
+.action-widget.showing-details.keyboard-navigation .tabbed-action-list-details:focus {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

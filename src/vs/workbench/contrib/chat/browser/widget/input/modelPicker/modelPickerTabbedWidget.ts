@@ -594,6 +594,7 @@ export class TabbedModelPicker extends Disposable {
 		this._detailsCard = undefined;
 		this._detailsModelId = model.identifier;
 		const card = this._getModelCard(model, context);
+		card.refresh();
 		this._detailsCard = card;
 		this._widget.showDetails({
 			label: localize('chat.modelPicker.modelDetails', "{0} Details", model.metadata.name),

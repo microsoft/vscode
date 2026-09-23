@@ -249,6 +249,41 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('details track keyboard and pointer navigation without moving page focus', () => {
+		const { widget, input } = createSearchableWidget(disposables, ['model match']);
+		const popup = input.closest<HTMLElement>('.action-widget')!;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+		widget.showDetails({
+			label: 'Model details',
+			backLabel: 'Back',
+			render: () => ({ dispose: () => { } }),
+			focus: container => container.focus(),
+		});
+		const page = popup.querySelector<HTMLElement>('.tabbed-action-list-details')!;
+		const keyboardEntry = popup.classList.contains('keyboard-navigation');
+		page.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		const pointerNavigation = popup.classList.contains('keyboard-navigation');
+		page.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+		assert.deepStrictEqual({
+			keyboardEntry,
+			pointerNavigation,
+			keyboardNavigation: popup.classList.contains('keyboard-navigation'),
+			focused: document.activeElement === page,
+		}, { keyboardEntry: true, pointerNavigation: false, keyboardNavigation: true, focused: true });
+	});
+
+	test('details use theme tokens for an inset keyboard-only outline', () => {
+		const rules = [...document.styleSheets, ...document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.endsWith('.tabbed-action-list-details:focus'))
+			.map(rule => ({ selector: rule.selectorText, outline: rule.style.outline, offset: rule.style.outlineOffset }));
+		assert.deepStrictEqual(rules, [
+			{ selector: '.action-widget.showing-details .tabbed-action-list-details:focus', outline: 'none', offset: '' },
+			{ selector: '.action-widget.showing-details.keyboard-navigation .tabbed-action-list-details:focus', outline: 'var(--vscode-strokeThickness) solid var(--vscode-focusBorder)', offset: 'calc(-1 * var(--vscode-strokeThickness))' },
+		]);
+	});
+
 	test('Back uses the shared icon action without text-button borders or outset focus styling', () => {
 		const { widget, input } = createSearchableWidget(disposables, ['model match']);
 		widget.showDetails({
