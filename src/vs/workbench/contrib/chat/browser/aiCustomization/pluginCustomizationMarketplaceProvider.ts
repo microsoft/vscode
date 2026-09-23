@@ -73,23 +73,28 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 		if (token.isCancellationRequested || generation !== this.generation) {
 			throw new CancellationError();
 		}
-		const entries = continuation?.entries ?? plugins.filter(plugin =>
-			(!this.marketplaceService.isStrictMarketplacePolicyActive() || this.marketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) &&
-			(!options.mediaType || getPluginMediaType(plugin) === options.mediaType) &&
-			(!query || [plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(query)))
-		).map(plugin => ({
-			identifier: getPluginMarketplaceIdentifier(plugin),
-			displayName: plugin.name,
-			description: plugin.description,
-			mediaType: getPluginMediaType(plugin),
-			tags: [],
-			capabilities: [],
-			representativeQueries: [],
-			originLabel: plugin.marketplace,
-			version: plugin.version,
-			url: plugin.readmeUri,
-			score: query ? 0 : undefined,
-		} satisfies ICustomizationMarketplaceEntry));
+		const entries = continuation?.entries ?? plugins.flatMap(plugin => {
+			const mediaType = getPluginMediaType(plugin);
+			if (!mediaType ||
+				(this.marketplaceService.isStrictMarketplacePolicyActive() && !this.marketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) ||
+				(options.mediaType && mediaType !== options.mediaType) ||
+				(query && ![plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(query)))) {
+				return [];
+			}
+			return [{
+				identifier: getPluginMarketplaceIdentifier(plugin),
+				displayName: plugin.name,
+				description: plugin.description,
+				mediaType,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				originLabel: plugin.marketplace,
+				version: plugin.version,
+				url: plugin.readmeUri,
+				score: query ? 0 : undefined,
+			} satisfies ICustomizationMarketplaceEntry];
+		});
 		const offset = continuation?.offset ?? 0;
 		const end = Math.min(offset + pageSize, entries.length);
 		const nextCursor = end < entries.length ? generateUuid() : undefined;
@@ -109,8 +114,13 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 	}
 }
 
-function getPluginMediaType(plugin: IMarketplacePlugin): string {
-	return plugin.marketplaceType === MarketplaceType.Claude
-		? CustomizationMarketplaceMediaType.ClaudePlugin
-		: CustomizationMarketplaceMediaType.CopilotPlugin;
+function getPluginMediaType(plugin: IMarketplacePlugin): string | undefined {
+	switch (plugin.marketplaceType as string) {
+		case MarketplaceType.Claude:
+			return CustomizationMarketplaceMediaType.ClaudePlugin;
+		case MarketplaceType.Copilot:
+		case MarketplaceType.OpenPlugin:
+			return CustomizationMarketplaceMediaType.CopilotPlugin;
+	}
+	return undefined;
 }

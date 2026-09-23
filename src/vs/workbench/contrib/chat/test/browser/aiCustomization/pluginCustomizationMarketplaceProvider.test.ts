@@ -62,6 +62,46 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
+	test('omits unsupported Cursor-format entries before pagination and totals', async () => {
+		const service = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override async fetchMarketplacePlugins() {
+				return [
+					{ ...plugin, name: 'Cursor One', marketplaceType: 'cursor' as MarketplaceType },
+					{ ...plugin, name: 'Cursor Two', marketplaceType: 'cursor' as MarketplaceType },
+					plugin,
+					{ ...plugin, name: 'Open Plugin', marketplaceType: MarketplaceType.OpenPlugin },
+				];
+			}
+		}();
+		const provider = createProvider(service);
+		const first = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		const second = await provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		const search = await provider.query({ query: 'cursor', pageSize: 1 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			first: first.items.map(item => item.displayName),
+			firstTotal: first.total,
+			opaqueCursor: first.nextCursor !== undefined && !Number.isSafeInteger(Number(first.nextCursor)),
+			second: second.items.map(item => [item.displayName, item.mediaType]),
+			secondTotal: second.total,
+			secondCursor: second.nextCursor,
+			search: search.items,
+			searchTotal: search.total,
+			searchCursor: search.nextCursor,
+		}, {
+			first: ['Review'],
+			firstTotal: 2,
+			opaqueCursor: true,
+			second: [['Open Plugin', CustomizationMarketplaceMediaType.CopilotPlugin]],
+			secondTotal: 2,
+			secondCursor: undefined,
+			search: [],
+			searchTotal: 0,
+			searchCursor: undefined,
+		});
+	});
+
 	test('filters media type and reports partial marketplace failures', async () => {
 		const service = new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
