@@ -134,7 +134,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private detailSash: Sash | undefined;
 	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
 	private layoutWidth = 0;
-	private layoutHeight = 0;
 	private hasSplit = false;
 	private lastDetailSignature: string | undefined;
 
@@ -1237,8 +1236,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private createDetailSash(): void {
 		const sash = this.detailSash = this._register(new Sash(this.contentElement, {
 			getVerticalSashLeft: () => this.listPaneWidth,
-			getVerticalSashTop: () => 0,
-			getVerticalSashHeight: () => this.layoutHeight,
 		}, { orientation: Orientation.VERTICAL }));
 		sash.state = SashState.Disabled;
 
@@ -1440,9 +1437,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		return undefined;
 	}
 
-	layout(width: number, height: number): void {
+	layout(width: number, _height: number): void {
 		this.layoutWidth = width;
-		this.layoutHeight = height;
 		this.listPaneWidth = this.clampListPaneWidth(this.listPaneWidth);
 		this.layoutPanes();
 	}
