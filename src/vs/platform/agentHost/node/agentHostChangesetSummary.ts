@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StaticChangesetKind } from '../common/agentHostChangesetService.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, ChangesetKind } from '../common/changesetUri.js';
+import { buildSessionChangesetUri, ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import type { SessionConfigState } from '../common/state/sessionState.js';
+import { type SessionConfigState } from '../common/state/sessionState.js';
 
 export function getSummaryChangesetKind(configValues: SessionConfigState['values'] | undefined): StaticChangesetKind {
 	return configValues?.[SessionConfigKey.Isolation] === 'worktree'
@@ -15,9 +15,9 @@ export function getSummaryChangesetKind(configValues: SessionConfigState['values
 }
 
 /** Resolves implicit summary interest without duplicating an explicitly subscribed changeset. */
-export function resolveChangesetSubscriptions(session: string, subscriptions: ReadonlySet<string>, configValues: SessionConfigState['values'] | undefined): ReadonlySet<string> {
+export function resolveChangesetSubscriptions(session: string, subscriptions: ReadonlySet<string>, configValues: SessionConfigState['values'] | undefined, branchSummaryUri: string): ReadonlySet<string> {
 	const summaryUri = getSummaryChangesetKind(configValues) === ChangesetKind.Branch
-		? buildBranchChangesetUri(session)
+		? branchSummaryUri
 		: buildSessionChangesetUri(session);
 
 	return new Set([...subscriptions].map(resource => resource === session ? summaryUri : resource));

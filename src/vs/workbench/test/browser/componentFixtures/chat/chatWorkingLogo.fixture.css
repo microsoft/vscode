@@ -1,0 +1,186 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-logo-motion-gallery,
+.chat-logo-motion-single {
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+}
+
+.chat-logo-motion-gallery {
+	width: 600px;
+	padding: var(--vscode-spacing-size240);
+}
+
+.chat-logo-motion-gallery-header {
+	margin-bottom: var(--vscode-spacing-size200);
+
+	h2 {
+		font-size: var(--vscode-fontSize-heading2);
+		font-weight: var(--vscode-fontWeight-semiBold);
+		margin: var(--vscode-spacing-size80) 0;
+	}
+
+	p {
+		color: var(--vscode-descriptionForeground);
+		margin: 0;
+	}
+}
+
+.chat-logo-motion-eyebrow {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	letter-spacing: 0.08em;
+}
+
+.chat-logo-motion-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size160);
+}
+
+.chat-logo-motion-card {
+	min-width: 0;
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.chat-logo-motion-card-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+
+	h3 {
+		margin: 0;
+		font-size: var(--vscode-fontSize-heading3);
+		font-weight: var(--vscode-fontWeight-semiBold);
+	}
+}
+
+.chat-logo-motion-character {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.chat-logo-motion-stage {
+	display: grid;
+	place-items: center;
+	height: 112px;
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.chat-logo-motion-construction {
+	position: relative;
+	width: 64px;
+	height: 64px;
+	line-height: 0;
+}
+
+.chat-logo-motion-description {
+	min-height: 4.5em;
+	margin: 0 0 var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-logo-motion-samples {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120) 0;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.chat-logo-motion-sample {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-height: 20px;
+}
+
+.chat-logo-motion-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-logo-motion-size {
+	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.chat-logo-motion-note {
+	min-height: 3em;
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-logo-motion-cycle {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.chat-logo-motion-footer {
+	margin: var(--vscode-spacing-size200) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-logo-motion-single {
+	width: 360px;
+	padding: var(--vscode-spacing-size160);
+
+	.chat-logo-motion-stage {
+		height: 160px;
+	}
+}
+
+.chat-logo-motion-favorites {
+	.chat-logo-motion-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.chat-logo-motion-card {
+		display: grid;
+		grid-template-columns: 112px minmax(0, 1fr);
+		column-gap: var(--vscode-spacing-size240);
+		row-gap: var(--vscode-spacing-size80);
+	}
+
+	.chat-logo-motion-card-header {
+		grid-column: 1 / -1;
+	}
+
+	.chat-logo-motion-stage {
+		grid-column: 1;
+		grid-row: 2 / 6;
+		align-self: center;
+		height: 112px;
+	}
+
+	.chat-logo-motion-description,
+	.chat-logo-motion-samples,
+	.chat-logo-motion-note,
+	.chat-logo-motion-cycle {
+		grid-column: 2;
+		min-height: 0;
+		margin: 0;
+	}
+}
+
+.chat-logo-motion-probe {
+	display: grid;
+	place-items: center;
+	width: 64px;
+	height: 64px;
+	background: var(--vscode-editor-background);
+}

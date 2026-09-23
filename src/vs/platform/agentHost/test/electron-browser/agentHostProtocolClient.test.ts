@@ -25,6 +25,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
+import { ChatInteractivity } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
@@ -32,7 +33,7 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -40,6 +41,8 @@ import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConf
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -684,6 +687,11 @@ suite('AgentHostProtocolClient', () => {
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
 					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
+					chats: [
+						{ resource: 'agent-chat://copilotcli/quick-1/default', title: 'Quick Chat' },
+						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', interactivity: ChatInteractivity.Hidden },
+					],
+					defaultChat: 'agent-chat://copilotcli/quick-1/default',
 					_meta: withSessionWorkspaceless(undefined, true),
 				}],
 			},
@@ -694,10 +702,15 @@ suite('AgentHostProtocolClient', () => {
 			workspaceless: readSessionWorkspaceless(s._meta),
 			workingDirectory: s.workingDirectory,
 			workingDirectories: s.workingDirectories,
+			chats: s.chats?.map(chat => ({ ...chat, chat: chat.chat.toString() })),
 		})), [{
 			workspaceless: true,
 			workingDirectory: toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234')),
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+			chats: [
+				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden },
+			],
 		}]);
 	});
 
@@ -962,11 +975,15 @@ suite('AgentHostProtocolClient', () => {
 		const sessionUri = URI.parse('ahp-session:/test');
 		const chatUri = URI.parse('ahp-session:/test/chat-1');
 		const sourceUri = URI.parse('ahp-session:/test/chat-0');
+		const workingDirectory = toAgentHostUri(URI.file('/workspace'), agentHostAuthority('test.example:1234'));
 
-		test('forwards a fork source tagged with kind "fork"', async () => {
+		test('forwards a fork source and ignores its working directories', async () => {
 			const { client, transport } = createClient();
 
-			const resultPromise = client.createChat(sessionUri, chatUri, { fork: { source: sourceUri, turnId: 'turn-1' } });
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				fork: { source: sourceUri, turnId: 'turn-1' },
+				workingDirectories: [workingDirectory],
+			});
 
 			assert.deepStrictEqual(transport.sentMessages[0], {
 				jsonrpc: '2.0',
@@ -983,11 +1000,14 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
-		test('forwards a side chat (`/btw`) source tagged with kind "sideChat"', async () => {
+		test('forwards a side chat source and maps its working directories', async () => {
 			const { client, transport } = createClient();
 
 			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
-			const resultPromise = client.createChat(sessionUri, chatUri, { sideChat: { source: sourceUri, turnId: 'turn-1', selection } });
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				sideChat: { source: sourceUri, turnId: 'turn-1', selection },
+				workingDirectories: [workingDirectory],
+			});
 
 			assert.deepStrictEqual(transport.sentMessages[0], {
 				jsonrpc: '2.0',
@@ -996,7 +1016,28 @@ suite('AgentHostProtocolClient', () => {
 				params: {
 					channel: sessionUri.toString(),
 					chat: chatUri.toString(),
+					workingDirectories: [URI.file('/workspace').toString()],
 					source: { kind: ChatSourceKind.SideChat, chat: sourceUri.toString(), turnId: 'turn-1', selection },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('maps working directories without a source', async () => {
+			const { client, transport } = createClient();
+
+			const resultPromise = client.createChat(sessionUri, chatUri, { workingDirectories: [workingDirectory] });
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					workingDirectories: [URI.file('/workspace').toString()],
 				},
 			});
 
@@ -1086,6 +1127,30 @@ suite('AgentHostProtocolClient', () => {
 		await firstRejected;
 		await secondRejected;
 		assert.strictEqual(closeCount, 1);
+	});
+
+	test('records late close details without repeating the protocol close', async () => {
+		const transport = disposables.add(new class extends TestProtocolTransport {
+			readonly closeDetailsEmitter = this._register(new Emitter<ITransportCloseDetails>());
+			readonly onDidCloseDetails = this.closeDetailsEmitter.event;
+		}());
+		const { client } = createClient(transport);
+		await connectClient(client, transport);
+		let closeCount = 0;
+		const diagnostics: IConnectionDiagnosticEvent[] = [];
+		disposables.add(client.onDidClose(() => closeCount++));
+		disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
+		transport.fireClose();
+		transport.closeDetailsEmitter.fire({ code: 4001, reason: 'token=private', wasClean: false });
+		assert.deepStrictEqual({
+			closeCount,
+			state: client.connectionState,
+			details: diagnostics.filter(event => event.phase === 'transport.closeDetails').map(event => event.detail),
+		}, {
+			closeCount: 1,
+			state: AgentHostClientState.Closed,
+			details: ['code=4001; wasClean=false; reason=token=[redacted]'],
+		});
 	});
 
 	test('rejects pending requests on dispose', async () => {
@@ -1769,6 +1834,49 @@ suite('AgentHostProtocolClient', () => {
 			path: '/tmp/agent-host-debug.zip',
 			entries: [{ path: 'agenthost.log', size: 2048 }],
 		});
+	});
+
+	test('sendHostExtensionRequest uses normal request correlation', async () => {
+		const { client, transport } = createClient();
+		const params = { url: 'https://github.com/microsoft/vscode', depth: 1 };
+		const result = { project: { id: 'checkout', status: 'cloning' } };
+		const request = client.sendHostExtensionRequest('extensions/cloneProject', params);
+		assert.deepStrictEqual(transport.sentMessages[0], { jsonrpc: '2.0', id: 1, method: 'extensions/cloneProject', params });
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result });
+		assert.deepStrictEqual(await request, result);
+	});
+
+	test('sendHostExtensionRequest propagates unsupported host errors', async () => {
+		const { client, transport } = createClient();
+		const request = client.sendHostExtensionRequest('extensions/cloneProject', { url: 'https://github.com/microsoft/vscode', depth: 1 });
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+		await assertRemoteProtocolError(request, error);
+	});
+
+	test('first-response diagnostics require an enabled host capability, not product telemetry', async () => {
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			provider: 'copilot', requestId: 'request-1', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown',
+			trustInteractionRequired: true, totalElapsedMs: 0, hasResponseText: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await client.reportFirstResponse(diagnostic);
+			assert.strictEqual(transport.sentMessages.length, 0);
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, enabled));
+			transport.sentMessages.length = 0;
+			const report = client.reportFirstResponse(diagnostic);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportAgentHostFirstResponse', params: diagnostic,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
 	});
 
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
@@ -2730,6 +2838,8 @@ suite('AgentHostProtocolClient', () => {
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new Error('initial transport failed'));
 			await assert.rejects(connectPromise, /initial transport failed/);
@@ -2756,9 +2866,15 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
+				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
+				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
+				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
+				transportFailure: 'initial transport failed',
+				handshakeMode: 'mode=freshInitialize',
+				retrySucceeded: true,
 			});
 		});
 

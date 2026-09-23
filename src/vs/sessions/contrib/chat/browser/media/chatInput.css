@@ -202,6 +202,7 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
+.monaco-workbench.monaco-enable-motion .sessions-chat-loading-spinner .codicon-loading-compact.codicon-modifier-spin,
 .monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
 .monaco-workbench.monaco-enable-motion .sessions-chat-stt-button .codicon-loading-compact.codicon-modifier-spin {
 	display: inline-block;
@@ -227,6 +228,33 @@
 	flex: 1 1 0;
 	min-width: 0;
 	overflow: hidden;
+}
+
+.experimental-new-session-composer .sessions-chat-config-toolbar {
+	justify-content: flex-end;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .chat-agent-picker-item {
+	margin-left: auto;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container > .chat-context-usage-container {
+	position: absolute;
+	top: var(--vscode-spacing-size120);
+	right: calc(var(--vscode-spacing-size60) - 3px);
+	z-index: 1;
+}
+
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
+	justify-content: flex-start;
+	flex: 0 1 auto;
+	width: max-content;
+}
+
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
+	overflow: visible;
 }
 
 .sessions-chat-config-toolbar .monaco-toolbar {
@@ -336,6 +364,10 @@
 .sessions-chat-config-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
+}
+
+.experimental-new-session-composer .sessions-chat-toolbar .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
+	padding: 0;
 }
 
 .sessions-chat-config-toolbar .action-label,

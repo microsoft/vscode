@@ -5,6 +5,35 @@
 
 /* ---- Chat Layout ---- */
 
+.session-input-toolbar-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.session-input-toolbar-row > .session-chat-input-toolbar {
+	flex: 1;
+	min-width: 0;
+}
+
+.session-test-app {
+	margin-left: auto;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40);
+	pointer-events: auto;
+	flex-shrink: 0;
+}
+
+.session-test-app .monaco-button {
+	--vscode-icon-foreground: var(--vscode-button-foreground);
+	white-space: nowrap;
+}
+
+.session-test-app .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: inherit;
+}
+
 .chat-view-chat {
 	position: relative;
 	display: flex;
@@ -47,7 +76,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator),
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
@@ -57,7 +86,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator):not(.agent-host-mode-permissions-trigger):hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }

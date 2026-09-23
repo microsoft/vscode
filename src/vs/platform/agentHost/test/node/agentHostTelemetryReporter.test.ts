@@ -16,7 +16,8 @@ import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildSubagentChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
+import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 
@@ -79,6 +80,69 @@ suite('AgentHostTelemetryReporter', () => {
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
+
+	test('limits turn context to schema fields on Codex completion and hang events', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const snapshot = getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' }, undefined, undefined);
+		const providerTelemetryContext = { codex: { ...snapshot, email: 'person@example.com', usedPercent: 42.4, resetsAt: 1000 } };
+		for (const provider of ['codex', 'copilot', 'claude']) {
+			const completion: IAgentHostTurnCompletedReport = {
+				provider, session, turnId: 'turn',
+				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				startedWithSteering: false, receivedSteering: false,
+				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
+				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
+				isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined, modelCallCount: 0,
+			};
+			const hang: IAgentHostTurnHungReport = {
+				provider, session, turnId: 'turn', messageOriginKind: undefined, hangReason: 'noProgress', hadAnyProgress: false,
+				lastActivityKind: 'none', currentStage: 'provider', providerDiagnosticState: 'unsupported', providerDiagnosticSnapshot: undefined,
+				initiatorClientConnectionState: 'unknown', blockedOn: undefined, toolId: undefined, toolSourceKind: undefined,
+				inFlightToolCallCount: 0, quietTimeMs: 300000, turnElapsedMs: 300000,
+				model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default', permissionLevel: undefined,
+			};
+			reporter.turnCompleted(completion);
+			reporter.turnHung(hang);
+			const baseline = service.standardEvents.splice(0);
+			reporter.turnCompleted({ ...completion, providerTelemetryContext });
+			reporter.turnHung({ ...hang, providerTelemetryContext });
+			assert.deepStrictEqual(service.standardEvents.splice(0), baseline.map(event => ({
+				...event, data: { ...event.data, ...(provider === 'codex' ? snapshot : {}) },
+			})));
+		}
+	});
+
+	test('turnCompleted preserves optional root cohort fields and missing-field compatibility', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const cohorts = [
+			{},
+			{ hostRootTurnOrdinal: 1, hostProcessAgeMs: 0, titleGenerationStrategy: 'activeAgent' },
+			{ hostRootTurnOrdinal: 2, hostProcessAgeMs: 1234, titleGenerationStrategy: 'utility' },
+			{ hostRootTurnOrdinal: 3, hostProcessAgeMs: 5678, titleGenerationStrategy: 'deferred' },
+		] as const;
+		for (const cohort of cohorts) {
+			reporter.turnCompleted({
+				provider: 'copilot', session, turnId: 'turn',
+				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				startedWithSteering: false, receivedSteering: false,
+				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
+				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
+				isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined,
+				modelCallCount: 0, ...cohort,
+			});
+		}
+		const cohortKeys = ['hostRootTurnOrdinal', 'hostProcessAgeMs', 'titleGenerationStrategy'];
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			eventName: event.eventName,
+			cohort: Object.fromEntries(Object.entries(event.data ?? {}).filter(([key]) => cohortKeys.includes(key))),
+		})), cohorts.map(cohort => ({ eventName: 'agentHost.turnCompleted', cohort })));
+	});
 
 	test('requestTokenUsage preserves unknowns and redacts untrusted models independently of the selected model', () => {
 		const service = new TestRestrictedTelemetryService();

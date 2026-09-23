@@ -83,6 +83,8 @@ export interface IAgentHostGroup {
 	 * `false` for groups whose members connect implicitly. Defaults to `true`.
 	 */
 	readonly connectable?: boolean;
+	/** Provider that creates new environments for this group, without requiring an existing connection. */
+	readonly sessionCreationProviderId?: string;
 }
 
 /**
@@ -121,6 +123,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Opens this host's connection log, including while connecting. */
+	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { IConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { type ITunnelApplicationConfig } from '../../../../../../base/common/product.js';
@@ -194,8 +195,20 @@ suite('BrowserTunnelAgentHostService', () => {
 
 	test('rejects discovery when authentication is unavailable', async () => {
 		const service = createBrowserTunnelService(store, [], async () => []);
+		const events: IConnectionDiagnosticEvent[] = [];
 
-		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+		await assert.rejects(service.listTunnels({ silent: true, onDiagnostic: event => events.push(event) }), /No authentication is available to enumerate tunnels/);
+		assert.deepStrictEqual({
+			lastPhase: events.at(-1)?.phase,
+			outcome: events.at(-1)?.outcome,
+			error: events.at(-1)?.error?.message,
+			enumerated: events.some(event => event.phase === 'discovery.enumeration'),
+		}, {
+			lastPhase: 'discovery.authentication',
+			outcome: 'failed',
+			error: 'No authentication is available to enumerate tunnels.',
+			enumerated: false,
+		});
 	});
 
 	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {

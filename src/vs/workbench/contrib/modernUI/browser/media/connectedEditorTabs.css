@@ -378,9 +378,13 @@
 	content: none;
 }
 
-/* Terminal shoulders turn inside the available slot rather than being cut off. */
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(:last-child, .last-in-row, .connected-tab-right-edge) > :is(.tab-fill, .tab-connected-edge) {
-	right: var(--modern-ui-connected-tab-shoulder-radius);
+/* Terminal shoulders keep additional space rather than being cut off. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(:last-child, .last-in-row) {
+	margin-right: var(--modern-ui-connected-tab-shoulder-radius);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
+	margin-right: calc(var(--last-tab-margin-right) + var(--modern-ui-connected-tab-shoulder-radius));
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped::after {
@@ -400,7 +404,7 @@
 	content: '';
 	position: absolute;
 	top: 0;
-	bottom: var(--modern-ui-connected-tab-shoulder-radius);
+	bottom: 0;
 	right: var(--modern-ui-connected-tab-shoulder-radius);
 	width: var(--modern-ui-connected-tab-cap-radius);
 	box-sizing: border-box;

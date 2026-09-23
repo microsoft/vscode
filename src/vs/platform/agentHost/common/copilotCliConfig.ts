@@ -8,6 +8,9 @@ import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
 
+export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
+export const COPILOT_HYDRA_FUSION_MODEL_NAME = 'HydraFusion';
+
 /**
  * Root-config keys consumed exclusively by the Copilot CLI provider
  * (`CopilotSessionLauncher` / `CopilotAgent`) — kept out of the
@@ -32,18 +35,12 @@ export const enum CopilotCliConfigKey {
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
-	/** Enable concise reasoning summaries for supported models. Off by default. */
-	ReasoningSummary = 'reasoningSummary',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
-	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
-	AutoModeTiers = 'autoModeTiers',
-	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
+	/** Override Auto's "Optimize for" preference. */
 	AutoModeTierOverride = 'autoModeTierOverride',
-	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
-	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
@@ -69,20 +66,11 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
 
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
 
-export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
-
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
-export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
-
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
-
-/** Applied to the shared setting's default by the workbench configuration service. */
-export const AutoModeTiersExperimentName = 'copilotchat.autoModeTiersEnabled';
-
-export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
@@ -209,12 +197,6 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
 	}),
-	[CopilotCliConfigKey.ReasoningSummary]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.reasoningSummary.title', "Reasoning Summary"),
-		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
-		default: false,
-	}),
 	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
@@ -227,23 +209,11 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.skillCharBudget.description', "Maximum number of characters available for skill descriptions in the Copilot SDK system message."),
 		default: DEFAULT_COPILOT_SKILL_CHAR_BUDGET,
 	}),
-	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.autoModeTiers.title', "Auto Optimize for"),
-		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker with Efficiency, Balance, and Intelligence options. You can change the preference during a session. When disabled, the service chooses how to route unless an override is configured."),
-		default: false,
-	}),
 	[CopilotCliConfigKey.AutoModeTierOverride]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
-		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference, even when the picker is disabled. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
+		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
 		default: '',
-	}),
-	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.subagentModelGuidance.title', "Subagent Model Guidance"),
-		description: localize('agentHost.config.subagentModelGuidance.description', "When enabled, Copilot SDK sessions instruct the model to keep subagents on their default model unless the user explicitly names another one."),
-		default: false,
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',

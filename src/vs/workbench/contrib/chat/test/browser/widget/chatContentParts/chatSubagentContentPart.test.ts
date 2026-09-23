@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $, isHTMLElement } from '../../../../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -15,6 +16,7 @@ import { autorun, observableValue } from '../../../../../../../base/common/obser
 import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatWidgetService } from '../../../../browser/chat.js';
@@ -26,7 +28,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { ChatRequestModel, ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
-import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
@@ -38,15 +40,16 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
-import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration, ChatProgressAnimation } from '../../../../common/constants.js';
 import { formatCompactSubagentDuration, getSubagentEditorResource, IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition, shouldShowSubagentModel } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { FusionPhasePillActionViewItem, ISubagentPhaseContext } from '../../../../browser/widget/chatContentParts/fusionPhasePillActionViewItem.js';
 
 class TestOpenChatActionViewItem extends ActionViewItem {
 	constructor(sourceAction: IAction, options: IActionViewItemOptions) {
@@ -59,6 +62,12 @@ class TestOpenChatActionViewItem extends ActionViewItem {
 
 class TestOpenSubagentChatActionViewItem extends OpenSubagentChatActionViewItem {
 	get tooltip(): string | undefined {
+		return this.getTooltip();
+	}
+}
+
+class TestFusionPhasePillActionViewItem extends FusionPhasePillActionViewItem {
+	get tooltip(): string {
 		return this.getTooltip();
 	}
 }
@@ -323,6 +332,7 @@ suite('ChatSubagentContentPart', () => {
 		// Mock hover service
 		mockHoverService = {
 			_serviceBrand: undefined,
+			getStickyHover: () => undefined,
 			showDelayedHover: () => undefined,
 			setupDelayedHover: () => ({ dispose: () => { } }),
 			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
@@ -340,7 +350,9 @@ suite('ChatSubagentContentPart', () => {
 		instantiationService.stub(IActionViewItemService, actionViewItemService);
 		instantiationService.stub(ILanguageModelsService, {
 			lookupLanguageModel: () => undefined,
+			getLanguageModelIds: () => [],
 			onDidChangeLanguageModels: Event.None,
+			onDidChangeLanguageModelVendors: Event.None,
 		});
 		menuService = new TestSubagentMenuService(new MenuItemAction(
 			{ id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' },
@@ -413,6 +425,442 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	suite('Basic rendering', () => {
+		test('expanded subagents omit their working row when the parent owns progress', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			const snapshots = [false, true].map(suppressProgressShimmer => {
+				const part = createPart(createMockToolInvocation(), { ...createMockRenderContext(), suppressProgressShimmer });
+				getCollapseButton(part)?.click();
+				return {
+					workingRows: part.domNode.querySelectorAll('.chat-thinking-spinner-item').length,
+					hasPrompt: part.domNode.textContent?.includes('Test prompt'),
+				};
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ workingRows: 1, hasPrompt: true },
+				{ workingRows: 0, hasPrompt: true },
+			]);
+		});
+
+		test('renders a replayed Fusion phase in the compact pill without a chat link or action provider', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			actionViewItemService.setProviderAvailable(false);
+			const part = createPart(createMockSerializedToolInvocation({
+				toolId: 'hydrafusion_phase',
+				toolSpecificData: {
+					kind: 'subagent', presentation: 'phase', phaseStatus: 'succeeded', hasStarted: true, isActive: false,
+					description: 'Review pass', agentDisplayName: 'HydraFusion',
+					modelId: 'model-b', modelName: 'model-b', startedAt: 1000, duration: 2000,
+					isChatAvailable: false, result: 'Review requested changes.',
+				},
+			}), createMockRenderContext(true));
+			const pill = part.domNode.querySelector('.chat-subagent-pill-widget');
+			assert.deepStrictEqual({
+				compact: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				collapseDisplay: getCollapseButton(part)?.style.display,
+				title: pill?.querySelector('.chat-subagent-pill-label')?.textContent,
+				model: pill?.querySelector('.chat-subagent-pill-model')?.textContent,
+				duration: pill?.querySelector('.chat-subagent-pill-duration')?.textContent,
+				hidden: pill?.classList.contains('hidden'),
+				role: pill?.getAttribute('role'),
+				chatResource: getOpenChatContext(part)?.chatResource,
+			}, { compact: true, collapseDisplay: 'none', title: 'Review pass', model: 'model-b', duration: '2s', hidden: false, role: 'group', chatResource: undefined });
+		});
+
+		test('updates the same compact Fusion pill when its model and execution state change', () => {
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent', presentation: 'phase', phaseStatus: 'running', hasStarted: true, isActive: true,
+				description: 'Main pass', modelId: 'model-a', modelName: 'model-a', startedAt: Date.now(),
+				activityDescription: 'Generating output',
+			};
+			const state = observableValue('phaseState', createState(IChatToolInvocation.StateKind.Executing));
+			const invocation = { ...createMockToolInvocation({ toolId: 'hydrafusion_phase', toolSpecificData: data }), state };
+			const part = createPart(invocation, createMockRenderContext());
+			const pill = part.domNode.querySelector('.chat-subagent-pill-widget');
+			assert.ok(pill);
+			const snapshot = () => ({
+				title: pill.querySelector('.chat-subagent-pill-label')?.textContent,
+				model: pill.querySelector('.chat-subagent-pill-model')?.textContent,
+				running: pill.classList.contains('chat-subagent-running'),
+			});
+			const initial = snapshot();
+			const activity = pill.querySelector('.chat-subagent-pill-active-tool-label')?.textContent?.replace(/\u00a0/g, ' ');
+			data.modelId = data.modelName = 'model-b';
+			state.set({ ...state.get() }, undefined);
+			const switched = snapshot();
+			data.phaseStatus = 'failed';
+			data.duration = 2000;
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			assert.deepStrictEqual({
+				initial, switched, completed: snapshot(), activity,
+				samePill: part.domNode.querySelector('.chat-subagent-pill-widget') === pill,
+				failed: pill.getAttribute('aria-label')?.includes('Phase failed'),
+				duration: pill.querySelector('.chat-subagent-pill-duration')?.textContent,
+				activityHidden: pill.querySelector('.chat-subagent-pill-active-tool')?.classList.contains('hidden'),
+			}, {
+				initial: { title: 'Main pass', model: 'model-a', running: true },
+				switched: { title: 'Main pass', model: 'model-b', running: true },
+				completed: { title: 'Main pass', model: 'model-b', running: false },
+				activity: 'Generating output', samePill: true, failed: true, duration: '2s', activityHidden: true,
+			});
+		});
+
+		test('phase pills never open or drag a child chat and describe phases accessibly', async () => {
+			let opened = 0;
+			let tracked = 0;
+			let dragged = 0;
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+				openSession: async () => { opened++; return undefined; },
+			}));
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', title: 'Main pass',
+				isActive: true, modelName: 'model-a', parentModelName: 'model-a',
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, { draggable: true }, true));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			item.setFocusable(true);
+			item.focus();
+			item.trackEnabled(() => { tracked++; return { dispose() { } }; });
+			item.setDragDataProvider(() => { dragged++; return true; });
+			const content = container.querySelector<HTMLElement>('.chat-subagent-pill-content');
+			assert.ok(content);
+			content.click();
+			content.dispatchEvent(new MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
+			for (const key of ['Enter', ' ']) {
+				container.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'Enter' ? 13 : 32, bubbles: true, cancelable: true }));
+				container.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode: key === 'Enter' ? 13 : 32, bubbles: true, cancelable: true }));
+			}
+			container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true }));
+			const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+			container.dispatchEvent(drag);
+			await item.actionRunner.run(item.action, context);
+			const cancelled = { ...context, phaseStatus: 'cancelled', isActive: false, startedAt: 1000, duration: 2000 } satisfies ISubagentPhaseContext;
+			item.setActionContext(cancelled);
+			assert.deepStrictEqual({
+				opened, tracked, dragged, dragPrevented: drag.defaultPrevented,
+				enabled: item.action.enabled, draggable: container.draggable,
+				tabIndex: container.tabIndex, focusable: container.hasAttribute('tabindex'), focused: item.isFocused(),
+				role: container.getAttribute('role'), ariaDisabled: container.getAttribute('aria-disabled'),
+				phaseTooltip: item.tooltip, model: container.querySelector('.chat-subagent-pill-model')?.textContent,
+				cancelled: container.getAttribute('aria-label')?.includes('Phase cancelled'),
+				cancelledIcon: !!container.querySelector('.codicon-circle-slash'),
+			}, {
+				opened: 0, tracked: 0, dragged: 0, dragPrevented: true,
+				enabled: false, draggable: false, role: 'group', ariaDisabled: null,
+				tabIndex: -1, focusable: false, focused: false,
+				phaseTooltip: 'HydraFusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
+				cancelled: true, cancelledIcon: true,
+			});
+		});
+
+		test('resolves phase model ids within their session provider and updates friendly names live', () => {
+			const sessionType = 'agent-host-copilotcli';
+			const models = new Map<string, ILanguageModelChatMetadata>([
+				['other:model-a', upcastPartial<ILanguageModelChatMetadata>({ id: 'model-a', name: 'Wrong provider', targetChatSessionType: 'other' })],
+				['registered-main-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'model-a', name: 'Main Model', targetChatSessionType: sessionType })],
+				['registered-byok-model', upcastPartial<ILanguageModelChatMetadata>({
+					id: 'openrouter/model-b', name: 'Review Model', targetChatSessionType: sessionType,
+					byokModelIdentifier: 'openrouter/model-b', modelGroup: { id: 'openrouter' },
+				})],
+			]);
+			const changed = store.add(new Emitter<string>());
+			const vendorsChanged = store.add(new Emitter<readonly string[]>());
+			let vendorName = 'OpenRouter';
+			instantiationService.stub(ILanguageModelsService, {
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: (identifier: string) => models.get(identifier),
+				getVendors: () => [{ vendor: 'openrouter', displayName: vendorName, isDefault: false, when: undefined, configuration: undefined, managementCommand: undefined }],
+				getLanguageModelGroups: () => [],
+				onDidChangeLanguageModels: changed.event,
+				onDidChangeLanguageModelVendors: vendorsChanged.event,
+			});
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', title: 'Main pass',
+				modelId: 'model-a', modelName: 'model-a', parentSessionResource: `${sessionType}:/session`,
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, false));
+			const container = $('div');
+			item.render(container);
+			const snapshot = () => ({
+				model: container.querySelector('.chat-subagent-pill-model')?.textContent,
+				tooltip: item.tooltip,
+				ariaLabel: container.getAttribute('aria-label'),
+			});
+			const known = snapshot();
+			item.setActionContext({ ...context, modelId: 'openrouter/model-b', modelName: 'openrouter/model-b' });
+			const byok = snapshot();
+			vendorName = 'Renamed Router';
+			vendorsChanged.fire(['openrouter']);
+			const renamedVendor = snapshot();
+			item.setActionContext({ ...context, modelId: 'unregistered-model', modelName: 'unregistered-model' });
+			const unknown = snapshot();
+			models.set('newly-registered-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'unregistered-model', name: 'New Model', targetChatSessionType: sessionType }));
+			changed.fire('newly-registered-model');
+			const expected = (model: string) => ({
+				model,
+				tooltip: `HydraFusion phase: Main pass\nPhase is running\nModel: ${model}`,
+				ariaLabel: `HydraFusion phase: Main pass. Phase is running. Model: ${model}. Working on it...`,
+			});
+			assert.deepStrictEqual({ known, byok, renamedVendor, unknown, registered: snapshot() }, {
+				known: expected('Main Model'), byok: expected('OpenRouter/Review Model'),
+				renamedVendor: expected('Renamed Router/Review Model'),
+				unknown: expected('unregistered-model'), registered: expected('New Model'),
+			});
+		});
+
+		test('caches phase model lookups across context updates, hover and duration ticks', () => runWithFakedTimers({ startTime: 10000 }, async () => {
+			const sessionType = 'agent-host-copilotcli';
+			const otherSessionType = 'agent-host-codex';
+			const models = new Map<string, ILanguageModelChatMetadata>([
+				['main-a', upcastPartial<ILanguageModelChatMetadata>({ id: 'model-a', name: 'Model A', targetChatSessionType: sessionType })],
+				['main-b', upcastPartial<ILanguageModelChatMetadata>({ id: 'model-b', name: 'Model B', targetChatSessionType: sessionType })],
+				['other-b', upcastPartial<ILanguageModelChatMetadata>({ id: 'model-b', name: 'Other Model B', targetChatSessionType: otherSessionType })],
+			]);
+			const changed = store.add(new Emitter<string>());
+			let registryScans = 0;
+			instantiationService.stub(ILanguageModelsService, {
+				getLanguageModelIds: () => { registryScans++; return [...models.keys()]; },
+				lookupLanguageModel: identifier => models.get(identifier),
+				onDidChangeLanguageModels: changed.event,
+				onDidChangeLanguageModelVendors: Event.None,
+			});
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', title: 'Main pass', startedAt: 8000,
+				modelId: 'model-a', modelName: 'Fallback A', parentSessionResource: `${sessionType}:/session`,
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, false));
+			const container = $('div');
+			item.render(container);
+			const snapshot = () => {
+				void item.tooltip;
+				return { registryScans, model: container.querySelector('.chat-subagent-pill-model')?.textContent };
+			};
+			const snapshots = [snapshot()];
+			for (let i = 0; i < 20; i++) {
+				item.setActionContext({ ...context, title: `Main pass ${i}` });
+				void item.tooltip;
+			}
+			await timeout(2100);
+			snapshots.push(snapshot());
+			item.setActionContext({ ...context, modelId: 'model-b' });
+			snapshots.push(snapshot());
+			item.setActionContext({ ...context, modelId: 'model-b', parentSessionResource: `${otherSessionType}:/session` });
+			snapshots.push(snapshot());
+			const unknown = { ...context, modelId: 'unknown', modelName: 'First fallback' };
+			item.setActionContext(unknown);
+			snapshots.push(snapshot());
+			item.setActionContext({ ...unknown, modelName: 'Updated fallback' });
+			snapshots.push(snapshot());
+			models.set('new-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'unknown', name: 'Registered Model', targetChatSessionType: sessionType }));
+			changed.fire('new-model');
+			snapshots.push(snapshot());
+			models.delete('new-model');
+			changed.fire('new-model');
+			snapshots.push(snapshot());
+			item.dispose();
+
+			assert.deepStrictEqual(snapshots, [
+				{ registryScans: 1, model: 'Model A' },
+				{ registryScans: 1, model: 'Model A' },
+				{ registryScans: 2, model: 'Model B' },
+				{ registryScans: 3, model: 'Other Model B' },
+				{ registryScans: 4, model: 'First fallback' },
+				{ registryScans: 4, model: 'Updated fallback' },
+				{ registryScans: 5, model: 'Registered Model' },
+				{ registryScans: 6, model: 'Updated fallback' },
+			]);
+		}));
+
+		for (const phase of [false, true]) {
+			for (const reducedMotion of [false, true]) {
+				test(`does not rerender unchanged ${phase ? 'phase' : 'subagent'} activity (reduced motion: ${reducedMotion})`, () => {
+					instantiationService.stub(IMarkdownRendererService, {
+						render: (markdown, options, outElement) => mockMarkdownRenderer.render(markdown, options, outElement),
+					});
+					instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+						override isMotionReduced(): boolean { return reducedMotion; }
+					}());
+					const context: ISubagentPhaseContext | IOpenSubagentChatContext = phase
+						? { presentation: 'phase', phaseStatus: 'running', title: 'Main pass', activityLabel: 'Reading files' }
+						: {
+							chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+							parentSessionResource: 'agent-host-copilotcli:/session', title: 'Review code', isActive: true,
+							activeToolCallId: 'read-1', activeToolLabel: 'Reading files',
+						};
+					const action = store.add(new Action('activity', 'Activity'));
+					const item = store.add(phase
+						? instantiationService.createInstance(FusionPhasePillActionViewItem, context, action, {}, false)
+						: instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
+					const container = $('div');
+					item.render(container);
+					const label = container.querySelector('.chat-subagent-pill-active-tool-label');
+					const initialNode = label?.firstChild;
+					const counts = [markdownRenderCount];
+					for (let i = 0; i < 20; i++) {
+						item.setActionContext({ ...context, title: `Updated title ${i}` });
+					}
+					const retainedNode = label?.firstChild === initialNode;
+					counts.push(markdownRenderCount);
+					const changed = { ...context, ...(phase ? { activityLabel: 'Reading more files' } : { activeToolLabel: 'Reading more files' }) };
+					item.setActionContext(changed);
+					counts.push(markdownRenderCount);
+					item.setActionContext({ ...changed, activeToolIcon: Codicon.check });
+					counts.push(markdownRenderCount);
+					item.setActionContext({ ...context, ...(phase ? { phaseStatus: 'succeeded' } : { isActive: false }) });
+					counts.push(markdownRenderCount);
+					item.setActionContext(context);
+					counts.push(markdownRenderCount);
+
+					assert.deepStrictEqual({ counts, retainedNode, label: label?.textContent }, {
+						counts: [1, 1, 2, 3, 3, 4], retainedNode: true, label: 'Reading files',
+					});
+				});
+			}
+		}
+
+		test('rerenders identical activity text when tool identity or activity kind changes', () => {
+			instantiationService.stub(IMarkdownRendererService, {
+				render: (markdown, options, outElement) => mockMarkdownRenderer.render(markdown, options, outElement),
+			});
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return true; }
+			}());
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session', title: 'Review code', isActive: true,
+				activeToolCallId: 'tool-1', activeToolLabel: 'Working on it...', activeToolIcon: Codicon.comment,
+			};
+			const item = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, store.add(new Action('activity', 'Activity')), {}, false));
+			const container = $('div');
+			item.render(container);
+			const counts = [markdownRenderCount];
+			const nextTool = { ...context, activeToolCallId: 'tool-2' };
+			item.setActionContext(nextTool);
+			counts.push(markdownRenderCount);
+			const toolAria = container.getAttribute('aria-label');
+			item.setActionContext({ ...nextTool, activeToolLabel: undefined });
+			counts.push(markdownRenderCount);
+
+			assert.deepStrictEqual({
+				counts,
+				toolAnnounced: toolAria?.includes('Active tool Working on it...'),
+				activityAnnouncedAsTool: container.getAttribute('aria-label')?.includes('Active tool Working on it...'),
+			}, { counts: [1, 2, 3], toolAnnounced: true, activityAnnouncedAsTool: false });
+		});
+
+		test('preserves persisted interruption duration across recreated phase pills while running timers advance', () => runWithFakedTimers({ startTime: 10000 }, async () => {
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', isActive: true, startedAt: 8000, title: 'Main pass',
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(FusionPhasePillActionViewItem, context, action, {}, true));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			const duration = () => container.querySelector('.chat-subagent-pill-duration')?.textContent;
+			const runningBefore = duration();
+			await timeout(1000);
+			const runningAfter = duration();
+			const cancelled = { ...context, phaseStatus: 'cancelled', duration: 3000 } satisfies ISubagentPhaseContext;
+			item.setActionContext(cancelled);
+			const before = duration();
+			await timeout(3000);
+			item.dispose();
+			const restoredItem = store.add(instantiationService.createInstance(FusionPhasePillActionViewItem, cancelled, action, {}, true));
+			const restoredContainer = mainWindow.document.createElement('div');
+			restoredItem.render(restoredContainer);
+			const restoredDuration = () => restoredContainer.querySelector('.chat-subagent-pill-duration')?.textContent;
+			const restored = restoredDuration();
+			await timeout(3000);
+			restoredItem.setActionContext({ ...cancelled });
+			assert.deepStrictEqual({
+				runningBefore, runningAfter, before, restored, after: restoredDuration(),
+				ariaDuration: restoredContainer.getAttribute('aria-label')?.includes('3s'),
+			}, { runningBefore: '2s', runningAfter: '3s', before: '3s', restored: '3s', after: '3s', ariaDuration: true });
+		}));
+
+		for (const phaseStatus of ['succeeded', 'failed', 'cancelled'] as const) {
+			test(`hides unknown ${phaseStatus} phase durations after a transition and recreation`, () => runWithFakedTimers({ startTime: 10000 }, async () => {
+				const context: ISubagentPhaseContext = {
+					presentation: 'phase', phaseStatus: 'running', startedAt: 8000, title: 'Main pass',
+				};
+				const action = store.add(new Action('phase', 'Phase'));
+				const item = store.add(instantiationService.createInstance(FusionPhasePillActionViewItem, context, action, {}, true));
+				const container = mainWindow.document.createElement('div');
+				item.render(container);
+				const terminal = { ...context, phaseStatus };
+				item.setActionContext(terminal);
+				const snapshot = (element: HTMLElement) => ({
+					hidden: element.querySelector('.chat-subagent-pill-duration')?.classList.contains('hidden'),
+					text: element.querySelector('.chat-subagent-pill-duration')?.textContent,
+					ariaLabel: element.getAttribute('aria-label'),
+				});
+				const before = snapshot(container);
+				await timeout(3000);
+				item.dispose();
+				const restoredItem = store.add(instantiationService.createInstance(FusionPhasePillActionViewItem, terminal, action, {}, true));
+				const restoredContainer = mainWindow.document.createElement('div');
+				restoredItem.render(restoredContainer);
+				const statusLabel = phaseStatus === 'succeeded' ? 'completed' : phaseStatus;
+				const expected = { hidden: true, text: '', ariaLabel: `HydraFusion phase: Main pass. Phase ${statusLabel}` };
+				assert.deepStrictEqual({ before, restored: snapshot(restoredContainer) }, { before: expected, restored: expected });
+			}));
+		}
+
+		test('hides invalid terminal durations but displays a persisted zero', () => {
+			const durations = [NaN, Infinity, -1, 0];
+			assert.deepStrictEqual(durations.map(duration => {
+				const context: ISubagentPhaseContext = {
+					presentation: 'phase', phaseStatus: 'cancelled', startedAt: 8000, duration, title: 'Main pass',
+				};
+				const action = store.add(new Action('phase', 'Phase'));
+				const item = store.add(instantiationService.createInstance(FusionPhasePillActionViewItem, context, action, {}, true));
+				const container = mainWindow.document.createElement('div');
+				item.render(container);
+				return {
+					hidden: container.querySelector('.chat-subagent-pill-duration')?.classList.contains('hidden'),
+					text: container.querySelector('.chat-subagent-pill-duration')?.textContent,
+				};
+			}), [
+				{ hidden: true, text: '' }, { hidden: true, text: '' }, { hidden: true, text: '' }, { hidden: false, text: '0s' },
+			]);
+		});
+
+		test('ordinary subagent pills retain navigation, focus, drag and model presentation', () => {
+			const opened: unknown[] = [];
+			let dragged = false;
+			const action = store.add(new Action('openSubagent', 'Open Subagent', undefined, true, context => { opened.push(context); }));
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				title: 'Review code', modelId: 'child-model', modelName: 'Child Model', parentModelId: 'parent-model',
+				isActive: true,
+			};
+			const item = store.add(instantiationService.createInstance(TestOpenSubagentChatActionViewItem, context, action, { draggable: true }, false));
+			item.setDragDataProvider(() => { dragged = true; return true; });
+			const container = $('div');
+			item.render(container);
+			item.setFocusable(true);
+			const pill = container.querySelector<HTMLElement>('.chat-subagent-pill-content')!;
+			pill.click();
+			pill.dispatchEvent(new MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
+			const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+			container.dispatchEvent(drag);
+			assert.deepStrictEqual({
+				opened, dragged, dragPrevented: drag.defaultPrevented, enabled: item.action.enabled,
+				role: container.getAttribute('role'), tabIndex: container.tabIndex, draggable: container.draggable,
+				model: container.querySelector('.chat-subagent-pill-model')?.textContent,
+				tooltip: item.tooltip, ariaLabel: container.getAttribute('aria-label'),
+			}, {
+				opened: [context, { ...context, toSide: true }], dragged: true, dragPrevented: false, enabled: true,
+				role: 'button', tabIndex: 0, draggable: true, model: 'Child Model',
+				tooltip: 'Open subagent chat: Review code\nModel: Child Model',
+				ariaLabel: 'Open subagent chat: Review code. Subagent is working. Model Child Model',
+			});
+		});
+
 		test('should create subagent part with correct classes', () => {
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
@@ -712,6 +1160,28 @@ suite('ChatSubagentContentPart', () => {
 				hasWorkingIcon: true,
 				ariaLabel: 'Open Subagent. Subagent is working',
 			});
+		});
+
+		test('persistent progress leaves rich subagent pill activity unchanged', () => {
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				isActive: true,
+			};
+			const snapshots = [false, true].map(enabled => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+				const action = store.add(new Action('openSubagent', 'Open Subagent'));
+				const viewItem = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
+				const container = mainWindow.document.createElement('div');
+				viewItem.render(container);
+				return {
+					spinners: container.querySelectorAll('.monaco-pixel-spinner').length,
+					genericWorkingVisible: !container.querySelector('.chat-subagent-pill-active-tool')?.classList.contains('hidden')
+						&& container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent === 'Working on it...',
+					ariaWorking: container.getAttribute('aria-label')?.includes('Subagent is working'),
+				};
+			});
+			assert.deepStrictEqual(snapshots, [false, true].map(() => ({ spinners: 1, genericWorkingVisible: true, ariaWorking: true })));
 		});
 
 		test('should clear the busy affordances when the background subagent completes', () => {

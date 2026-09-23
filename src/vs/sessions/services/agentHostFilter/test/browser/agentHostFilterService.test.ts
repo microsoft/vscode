@@ -11,6 +11,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -328,6 +329,48 @@ suite('AgentHostFilterService', () => {
 		assert.deepStrictEqual([...service.hosts].map(h => ({ id: h.id, providerIds: [...h.providerIds], status: h.status })), [
 			{ id: 'cloudsandbox', providerIds: [pid('cloudsandbox:env-1')], status: AgentHostFilterConnectionStatus.Connected },
 		]);
+	});
+
+	test('scopes creation drafts to a group without treating the creation provider as a connection', async () => {
+		const providers = new StubSessionsProvidersService();
+		const service = createService(providers);
+		const group = { ...SANDBOX_GROUP, sessionCreationProviderId: 'sandbox-creation' };
+		store.add(service.registerHostGroup(group));
+		const beforeRegistration = [...service.hosts[0].providerIds];
+		const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>({ id: 'sandbox-creation' })));
+		const emptyGroup = service.hosts[0];
+		const member = new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.connected, group);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(member)));
+		const populatedGroup = service.hosts[0];
+		await service.reconnect(group.id);
+		await service.disconnect(group.id);
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			beforeRegistration,
+			emptyGroup: {
+				providerIds: emptyGroup.providerIds,
+				creationProvider: emptyGroup.sessionCreationProviderId,
+				status: emptyGroup.status,
+				address: emptyGroup.address,
+				connectable: emptyGroup.connectable,
+			},
+			populatedGroup: { providerIds: populatedGroup.providerIds, status: populatedGroup.status },
+			afterUnregister: service.hosts[0].providerIds,
+			connectionCalls: [member.connectCalls, member.disconnectCalls],
+		}, {
+			beforeRegistration: [],
+			emptyGroup: {
+				providerIds: ['sandbox-creation'],
+				creationProvider: 'sandbox-creation',
+				status: AgentHostFilterConnectionStatus.Disconnected,
+				address: undefined,
+				connectable: false,
+			},
+			populatedGroup: { providerIds: ['sandbox-creation', pid('cloudsandbox:env-1')], status: AgentHostFilterConnectionStatus.Connected },
+			afterUnregister: [pid('cloudsandbox:env-1')],
+			connectionCalls: [1, 1],
+		});
 	});
 
 	test('an empty declared group is never the automatic selection', () => {

@@ -395,7 +395,7 @@ suite('MultiEditorTabsControl', () => {
 			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 		};
 		const results = [];
-		for (const { width, from } of [{ width: 240, from: 3 }, { width: 167, from: 0 }, { width: 120, from: 0 }]) {
+		for (const { width, from } of [{ width: 240, from: 3 }, { width: 172, from: 0 }, { width: 120, from: 0 }]) {
 			await reveal(from, width);
 			await reveal(1, width);
 			const tab = container.querySelector<HTMLElement>('.tab.active')!;
@@ -418,7 +418,7 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			results: [
 				{ width: 240, leftShoulderVisible: true, rightShoulderVisible: true },
-				{ width: 167, leftShoulderVisible: true, rightShoulderVisible: true },
+				{ width: 172, leftShoulderVisible: true, rightShoulderVisible: true },
 				{ width: 120, leftShoulderVisible: true, rightShoulderVisible: false },
 			],
 			firstTabFlush: true,
@@ -472,7 +472,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, [4, 3, 2].map(count => ({
 			clampedBeforeLayout: true,
 			activeIndex: count - 1,
-			scrollLeft: count * 160 - 200,
+			scrollLeft: count * 160 - 200 + 5,
 			fillLeft: (count - 1) * 160,
 			hidden: false,
 			fillDisplay: 'block',
@@ -516,6 +516,30 @@ suite('MultiEditorTabsControl', () => {
 		await layoutConnectedGroup(group, 400);
 		const unwrapped = tabs.map(tab => tab.classList.contains('connected-tab-upper-row'));
 		assert.deepStrictEqual({ wrapped, upper, unwrapped }, { wrapped: [true, false], upper: { inset: '-2px', shoulder: 'none' }, unwrapped: [false, false] });
+	});
+
+	test('connected wrapped last tab adds its shoulder to the editor actions margin', async () => {
+		const group = connectedGroup();
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+
+		await layoutConnectedGroup(group, 150);
+		const tabsAndActionsContainer = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+		const tabsContainer = container.querySelector<HTMLElement>('.tabs-container')!;
+		tabsContainer.style.setProperty('--last-tab-margin-right', '17px');
+		tabsContainer.style.setProperty('--modern-ui-connected-tab-shoulder-radius', '5px');
+		const lastTab = tabsContainer.querySelector<HTMLElement>('.tab:last-child')!;
+
+		assert.deepStrictEqual({
+			wrapping: tabsAndActionsContainer.classList.contains('wrapping'),
+			active: lastTab.classList.contains('active'),
+			margin: mainWindow.getComputedStyle(lastTab).marginRight,
+		}, {
+			wrapping: true,
+			active: false,
+			margin: '22px',
+		});
 	});
 
 	test('selected wrapped tabs and focused actions use the document surface on every row', async () => {
@@ -871,7 +895,7 @@ suite('MultiEditorTabsControl', () => {
 				highContrastRight.push({
 					theme, width,
 					mask: mainWindow.getComputedStyle(overflowEdge, '::after').backgroundColor,
-					capMeetsShoulder: parseFloat(cap.bottom) === parseFloat(shoulder.height),
+					capReachesBottom: parseFloat(cap.bottom) === 0,
 					strokesAlign: capRight - parseFloat(cap.borderRightWidth) === shoulderLeft,
 					baselineAligns: outline.getBoundingClientRect().bottom === tabs.getBoundingClientRect().bottom,
 				});
@@ -909,16 +933,16 @@ suite('MultiEditorTabsControl', () => {
 			hiddenAtFillEdge: ['none', 'none'],
 			highContrast: { clipping: '0px', edge: 'block', connectedClass: true },
 			highContrastRight: [
-				{ theme: 'hc-black', width: 240, mask: 'rgb(0, 0, 0)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
-				{ theme: 'hc-black', width: 324, mask: 'rgb(0, 0, 0)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
-				{ theme: 'hc-light', width: 240, mask: 'rgb(255, 255, 255)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
-				{ theme: 'hc-light', width: 324, mask: 'rgb(255, 255, 255)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-black', width: 240, mask: 'rgb(0, 0, 0)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-black', width: 324, mask: 'rgb(0, 0, 0)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-light', width: 240, mask: 'rgb(255, 255, 255)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-light', width: 324, mask: 'rgb(255, 255, 255)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
 			],
 			reset: '',
 		});
 	});
 
-	test('refreshes connected clipping geometry after dirty width changes', async () => {
+	test('invalidates connected clipping geometry after dirty and capability changes', async () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333;';
 		mainWindow.document.body.appendChild(root);
@@ -943,49 +967,33 @@ suite('MultiEditorTabsControl', () => {
 
 		const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
 		const [firstTab, activeTab] = tabs.querySelectorAll<HTMLElement>('.tab');
-		const activeFill = activeTab.querySelector<HTMLElement>('.tab-fill')!;
 		const overflowEdge = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
 		const scroll = (left: number) => {
 			tabs.classList.add('scroll');
 			tabs.scrollLeft = left;
 			tabs.dispatchEvent(new UIEvent(EventType.SCROLL));
 		};
-		const getLogicalFillRight = () => activeFill.getBoundingClientRect().right - tabs.getBoundingClientRect().left + tabs.scrollLeft;
 		scroll(0);
-		const cleanFillRight = getLogicalFillRight();
 		const firstEditor = model.getEditorByIndex(0) as TestFileEditorInput;
 		firstEditor.setDirty();
 		control.updateEditorDirty(firstEditor);
-		const dirtyFillRight = getLogicalFillRight();
 		const invalidatedBeforeLayout = overflowEdge.style.left === '' && !activeTab.classList.contains('connected-tab-right-edge');
 		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 
-		const shoulderExtent = Number.parseFloat(mainWindow.getComputedStyle(activeFill, '::after').width);
-		const targetVisibleRight = (cleanFillRight + dirtyFillRight) / 2 + shoulderExtent;
-		scroll(targetVisibleRight - tabs.clientWidth);
-		const visibleRight = tabs.scrollLeft + tabs.clientWidth;
-		const rightEdge = activeTab.classList.contains('connected-tab-right-edge');
-		const currentGeometryNeedsEdge = dirtyFillRight + shoulderExtent > visibleRight;
-		const staleGeometryWouldNeedEdge = cleanFillRight + shoulderExtent > visibleRight;
+		const rebuiltAfterLayout = overflowEdge.style.left !== '';
 		firstEditor.capabilities = EditorInputCapabilities.CannotClose;
 		control.updateEditorCapabilities(firstEditor);
 		const capabilityUpdateInvalidated = overflowEdge.style.left === '' && !activeTab.classList.contains('connected-tab-right-edge');
 
 		assert.deepStrictEqual({
 			firstTabDirty: firstTab.classList.contains('dirty'),
-			widthIncreased: dirtyFillRight > cleanFillRight,
 			invalidatedBeforeLayout,
-			rightEdge,
-			currentGeometryNeedsEdge,
-			staleGeometryWouldNeedEdge,
+			rebuiltAfterLayout,
 			capabilityUpdateInvalidated,
 		}, {
 			firstTabDirty: true,
-			widthIncreased: true,
 			invalidatedBeforeLayout: true,
-			rightEdge: true,
-			currentGeometryNeedsEdge: true,
-			staleGeometryWouldNeedEdge: false,
+			rebuiltAfterLayout: true,
 			capabilityUpdateInvalidated: true,
 		});
 	});

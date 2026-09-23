@@ -18,6 +18,7 @@ import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMe
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -31,12 +32,12 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSyst
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
-import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -402,6 +403,26 @@ function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultS
 }
 
 function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
+	const phase = readToolCallMeta(tc).fusionPhase;
+	if (getToolKind(tc) === 'fusionPhase' && phase) {
+		const phaseStatus = tc.status === ToolCallStatus.Cancelled ? 'cancelled' : phase.status;
+		const isActive = getSubagentIsActive({ presentation: 'phase', phaseStatus });
+		return {
+			kind: 'subagent',
+			presentation: 'phase',
+			phaseStatus,
+			activityDescription: isActive ? readToolCallMeta(tc).progressMessage : undefined,
+			hasStarted: true,
+			isActive,
+			description: getSubagentTaskDescription(tc) ?? tc.displayName,
+			modelId: phase.model,
+			modelName: phase.model,
+			startedAt: phase.startedAt,
+			duration: phase.duration,
+			result: tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined,
+			isChatAvailable: false,
+		};
+	}
 	const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) ? getToolSubagentContent(tc) : undefined;
 	if (!isSubagentTool(tc) && !subagentContent) {
 		return undefined;
@@ -513,6 +534,17 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	switch (meta.kind) {
+		case AgentSystemNotificationKind.FusionProgress:
+			return {
+				kind: 'systemNotification',
+				content: markdown,
+				collapsible: meta.fusionStatus !== 'selected',
+				presentation: meta.fusionStatus === 'selected' ? 'workflow' : undefined,
+				icon: meta.fusionStatus === 'selected' ? Codicon.layers
+					: meta.fusionStatus === 'failed' ? Codicon.error
+						: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
+							: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
+			};
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -550,6 +582,17 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
+}
+
+/** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
+export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): string | undefined {
+	if (parts.length === 0) {
+		return 'agentHost.chatActivity';
+	}
+	// Each milestone boundary needs a new activity row, rather than updating an earlier row now hidden by that milestone.
+	return parts.every(part => part.kind === ResponsePartKind.SystemNotification
+		&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress)
+		? `agentHost.chatActivity:fusion:${parts.length}` : undefined;
 }
 
 /**
@@ -597,8 +640,8 @@ export interface TurnModelLookup {
 	toActualModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
 	toModelDisplayName?(rawModelId: string): string | undefined;
-	/** Returns the human-readable response details, or undefined if unknown. */
-	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
+	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -617,6 +660,14 @@ export interface ITurnModelInfo {
 export interface ITurnResponseModel {
 	readonly name: string;
 	readonly pricing?: string;
+}
+
+/** Fusion is the response-level model; constituent models remain in phase pills and usage. */
+export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
+	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
+		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
+		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
 }
 
 /**
@@ -962,7 +1013,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 /**
  * Converts completed turns from the protocol state into session history items.
  *
- * Requests preserve the selected model, while response details use the model that actually ran.
+ * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
@@ -970,7 +1021,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
-		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
+		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
@@ -1873,6 +1924,11 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
+function toolCallOriginMessage(tc: ToolCallState): string | undefined {
+	const serverName = readToolCallMeta(tc).mcpServerName?.trim();
+	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
+}
+
 function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
 	if (tc.status === ToolCallStatus.Completed) {
 		return { type: ToolConfirmKind.ConfirmationNotNeeded };
@@ -1892,9 +1948,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
-	const isSubagent = subagentContent || isSubagentTool(tc);
-	if (isSubagent && tc.status === ToolCallStatus.Completed) {
-		const resultText = getToolOutputText(tc);
+	const fusionPhaseData = getToolKind(tc) === 'fusionPhase' ? getSubagentToolSpecificData(tc, sessionResource) : undefined;
+	const isSubagent = subagentContent || isSubagentTool(tc) || fusionPhaseData;
+	if (isSubagent && (tc.status === ToolCallStatus.Completed || fusionPhaseData)) {
+		const resultText = tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined;
 		const pastTenseMsg = isSuccess
 			? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
 			: invocationMsg;
@@ -1904,13 +1961,13 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			toolId: tc.toolName,
 			source: ToolDataSource.Internal,
 			invocationMessage: invocationMsg,
-			originMessage: undefined,
+			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
-			toolSpecificData: {
+			toolSpecificData: fusionPhaseData ?? {
 				kind: 'subagent',
 				hasStarted: false,
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
@@ -1961,7 +2018,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		toolId: tc.toolName,
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
-		originMessage: undefined,
+		originMessage: toolCallOriginMessage(tc),
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
@@ -2240,6 +2297,13 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 		}
 	}
 
+	const linkParams = new URLSearchParams(parsed.query);
+	const linkType = linkParams.get('vscodeLinkType');
+	if (linkType) {
+		linkParams.delete('vscodeLinkType');
+		parsed = parsed.with({ query: linkParams.toString() });
+	}
+
 	let agentHostUri: URI;
 	try {
 		agentHostUri = resourceUris.fromAgentHost(parsed);
@@ -2249,7 +2313,11 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 	} catch {
 		return href;
 	}
-	if (isSkillFileUri(parsed) && !agentHostUri.query.includes('vscodeLinkType=')) {
+	if (linkType) {
+		const params = new URLSearchParams(agentHostUri.query);
+		params.set('vscodeLinkType', linkType);
+		agentHostUri = agentHostUri.with({ query: params.toString() });
+	} else if (isSkillFileUri(parsed) && !agentHostUri.query.includes('vscodeLinkType=')) {
 		const existing = agentHostUri.query;
 		agentHostUri = agentHostUri.with({ query: existing ? `${existing}&vscodeLinkType=skill` : 'vscodeLinkType=skill' });
 	}
@@ -2445,6 +2513,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		return new ChatToolInvocation(
 			{
 				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+				originMessage: toolCallOriginMessage(tc),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
@@ -2456,7 +2525,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		);
 	}
 
-	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+	const invocation = new ChatToolInvocation({ originMessage: toolCallOriginMessage(tc) }, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
@@ -2586,6 +2655,7 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
 	if (tc.status !== ToolCallStatus.Streaming) {
 		return undefined;
 	}
+	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	// Partial read paths render as misleading file links, so wait for the complete input.
 	if (getToolKind(tc) === 'read') {
 		existing.updatePartialInput(undefined);
@@ -2614,6 +2684,7 @@ export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionReso
 	const built = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, options, resourceUris);
 	return {
 		invocationMessage: built.invocationMessage,
+		originMessage: built.originMessage,
 		pastTenseMessage: built.pastTenseMessage,
 		confirmationMessages: built.confirmationMessages,
 		presentation: built.presentation,
@@ -2633,6 +2704,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		return;
 	}
 	existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? existing.invocationMessage;
+	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		existing.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		existing.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -2641,6 +2713,12 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		existing.invocationMessage = addCommentReference(tc, resourceUris) ?? existing.invocationMessage;
 	}
 	applyToolCallProgress(existing, tc);
+
+	if (getToolKind(tc) === 'fusionPhase') {
+		existing.toolSpecificData = getSubagentToolSpecificData(tc, sessionResource);
+		existing.notifyToolSpecificDataChanged();
+		return;
+	}
 
 	const subagentContent = getToolSubagentContent(tc);
 	if (subagentContent) {
@@ -2750,6 +2828,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
+		invocation.originMessage = toolCallOriginMessage(tc) ?? invocation.originMessage;
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// invocation text here. Add new per-tool cases alongside this branch.
@@ -2761,7 +2840,10 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	// Check for subagent content — set toolSpecificData so the UI renders a subagent widget
-	if (isCompleted) {
+	if (getToolKind(tc) === 'fusionPhase') {
+		invocation.toolSpecificData = getSubagentToolSpecificData(tc, backendSession);
+		invocation.notifyToolSpecificDataChanged();
+	} else if (isCompleted) {
 		const subagentContent = getToolSubagentContent(tc);
 		if (subagentContent) {
 			const resultText = getToolOutputText(tc);

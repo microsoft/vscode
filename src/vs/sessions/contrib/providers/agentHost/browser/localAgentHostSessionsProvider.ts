@@ -24,10 +24,9 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { AutomationStore } from '../../../automations/browser/automationService.js';
-import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
 import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -43,6 +42,7 @@ import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '..
 import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter } from './baseAgentHostSessionsProvider.js';
@@ -146,11 +146,12 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IDevContainerAgentHostService devContainerAgentHostService: IDevContainerAgentHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IPathService pathService: IPathService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
-		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
-		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
+		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
@@ -221,7 +222,13 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			}
 		};
 		bindConnection();
-		this._register(this._agentHostService.onAgentHostStart(bindConnection));
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			bindConnection();
+			// Reconcile missed notifications and open the restarted host's first-listing discovery barrier.
+			if (!this._agentHostService.authenticationPending.get()) {
+				void this._refreshSessions();
+			}
+		}));
 		this._register(this._agentHostService.onAgentHostExit(() => {
 			connectionListeners.clear();
 			automations.clearConnection();

@@ -80,9 +80,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.archived.push(session);
 	}
 
-	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		this.deletedChats.push({ session, chatResource });
 		this.deleteChatOptions.push(options);
+		return true;
 	}
 
 	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
@@ -120,6 +121,8 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = resource.with({ fragment: 'main' });
 		override readonly status = status;
+		override readonly changes = constObservable([]);
+		override readonly changesets = constObservable([]);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
@@ -144,8 +147,6 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		title: constObservable(title),
 		updatedAt: constObservable(now),
 		status,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		changesSummary: constObservable(options.changesSummary),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),

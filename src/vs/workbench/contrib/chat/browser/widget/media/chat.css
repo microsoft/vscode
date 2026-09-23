@@ -3438,6 +3438,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.rendered-markdown.progress-step {
 		white-space: normal;
 
+		&.chat-progress-with-origin {
+			min-width: 0;
+			overflow-wrap: anywhere;
+
+			> p {
+				display: inline;
+			}
+		}
+
+		.chat-progress-origin {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-body2);
+			font-weight: var(--vscode-fontWeight-regular);
+			opacity: 0.7;
+
+			&::before {
+				content: ' \2013  ';
+			}
+
+			.rendered-markdown,
+			p {
+				display: inline;
+			}
+		}
+
 		& > p {
 			color: var(--vscode-descriptionForeground);
 			font-size: var(--vscode-chat-font-size-body-s);
@@ -3456,8 +3481,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	/* hide spinner icon for shimmer progress, shimmer handles animation */
-	&.shimmer-progress > .codicon {
+	/* Ordinary shimmer rows use the text as their progress affordance. */
+	&.shimmer-progress:where(:not(.chat-working-progress)) > .codicon {
 		display: none;
 	}
 
@@ -3479,6 +3504,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.hc-black .interactive-item-container .progress-container .progress-step .chat-progress-origin,
+.hc-light .interactive-item-container .progress-container .progress-step .chat-progress-origin {
+	opacity: 1;
+}
+
+.interactive-item-container .progress-container > .chat-working-progress-icon-stable {
+	color: var(--vscode-chat-workingProgressStableIconForeground);
+	-webkit-text-fill-color: var(--vscode-chat-workingProgressStableIconForeground);
+}
+
+.interactive-item-container .progress-container > .chat-working-progress-icon-insiders {
+	color: var(--vscode-chat-workingProgressInsidersIconForeground);
+	-webkit-text-fill-color: var(--vscode-chat-workingProgressInsidersIconForeground);
+}
+
+.interactive-item-container .progress-container.chat-working-progress > .chat-progress-icon::before {
+	display: none;
+}
+
+.interactive-item-container .progress-container.chat-working-progress > .chat-progress-icon {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	min-height: 1lh;
+}
+
 /* Reduced motion: render the shimmer text as static, solid progress text. */
 .monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
 .monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
@@ -3486,6 +3537,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: none;
 	-webkit-text-fill-color: currentColor;
 	color: var(--vscode-descriptionForeground);
+}
+
+/* A persistent response indicator owns the only active shimmer in its response. */
+.interactive-item-container.chat-persistent-progress .progress-container.shimmer-progress:not(.chat-working-progress) .rendered-markdown.progress-step > p,
+.interactive-item-container.chat-persistent-progress .progress-container.shimmer-progress:not(.chat-working-progress) .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text,
+.interactive-item-container.chat-persistent-progress .chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title-inner > .rendered-markdown > p {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	color: var(--vscode-descriptionForeground);
+	will-change: auto;
+}
+
+.interactive-item-container.chat-persistent-progress .codicon-modifier-spin:not(.chat-working-progress-icon-stable):not(.chat-working-progress-icon-insiders):not(.chat-subagent-pill-widget *):not(.chat-terminal-progress-row *):not(.chat-terminal-thinking-collapsible *) {
+	animation: none;
 }
 
 .show-checkmarks .progress-container > .codicon.codicon-check-compact,

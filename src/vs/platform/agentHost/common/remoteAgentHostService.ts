@@ -21,6 +21,7 @@ import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
 import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 
 /**
  * Connection status for a remote agent host.
@@ -236,7 +237,7 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly address: string;
 	/** Source folder on the parent host containing the Dev Container configuration. */
 	readonly hostPath: string;
-	/** VS Code SSH or tunnel authority of the parent host, absent for local containers. */
+	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
 }
 
@@ -275,6 +276,7 @@ export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDispo
 	 * each transition that must not be repeated per backoff round.
 	 */
 	readonly onDidScheduleReconnect: Event<void>;
+	readonly onDidConnectionDiagnostic: Event<IConnectionDiagnosticEvent>;
 	connect(): Promise<void>;
 	reconnectNow(): boolean;
 	notifyTransportClosed(): void;
@@ -288,6 +290,8 @@ export interface IRemoteAgentHostConnectOptions {
 	 * must never open prompts, pickers or modals.
 	 */
 	readonly userInitiated: boolean;
+	/** Optional client-local observation of transport-specific setup phases. */
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }
 
 /** A built, not-yet-handshaken connection and its owned resources. */
@@ -312,6 +316,8 @@ export interface IRemoteAgentHostConnectionFactory {
 	readonly kind: RemoteAgentHostEntryType;
 	/** Entries owned by this factory. */
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
+	/** Effective initiation mode staged by the factory for the next dial, before createConnection consumes it. */
+	getPendingConnectionInitiation?(entry: IRemoteAgentHostEntry): boolean | undefined;
 	/**
 	 * Build a client bound to a transport for `entry`.
 	 *
@@ -686,6 +692,12 @@ export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>(
  */
 export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[];
+
+	/** In-flight setup and protocol connection attempts for enabled, configured hosts; excludes removed or disposed hosts even if setup has not settled. */
+	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[];
+	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
+	readonly onDidChangePendingConnections: Event<void>;
 
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
@@ -792,9 +804,19 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 }
 
+export interface IRemoteAgentHostPendingConnection {
+	/** Normalized host address, matching the connection catalog. */
+	readonly address: string;
+	readonly startedAt: number;
+	readonly userInitiated: boolean;
+}
+
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
+	readonly onDidChangePendingConnections = Event.None;
+	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	registerConnectionFactory(): IDisposable {

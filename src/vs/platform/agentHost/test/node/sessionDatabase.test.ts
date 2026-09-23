@@ -258,6 +258,28 @@ suite('SessionDatabase', () => {
 			}]);
 		});
 
+		test('retrieve file edits by the turn event ID', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.createTurn('request-1');
+			await db.setTurnEventId('request-1', 'event-1');
+			await db.storeFileEdit({
+				turnId: 'request-1',
+				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
+				filePath: '/workspace/file.ts',
+				beforeContent: new TextEncoder().encode('before'),
+				afterContent: new TextEncoder().encode('after'),
+				addedLines: 1,
+				removedLines: 1,
+			});
+
+			assert.deepStrictEqual(
+				await db.getFileEditsByTurn('event-1'),
+				await db.getFileEditsByTurn('request-1'),
+			);
+		});
+
 		test('retrieve multiple edits for a single tool call', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 
@@ -506,6 +528,25 @@ suite('SessionDatabase', () => {
 		test('deleteTurn is a no-op for unknown turn', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.deleteTurn('nonexistent'); // should not throw
+		});
+
+		test('hasConversationTurns tracks persisted and local turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.createTurn('turn-1');
+			const afterTurn = await db.hasConversationTurns();
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+			await db.insertLocalTurn({ turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
+			const afterLocalTurn = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterTurn, afterDeleteAll, afterLocalTurn }, {
+				empty: false,
+				afterTurn: true,
+				afterDeleteAll: false,
+				afterLocalTurn: true,
+			});
 		});
 	});
 

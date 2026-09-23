@@ -82,8 +82,8 @@
 	padding-left: var(--vscode-spacing-size80) !important;
 }
 
-.modern-ui-tabs .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
-	margin-right: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40)) !important;
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
+	margin-right: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {

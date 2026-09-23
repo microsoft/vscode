@@ -14,6 +14,26 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the sandbox policy command and report link', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
+	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
+		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
+				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
+				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
+				preserve: help.includes('An existing draft in the Agents Window is kept'),
+				ignore: help.includes('Ignore turns off future invitations'),
+				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
+			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+		});
+	}
+
 	test('documents accepting the selected confirmation primary action', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -30,6 +50,31 @@ suite('Chat Accessibility Help', () => {
 			subagentTail: help.includes('omitted when subagent pills are the last visible content'),
 			parentTail: help.includes('appears after other content while the response remains in progress'),
 		}, { finished: true, subagentTail: true, parentTail: true });
+	});
+
+	test('describes the single Test App action and remembered retesting only in the Agents Window', () => {
+		const keybindings = new MockKeybindingService();
+		const sessionsHelp = getAccessibilityHelpText('agentView', keybindings, true, true);
+		const editorHelp = getAccessibilityHelpText('agentView', keybindings, true, false);
+		assert.deepStrictEqual([
+			sessionsHelp.includes('Test App appears to the right of the status pills above the chat input'),
+			sessionsHelp.includes('Retest App whenever it reappears, including after restarting VS Code in the same profile'),
+			sessionsHelp.includes('testing was requested, not that tests passed'),
+			sessionsHelp.includes('App Testing Options'),
+			sessionsHelp.includes('Subagent'),
+			editorHelp.includes('Test App'),
+			editorHelp.includes('Retest App'),
+		], [true, true, true, false, false, false, false]);
+	});
+
+	test('documents collapsing the model controls when Auto is enabled', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			collapsed: help.includes('turning Auto on collapses the provider tabs, search, and model list'),
+			preferences: help.includes('Auto and its preferences remain available'),
+			restored: help.includes('Turn Auto off to restore the model controls and the previous model selection'),
+			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
+		}, { collapsed: true, preferences: true, restored: true, reducedMotion: true });
 	});
 
 	test('documents model details and activating Auto through Optimize for', () => {
@@ -246,7 +291,7 @@ suite('Chat Accessibility Help', () => {
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
-			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('toolbar context menu to show all again'),
+			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
 			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),

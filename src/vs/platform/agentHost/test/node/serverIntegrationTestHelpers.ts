@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import type { IProcessInfo } from '@vscode/windows-process-tree';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { Promises, raceTimeout } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode, type ICapiReplayResponse } from './e2e/harness/capiReplayProxy.js';
@@ -662,13 +664,85 @@ export interface IServerHandle {
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 
+interface IServerDescendant {
+	readonly pid: number;
+	readonly name: string;
+	readonly commandLine: string;
+}
+
+export function collectServerDescendants(pid: number, processList: readonly IProcessInfo[]): IServerDescendant[] {
+	const childrenByParent = new Map<number, IProcessInfo[]>();
+	for (const process of processList) {
+		let children = childrenByParent.get(process.ppid);
+		if (!children) {
+			children = [];
+			childrenByParent.set(process.ppid, children);
+		}
+		children.push(process);
+	}
+
+	const descendants: IServerDescendant[] = [];
+	const visited = new Set([pid]);
+	const collectDescendants = (parentPid: number): void => {
+		for (const process of childrenByParent.get(parentPid) ?? []) {
+			if (visited.has(process.pid)) {
+				continue;
+			}
+			visited.add(process.pid);
+			// Prune protected system branches that stale PPIDs can attach to a reused server PID.
+			if (!process.commandLine) {
+				continue;
+			}
+			descendants.push({ pid: process.pid, name: process.name, commandLine: process.commandLine });
+			collectDescendants(process.pid);
+		}
+	};
+	collectDescendants(pid);
+	return descendants;
+}
+
+async function getServerDescendants(pid: number): Promise<IServerDescendant[]> {
+	if (!isWindows) {
+		return [];
+	}
+	// Once the parent exits, taskkill /T can no longer discover its descendants.
+	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
+	const processList = await promisify(getProcessList)(pid, ProcessDataFlag.CommandLine);
+	return collectServerDescendants(pid, processList);
+}
+
+async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promise<boolean> {
+	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
+	// Signal 0 requires termination access on Windows and can report EPERM while a process exits.
+	return new Promise(resolve => getProcessList(descendant.pid, processList => {
+		const process = processList?.find(process => process.pid === descendant.pid);
+		resolve(process?.name === descendant.name && process.commandLine === descendant.commandLine);
+	}, ProcessDataFlag.CommandLine));
+}
+
+interface IServerProcessOperations {
+	killTree(pid: number, forceful: boolean): Promise<void>;
+	isSameProcessRunning(descendant: IServerDescendant): Promise<boolean>;
+}
+
+const defaultServerProcessOperations: IServerProcessOperations = {
+	killTree,
+	isSameProcessRunning: isSameWindowsProcessRunning,
+};
+
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined): Promise<void> {
+export async function stopServer(
+	server: IServerHandle | undefined,
+	getDescendants = getServerDescendants,
+	timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS,
+	processOperations = defaultServerProcessOperations,
+): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
 	}
 
+	const deadline = Date.now() + timeoutMs;
 	const serverExit = new Promise<void>(resolve => {
 		const onExit = () => resolve();
 		serverProcess.once('exit', onExit);
@@ -677,15 +751,28 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 			resolve();
 		}
 	});
+	let descendants: IServerDescendant[] = [];
+	let snapshotError: Error | undefined;
+	try {
+		if (serverProcess.pid !== undefined) {
+			const snapshot = await raceTimeout(getDescendants(serverProcess.pid), Math.max(0, deadline - Date.now()));
+			if (snapshot === undefined) {
+				throw new Error('Timed out capturing Agent Host test server descendants');
+			}
+			descendants = snapshot;
+		}
+	} catch (error) {
+		snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
+	}
 	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+	if (!await raceTimeout(serverExit.then(() => true), Math.max(0, deadline - Date.now()))) {
 		try {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
 				const pid = serverProcess.pid;
 				if (pid === undefined) {
 					throw new Error('Agent Host test server has no process id');
 				}
-				await killTree(pid, true);
+				await processOperations.killTree(pid, true);
 			}
 		} catch (error) {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
@@ -694,6 +781,23 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 		}
 		await serverExit;
 	}
+	if (snapshotError) {
+		throw snapshotError;
+	}
+
+	await Promises.settled(descendants.map(async descendant => {
+		if (!await processOperations.isSameProcessRunning(descendant)) {
+			return;
+		}
+		try {
+			await processOperations.killTree(descendant.pid, true);
+		} catch (error) {
+			if (!await processOperations.isSameProcessRunning(descendant)) {
+				return;
+			}
+			throw error;
+		}
+	}));
 }
 
 /** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
@@ -842,7 +946,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -859,6 +963,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			matchModelRequestsByProjection: options.capiReplay.matchModelRequestsByProjection,
 			recordingModelResponse: options.capiReplay.recordingModelResponse,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
@@ -871,6 +976,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			matchModelRequestsByProjection: options.capiReplay.matchModelRequestsByProjection,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			upstreamUrl: mockLlmServer!.url,

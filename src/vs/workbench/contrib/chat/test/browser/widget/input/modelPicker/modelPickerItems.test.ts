@@ -847,6 +847,36 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].label, 'Gemini Flash');
 	});
 
+	test('HydraFusion is listed once, right below Auto and above offers, with its research preview tag', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-hydra', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Limited time offer' } } as ILanguageModelChatMetadata;
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		hydraFusion.metadata = { ...hydraFusion.metadata, detail: 'Research preview' };
+		const actions = getActionItems(callBuild([modelA, promoModel, hydraFusion, auto], { recentModelIds: [hydraFusion.identifier] }));
+		assert.deepStrictEqual({
+			leading: actions.slice(0, 3).map(action => [action.label, action.item?.description]),
+			hydraFusionRows: actions.filter(action => action.label === 'HydraFusion').length,
+		}, {
+			leading: [['Auto', undefined], ['HydraFusion', 'Research preview'], ['Gemini Flash', '20% discount']],
+			hydraFusionRows: 1,
+		});
+	});
+
+	test('HydraFusion too new for this build loses its row under Auto and shows the update it needs', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const actions = getActionItems(callBuild([auto, hydraFusion], {
+			currentVSCodeVersion: '1.100.0',
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+		}));
+		assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [action.label, action.disabled ?? false, action.description]), [
+			['Auto', false, undefined],
+			['HydraFusion', true, 'Update VS Code'],
+		]);
+	});
+
 	test('promo model shows discount in description', () => {
 		const auto = createAutoModel();
 		const promoModel = createModel('gemini-flash', 'Gemini Flash');

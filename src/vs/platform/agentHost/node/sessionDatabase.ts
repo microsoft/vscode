@@ -570,6 +570,13 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	hasConversationTurns(): Promise<boolean> {
+		return this._queueOperation(async db => {
+			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_local_turns`, []);
+			return !!row?.has_turns || !!row?.has_local_turns;
+		});
+	}
+
 	setTurnUsage(turnId: string, usage: string): Promise<void> {
 		return this._mutateTurnUsage(async db => {
 			// Ensure the turn exists — lazily insert since the turn record may not
@@ -856,7 +863,10 @@ export class SessionDatabase implements ISessionDatabase {
 			db,
 			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
-				WHERE turn_id = ?
+				WHERE turn_id = COALESCE(
+					(SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1),
+					?1
+				)
 				ORDER BY rowid`,
 			[turnId],
 		);

@@ -35,6 +35,7 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelDiscoveryOptions,
 	type ITunnelVisibility,
 	ITunnelAgentHostService,
 	type TunnelAutoConnectMode,
@@ -51,6 +52,7 @@ import { IAuthenticationService } from '../../../../../workbench/services/authen
 import { resolveGatewaySelection, selectGatewayFallbackAfterRejection } from '../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import { type IDevTunnelsWeb, type IDevTunnelsWebManagementClient, type IDevTunnelsWebRelayClient, type IDevTunnelsWebTunnel, loadDevTunnelsWeb } from './devTunnelsWebLoader.js';
 import { TunnelAgentHostStorage } from './tunnelAgentHostStorage.js';
+import { traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 
 const LOG_PREFIX = '[BrowserTunnelAgentHost]';
 
@@ -99,6 +101,10 @@ class BrowserTunnelConnectionFactory extends Disposable implements IRemoteAgentH
 		if (this._stagedAuthProviders.delete(address)) {
 			this._onDidStageTunnel.fire();
 		}
+	}
+
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
 	}
 
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -197,8 +203,8 @@ export class BrowserTunnelSocketFactory implements ITunnelSocketFactory {
 export interface ITunnelAgentHostConnector {
 	readonly onDidRelayMessage: Event<{ readonly connectionId: string; readonly data: string }>;
 	readonly onDidRelayClose: Event<string>;
-	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult>;
-	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined>;
+	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, onDiagnostic?: ConnectionDiagnosticObserver): Promise<ITunnelConnectResult>;
+	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, onDiagnostic?: ConnectionDiagnosticObserver): Promise<ITunnelGatewaySelectionSession | undefined>;
 	completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult>;
 	cancelSelection(selectionId: string): Promise<void>;
 	relaySend(connectionId: string, message: string): Promise<void>;
@@ -257,27 +263,31 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		this._resolveGatewaySelection = options.resolveGatewaySelection ?? resolveGatewaySelection;
 	}
 
-	async listTunnels(options?: { silent?: boolean; authProvider?: 'github' | 'microsoft' }): Promise<ITunnelInfo[]> {
+	async listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			return [];
 		}
 
 		const silent = options?.silent ?? false;
-		const auth = options?.authProvider
-			? await this._getTokenForProvider(options.authProvider, silent)
-			: await this._getToken(silent);
-		if (!auth) {
-			throw new Error(localize('browserTunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
-		}
+		const auth = await traceConnectionOperation(options?.onDiagnostic, 'discovery.authentication', async () => {
+			const auth = options?.authProvider
+				? await this._getTokenForProvider(options.authProvider, silent, options.onDiagnostic)
+				: await this._getToken(silent, options?.onDiagnostic);
+			if (!auth) {
+				throw new Error(localize('browserTunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
+			}
+			return auth;
+		});
 
 		try {
-			const managementClient = createManagementClient(await this._loadDevTunnelsWeb(), auth.token, auth.provider);
-			const tunnels = await managementClient.listTunnels(undefined, undefined, {
+			const sdk = await traceConnectionOperation(options?.onDiagnostic, 'discovery.sdk', () => this._loadDevTunnelsWeb());
+			const managementClient = createManagementClient(sdk, auth.token, auth.provider);
+			const tunnels = await traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', () => managementClient.listTunnels(undefined, undefined, {
 				labels: [TUNNEL_LAUNCHER_LABEL],
 				requireAllLabels: true,
 				includePorts: true,
 				tokenScopes: ['connect'],
-			});
+			}));
 			const results = filterBrowserTunnelInfos(tunnels);
 			this._logService.info(`${LOG_PREFIX} Found ${results.length} tunnel(s) with agent host support`);
 			return results;
@@ -322,16 +332,19 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			protocolVersion: cachedTunnel?.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
 			hostConnectionCount: 0,
 		};
-		const auth = authProvider
-			? await this._getTokenForProvider(authProvider, !options.userInitiated)
-			: await this._getToken(!options.userInitiated);
-		if (!auth) {
-			throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
-		}
+		const auth = await traceConnectionOperation(options.onDiagnostic, 'tunnel.authentication', async () => {
+			const auth = authProvider
+				? await this._getTokenForProvider(authProvider, !options.userInitiated, options.onDiagnostic)
+				: await this._getToken(!options.userInitiated, options.onDiagnostic);
+			if (!auth) {
+				throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
+			}
+			return auth;
+		});
 
 		let result: ITunnelConnectResult;
 		try {
-			const connected = await connectThroughTunnelGateway(
+			const connected = await traceConnectionOperation(options.onDiagnostic, 'tunnel.gateway', () => connectThroughTunnelGateway(
 				this._connector,
 				this._resolveGatewaySelection,
 				this._locationPreferenceService,
@@ -340,7 +353,8 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				auth,
 				tunnel,
 				options.userInitiated,
-			);
+				options.onDiagnostic,
+			));
 			if (!connected) {
 				throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
 			}
@@ -359,13 +373,16 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				return { transport: new BrowserTunnelConnectionTransport(result.connectionId, this._connector, this._logService) };
 			}
 
-			const authForReconnect = await this._getTokenForProvider(auth.provider, true);
-			if (!authForReconnect) {
-				throw new NonReconnectableTransportError('No cached authentication available to reconnect the tunnel.');
-			}
+			const authForReconnect = await traceConnectionOperation(options.onDiagnostic, 'tunnel.authentication', async () => {
+				const refreshed = await this._getTokenForProvider(auth.provider, true, options.onDiagnostic);
+				if (!refreshed) {
+					throw new NonReconnectableTransportError('No cached authentication available to reconnect the tunnel.');
+				}
+				return refreshed;
+			});
 
 			try {
-				const reconnected = await connectThroughTunnelGateway(
+				const reconnected = await traceConnectionOperation(options.onDiagnostic, 'tunnel.gateway', () => connectThroughTunnelGateway(
 					this._connector,
 					this._resolveGatewaySelection,
 					this._locationPreferenceService,
@@ -374,7 +391,8 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 					authForReconnect,
 					tunnel,
 					false,
-				);
+					options.onDiagnostic,
+				));
 				if (!reconnected) {
 					throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
 				}
@@ -475,9 +493,9 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		this._storage.clearAutoConnectSuppression(tunnelId);
 	}
 
-	private async _getToken(silent: boolean): Promise<{ readonly token: string; readonly provider: 'github' | 'microsoft' } | undefined> {
+	private async _getToken(silent: boolean, onDiagnostic?: ConnectionDiagnosticObserver): Promise<{ readonly token: string; readonly provider: 'github' | 'microsoft' } | undefined> {
 		if (this._lastAuthProvider) {
-			const token = await this._getTokenForProvider(this._lastAuthProvider, silent);
+			const token = await this._getTokenForProvider(this._lastAuthProvider, silent, onDiagnostic);
 			if (token) {
 				return token;
 			}
@@ -487,7 +505,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			if (provider === this._lastAuthProvider) {
 				continue;
 			}
-			const token = await this._getTokenForProvider(provider, true);
+			const token = await this._getTokenForProvider(provider, true, onDiagnostic);
 			if (token) {
 				return token;
 			}
@@ -495,7 +513,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		return undefined;
 	}
 
-	private async _getTokenForProvider(provider: 'github' | 'microsoft', silent: boolean): Promise<{ readonly token: string; readonly provider: 'github' | 'microsoft' } | undefined> {
+	private async _getTokenForProvider(provider: 'github' | 'microsoft', silent: boolean, onDiagnostic?: ConnectionDiagnosticObserver): Promise<{ readonly token: string; readonly provider: 'github' | 'microsoft' } | undefined> {
 		const scopes = this._productService.tunnelApplicationConfig?.authenticationProviders?.[provider]?.scopes ?? [];
 		if (scopes.length === 0) {
 			this._logService.debug(`${LOG_PREFIX} No ${provider} tunnel authentication scopes are configured.`);
@@ -503,10 +521,10 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		}
 
 		try {
-			let sessions = await this._authenticationService.getSessions(provider, scopes, {}, true);
+			let sessions = await traceConnectionOperation(onDiagnostic, `authentication.${provider}.sessions`, () => this._authenticationService.getSessions(provider, scopes, {}, true));
 			if (sessions.length === 0) {
 				const requestedScopes = new Set(scopes);
-				const allSessions = await this._authenticationService.getSessions(provider, undefined, {}, true);
+				const allSessions = await traceConnectionOperation(onDiagnostic, `authentication.${provider}.sessions`, () => this._authenticationService.getSessions(provider, undefined, {}, true));
 				let bestSession: typeof allSessions[number] | undefined;
 				let bestExtraScopes = Infinity;
 				for (const candidate of allSessions) {
@@ -525,7 +543,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				}
 			}
 			if (sessions.length === 0 && !silent) {
-				sessions = [await this._authenticationService.createSession(provider, scopes, { activateImmediate: true })];
+				sessions = [await traceConnectionOperation(onDiagnostic, `authentication.${provider}.interactive`, () => this._authenticationService.createSession(provider, scopes, { activateImmediate: true }))];
 			}
 			const token = sessions[0]?.accessToken;
 			if (token) {
@@ -549,21 +567,22 @@ export async function connectThroughTunnelGateway(
 	auth: { readonly token: string; readonly provider: 'github' | 'microsoft' },
 	tunnel: ITunnelInfo,
 	userInitiated: boolean,
+	onDiagnostic?: ConnectionDiagnosticObserver,
 ): Promise<ITunnelConnectResult | undefined> {
-	const session = await connector.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+	const session = await connector.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId, onDiagnostic);
 	if (!session) {
-		return await connector.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		return await connector.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId, onDiagnostic);
 	}
 
 	let selection: ITunnelGatewaySelection | undefined;
 	try {
-		selection = await resolveSelection(locationPreferenceService, dialogService, {
+		selection = await traceConnectionOperation(onDiagnostic, 'gateway.selection', () => resolveSelection(locationPreferenceService, dialogService, {
 			hostKey: `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`,
 			hostLabel: tunnel.name,
 			productName,
 			inventory: session.inventory,
 			userInitiated,
-		});
+		}));
 	} catch (error) {
 		await connector.cancelSelection(session.selectionId);
 		throw error;
@@ -574,12 +593,13 @@ export async function connectThroughTunnelGateway(
 	}
 
 	try {
-		return await connector.completeSelection(session.selectionId, selection);
+		const selected = selection;
+		return await traceConnectionOperation(onDiagnostic, 'gateway.connect', () => connector.completeSelection(session.selectionId, selected));
 	} catch (error) {
 		if (!isTunnelGatewaySelectionRejectedError(error)) {
 			throw error;
 		}
-		const retry = await connector.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+		const retry = await connector.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId, onDiagnostic);
 		if (!retry) {
 			throw error;
 		}
@@ -588,7 +608,7 @@ export async function connectThroughTunnelGateway(
 			await connector.cancelSelection(retry.selectionId);
 			throw error;
 		}
-		return await connector.completeSelection(retry.selectionId, fallback);
+		return await traceConnectionOperation(onDiagnostic, 'gateway.fallback', () => connector.completeSelection(retry.selectionId, fallback));
 	}
 }
 

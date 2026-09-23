@@ -49,7 +49,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { isAssistedPermissionsEnabled, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -57,10 +57,11 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 
 const FILTER_THRESHOLD = 10;
@@ -138,6 +139,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
 			detail: disabled ? hover : item.description,
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
@@ -162,7 +164,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 }
 
 export function getAgentHostSandboxSettingId(sessionType: string | undefined, windows?: boolean): AgentHostCopilotSandboxSettingId | undefined {
-	if (sessionType !== SessionType.AgentHostCopilot) {
+	if (!sessionType || !isCopilotCliSessionType(sessionType)) {
 		return undefined;
 	}
 	return getAgentHostCopilotSandboxSettingId(windows);
@@ -261,7 +263,7 @@ export function getConfigPickerListOptions(property: string): IActionListOptions
 		case SessionConfigKey.Mode:
 			return { minWidth: 260 };
 		case SessionConfigKey.AutoApprove:
-			return { minWidth: 255 };
+			return { minWidth: 300 };
 		case CodexSessionConfigKey.PermissionsPreset:
 			return getCodexApprovalsPickerListOptions();
 		default:
@@ -391,6 +393,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _sessionGeneration = 0;
 	private _hostOperatingSystem: OperatingSystem | undefined;
 	private _hostOperatingSystemRequest: Promise<void> | undefined;
+	private _hostOperatingSystemConnection: IAgentConnection | undefined;
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -431,6 +434,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostStart(async () => {
+			if (this._hostOperatingSystemConnection !== this._agentHostService) {
+				return;
+			}
 			const request = this._hostOperatingSystemRequest;
 			// Recovery can be reported before an interrupted diagnostics request settles.
 			await request;
@@ -445,7 +451,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._renderChip();
 				return;
 			}
-			if (this._isModePickerCombined() && (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) || e.affectsConfiguration(ChatConfiguration.AssistedPermissionsEnabled))) {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
 			}
 			const sandboxSettingId = this._getSandboxSettingId();
@@ -946,17 +952,26 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _getSandboxSettingId(): ReturnType<typeof getAgentHostSandboxSettingId> {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
-		if (sessionType !== SessionType.AgentHostCopilot || this._store.isDisposed) {
+		if (!sessionResource || !sessionType || !isCopilotCliSessionType(sessionType) || this._store.isDisposed) {
 			return undefined;
 		}
-		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem();
+		const connection = this._connectionsService.resolveSessionResource(sessionResource)?.connection;
+		if (!connection) {
+			return undefined;
+		}
+		if (this._hostOperatingSystemConnection !== connection) {
+			this._hostOperatingSystemConnection = connection;
+			this._hostOperatingSystem = undefined;
+			this._hostOperatingSystemRequest = undefined;
+		}
+		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem(connection);
 		return getAgentHostSandboxSettingId(sessionType, this._hostOperatingSystem === OperatingSystem.Windows);
 	}
 
-	private async _resolveHostOperatingSystem(): Promise<void> {
+	private async _resolveHostOperatingSystem(connection: IAgentConnection): Promise<void> {
 		try {
-			const os = await getAgentHostOperatingSystem(this._agentHostService);
-			if (this._store.isDisposed) {
+			const os = await getAgentHostOperatingSystem(connection);
+			if (this._store.isDisposed || this._hostOperatingSystemConnection !== connection) {
 				return;
 			}
 			this._hostOperatingSystem = os;
@@ -1039,22 +1054,14 @@ export class AgentHostChatInputPicker extends Disposable {
 				throw new CancellationError();
 			}
 			if (result) {
-				return this._filterAutoApproveItems(result.items.map(item => this._fromCompletion(item)), property);
+				return result.items.map(item => this._fromCompletion(item));
 			}
 		}
-		return this._filterAutoApproveItems((schema.enum ?? []).map((value, index) => ({
+		return (schema.enum ?? []).map((value, index) => ({
 			value: String(value),
 			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
-		})), property);
-	}
-
-	private _filterAutoApproveItems(items: readonly IConfigPickerItem[], property = this._property): readonly IConfigPickerItem[] {
-		if (property !== SessionConfigKey.AutoApprove) {
-			return items;
-		}
-		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
-		return items.filter(item => isPermissionLevelVisible(item.value, assistedPermissionsEnabled));
+		}));
 	}
 
 	private _fromCompletion(item: SessionConfigValueItem): IConfigPickerItem {
@@ -1092,9 +1099,6 @@ export class AgentHostChatInputPicker extends Disposable {
 	 */
 	private async _confirmAndSetValue(context: IConfigPickerContext, item: IConfigPickerItem, property = this._property): Promise<void> {
 		const value = item.value;
-		if (property === SessionConfigKey.AutoApprove && !isPermissionLevelVisible(value, isAssistedPermissionsEnabled(this._configurationService))) {
-			return;
-		}
 		if (property === SessionConfigKey.AutoApprove) {
 			const levelToConfirm = isChatPermissionLevel(value)
 				? value

@@ -28,8 +28,17 @@ export const enum SessionServerToolName {
 	DeleteSession = 'delete_session',
 }
 
-/** Names of the artifact server tools, shared between `common/` and `node/`. */
-export const enum ArtifactServerToolName {
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to
+ * {@link SessionServerToolName.RenameChat}. Accepts both the bare name, as the
+ * agent sees it under Copilot, and the Claude `mcp__<server>__<name>` prefixed
+ * form — the same shape the feedback-annotation predicates accept.
+ */
+export function isRenameChatTool(toolName: string): boolean {
+	return toolName === SessionServerToolName.RenameChat || toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
+}
+
+/** Names of the artifact server tools, shared between `common/` and `node/`. */export const enum ArtifactServerToolName {
 	AddArtifactOrReference = 'add_artifact_or_reference',
 	RemoveArtifactOrReference = 'remove_artifact_or_reference',
 	ListArtifactsAndReferences = 'list_artifacts_and_references',
