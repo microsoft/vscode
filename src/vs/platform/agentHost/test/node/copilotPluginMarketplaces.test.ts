@@ -78,7 +78,10 @@ suite('CopilotPluginMarketplaces', () => {
 					{ name: 'formatter', marketplace: 'alpha', installed: true, source: 'formatter@alpha' },
 					{ name: 'reviewer', description: 'Review pull requests.', marketplace: 'alpha', installed: false, source: 'reviewer@alpha' },
 				],
-				failures: [{ marketplace: 'zeta', error: 'token=[redacted] could not fetch catalog' }],
+				failures: [
+					{ marketplace: 'offline', error: 'Marketplace could not be loaded by the agent runtime.' },
+					{ marketplace: 'zeta', error: 'token=[redacted] could not fetch catalog' },
+				],
 			},
 			refreshed: {
 				marketplaces: [
@@ -90,7 +93,10 @@ suite('CopilotPluginMarketplaces', () => {
 					{ name: 'formatter', marketplace: 'alpha', installed: true, source: 'formatter@alpha' },
 					{ name: 'reviewer', description: 'Review pull requests.', marketplace: 'alpha', installed: false, source: 'reviewer@alpha' },
 				],
-				failures: [{ marketplace: 'zeta', error: 'token=[redacted] could not fetch catalog' }],
+				failures: [
+					{ marketplace: 'offline', error: 'Marketplace could not be loaded by the agent runtime.' },
+					{ marketplace: 'zeta', error: 'token=[redacted] could not fetch catalog' },
+				],
 			},
 			installed: {
 				postInstallMessage: 'Configure the reviewer plugin.',

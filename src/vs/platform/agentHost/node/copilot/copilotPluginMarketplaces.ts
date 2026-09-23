@@ -39,6 +39,7 @@ export async function getCopilotPluginMarketplaceSnapshot(rpc: ICopilotPluginMar
 	const failures: IAgentPluginMarketplaceSnapshot['failures'][number][] = [];
 	for (const marketplace of marketplaces) {
 		if (marketplace.available === false) {
+			failures.push({ marketplace: marketplace.name, error: 'Marketplace could not be loaded by the agent runtime.' });
 			continue;
 		}
 		try {
