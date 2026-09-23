@@ -22,7 +22,7 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager, TerminalShellExecutionManager } from './terminal';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
-import { GitEditor, GitEditorDocumentLinkProvider } from './gitEditor';
+import { GitEditor, GitEditorCodeLensProvider, GitEditorDocumentLinkProvider } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
@@ -76,7 +76,10 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const askpass = new Askpass(ipcServer, logger, askpassPaths);
 	disposables.push(askpass);
 
-	const gitEditor = new GitEditor(ipcServer);
+	const gitEditorCodeLensProvider = new GitEditorCodeLensProvider();
+	disposables.push(gitEditorCodeLensProvider);
+
+	const gitEditor = new GitEditor(gitEditorCodeLensProvider, ipcServer);
 	disposables.push(gitEditor);
 
 	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv(), ...ipcServer?.getEnv() };
