@@ -98,6 +98,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withChatBackground?: boolean;
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
+	readonly withRunningSession?: boolean;
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -182,6 +183,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withChatBackground = false,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
+		withRunningSession = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -200,6 +202,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObservable;
+		override readonly visibleSessions = constObservable(withRunningSession
+			? [new class extends mock<IActiveSession>() {
+				override readonly sessionId = 'running-session';
+				override readonly isCreated = constObservable(true);
+			}()]
+			: activeSession ? [activeSession] : []);
 	}();
 	const configurationService = new TestConfigurationService({
 		...(withChatBackground ? {
@@ -544,8 +552,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The experimental new-session composer is centered with the VS Code icon displayed prominently above it. The large product icon is visually separate from the compact Copilot harness picker that remains inside the composer controls.'],
+		expectedVisualDescriptions: ['The experimental new-session composer shows a centered “What Do You Want to Work On?” heading with guidance to describe something to build, fix, or explore. No standalone logo is shown above the composer.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, experimentalComposerLayout: true }),
+	}),
+	NewSessionExperimentalComposerParallel: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['When another agent session is running, the experimental new-session composer shows “Keep Building in Parallel” with guidance that another task can be started while agents keep working.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, experimentalComposerLayout: true, withRunningSession: true }),
 	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

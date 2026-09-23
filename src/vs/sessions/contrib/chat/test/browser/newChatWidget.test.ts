@@ -240,7 +240,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
-const updateBrandIcon = Reflect.get(NewChatWidget.prototype, '_updateBrandIcon') as (container: HTMLElement, visible: boolean) => void;
+const updateContextualMessage = Reflect.get(NewChatWidget.prototype, '_updateContextualMessage') as (container: HTMLElement, visible: boolean, hasRunningSession: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
@@ -278,22 +278,35 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows the VS Code icon only for the experimental layout', () => {
+	test('shows contextual guidance only for the experimental layout', () => {
 		const container = document.createElement('div');
-		updateBrandIcon(container, true);
-		const experimental = {
+		updateContextualMessage(container, true, false);
+		const defaultMessage = {
 			hidden: container.hidden,
-			ariaHidden: container.getAttribute('aria-hidden'),
-			icon: container.firstElementChild?.className,
+			title: container.querySelector('h2')?.textContent,
+			description: container.querySelector('p')?.textContent,
 		};
-		updateBrandIcon(container, false);
+		updateContextualMessage(container, true, true);
+		const parallelMessage = {
+			hidden: container.hidden,
+			title: container.querySelector('h2')?.textContent,
+			description: container.querySelector('p')?.textContent,
+			childCount: container.childElementCount,
+		};
+		updateContextualMessage(container, false, true);
 		const legacy = { hidden: container.hidden, childCount: container.childElementCount };
 
-		assert.deepStrictEqual({ experimental, legacy }, {
-			experimental: {
+		assert.deepStrictEqual({ defaultMessage, parallelMessage, legacy }, {
+			defaultMessage: {
 				hidden: false,
-				ariaHidden: 'true',
-				icon: 'codicon codicon-vscode',
+				title: 'What Do You Want to Work On?',
+				description: 'Describe what you want to build, fix, or explore.',
+			},
+			parallelMessage: {
+				hidden: false,
+				title: 'Keep Building in Parallel',
+				description: 'Start another task while your agents keep working.',
+				childCount: 2,
 			},
 			legacy: { hidden: true, childCount: 0 },
 		});

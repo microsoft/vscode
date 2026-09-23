@@ -6,7 +6,6 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -470,7 +469,7 @@ export class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
-		const brandIcon = dom.append(chatWidgetContent, dom.$('.new-session-brand-icon'));
+		const contextualMessage = dom.append(chatWidgetContent, dom.$('.new-session-contextual-message'));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -533,7 +532,8 @@ export class NewChatWidget extends Disposable {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
-			this._updateBrandIcon(brandIcon, useExperimentalLayout);
+			const hasRunningSession = this.sessionsService.visibleSessions.read(reader).some(session => session?.isCreated.read(reader));
+			this._updateContextualMessage(contextualMessage, useExperimentalLayout, hasRunningSession);
 			this._newChatInput.placeRepositoryControls(
 				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
 					? this._workspaceRepositoryControlsHost
@@ -622,13 +622,20 @@ export class NewChatWidget extends Disposable {
 		chatWidgetContainer.classList.add('revealed');
 	}
 
-	private _updateBrandIcon(container: HTMLElement, visible: boolean): void {
+	private _updateContextualMessage(container: HTMLElement, visible: boolean, hasRunningSession: boolean): void {
 		dom.clearNode(container);
-		container.setAttribute('aria-hidden', 'true');
 		container.hidden = !visible;
-		if (visible) {
-			dom.append(container, renderIcon(Codicon.vscode));
+		if (!visible) {
+			return;
 		}
+		const title = hasRunningSession
+			? localize('newSession.contextualMessage.parallel.title', "Keep Building in Parallel")
+			: localize('newSession.contextualMessage.default.title', "What Do You Want to Work On?");
+		const description = hasRunningSession
+			? localize('newSession.contextualMessage.parallel.description', "Start another task while your agents keep working.")
+			: localize('newSession.contextualMessage.default.description', "Describe what you want to build, fix, or explore.");
+		dom.append(container, dom.$('h2.new-session-contextual-message-title')).textContent = title;
+		dom.append(container, dom.$('p.new-session-contextual-message-description')).textContent = description;
 	}
 
 	private async _prepareSessionTypeSelection(pick: IPickedSessionType): Promise<boolean> {
