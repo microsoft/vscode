@@ -19,44 +19,47 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
-import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NewChatMigrationNotice } from '../../browser/newChatMigrationNotice.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
-	readonly requests: { resource: URI; type: CustomizationMigrationType; token?: CancellationToken }[] = [];
-	result: (resource: URI, type: CustomizationMigrationType) => Promise<CustomizationMigration> = async (_resource, type) => fileMigration(type);
+	readonly requests: { resource: URI; token?: CancellationToken }[] = [];
+	result: (resource: URI) => Promise<ICustomizationMigrationHint | undefined> = async () => undefined;
 
-	override computeMigration(resource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
-	override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
-	override computeMigration(resource: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration> {
-		this.requests.push({ resource, type, token });
-		return this.result(resource, type);
+	constructor(override readonly onDidChangeCustomizations: Event<void>) {
+		super();
+	}
+
+	override computeMigrationHint(resource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined> {
+		this.requests.push({ resource, token });
+		return this.result(resource);
 	}
 }
 
-function fileMigration(type: CustomizationMigrationType, storage: readonly PromptsStorage[] = [PromptsStorage.local]): CustomizationMigration {
-	if (type === CustomizationMigrationType.McpServers) {
-		return {
-			type, servers: [], candidates: [], exclusions: [], discoveryComplete: true,
-			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
-		};
+class TestMigrationTelemetryService extends mock<ICustomizationMigrationTelemetryService>() {
+	readonly events: { action: 'computed' | 'shown' | 'dismissed'; hint: ICustomizationMigrationHint }[] = [];
+
+	override hintComputed(hint: ICustomizationMigrationHint): void {
+		this.events.push({ action: 'computed', hint });
 	}
-	const candidates = storage.map((storage, index) => ({
-		uri: URI.file(`/customizations/${index}.prompt.md`), type: PromptsType.prompt, storage,
-	}));
-	return { type, candidates, files: candidates.map(candidate => candidate.uri) };
+
+	override hintShown(hint: ICustomizationMigrationHint): void {
+		this.events.push({ action: 'shown', hint });
+	}
+
+	override hintClicked(hint: ICustomizationMigrationHint, action: 'review' | 'dismiss'): void {
+		if (action === 'dismiss') {
+			this.events.push({ action: 'dismissed', hint });
+		}
+	}
 }
 
 function createSession(name: string, withWorkspace = true, scheme = 'agent-host-copilotcli'): IActiveSession {
@@ -76,69 +79,77 @@ suite('NewChatMigrationNotice', () => {
 	function setup(enabledTypes = [CustomizationMigrationType.PromptFiles, CustomizationMigrationType.UserData]) {
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
-		const migrations = new TestMigrationService();
 		const changed = store.add(new Emitter<void>());
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const session = observableValue<IActiveSession | undefined>('session', createSession('one'));
 		const configuration = new TestConfigurationService(Object.fromEntries(enabledTypes.map(type => [getCustomizationMigrationEnablementSetting(type), true])));
+		const migrations = new TestMigrationService(changed.event);
+		migrations.result = async () => {
+			const counts = enabledTypes
+				.filter(type => configuration.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true)
+				.map(type => ({ type, count: 1 }));
+			const count = counts.length;
+			return count > 0 ? {
+				migrationFlowId: 'hint',
+				message: count === 1
+					? '1 agent customization needs an update to keep working.'
+					: `${count} agent customizations need an update to keep working.`,
+				counts,
+			} : undefined;
+		};
+		const migrationTelemetry = new TestMigrationTelemetryService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const errors: unknown[][] = [];
 		let focusCount = 0;
 		instantiation.stub(ICustomizationMigrationService, migrations);
+		instantiation.stub(ICustomizationMigrationTelemetryService, migrationTelemetry);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(IUriIdentityService, { extUri });
 		instantiation.stub(IChatEntitlementService, { sentimentObs: sentiment });
-		instantiation.stub(IPromptsService, {
-			onDidChangeSlashCommands: changed.event, onDidChangeCustomAgents: Event.None,
-			onDidChangeInstructions: Event.None, onDidChangeAgentInstructions: Event.None,
-		});
-		instantiation.stub(IAgentHostCustomizationService, { onDidChangeCustomizations: changed.event });
-		instantiation.stub(IMcpWorkbenchService, { onChange: Event.None, onReset: Event.None });
 		instantiation.stub(ICommandService, { executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); } });
 		instantiation.stub(ILogService, { error: (...args: unknown[]) => { errors.push(args); } });
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
 		const create = () => store.add(instantiation.createInstance(NewChatMigrationNotice, dom.$('div'), session, () => { focusCount++; }));
-		return { create, session, sentiment, configuration, migrations, changed, commands, errors, get focusCount() { return focusCount; } };
+		return { create, session, sentiment, configuration, migrations, migrationTelemetry, changed, commands, errors, get focusCount() { return focusCount; } };
 	}
 
 	function snapshot(notice: NewChatMigrationNotice) {
 		return { visible: notice.element.style.display !== 'none', message: notice.element.querySelector('span')?.textContent };
 	}
 
-	test('counts workspace and profile candidates and opens the migration overview with the keyboard', async () => {
+	test('shows a computed migration hint and opens the migration overview with the keyboard', async () => {
 		const env = setup([CustomizationMigrationType.PromptFiles, CustomizationMigrationType.UserData, CustomizationMigrationType.McpServers]);
-		env.migrations.result = async (_resource, type) => {
-			if (type === CustomizationMigrationType.McpServers) {
-				return {
-					type, servers: [], exclusions: [], discoveryComplete: true,
-					coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
-					candidates: [{
-						type, id: 'server', name: 'Server',
-						sourceUri: URI.file('/workspaces/one/.vscode/mcp.json'),
-						targetUri: URI.file('/workspaces/one/.mcp.json'),
-						projectedConfiguration: { type: McpServerType.LOCAL, command: 'server' },
-					}],
-				};
-			}
-			return fileMigration(type, type === CustomizationMigrationType.PromptFiles
-				? [PromptsStorage.local, PromptsStorage.user] : [PromptsStorage.user]);
+		const hint: ICustomizationMigrationHint = {
+			migrationFlowId: 'hint',
+			message: '3 workspace and 1 user customizations need an update to keep working.',
+			counts: [
+				{ type: CustomizationMigrationType.PromptFiles, count: 2 },
+				{ type: CustomizationMigrationType.UserData, count: 1 },
+				{ type: CustomizationMigrationType.McpServers, count: 1 },
+			],
 		};
+		env.migrations.result = async () => hint;
 		const notice = env.create();
 		await timeout(0);
 		notice.element.querySelector('a')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		await timeout(0);
 		assert.deepStrictEqual({
 			...snapshot(notice),
-			types: env.migrations.requests.map(request => request.type),
+			requests: env.migrations.requests.map(request => request.resource.toString()),
+			telemetry: env.migrationTelemetry.events,
 			commands: env.commands,
 		}, {
 			visible: true,
-			message: '4 agent customizations need an update to keep working.',
-			types: [CustomizationMigrationType.PromptFiles, CustomizationMigrationType.UserData, CustomizationMigrationType.McpServers],
-			commands: [{ id: AICustomizationManagementCommands.OpenEditor, args: [{ migration: true, sessionResource: env.session.get()!.resource }] }],
+			message: hint.message,
+			requests: [env.session.get()!.resource.toString()],
+			telemetry: [{ action: 'computed', hint }, { action: 'shown', hint }],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ migration: true, sessionResource: env.session.get()!.resource, migrationHint: hint }],
+			}],
 		});
 	});
 
@@ -158,14 +169,26 @@ suite('NewChatMigrationNotice', () => {
 		const otherWorkspace = snapshot(restored).visible;
 		env.session.set(createSession('one'), undefined);
 		await timeout(0);
-		assert.deepStrictEqual({ dismissed, afterRecreation, otherWorkspace, back: snapshot(restored).visible, focusCount: env.focusCount },
-			{ dismissed: false, afterRecreation: false, otherWorkspace: true, back: false, focusCount: 1 });
+		assert.deepStrictEqual({
+			dismissed,
+			afterRecreation,
+			otherWorkspace,
+			back: snapshot(restored).visible,
+			focusCount: env.focusCount,
+			telemetryActions: env.migrationTelemetry.events.map(event => event.action),
+		}, {
+			dismissed: false,
+			afterRecreation: false,
+			otherWorkspace: true,
+			back: false,
+			focusCount: 1,
+			telemetryActions: ['computed', 'shown', 'dismissed', 'computed', 'shown'],
+		});
 	});
 
 	test('shows remaining profile migrations without a workspace', async () => {
 		const env = setup([CustomizationMigrationType.UserData]);
 		env.session.set(createSession('quick', false), undefined);
-		env.migrations.result = async (_resource, type) => fileMigration(type, [PromptsStorage.user]);
 		const notice = env.create();
 		await timeout(0);
 		assert.deepStrictEqual(snapshot(notice), { visible: true, message: '1 agent customization needs an update to keep working.' });
@@ -173,12 +196,16 @@ suite('NewChatMigrationNotice', () => {
 
 	test('cancels stale results when switching workspace and disposing', async () => {
 		const env = setup([CustomizationMigrationType.PromptFiles]);
-		const pending = new DeferredPromise<CustomizationMigration>();
-		env.migrations.result = resource => resource.path === '/one' ? pending.p : Promise.resolve(fileMigration(CustomizationMigrationType.PromptFiles, []));
+		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = resource => resource.path === '/one' ? pending.p : Promise.resolve(undefined);
 		const notice = env.create();
 		env.session.set(createSession('two'), undefined);
 		await timeout(0);
-		await pending.complete(fileMigration(CustomizationMigrationType.PromptFiles));
+		await pending.complete({
+			migrationFlowId: 'stale',
+			message: '1 agent customization needs an update to keep working.',
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+		});
 		await timeout(0);
 		const visible = snapshot(notice).visible;
 		notice.dispose();
@@ -210,7 +237,7 @@ suite('NewChatMigrationNotice', () => {
 		const notice = env.create();
 		await timeout(0);
 		const before = snapshot(notice).visible;
-		env.migrations.result = async (_resource, type) => fileMigration(type, []);
+		env.migrations.result = async () => undefined;
 		env.changed.fire();
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: snapshot(notice).visible }, { before: true, after: false });

@@ -24,7 +24,8 @@ import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
-import { AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { IAgentSessionComparisonMetadata } from '../../common/state/sessionState.js';
 import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
@@ -230,6 +231,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _startPromise: Promise<void> | undefined;
 	private _metadataExportQueue = Promise.resolve();
 	private readonly _sessionContexts = new Map<string, IAgentHostTraceContext>();
+	private readonly _sessionComparisons = new Map<string, IAgentSessionComparisonMetadata>();
 	private _currentTraceContext: IAgentHostTraceContext | undefined;
 	private _pendingFilteredCodexAuthSpans = 0;
 	private _totalFilteredCodexAuthSpans = 0;
@@ -344,6 +346,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const context: IAgentHostTraceContext = { traceId, spanId, traceparent: `00-${traceId}-${spanId}-01` };
 		this._sessionContexts.set(sessionUri, context);
 		const now = Date.now();
+		const comparison = this._sessionComparisons.get(sessionUri);
 		this._queueSyntheticSpan({
 			name: AgentHostSessionSpanName,
 			traceId,
@@ -355,6 +358,12 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 				...this._config.resourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionUriAttribute]: sessionUri,
+				...(comparison ? {
+					[AgentHostComparisonIdAttribute]: comparison.id,
+					[AgentHostComparisonRoleAttribute]: comparison.role,
+					[AgentHostComparisonAttemptCountAttribute]: comparison.attemptCount,
+					...(comparison.attemptIndex !== undefined ? { [AgentHostComparisonAttemptIndexAttribute]: comparison.attemptIndex } : {}),
+				} : {}),
 				'vscode.agent_host.timingSchemaVersion': 1,
 			},
 			events: [],
@@ -362,8 +371,17 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		return context;
 	}
 
+	setSessionComparisonMetadata(sessionUri: string, comparison: IAgentSessionComparisonMetadata | undefined): void {
+		if (comparison) {
+			this._sessionComparisons.set(sessionUri, comparison);
+		} else {
+			this._sessionComparisons.delete(sessionUri);
+		}
+	}
+
 	releaseSessionTraceContext(sessionUri: string): void {
 		this._sessionContexts.delete(sessionUri);
+		this._sessionComparisons.delete(sessionUri);
 	}
 
 	withTraceContext<T>(context: IAgentHostTraceContext | undefined, fn: () => T): T {

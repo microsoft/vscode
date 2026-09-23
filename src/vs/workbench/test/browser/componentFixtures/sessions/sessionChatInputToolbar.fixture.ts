@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mock } from '../../../../../base/test/common/mock.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -29,7 +35,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChangeset, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFileChange, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -129,8 +135,6 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly isRead = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(spec.turnChanges ?? []);
-		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly artifacts: IObservable<readonly ISessionArtifact[]> = constObservable(spec.artifacts ?? []);
 	}();
 	const browsers = (spec.browsers ?? []).map((browser, index) => {
@@ -175,7 +179,26 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 // Render helpers
 // ============================================================================
 
-function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly width?: string }): void {
+async function createImageReferenceContent(resource: URI): Promise<IFileContent> {
+	const fixtureUrl = resource.path.includes('refined-chat')
+		? new URL('../chat/media/image-hover-portrait.png', import.meta.url)
+		: new URL('../chat/media/image-hover-wide.png', import.meta.url);
+	const value = VSBuffer.wrap(new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer()));
+	return {
+		resource,
+		name: resource.path.split('/').at(-1) ?? resource.path,
+		mtime: 0,
+		ctime: 0,
+		etag: 'fixture',
+		size: value.byteLength,
+		readonly: true,
+		locked: false,
+		executable: false,
+		value,
+	};
+}
+
+function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string }): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -187,6 +210,20 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
 			registerSessionChatPillFixtureServices(reg, sessionMock);
+			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+				override readonly mainContainer = container;
+				override readonly activeContainer = container;
+				override readonly onDidLayoutContainer = Event.None;
+				override getContainer(): HTMLElement { return container; }
+			}());
+			reg.define(IContextViewService, ContextViewService);
+			reg.define(IActionWidgetService, ActionWidgetService);
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
+				override hasProvider(): boolean { return true; }
+				override async readFile(resource: URI): Promise<IFileContent> { return createImageReferenceContent(resource); }
+			}());
 			if (options?.debugData) {
 				reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 					override readonly onDidChangeFeedback = Event.None;
@@ -212,6 +249,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 	}
 
 	container.style.padding = '12px';
+	container.style.height = options?.height ?? 'auto';
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 }
@@ -426,6 +464,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderPills(ctx, createMockSession({
 			artifacts: [{ id: 'r1', kind: SessionArtifactKind.Commit, label: 'Commit that broke login', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/def5678'), commitHash: 'def5678' }],
 		})),
+	}),
+
+	SessionChatPills_ImageReferences: defineComponentFixture({
+		render: ctx => renderPills(ctx, createMockSession({
+			artifacts: [
+				{ id: 'r1', kind: SessionArtifactKind.File, label: 'Swipe action', isArtifact: false, uri: URI.file('/repo/design/refined-swipe-right-320.png') },
+				{ id: 'r2', kind: SessionArtifactKind.File, label: 'Mobile chat', isArtifact: false, uri: URI.file('/repo/design/refined-chat-320.png') },
+				{ id: 'r3', kind: SessionArtifactKind.File, label: 'Voice state', isArtifact: false, uri: URI.file('/repo/design/refined-voice-idle-320.png') },
+			],
+		}), { height: '500px', width: '760px' }),
 	}),
 
 	SessionChatPills_ArtifactsAndReferences: defineComponentFixture({

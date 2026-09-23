@@ -56,12 +56,13 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
@@ -75,7 +76,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
-import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
+import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
@@ -943,6 +944,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 	/** Session database reference. */
 	private readonly _databaseRef: IReference<ISessionDatabase>;
+	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
 	 * when the session is idle (no active turn). Replaces the former set of
@@ -1314,7 +1316,7 @@ export class CopilotAgentSession extends Disposable {
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
-		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
+		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -2560,6 +2562,7 @@ export class CopilotAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 		wrapper.setBeforeDisconnect(async () => {
+			await Promise.allSettled(this._pendingOutputCaptures);
 			try {
 				await this._awaitControlPlaneRpc('rpc.eventLog.releaseInterest', wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }));
 			} catch (error) {
@@ -3597,39 +3600,69 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
-		const result = await this._getMappedEvents();
+		const result = await this._getMappedEvents('all');
 		const turns = result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
 		return turns;
 	}
 
-	/**
-	 * Memoized `getEvents()` + {@link mapSessionEvents} result, shared by
-	 * {@link getMessages} and {@link getSubagentMessages}. A single session open reads and
-	 * reconstructs the full parent event log once instead of once per
-	 * subagent. The memo is scoped to the resume/restore wave: it is dropped
-	 * whenever the persisted event log could change (see
-	 * {@link _invalidateMappedEvents}) and on dispose, so it never serves
-	 * stale turns for an actively-running session.
-	 */
-	private _mappedEventsMemo: Promise<IMappedSessionEvents> | undefined;
+	/** Parent restoration excludes child transcripts; the full interleaved replay is shared by child reads on demand. */
+	private readonly _mappedEventsMemo = new Map<'primary' | 'all', Promise<IMappedSessionEvents>>();
 
-	private _getMappedEvents(): Promise<IMappedSessionEvents> {
-		if (!this._mappedEventsMemo) {
-			const pending = this._computeMappedEvents();
-			this._mappedEventsMemo = pending;
+	private _getMappedEvents(agentScope: 'primary' | 'all' = 'primary'): Promise<IMappedSessionEvents> {
+		let pending = this._mappedEventsMemo.get(agentScope);
+		if (!pending) {
+			pending = this._computeMappedEvents(agentScope);
+			this._mappedEventsMemo.set(agentScope, pending);
 			// Don't cache a rejected reconstruction — let the next caller retry.
 			pending.catch(() => {
-				if (this._mappedEventsMemo === pending) {
-					this._mappedEventsMemo = undefined;
+				if (this._mappedEventsMemo.get(agentScope) === pending) {
+					this._mappedEventsMemo.delete(agentScope);
 				}
 			});
 		}
-		return this._mappedEventsMemo;
+		return pending;
 	}
 
-	private async _computeMappedEvents(): Promise<IMappedSessionEvents> {
-		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events`);
-		const events = await this._wrapper.session.getEvents();
+	private async _computeMappedEvents(agentScope: 'primary' | 'all'): Promise<IMappedSessionEvents> {
+		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events: scope=${agentScope}`);
+		const pages: SessionEvent[][] = [];
+		const seenCursors = new Set<string>();
+		let cursor: string | undefined;
+		while (true) {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			// Backward paging fixes the history boundary even if new events arrive during the read.
+			const page = await this._awaitControlPlaneRpc('rpc.eventLog.read', this._wrapper.session.rpc.eventLog.read({
+				cursor, max: 1000, direction: 'backward', agentScope, includeEphemeral: false,
+			}));
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			if (page.cursorStatus !== 'ok') {
+				throw new Error(localize('copilot.historyChanged', "Session history changed while it was loading. Reopen the session to try again."));
+			}
+			if (page.hasMore && (!page.cursor || seenCursors.has(page.cursor))) {
+				throw new Error(localize('copilot.invalidHistoryCursor', "The Copilot runtime returned an invalid history cursor. Reopen the session to try again."));
+			}
+
+			pages.push(page.events.filter(event => event.type !== 'system.message').map(event => {
+				if (event.type !== 'assistant.message') {
+					return event;
+				}
+				const data = { ...event.data };
+				delete data.encryptedContent;
+				delete data.reasoningOpaque;
+				delete data.reasoningBlocks;
+				return { ...event, data };
+			}));
+			if (!page.hasMore) {
+				break;
+			}
+			seenCursors.add(page.cursor);
+			cursor = page.cursor;
+		}
+		const events = pages.reverse().flat();
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		let db: ISessionDatabase | undefined;
@@ -3650,8 +3683,44 @@ export class CopilotAgentSession extends Disposable {
 				},
 			} : {}),
 		});
+		await this._restoreStoredShellOutputs(result);
 		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
 		return result;
+	}
+
+	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents): Promise<void> {
+		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri);
+		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
+			await this._restoreStoredShellOutputsForChat(turns, URI.parse(buildSubagentChatUri(this._ownerSessionUri.toString(), parentToolCallId)));
+		}
+	}
+
+	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI): Promise<void> {
+		for (const turn of turns) {
+			for (const part of turn.responseParts) {
+				if (part.kind !== ResponsePartKind.ToolCall
+					|| part.toolCall.status !== ToolCallStatus.Completed
+					|| !isShellTool(part.toolCall.toolName)) {
+					continue;
+				}
+				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
+				if (terminal && terminal.isPty !== false) {
+					continue;
+				}
+				if (await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
+					continue;
+				}
+				const terminalContent: ToolResultTerminalContent = {
+					type: ToolResultContentType.Terminal,
+					title: part.toolCall.displayName,
+					isPty: false,
+					result: { truncated: true, preview: '' },
+					...terminal,
+					resource: buildNonPtyShellTerminalUri(this._storageUri, this._ownerSessionUri, chat, part.toolCall.toolCallId),
+				};
+				part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
+			}
+		}
 	}
 
 	private _seedSubagentDisplayNames(events: readonly SessionEvent[]): void {
@@ -3664,7 +3733,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Drop the memoized event reconstruction; the next read rebuilds it. */
 	private _invalidateMappedEvents(): void {
-		this._mappedEventsMemo = undefined;
+		this._mappedEventsMemo.clear();
 	}
 
 	async abort(): Promise<void> {
@@ -3711,6 +3780,7 @@ export class CopilotAgentSession extends Disposable {
 	 * backstop, since {@link _beginAbort} no-ops when already aborted.
 	 */
 	override dispose(): void {
+		this._invalidateMappedEvents();
 		this._settleIdleWaiters(false);
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
@@ -5777,24 +5847,31 @@ export class CopilotAgentSession extends Disposable {
 			const shellExit = appendSdkToolResultContent(
 				content,
 				e.data.result?.contents,
-				isShellCommandTool ? { session: this.resourceUri, toolCallId: e.data.toolCallId, title: tracked.displayName } : undefined,
+				isShellCommandTool ? {
+					storage: this._storageUri,
+					session: this._ownerSessionUri,
+					chat: this._chatChannelUri,
+					toolCallId: e.data.toolCallId,
+					title: tracked.displayName,
+				} : undefined,
 			);
+			let nonPtyCompletion: INonPtyShellToolCompletion | undefined;
 			if (isShellCommandTool && !ptyTerminalUri) {
-				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
-				if (completion) {
-					retireNonPtyShellTracking = completion.shouldRetire;
+				nonPtyCompletion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
+				if (nonPtyCompletion) {
+					retireNonPtyShellTracking = nonPtyCompletion.shouldRetire;
 					const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 					if (terminalIndex === -1) {
 						content.push({
 							type: ToolResultContentType.Terminal,
-							resource: completion.uri,
+							resource: nonPtyCompletion.uri,
 							title: tracked.displayName,
 							isPty: false,
-							...(completion.result ? { result: completion.result } : {}),
+							...(nonPtyCompletion.result ? { result: nonPtyCompletion.result } : {}),
 						});
-					} else if (completion.result) {
+					} else if (nonPtyCompletion.result) {
 						const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
-						content[terminalIndex] = { ...terminalBlock, result: completion.result };
+						content[terminalIndex] = { ...terminalBlock, resource: nonPtyCompletion.uri, result: nonPtyCompletion.result };
 					}
 				}
 			}
@@ -5806,7 +5883,12 @@ export class CopilotAgentSession extends Disposable {
 			const modelId = this._lastSeenModelId;
 			const abortToken = this._abortToken;
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
-			const complete = () => {
+			let terminalOutputStored = false;
+			let completionPublished = false;
+			const complete = (authoritativeOutput?: string) => {
+				if (nonPtyCompletion?.shouldRetire) {
+					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
+				}
 				this._emitAction({
 					type: ActionType.ChatToolCallComplete,
 					turnId,
@@ -5819,16 +5901,36 @@ export class CopilotAgentSession extends Disposable {
 					},
 					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
 				}, parentToolCallId);
+				completionPublished = true;
 				if (retireNonPtyShellTracking) {
 					// Preserve the result in chat state before removing its live output resource.
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			};
-			if (filePaths.length === 0) {
+			const outputFilePath = isShellCommandTool && !ptyTerminalUri ? shellExit?.outputFilePath : undefined;
+			if (filePaths.length === 0 && !outputFilePath) {
 				complete();
 				return;
 			}
+			const outputDatabase = outputFilePath ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
 			const completion = (async () => {
+				let authoritativeOutput: string | undefined;
+				if (outputFilePath && outputDatabase) {
+					try {
+						const output = await this._fileService.readFile(URI.file(outputFilePath), { limits: { size: MAX_TERMINAL_OUTPUT_BYTES } }, abortToken);
+						if (isCurrent()) {
+							await outputDatabase.object.storeTerminalOutput(turnId, e.data.toolCallId, output.value.buffer);
+							terminalOutputStored = true;
+							if (isCurrent()) {
+								authoritativeOutput = output.value.toString();
+							}
+						}
+					} catch (error) {
+						this._logService.warn(`[Copilot:${sessionId}] Failed to persist shell output for ${e.data.toolCallId}`, error);
+					} finally {
+						outputDatabase.dispose();
+					}
+				}
 				for (const filePath of filePaths) {
 					if (!isCurrent()) {
 						return;
@@ -5843,9 +5945,27 @@ export class CopilotAgentSession extends Disposable {
 					}
 				}
 				if (isCurrent()) {
-					complete();
+					complete(authoritativeOutput);
 				}
-			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err));
+			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(async () => {
+				if (terminalOutputStored && !completionPublished) {
+					try {
+						await this._databaseRef.object.deleteTerminalOutput(e.data.toolCallId);
+					} catch (error) {
+						this._logService.warn(`[Copilot:${sessionId}] Failed to clean up unpublished shell output for ${e.data.toolCallId}`, error);
+					}
+				}
+				if (nonPtyCompletion?.shouldRetire) {
+					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode);
+				}
+				if (retireNonPtyShellTracking) {
+					this._nonPtyShellTerminals.retire(e.data.toolCallId);
+				}
+			});
+			if (outputFilePath) {
+				this._pendingOutputCaptures.add(completion);
+				void completion.finally(() => this._pendingOutputCaptures.delete(completion));
+			}
 			turn?.trackToolCompletion(completion);
 		};
 		this._register(wrapper.onToolComplete(e => {
@@ -6922,13 +7042,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/**
-	 * Drop the memoized event reconstruction whenever the persisted event log
-	 * could have changed, so {@link _getMappedEvents} never serves stale turns
-	 * once the session resumes activity. While the session is idle (e.g. during
-	 * a historical session open) none of these fire, so the whole restore wave
-	 * coalesces to a single reconstruction.
-	 */
+	/** Invalidates both history scopes when persisted events change, while coalescing idle reads within each scope. */
 	private _subscribeForMemoInvalidation(): void {
 		const wrapper = this._wrapper;
 		const invalidate = () => this._invalidateMappedEvents();

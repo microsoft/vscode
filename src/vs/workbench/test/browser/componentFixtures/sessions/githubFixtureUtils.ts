@@ -7,6 +7,7 @@ import { Disposable, IDisposable, IReference, ReferenceCollection } from '../../
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubPRFetcher } from '../../../../../sessions/contrib/github/browser/fetchers/githubPRFetcher.js';
@@ -117,6 +118,16 @@ export function createFixtureGitHubService(entries: readonly IFixturePullRequest
 		override readonly activeSessionPullRequestObs = constObservable<GitHubPullRequestModel | undefined>(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable<GitHubPullRequestCIModel | undefined>(undefined);
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable<GitHubPullRequestReviewThreadsModel | undefined>(undefined);
+
+		override async getCommit(owner: string, repo: string, sha: string): Promise<GitHubCommit> {
+			return {
+				sha,
+				message: `Commit ${sha}`,
+				url: `https://github.com/${owner}/${repo}/commit/${sha}`,
+				author: { login: 'octocat' },
+				committedAt: '2026-01-01T00:00:00Z',
+			};
+		}
 
 		private readonly _references = new FixtureGitHubPullRequestModelReferenceCollection(pullRequests);
 		private readonly _issueReferences = new FixtureGitHubIssueModelReferenceCollection(issues);

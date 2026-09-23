@@ -536,6 +536,35 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
+	test('Existing Session does not reveal the side pane when a tiled session changes selection', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherSession = makeSession(URI.parse('session:/other'));
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.sessionGridLayoutObs.set('grid', undefined);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel()
+		));
+
+		harness.visibleSessionsObs.set([session, otherSession], undefined);
+		harness.activeSessionObs.set(session, undefined);
+		harness.activeSessionObs.set(otherSession, undefined);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+		});
+	});
+
 	test('Quick Chat closes the side pane when its last editor closes', () => {
 		const ctx = setup();
 		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });

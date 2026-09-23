@@ -3355,12 +3355,67 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
-		test('uses tool completion text for truncated SDK shell output', () => {
+		for (const authority of ['local', 'remote-host']) {
+			for (const preview of [undefined, '', 'preview only\n']) {
+				test(`preserves retained terminal identity through live and history mapping on ${authority} with ${JSON.stringify(preview)} preview`, () => {
+					const sessionResource = URI.file('/');
+					const terminalResource = 'agenthost-terminal:/terminal';
+					const running = createToolCallState({
+						toolName: 'bash',
+						toolInput: 'npm test',
+						_meta: { toolKind: 'terminal' },
+						content: [
+							{ type: ToolResultContentType.Text, text: 'Saved to: /tmp/artifact-b.txt' },
+							{
+								type: ToolResultContentType.Terminal,
+								resource: terminalResource,
+								title: 'Bash',
+								isPty: false,
+								result: { exitCode: 0, preview, truncated: true },
+							},
+						],
+					});
+					const invocation = rawToolCallStateToInvocation(running, undefined, sessionResource, authority);
+					const liveOutput = getSerializedTerminalData(invocation.toJSON()).terminalCommandOutput;
+					const completed = createCompletedToolCall({ ...running, status: ToolCallStatus.Completed });
+					rawFinalizeToolInvocation(invocation, completed, sessionResource, authority);
+					const completedOutput = getSerializedTerminalData(invocation.toJSON()).terminalCommandOutput;
+					const history = rawTurnsToHistory(sessionResource, [createTurn({
+						responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+					})], 'p', authority);
+					const response = history.find(item => item.type === 'response');
+					const serialized = response?.parts.find(part => part.kind === 'toolInvocationSerialized');
+					assert.ok(serialized?.kind === 'toolInvocationSerialized');
+					const liveExpected = {
+						text: 'Saved to: /tmp/artifact-b.txt',
+						truncated: true,
+					};
+					const completedExpected = {
+						...liveExpected,
+						...(preview === undefined ? {} : { fullOutputPreview: preview.replace(/\r?\n/g, '\r\n') }),
+					};
+					assert.deepStrictEqual({
+						live: liveOutput,
+						completed: completedOutput,
+						history: getSerializedTerminalData(serialized).terminalCommandOutput,
+						liveUri: URI.revive(invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData.terminalCommandUri : undefined)?.toString(),
+						historyUri: URI.revive(getSerializedTerminalData(serialized).terminalCommandUri)?.toString(),
+					}, {
+						live: liveExpected,
+						completed: completedExpected,
+						history: completedExpected,
+						liveUri: terminalResource,
+						historyUri: terminalResource,
+					});
+				});
+			}
+		}
+
+		test('retains completion prose alongside a structured retained-output preview', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'cat large-output.txt',
 				content: [
-					// TODO: Prefer shell_exit once the SDK exposes the saved output file path as structured data.
 					{ type: ToolResultContentType.Text, text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\nUse view with view_range to examine portions of the output.<shellId: 104 completed with exit code -1>' },
 					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: 'preview only\n', truncated: true } },
 				],
@@ -3384,6 +3439,7 @@ suite('stateToProgressAdapter', () => {
 				output: {
 					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
 					truncated: true,
+					fullOutputPreview: 'preview only\r\n',
 				},
 				state: { exitCode: 0 },
 			});
@@ -3910,6 +3966,40 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri, reviveUri);
 			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
+		});
+
+		test('notifies for terminal preview and truncation changes only', () => {
+			const initialResult = { preview: 'preview', truncated: true };
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'npm test',
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:/terminal', title: 'Bash', isPty: false, result: initialResult }],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			invocation.toolSpecificData = { ...getSerializedTerminalData(invocation.toJSON()), terminalCommandId: 'late-command-id' };
+			const results = [
+				initialResult,
+				{ ...initialResult, preview: 'updated preview' },
+				{ ...initialResult, preview: 'updated preview' },
+				{ ...initialResult, truncated: false },
+				{ ...initialResult, truncated: false },
+			];
+			const changes = results.map(result => {
+				const previousData = invocation.toolSpecificData;
+				const previousState = invocation.state.get();
+				updateRunningToolSpecificData(invocation, {
+					...tc,
+					content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:/terminal', title: 'Bash', isPty: false, result }],
+				});
+				return { changed: previousData !== invocation.toolSpecificData, notified: previousState !== invocation.state.get() };
+			});
+			const terminal = getSerializedTerminalData(invocation.toJSON());
+			assert.deepStrictEqual({ changes, output: terminal.terminalCommandOutput, commandId: terminal.terminalCommandId }, {
+				changes: [false, true, false, true, false].map(changed => ({ changed, notified: changed })),
+				output: { text: 'preview', truncated: false },
+				commandId: 'late-command-id',
+			});
 		});
 
 		test('applies _meta.progressMessage to the executing invocation progress', () => {
