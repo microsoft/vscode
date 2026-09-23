@@ -68,6 +68,10 @@ suite('LocalGitService', () => {
 		const expectations: IExecFileExpectation[] = [{
 			args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
 			environment: {
+				GIT_TRACE2: '0',
+				GIT_TRACE2_EVENT: '0',
+				GIT_TRACE2_PERF: '0',
+				GIT_TRACE_REDACT: '1',
 				GIT_CONFIG_COUNT: String(index + 2),
 				[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
 				[`GIT_CONFIG_VALUE_${index}`]: '',
@@ -85,6 +89,35 @@ suite('LocalGitService', () => {
 		});
 
 		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('authenticated failures redact credentials before logging and rejecting', async () => {
+		const logged: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error, ...args: unknown[]): void {
+				logged.push([message, ...args].join(' '));
+			}
+		}();
+		const error = createPullError('Authorization: Basic dummy-credential', 'Trace2: Authorization: Basic dummy-credential');
+		const service = new LocalGitService(logService, createExecFile([{
+			args: ['fetch'],
+			error,
+		}]));
+
+		await assert.rejects(service.fetch('test-op', '/tmp/private', {
+			authentication: { urlPrefix: 'https://github.com/', authorizationHeader: 'Authorization: Basic dummy-credential' },
+		}), error);
+		assert.deepStrictEqual({
+			message: error.message,
+			stderr: (error as cp.ExecFileException & { stderr: string }).stderr,
+			stackContainsCredential: error.stack?.includes('dummy-credential'),
+			logContainsCredential: logged.join('\n').includes('dummy-credential'),
+		}, {
+			message: '[redacted]',
+			stderr: 'Trace2: [redacted]',
+			stackContainsCredential: false,
+			logContainsCredential: false,
+		});
 	});
 
 	test('pull runs ff-only for normal updates', async () => {

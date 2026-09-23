@@ -29,7 +29,18 @@ export class LocalGitService implements ILocalGitService {
 					return;
 				}
 				if (err) {
-					(err as cp.ExecFileException & { stderr?: string }).stderr ??= stderr;
+					const gitError = err as cp.ExecFileException & { stderr?: string };
+					gitError.stderr ??= stderr;
+					const header = options?.authentication?.authorizationHeader;
+					if (header) {
+						for (const secret of [header, header.replace(/^Authorization:\s*\S+\s+/i, '')]) {
+							if (secret) {
+								gitError.message = gitError.message.replaceAll(secret, '[redacted]');
+								gitError.stderr = gitError.stderr.replaceAll(secret, '[redacted]');
+								gitError.stack = gitError.stack?.replaceAll(secret, '[redacted]');
+							}
+						}
+					}
 					if (options?.logErrors !== false) {
 						this._logGitError(args, err);
 					}
@@ -54,6 +65,16 @@ export class LocalGitService implements ILocalGitService {
 		}
 
 		const environment = { ...process.env };
+		for (const key of Object.keys(environment)) {
+			if (key.startsWith('GIT_TRACE') || key === 'GIT_CURL_VERBOSE') {
+				delete environment[key];
+			}
+		}
+		// Explicit values also override Trace2 targets configured outside the environment.
+		environment.GIT_TRACE2 = '0';
+		environment.GIT_TRACE2_EVENT = '0';
+		environment.GIT_TRACE2_PERF = '0';
+		environment.GIT_TRACE_REDACT = '1';
 		const configuredCount = Number.parseInt(environment.GIT_CONFIG_COUNT ?? '', 10);
 		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
 		environment.GIT_CONFIG_COUNT = String(index + 2);
