@@ -5,18 +5,16 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
-import { Registry } from '../../../registry/common/platform.js';
+import { ConfigurationScope } from '../../../configuration/common/configurationRegistry.js';
 import { AgentHostDeferredTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
-import '../../common/agentHostStarter.config.contribution.js';
 import { AgentHostDeferredTitleGenerationSettingId } from '../../common/agentService.js';
+import { titleGenerationConfigurationProperties } from '../../common/titleGenerationConfiguration.js';
 
-suite('AgentHostStarterConfig', () => {
+suite('TitleGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('deferred title generation supports experiment overrides and host configuration sync', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.getConfigurationProperties()[AgentHostDeferredTitleGenerationSettingId];
+		const property = titleGenerationConfigurationProperties[AgentHostDeferredTitleGenerationSettingId];
 
 		assert.deepStrictEqual({
 			type: property.type,
