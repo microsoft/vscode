@@ -2379,9 +2379,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The migration dashboard groups customizations under Your profile and vscode. Both scopes include a Custom location settings row for customizations found in unsupported configured locations.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
+			configuration: {
+				[PromptsConfig.AGENTS_LOCATION_KEY]: {
+					'/home/dev/my-agents': true,
+				},
+				[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
+					'/workspace/team-rules': true,
+				},
+				[PromptsConfig.SKILLS_LOCATION_KEY]: {
+					'/workspace/team-skills': true,
+				},
+			},
 		}),
 	}),
 

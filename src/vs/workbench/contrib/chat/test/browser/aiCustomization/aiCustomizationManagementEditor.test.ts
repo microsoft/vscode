@@ -25,6 +25,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -527,7 +528,7 @@ suite('aiCustomizationManagementEditor', () => {
 			[],
 			[CustomizationMigrationCategoryId.UserData],
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
-			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
+			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.ConfiguredLocations],
 			[CustomizationMigrationCategoryId.UserData],
 		]);
 		editor.editorPreviewDisposables.dispose();
@@ -1914,12 +1915,19 @@ suite('aiCustomizationManagementEditor', () => {
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[PromptsConfig.AGENTS_LOCATION_KEY]: { '/custom/agents': true },
 		}));
 		const profile: MigratableConfiguration = {
 			uri: URI.file('/profile/review.prompt.md'), type: PromptsType.prompt, storage: PromptsStorage.user, source: PromptFileSource.UserData,
 		};
 		const workspace: MigratableConfiguration = {
 			...profile, uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace,
+		};
+		const configuredProfile: MigratableConfiguration = {
+			...profile, uri: URI.file('/profile/custom/reviewer.agent.md'), type: PromptsType.agent, source: PromptFileSource.ConfigPersonal,
+		};
+		const configuredWorkspace: MigratableConfiguration = {
+			...workspace, uri: URI.file('/workspace/custom/reviewer.agent.md'), type: PromptsType.agent, source: PromptFileSource.ConfigWorkspace,
 		};
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
@@ -1930,7 +1938,7 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.PromptFiles, [profile, workspace]],
 			[CustomizationMigrationCategoryId.UserData, [{ ...profile, type: PromptsType.agent }]],
 			[CustomizationMigrationCategoryId.McpServers, [server]],
-			[CustomizationMigrationCategoryId.ConfiguredLocations, [workspace]],
+			[CustomizationMigrationCategoryId.ConfiguredLocations, [configuredProfile, configuredWorkspace]],
 		]);
 		editor.activeMigrationStorage = PromptsStorage.user;
 		editor.migrationWorkspaceSkipped = true;
@@ -1946,8 +1954,8 @@ suite('aiCustomizationManagementEditor', () => {
 			mcpProfile: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), PromptsStorage.user),
 		}, {
 			scopes: [
-				{ label: 'Your profile', count: 2, skipped: false, categories: [['Prompts to skills', '1 prompt'], ['User Data', '1 agent']] },
-				{ label: 'vscode', count: 2, skipped: true, categories: [['Prompts to skills', '1 prompt'], ['MCP Servers', '1 migratable · 0 not migratable']] },
+				{ label: 'Your profile', count: 3, skipped: false, categories: [['Prompts to skills', '1 prompt'], ['User Data', '1 agent'], ['Custom location settings', '1 customization']] },
+				{ label: 'vscode', count: 3, skipped: true, categories: [['Prompts to skills', '1 prompt'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 migratable · 0 not migratable']] },
 			],
 			profile: [profile], workspace: [workspace], all: [profile, workspace], mcpProfile: [],
 		});
