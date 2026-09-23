@@ -42,15 +42,15 @@ The contribution also registers the content and working-directory adapters neede
 
 ## Automations
 
-The cross-provider ownership, routing, migration, persistence, and run-lifecycle contract is specified in [AUTOMATIONS.md](../../../AUTOMATIONS.md).
+The cross-provider ownership, routing, persistence, and run-lifecycle contract is specified in [AUTOMATIONS.md](../../../AUTOMATIONS.md).
 
-Within that contract, Agent Host providers expose the host's `ahp-automations://` channel when negotiated capabilities include Automations. `AgentHostAutomationStore` projects AHP state and maps host session resources into the local or remote Sessions resource scheme. `ReconnectableAgentHostAutomationStore` owns connection and compatibility transitions. After durable activation, the Agent Host owns execution and scheduling; this provider owns only adaptation and connection-specific identity.
+Within that contract, Agent Host providers expose the host's `ahp-automations://` channel when negotiated capabilities include Automations. `AgentHostAutomationStore` projects AHP state and maps host session resources into the local or remote Sessions resource scheme. `ReconnectableAgentHostAutomationStore` owns connection and capability transitions. The Agent Host owns execution, scheduling, and recovery without a renderer activation handshake; this provider owns only adaptation and connection-specific identity. Disconnected or unsupported hosts cannot fall back to a browser store or executor.
 
 Imported prompts retain Automation provenance through `MessageKind.Automation`. The projection converts editor-qualified model identifiers to provider-native `ModelSelection.id` values at the AHP boundary while preserving the editor identity exposed to Sessions. The provider also mirrors `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` into host configuration; disabling Automations removes new run authority without deleting definitions or terminating sessions already running.
 
 `AutomationDefinition.session` is authoritative for host-owned model, custom-agent, and provider configuration. The projection removes target-owned working directory, isolation, and branch values from the editor-facing template and restores them only at the AHP boundary. Unknown provider values remain opaque and survive same-target edits.
 
-The browser fallback and host-owned executor both create sessions from this template. A draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
+The host-owned executor creates run sessions from this template. The Automation editor's configuration draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved, without dispatching an Automation prompt. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
 
 ## Identity
 

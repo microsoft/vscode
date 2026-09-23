@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -62,7 +63,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -2363,8 +2364,12 @@ suite('AgentHostChatContribution', () => {
 
 				const configurationStore = disposables.add(new ChatModelConfigurationStore(
 					() => 'chat.modelConfiguration.panel.agent-host-copilot',
+					() => false,
+					constObservable(false),
 					instantiationService.get(ILanguageModelsService),
 					instantiationService.get(IStorageService),
+					new NullManagedSettingsService(),
+					new NullLogService(),
 				));
 				const intent = new IntendedModelSlot();
 				const syncInput = (): void => inputModel.setState({
@@ -12611,6 +12616,33 @@ suite('AgentHostChatContribution', () => {
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
 		}
+
+		test('passively refreshed history reaches the open contributed session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'passive-history');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/passive-history' });
+			const chat = buildDefaultChatUri(backend.toString());
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'History', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
+			const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			disposables.add(session);
+			const updates: (readonly IChatSessionHistoryItem[])[] = [];
+			if (session.onDidChangeHistory) {
+				disposables.add(session.onDidChangeHistory(history => updates.push(history)));
+			}
+			agentHostService.fireAction({
+				channel: chat, action: {
+					type: ActionType.ChatTurnsLoaded, turns: [{
+						id: 'external', state: TurnState.Complete, message: { text: 'Later message', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'Later response' }], usage: undefined,
+					}]
+				}, serverSeq: 1, origin: undefined
+			});
+			assert.deepStrictEqual(updates.map(history => history.filter(item => item.type === 'request').map(item => item.prompt)), [['Later message']]);
+		});
 
 		test('uses independent default chat titles for the editor', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);

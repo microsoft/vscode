@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyLegacyAutomationSessionConfig, migrateLegacyAutomationSessionConfig } from '../../common/automationMigration.js';
+import { applyLegacyAutomationSessionConfig, migrateLegacyAutomationSessionConfig } from '../../common/automationConfig.js';
 
-suite('Automation migration', () => {
+suite('Automation configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('steady-state writes do not reinterpret generic or custom modes as Autopilot', () => {

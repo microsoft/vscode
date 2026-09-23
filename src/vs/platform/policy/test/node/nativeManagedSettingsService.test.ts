@@ -10,7 +10,7 @@ import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../common/copilotManagedSettings.js';
 import { NativeManagedSettingsChannelClient } from '../../common/nativeManagedSettingsIpc.js';
 import { PolicyValue } from '../../common/policy.js';
 import { NativeManagedSettingsService, NativePolicyWatcherFactory } from '../../node/nativeManagedSettingsService.js';
@@ -28,6 +28,7 @@ suite('NativeManagedSettingsService', () => {
 				[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 				[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 				[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
+				[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 			});
 			onDidChange = callback;
 			callback({});
@@ -70,6 +71,7 @@ suite('NativeManagedSettingsService', () => {
 				[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 				[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 				[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
+				[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 			},
 			managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
 		});

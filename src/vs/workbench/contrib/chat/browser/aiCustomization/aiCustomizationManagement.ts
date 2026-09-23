@@ -24,6 +24,7 @@ export type AICustomizationManagementOpenEditorTarget =
 	| {
 		readonly section?: AICustomizationManagementSection;
 		readonly sessionType?: string;
+		readonly sessionResource?: URI;
 		readonly revealUri?: URI;
 		readonly migration?: boolean;
 		readonly migrationCategory?: CustomizationMigrationCategoryId;
@@ -49,7 +50,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 		migration: options?.migration,
 		migrationCategory: options?.migrationCategory,
 		migrationHintTarget: options?.migrationHintTarget,
-		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
+		sessionResource: options?.sessionResource ?? (sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource),
 	};
 }
 

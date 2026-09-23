@@ -67,6 +67,16 @@ suite('Chat Accessibility Help', () => {
 		], [true, true, true, false, false, false, false]);
 	});
 
+	test('documents collapsing the model controls when Auto is enabled', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			collapsed: help.includes('turning Auto on collapses the provider tabs, search, and model list'),
+			preferences: help.includes('Auto and its preferences remain available'),
+			restored: help.includes('Turn Auto off to restore the model controls and the previous model selection'),
+			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
+		}, { collapsed: true, preferences: true, restored: true, reducedMotion: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
