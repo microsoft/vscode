@@ -836,6 +836,7 @@ class MockCopilotSession {
 			},
 		},
 		eventLog: {
+			read: async () => ({ events: [], cursor: 'end', hasMore: false, cursorStatus: 'ok' as const }),
 			registerInterest: async () => ({ handle: 'sampling-interest' }),
 			releaseInterest: async () => ({ success: true }),
 		},
@@ -906,7 +907,6 @@ class MockCopilotSession {
 			throw this.setModelError;
 		}
 	}
-	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
 	async disconnect(): Promise<void> { this.disconnectCalls++; await this.disconnectGate; }
 }
 
