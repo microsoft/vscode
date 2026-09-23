@@ -8,6 +8,7 @@ import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
@@ -19,10 +20,12 @@ export const enum CustomizationMarketplaceConfiguration {
 export const CustomizationMarketplaceSources = {
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
+		displayName: localize('customizationMarketplace.publicFeed', "Public Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 	},
 	CopilotConnectors: {
 		id: 'copilotConnectors',
+		displayName: localize('customizationMarketplace.copilotConnectors', "Copilot Connectors"),
 		enablementSetting: CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;

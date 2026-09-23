@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient } from '../../common/customizationMarketplaceIpc.js';
-import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourceInfo } from '../../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceIpc', () => {
@@ -333,6 +333,43 @@ suite('CustomizationMarketplaceIpc', () => {
 				calls++;
 				throw new Error('The customization catalog is receiving too many requests. Try again later.');
 			},
+		});
+
+		test('serializes source warnings with healthy pages without exposing continuation state or inventing totals', async () => {
+			let failedCalls = 0;
+			const sources: ICustomizationMarketplaceSource[] = [
+				{ id: 'agentFinder', query: async options => ({
+					items: [{
+						identifier: options.cursor ? 'last' : 'first', displayName: 'Example', description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill, tags: [], capabilities: [], representativeQueries: [],
+						repository: URI.parse('https://github.com/example/skills'),
+					}],
+					total: 2,
+					nextCursor: options.cursor ? undefined : 'next',
+				}) },
+				{ id: 'other', query: async () => { failedCalls++; throw new Error('Other feed unavailable'); } },
+			];
+			const service = new CustomizationMarketplaceService(sources);
+			const client = createClient(service, sources.map(source => ({ id: source.id, enablementSetting: `test.${source.id}.enabled` })));
+			const first = await client.query({ pageSize: 1 }, CancellationToken.None);
+			const last = await client.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({
+				ids: [first, last].flatMap(page => page.items.map(item => item.identifier)),
+				errors: [first, last].map(page => page.sourceErrors),
+				totals: [first.total, last.total],
+				cursorKeys: Object.keys(first.nextCursor!),
+				revived: last.items[0].repository instanceof URI,
+				lastCursor: last.nextCursor,
+				failedCalls,
+			}, {
+				ids: ['first', 'last'],
+				errors: Array.from({ length: 2 }, () => [{ sourceId: 'other', message: 'Other feed unavailable' }]),
+				totals: [undefined, undefined],
+				cursorKeys: ['token'],
+				revived: true,
+				lastCursor: undefined,
+				failedCalls: 1,
+			});
 		});
 		await assert.rejects(client.query({}, CancellationToken.None), {
 			message: 'The customization catalog is receiving too many requests. Try again later.',

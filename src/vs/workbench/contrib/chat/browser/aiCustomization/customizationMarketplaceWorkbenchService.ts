@@ -5,10 +5,11 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { localize } from '../../../../../nls.js';
 import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { AgentFinderSource } from '../../../../../platform/agentFinder/common/agentFinderSource.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceService, IAgentFinderMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceSource, CustomizationMarketplaceService, IAgentFinderMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CopilotConnectorsMarketplaceSource, ICopilotConnectorsService } from './copilotConnectorsService.js';
@@ -50,6 +51,9 @@ class AgentFinderMarketplaceSource implements ICustomizationMarketplaceSource {
 			pageSize: options.pageSize,
 			cursor: options.cursor === undefined ? undefined : { token: options.cursor },
 		}, token);
+		if (page.sourceErrors?.some(error => error.sourceId !== this.id)) {
+			throw new Error('Unexpected built-in marketplace source failure.');
+		}
 		return {
 			items: page.items.map(item => {
 				const { sourceId, ...entry } = item;
@@ -60,6 +64,7 @@ class AgentFinderMarketplaceSource implements ICustomizationMarketplaceSource {
 			}),
 			total: page.total,
 			nextCursor: page.nextCursor?.token,
+			error: page.sourceErrors?.[0]?.message,
 		};
 	}
 }
@@ -71,13 +76,23 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 
 	constructor(
 		@IAgentFinderMarketplaceService agentFinderService: IAgentFinderMarketplaceService,
-		@ICopilotConnectorsService copilotConnectorsService: ICopilotConnectorsService,
+		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.service = new CustomizationMarketplaceService([
 			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => new AgentFinderMarketplaceSource(agentFinderService)),
 			createLazyCustomizationMarketplaceSource(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceSource(copilotConnectorsService, configurationService)),
 		]);
+	}
+
+	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
+		if (sourceId !== CustomizationMarketplaceSources.CopilotConnectors.id || !this.copilotConnectorsService.authorizationRequired) {
+			return undefined;
+		}
+		return {
+			label: localize('customizationMarketplace.authorizeConnectors', "Authorize Connectors"),
+			run: token => this.copilotConnectorsService.authorize(token),
+		};
 	}
 
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {

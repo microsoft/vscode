@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { CopilotConnectorsRequestService } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -61,12 +62,15 @@ suite('CopilotConnectorsService', () => {
 	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void> }>, enabled = true, enterprise = false) {
 		const requests: Array<{ readonly type: string | undefined; readonly url: string; readonly data: string | undefined }> = [];
 		const requestTokens: CancellationToken[] = [];
+		const authorizationHeaders: (string | undefined)[] = [];
 		const authenticationCalls: Parameters<IAuthenticationService['getSessions']>[] = [];
+		const consentCalls: Parameters<IAuthenticationService['createSession']>[] = [];
 		const requestService = new class extends mock<IRequestService>() {
 			override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 				assert.ok(options.url);
 				requests.push({ type: options.type, url: options.url, data: options.data });
 				requestTokens.push(token);
+				authorizationHeaders.push(options.headers?.Authorization?.toString());
 				const response = responses.shift() ?? {};
 				if (response.ready) {
 					await response.ready;
@@ -88,7 +92,7 @@ suite('CopilotConnectorsService', () => {
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const sessionsChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 		const initialSession: AuthenticationSession = {
-			id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'octocat' }, scopes: ['read:user'],
+			id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'octocat' }, scopes: ['read:user', 'write:plugin_gateway_connections'],
 		};
 		let sessions = [initialSession];
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
@@ -102,6 +106,17 @@ suite('CopilotConnectorsService', () => {
 			override async getSessions(...args: Parameters<IAuthenticationService['getSessions']>) {
 				authenticationCalls.push(args);
 				return sessions;
+			}
+			override async createSession(...args: Parameters<IAuthenticationService['createSession']>) {
+				consentCalls.push(args);
+				const [, scopes, options] = args;
+				assert.ok(Array.isArray(scopes));
+				const session: AuthenticationSession = {
+					id: 'authorized-session', accessToken: 'authorized-token', account: options?.account ?? initialSession.account, scopes,
+				};
+				sessions.push(session);
+				sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [session], changed: undefined, removed: undefined } });
+				return session;
 			}
 		}();
 		const productService = new class extends mock<IProductService>() {
@@ -122,16 +137,15 @@ suite('CopilotConnectorsService', () => {
 			}
 		}();
 		const service = store.add(new CopilotConnectorsService(
-			requestService,
+			new CopilotConnectorsRequestService(requestService, productService, new NullLogService()),
 			authenticationService,
 			defaultAccountService,
 			productService,
 			configurationService,
 			openerService,
-			new NullLogService(),
 		));
 		return {
-			service, requests, requestTokens, opened, configurationService, authenticationCalls, authenticationService, defaultAccountService,
+			service, requests, requestTokens, authorizationHeaders, opened, configurationService, authenticationCalls, consentCalls, authenticationService, defaultAccountService,
 			initialAccount, initialSession, accountChanged, sessionsChanged,
 			setAccount: (value: IDefaultAccount | null, notify = true) => {
 				account = value;
@@ -195,7 +209,7 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('reports insufficient endpoint scope without requesting a broader GitHub session', async () => {
+	test('an authorized token rejected by the endpoint does not cause repeated consent', async () => {
 		const fixture = createFixture([{ status: 403, body: { message: 'Insufficient OAuth scope' } }]);
 		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /HTTP 403/);
 		assert.deepStrictEqual({
@@ -203,7 +217,147 @@ suite('CopilotConnectorsService', () => {
 			authentication: fixture.authenticationCalls,
 			opened: fixture.opened,
 			connectors: fixture.service.connectors,
-		}, { requests: 1, authentication: [['github', [], { silent: true }, true]], opened: [], connectors: [] });
+			consent: fixture.consentCalls,
+			authorizationRequired: fixture.service.authorizationRequired,
+		}, { requests: 1, authentication: [['github', [], { silent: true }, true]], opened: [], connectors: [], consent: [], authorizationRequired: false });
+	});
+
+	test('detects missing connector consent without prompting or sending an insufficient token', async () => {
+		const fixture = createFixture([]);
+		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
+		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Authorize connectors/);
+		await assert.rejects(fixture.service.refresh(CancellationToken.None), /Authorize connectors/);
+		assert.deepStrictEqual({
+			authorizationRequired: fixture.service.authorizationRequired,
+			requests: fixture.requests,
+			consent: fixture.consentCalls,
+		}, { authorizationRequired: true, requests: [], consent: [] });
+	});
+
+	test('explicit consent upgrades the active account and reuses its scoped session without changing the default session', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
+		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Authorize connectors/);
+		await Promise.all([fixture.service.authorize(CancellationToken.None), fixture.service.authorize(CancellationToken.None)]);
+		const connectors = await fixture.service.getConnectors(CancellationToken.None);
+		assert.deepStrictEqual({
+			consent: fixture.consentCalls,
+			authorization: fixture.authorizationHeaders,
+			authorizationRequired: fixture.service.authorizationRequired,
+			defaultSession: fixture.defaultAccountService.currentDefaultAccount?.sessionId,
+			connectors: connectors.map(connector => connector.name),
+		}, {
+			consent: [['github', ['read:user', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorization: ['Bearer authorized-token'],
+			authorizationRequired: false,
+			defaultSession: 'session',
+			connectors: ['mail'],
+		});
+	});
+
+	test('already authorized sessions do not request consent', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+		await fixture.service.authorize(CancellationToken.None);
+		await fixture.service.getConnectors(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorization: fixture.authorizationHeaders }, {
+			consent: [], authorization: ['Bearer test-token'],
+		});
+	});
+
+	test('read-only connector access can browse and upgrades only on an explicit connection', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('available') },
+			{ body: catalogResponse('available') },
+			{ status: 204 },
+			{ body: catalogResponse('connected') },
+		]);
+		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user', 'read:plugin_gateway_connections'] }]);
+		await fixture.service.getConnectors(CancellationToken.None);
+		const browse = { consent: fixture.consentCalls.length, authorizationRequired: fixture.service.authorizationRequired };
+		await fixture.service.connect('mail', CancellationToken.None);
+		assert.deepStrictEqual({
+			browse,
+			consent: fixture.consentCalls,
+			authorization: fixture.authorizationHeaders,
+			status: fixture.service.connectors[0]?.connectionStatus,
+		}, {
+			browse: { consent: 0, authorizationRequired: false },
+			consent: [['github', ['read:user', 'read:plugin_gateway_connections', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorization: ['Bearer test-token', 'Bearer test-token', 'Bearer authorized-token', 'Bearer test-token'],
+			status: 'connected',
+		});
+	});
+
+	test('only reuses an existing scoped session belonging to the active account', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+		const scoped = { ...fixture.initialSession, id: 'scoped-session', accessToken: 'scoped-token' };
+		fixture.setSessions([
+			{ ...scoped, id: 'other-session', account: { id: 'other-account', label: 'someone-else' } },
+			{ ...fixture.initialSession, scopes: ['read:user'] },
+			scoped,
+		]);
+		await fixture.service.authorize(CancellationToken.None);
+		const first = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [scoped], removed: undefined } });
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorization: fixture.authorizationHeaders, invalidated: first.cacheToken.isCancellationRequested }, {
+			consent: [], authorization: ['Bearer scoped-token'], invalidated: true,
+		});
+	});
+
+	for (const outcome of ['cancelled', 'denied', 'wrong-account', 'missing-scope']) {
+		test(`authorization ${outcome} does not make connector requests or switch the active account`, async () => {
+			const fixture = createFixture([]);
+			const oldSession = { ...fixture.initialSession, scopes: ['read:user'] };
+			fixture.setSessions([oldSession]);
+			fixture.authenticationService.createSession = async () => {
+				switch (outcome) {
+					case 'cancelled': throw new CancellationError();
+					case 'denied': throw new Error('Permission denied');
+					case 'wrong-account': return { ...fixture.initialSession, account: { id: 'other-account', label: 'someone-else' } };
+					default: return oldSession;
+				}
+			};
+			await assert.rejects(fixture.service.authorize(CancellationToken.None), outcome === 'cancelled' ? isCancellationError : /Permission denied|same GitHub account|did not grant permission/);
+			await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Authorize connectors/);
+			assert.deepStrictEqual({
+				requests: fixture.requests,
+				account: fixture.defaultAccountService.currentDefaultAccount,
+				authorizationRequired: fixture.service.authorizationRequired,
+			}, { requests: [], account: fixture.initialAccount, authorizationRequired: true });
+		});
+	}
+
+	for (const change of ['source', 'account', 'dispose', 'caller']) {
+		test(`pending consent is cancelled by a ${change} change and cannot apply a late result`, async () => {
+			const fixture = createFixture([]);
+			fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
+			const consent = new DeferredPromise<AuthenticationSession>();
+			const started = new DeferredPromise<void>();
+			const cancellation = store.add(new CancellationTokenSource());
+			fixture.authenticationService.createSession = async () => {
+				await started.complete();
+				return consent.p;
+			};
+			const result = assert.rejects(fixture.service.authorize(cancellation.token), isCancellationError);
+			await started.p;
+			switch (change) {
+				case 'source': await setEnabled(fixture.configurationService, false); break;
+				case 'account': fixture.setAccount({ ...fixture.initialAccount, accountName: 'someone-else', sessionId: 'other-session' }); break;
+				case 'dispose': fixture.service.dispose(); break;
+				default: cancellation.cancel();
+			}
+			await result;
+			await consent.complete(fixture.initialSession);
+			assert.deepStrictEqual({ requests: fixture.requests, connectors: fixture.service.connectors }, { requests: [], connectors: [] });
+		});
+	}
+
+	test('disabled connectors do not look up a session or request consent', async () => {
+		const fixture = createFixture([], false);
+		await assert.rejects(fixture.service.authorize(CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual({ authentication: fixture.authenticationCalls, consent: fixture.consentCalls, requests: fixture.requests }, {
+			authentication: [], consent: [], requests: [],
+		});
 	});
 
 	test('native pages retain their ranked catalog after the sixty-second cache refresh changes metadata and membership', async () => {
@@ -287,7 +441,7 @@ suite('CopilotConnectorsService', () => {
 		const first = await source.query({ pageSize: 1 }, CancellationToken.None);
 		fixture.setAccount({ ...fixture.initialAccount });
 		fixture.sessionsChanged.fire({ providerId: 'other-provider', label: 'Other', event: { added: undefined, removed: undefined, changed: [fixture.initialSession] } });
-		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: undefined, changed: [{ ...fixture.initialSession, id: 'unrelated-session' }] } });
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: undefined, changed: [{ ...fixture.initialSession, id: 'unrelated-session', account: { id: 'unrelated-account', label: 'someone-else' } }] } });
 		const second = await source.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 		assert.deepStrictEqual({
 			items: second.items.map(item => item.identifier), invalid: first.cacheToken?.isCancellationRequested,

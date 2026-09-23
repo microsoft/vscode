@@ -23,7 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -50,6 +50,7 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery, CustomizationDiscoveryType } from './aiCustomizationQuery.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMigrationCategorySummary, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
+import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -104,6 +105,7 @@ type DiscoveryListEntry = IInstalledDiscoveryItem | ICatalogDiscoveryItem | IDis
 interface ICatalogPageState {
 	readonly items: readonly ICustomizationMarketplaceResource[];
 	readonly nextCursor?: ICustomizationMarketplaceCursor;
+	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
 }
 
 interface IDiscoveryRowTemplate {
@@ -374,6 +376,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly searchActionsContainer: HTMLElement;
 	private readonly searchToolbar: WorkbenchToolBar;
 	private readonly quickFilters = new Map<'installed' | CustomizationDiscoveryType, Button>();
+	private readonly sourceWarnings: CustomizationMarketplaceSourceWarnings;
 	private readonly browseScrollable: DomScrollableElement;
 	private readonly browseContent: HTMLElement;
 	private readonly browseSections: HTMLElement;
@@ -399,6 +402,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private visible = false;
 	private loaded = false;
 	private loading = false;
+	private loadingMore = false;
 	private errorMessage: string | undefined;
 	private requestSequence = 0;
 	private providerPluginSequence = 0;
@@ -479,6 +483,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.createQuickFilter(filterContainer, 'mcp', localize('customizationDiscovery.filterMcps', "MCPs"));
 		this.createQuickFilter(filterContainer, 'plugin', localize('customizationDiscovery.filterPlugins', "Plugins"));
 		this.createQuickFilter(filterContainer, 'skill', localize('customizationDiscovery.filterSkills', "Skills"));
+		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.sources, () => {
+			this.focus();
+			void this.loadCatalog(false);
+		}, sourceId => this.marketplaceService.getSourceRecoveryAction?.(sourceId), this.notificationService));
 
 		this.browseContent = DOM.append(content, $('.customization-discovery-browse'));
 		this.browseStatus = DOM.append(this.browseContent, $('.customization-discovery-state'));
@@ -892,6 +900,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.request.value?.cancel();
 		this.request.clear();
 		this.loading = false;
+		this.loadingMore = false;
 	}
 
 	private async loadCatalog(append: boolean): Promise<void> {
@@ -899,14 +908,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		const sequence = ++this.requestSequence;
+		this.cancelCatalogRequest();
 		const request = new CancellationTokenSource();
 		this.request.value = request;
 		this.loading = true;
+		this.loadingMore = append;
 		this.errorMessage = undefined;
 		this.lastAnnouncement = undefined;
-		if (!append) {
-			this.catalogPage = undefined;
-		}
 		this.render();
 
 		try {
@@ -922,6 +930,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.catalogPage = {
 				items: append ? [...(this.catalogPage?.items ?? []), ...page.items] : page.items,
 				nextCursor: page.nextCursor,
+				sourceErrors: page.sourceErrors,
 			};
 			const seen = new Set<string>();
 			this.catalogItems = this.catalogPage.items.filter(item => {
@@ -933,24 +942,23 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				return true;
 			});
 			this.loaded = true;
-			this.loading = false;
-			this.render();
 		} catch (error) {
 			if (sequence !== this.requestSequence || isCancellationError(error)) {
 				return;
 			}
-			this.loading = false;
 			this.loaded = true;
 			this.errorMessage = getErrorMessage(error);
-			this.render();
 		} finally {
 			if (this.request.value === request) {
+				this.loading = false;
 				this.request.clear();
+				this.render();
 			}
 		}
 	}
 
 	private render(): void {
+		this.sourceWarnings.update(this.catalogPage?.sourceErrors ?? [], this.loading);
 		const searchMode = !this.query.isEmpty();
 		this.browseScrollable.getDomNode().hidden = searchMode;
 		this.resultListContainer.hidden = !searchMode;
@@ -960,6 +968,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.renderBrowse();
 		}
 		this.layout(this.lastDimension);
+	}
+
+	private getLoadingLabel(): string {
+		return this.loadingMore
+			? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
+			: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
+			: localize('customizationDiscovery.loading', "Loading customizations...");
 	}
 
 	private renderSearchResults(): void {
@@ -1012,21 +1027,24 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (installError) {
 			this.resultStatus.textContent = installError;
 		} else if (catalogPending && entries.length === 0) {
-			this.resultStatus.textContent = localize('customizationDiscovery.loading', "Loading customizations...");
+			this.resultStatus.textContent = this.getLoadingLabel();
 		} else if (this.errorMessage) {
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.resultStatus.textContent = message;
 			this.announce(message);
+		} else if (entries.length === 0 && this.sourceWarnings.hasErrors) {
+			this.resultStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
 		} else if (entries.length === 0) {
 			this.resultStatus.textContent = localize('customizationDiscovery.noResults', "No customizations match this search.");
 		} else {
-			this.resultStatus.textContent = catalogPending
-				? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
-				: '';
+			this.resultStatus.textContent = catalogPending ? this.getLoadingLabel() : '';
 		}
 		this.loadMoreContainer.hidden = catalogPending || this.query.installed || !this.catalogPage?.nextCursor;
 		if (!catalogPending && !this.errorMessage) {
-			this.announce(localize('customizationDiscovery.resultCount', "{0} installed and {1} available customizations found.", allInstalled.length, this.query.installed ? 0 : available.length));
+			this.announce([
+				localize('customizationDiscovery.resultCount', "{0} installed and {1} available customizations found.", allInstalled.length, this.query.installed ? 0 : available.length),
+				this.sourceWarnings.getAccessibilityContent(),
+			].filter(Boolean).join('\n'));
 		}
 	}
 
@@ -1038,7 +1056,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		if (this.loading && this.catalogItems.length === 0) {
-			this.browseStatus.textContent = localize('customizationDiscovery.loading', "Loading customizations...");
+			this.browseStatus.textContent = this.getLoadingLabel();
 			return;
 		}
 		if (this.errorMessage && this.catalogItems.length === 0) {
@@ -1072,10 +1090,17 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.renderBrowseSection(group.label, items, group.type, false);
 			}
 		}
-		if (!this.catalogItems.length && this.loaded) {
+		if (this.loading) {
+			this.browseStatus.textContent = this.getLoadingLabel();
+		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasErrors) {
+			this.browseStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
+		} else if (!this.catalogItems.length && this.loaded) {
 			this.browseStatus.textContent = localize('customizationDiscovery.emptyCatalog', "No catalog customizations are available.");
 		} else {
 			this.browseStatus.textContent = this.installErrors.values().next().value ?? '';
+		}
+		if (!this.loading && this.sourceWarnings.hasErrors) {
+			this.announce(this.sourceWarnings.getAccessibilityContent());
 		}
 	}
 
@@ -1261,6 +1286,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.shouldQueryCatalog() && !this.loaded) {
 			void this.loadCatalog(false);
 		}
+		this.render();
 		if (this.lastDimension) {
 			DOM.getWindow(this.container).requestAnimationFrame(() => this.layout(this.lastDimension));
 		}
@@ -1310,8 +1336,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.query.isEmpty()
 				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),
-			this.loading ? localize('customizationDiscovery.loading', "Loading customizations...") : undefined,
+			this.loading ? this.getLoadingLabel() : undefined,
 			this.errorMessage,
+			this.sourceWarnings.getAccessibilityContent(),
 			installed.length ? localize('customizationDiscovery.installedGroup', "Installed") : undefined,
 			...installed.map(item => `${item.name}\n${getTypeLabel(item.type)} · ${item.detail}\n${item.description}`),
 			available.length ? localize('customizationDiscovery.availableGroup', "Available") : undefined,

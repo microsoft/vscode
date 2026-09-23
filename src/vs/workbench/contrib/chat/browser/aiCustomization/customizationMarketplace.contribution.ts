@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { CopilotConnectorsRequestService, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IAgentFinderMarketplaceService, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -24,6 +25,7 @@ import { AgentFinderMarketplaceWorkbenchService, CustomizationMarketplaceWorkben
 registerSingleton(IAgentFinderMarketplaceService, AgentFinderMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
+registerSingleton(ICopilotConnectorsRequestService, CopilotConnectorsRequestService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
 
 class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementation {
@@ -55,7 +57,9 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate Installed and Available groups. Press Enter to open an installed item."),
 				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. VS Code continues to apply destination, trust, policy, and compatibility checks. Copilot connectors may open a browser for authorization."),
 				localize('customizationDiscovery.help.links', "Available customization names open their external resource so you can review it before installing."),
-				localize('customizationDiscovery.help.paging', "Load More appends another page without removing loaded results. Retry repeats a failed marketplace request."),
+				localize('customizationDiscovery.help.paging', "Load More appends another page without removing loaded results."),
+				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry button above the results. The Accessible View includes the warnings and retry instructions. Load More continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
+				localize('customizationDiscovery.help.authorization', "If your GitHub sign-in needs connector permissions, choose Authorize Connectors in the source warning. Authorization only starts when you choose this action or connect a service. Other marketplace sources remain available if you cancel."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : welcomePage.getAccessibilityContent(),
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : welcomePage.focus(),

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -14,28 +14,23 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { LRUCache } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { listenStream } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../../nls.js';
+import { CopilotConnectorsError, CopilotConnectorsRequest, copilotConnectorsScope, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IRequestService } from '../../../../../platform/request/common/request.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
 const maxSearchQueryLength = 256;
 const maxSearchWords = 16;
 const fuzzyWindowSize = 128;
-const requestTimeout = 30_000;
-const maxResponseBytes = 5 * 1024 * 1024;
 const maxTextLength = 4096;
 const maxMetadataEntries = 32;
 const maxConnectors = 1000;
@@ -98,6 +93,12 @@ interface ICopilotConnectorsSnapshot {
 	readonly cacheToken: CancellationToken;
 }
 
+interface ICopilotConnectorsAuthentication {
+	readonly account: IDefaultAccount;
+	readonly session: AuthenticationSession;
+	readonly sessions: readonly AuthenticationSession[];
+}
+
 export const ICopilotConnectorsService = createDecorator<ICopilotConnectorsService>('copilotConnectorsService');
 
 export interface ICopilotConnectorsService {
@@ -105,6 +106,9 @@ export interface ICopilotConnectorsService {
 	readonly onDidChange: Event<void>;
 	readonly connectors: readonly ICopilotConnector[];
 	readonly connectedMcpServers: readonly IConnectedCopilotConnectorMcpServer[];
+	readonly authorizationRequired: boolean;
+	/** Requests connector consent for the active GitHub account after an explicit user action. */
+	authorize(token: CancellationToken): Promise<void>;
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	/** Reads the catalog and its source/account validity token atomically. */
 	getConnectorsSnapshot(token: CancellationToken): Promise<ICopilotConnectorsSnapshot>;
@@ -113,27 +117,28 @@ export interface ICopilotConnectorsService {
 	disconnect(name: string, token: CancellationToken): Promise<void>;
 }
 
-class CopilotConnectorsError extends Error { }
-
 export class CopilotConnectorsService extends Disposable implements ICopilotConnectorsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private readonly catalogContext = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly authorizationCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private authorizationPromise: Promise<void> | undefined;
 	private enabled = false;
 	private accountIdentity: string | undefined;
+	private authenticationAccountId: string | undefined;
+	private _authorizationRequired = false;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _lastRefreshTime = 0;
 
 	constructor(
-		@IRequestService private readonly requestService: IRequestService,
+		@ICopilotConnectorsRequestService private readonly requestService: ICopilotConnectorsRequestService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.accountIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
@@ -147,7 +152,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this._register(this.authenticationService.onDidChangeSessions(({ providerId, event }) => {
 			const account = this.defaultAccountService.currentDefaultAccount;
 			if (account?.authenticationProvider.id === providerId &&
-				[event.added, event.changed, event.removed].some(sessions => sessions?.some(session => session.id === account.sessionId))) {
+				[event.added, event.changed, event.removed].some(sessions => sessions?.some(session =>
+					session.id === account.sessionId || session.account.id === this.authenticationAccountId && hasConnectorScope(session, true)))) {
 				this.resetCatalogContext();
 			}
 		}));
@@ -155,6 +161,62 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	get connectors(): readonly ICopilotConnector[] {
 		return this._connectors;
+	}
+
+	get authorizationRequired(): boolean {
+		return this.isEnabled() && this._authorizationRequired;
+	}
+
+	async authorize(token: CancellationToken): Promise<void> {
+		if (!this.isEnabled() || token.isCancellationRequested || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		if (!this.authorizationPromise) {
+			const cancellation = this.authorizationCancellation.value = new CancellationTokenSource(token);
+			this.authorizationPromise = this.doAuthorize(cancellation).finally(() => {
+				this.authorizationPromise = undefined;
+				this.authorizationCancellation.clear();
+			});
+		}
+		await raceCancellationError(this.authorizationPromise, token);
+	}
+
+	private async doAuthorize(cancellation: CancellationTokenSource): Promise<void> {
+		const authentication = await this.getAuthentication(cancellation.token, true);
+		if (!authentication) {
+			throw new CopilotConnectorsError(localize('copilotConnectors.signInRequired', "Sign in to GitHub Copilot before connecting this service."));
+		}
+		if (authentication.sessions.some(session => hasConnectorScope(session, false))) {
+			this._authorizationRequired = false;
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			if (account?.authenticationProvider.id !== authentication.account.authenticationProvider.id || account?.accountName !== authentication.account.accountName) {
+				cancellation.cancel();
+			}
+		}));
+		try {
+			const session = await raceCancellationError(this.authenticationService.createSession(
+				authentication.account.authenticationProvider.id,
+				distinct([...authentication.session.scopes, copilotConnectorsScope]),
+				{ account: authentication.session.account },
+			), cancellation.token);
+			const account = this.defaultAccountService.currentDefaultAccount;
+			if (cancellation.token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed ||
+				account?.authenticationProvider.id !== authentication.account.authenticationProvider.id || account?.accountName !== authentication.account.accountName) {
+				throw new CancellationError();
+			}
+			if (session.account.id !== authentication.session.account.id) {
+				throw new CopilotConnectorsError(localize('copilotConnectors.wrongAccount', "Authorize connectors with the same GitHub account that you use for GitHub Copilot."));
+			}
+			if (!hasConnectorScope(session, false)) {
+				throw new CopilotConnectorsError(localize('copilotConnectors.permissionNotGranted', "GitHub did not grant permission to manage Copilot connectors. Try authorizing connectors again."));
+			}
+			this.resetCatalogContext();
+		} finally {
+			store.dispose();
+		}
 	}
 
 	get connectedMcpServers(): readonly IConnectedCopilotConnectorMcpServer[] {
@@ -205,7 +267,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 		const operation = await this.createOperation(token);
 		try {
-			const document = await this.request('GET', '/plugins', undefined, operation.token);
+			const document = await this.request({ type: 'query' }, operation.token);
 			if (operation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -226,13 +288,14 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	async connect(name: string, token: CancellationToken): Promise<void> {
+		await this.authorize(token);
 		const operation = await this.createOperation(token);
 		try {
 			const connectors = await this.refresh(operation.token);
 			if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
 				return;
 			}
-			const response = await this.request('PUT', `/connectors/managed/${encodeURIComponent(name)}/connection`, { client_source: 'VS_CODE' }, operation.token, true);
+			const response = await this.request({ type: 'connect', name }, operation.token, true);
 			const consentLink = parseHttpsUri(asRecord(response)?.consent_link);
 			if (consentLink && !await this.openerService.open(consentLink)) {
 				throw new CopilotConnectorsError(localize('copilotConnectors.openConsentFailed', "The connector authorization page could not be opened."));
@@ -253,9 +316,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	async disconnect(name: string, token: CancellationToken): Promise<void> {
+		await this.authorize(token);
 		const operation = await this.createOperation(token);
 		try {
-			await this.request('DELETE', `/connectors/managed/${encodeURIComponent(name)}/connection`, undefined, operation.token, true);
+			await this.request({ type: 'disconnect', name }, operation.token, true);
 			const deadline = Date.now() + connectionTimeout;
 			while (Date.now() < deadline) {
 				const connectors = await this.refresh(operation.token);
@@ -276,6 +340,9 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return;
 		}
 		this.enabled = enabled;
+		if (!enabled) {
+			this.authorizationCancellation.value?.cancel();
+		}
 		this.resetCatalogContext();
 	}
 
@@ -285,6 +352,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!this.enabled) {
 			cancellation.cancel();
 		}
+		this._authorizationRequired = false;
 		this._lastRefreshTime = 0;
 		this.setConnectors([]);
 	}
@@ -293,6 +361,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		const identity = getAccountIdentity(account);
 		if (identity !== this.accountIdentity) {
 			this.accountIdentity = identity;
+			this.authenticationAccountId = undefined;
 			this.resetCatalogContext();
 		}
 	}
@@ -324,7 +393,24 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 	}
 
-	private async request(method: 'DELETE' | 'GET' | 'PUT', path: string, data: object | undefined, token: CancellationToken, requireAuthentication = false): Promise<unknown | undefined> {
+	private async request(request: CopilotConnectorsRequest, token: CancellationToken, requireAuthentication = false): Promise<unknown> {
+		const authentication = await this.getAuthentication(token, requireAuthentication);
+		if (!authentication) {
+			return undefined;
+		}
+		const session = authentication.sessions.find(session => hasConnectorScope(session, request.type === 'query'));
+		if (!session) {
+			this._authorizationRequired = true;
+			throw new CopilotConnectorsError(localize('copilotConnectors.authorizationRequired', "Your GitHub sign-in needs permission to access Copilot connectors. Authorize connectors to continue."));
+		}
+		this._authorizationRequired = false;
+		return this.requestService.request(request, session.accessToken, token);
+	}
+
+	private async getAuthentication(token: CancellationToken, requireAuthentication: boolean): Promise<ICopilotConnectorsAuthentication | undefined> {
+		if (!this.isEnabled() || token.isCancellationRequested || this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		const endpoint = this.productService.defaultChatAgent?.mcpConnectorsUrl;
 		if (!endpoint || !isHttpsUrl(endpoint)) {
 			if (requireAuthentication) {
@@ -339,68 +425,27 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			}
 			return undefined;
 		}
-		const account = this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount();
+		const account = this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const sessions = await this.authenticationService.getSessions(provider.id, [], { silent: true }, true);
-		if (token.isCancellationRequested) {
+		const sessions = await raceCancellationError(this.authenticationService.getSessions(provider.id, [], { silent: true }, true), token);
+		if (token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed || getAccountIdentity(account) !== getAccountIdentity(this.defaultAccountService.currentDefaultAccount)) {
 			throw new CancellationError();
 		}
 		const session = account ? sessions.find(candidate => candidate.id === account.sessionId) : undefined;
-		if (!session) {
+		if (!account || !session) {
 			if (requireAuthentication) {
 				throw new CopilotConnectorsError(localize('copilotConnectors.signInRequired', "Sign in to GitHub Copilot before connecting this service."));
 			}
 			return undefined;
 		}
-
-		const options: IRequestOptions = {
-			url: `${endpoint.replace(/\/+$/, '')}${path}`,
-			type: method,
-			headers: {
-				Accept: 'application/json',
-				Authorization: `Bearer ${session.accessToken}`,
-				...(data ? { 'Content-Type': 'application/json' } : {}),
-			},
-			data: data ? JSON.stringify(data) : undefined,
-			timeout: requestTimeout,
-			followRedirects: 0,
-			disableCache: true,
-			callSite: `copilotConnectors.${method === 'GET' ? 'query' : method === 'PUT' ? 'connect' : 'disconnect'}`,
+		this.authenticationAccountId = session.account.id;
+		return {
+			account,
+			session,
+			sessions: [session, ...sessions.filter(candidate => candidate.id !== session.id && candidate.account.id === session.account.id)],
 		};
-		let context: IRequestContext;
-		try {
-			context = await this.requestService.request(options, token);
-		} catch (error) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			this.logService.error('[CopilotConnectorsService] Request failed', error);
-			throw new CopilotConnectorsError(localize('copilotConnectors.requestFailed', "Copilot connectors could not be reached. Check your connection and try again."));
-		}
-		try {
-			const status = context.res.statusCode ?? 0;
-			if (status < 200 || status >= 300) {
-				throw new CopilotConnectorsError(localize('copilotConnectors.httpError', "Copilot connectors could not complete the request (HTTP {0}).", status));
-			}
-			if (status === 204) {
-				return undefined;
-			}
-			const text = await raceCancellationError(readResponse(context), token);
-			try {
-				return text ? JSON.parse(text) : undefined;
-			} catch {
-				throw new CopilotConnectorsError(localize('copilotConnectors.invalidJson', "Copilot connectors returned an invalid response."));
-			}
-		} catch (error) {
-			if (!(error instanceof CancellationError)) {
-				this.logService.error('[CopilotConnectorsService] Request failed', error);
-			}
-			throw error;
-		} finally {
-			context.stream.destroy();
-		}
 	}
 
 	private setConnectors(connectors: readonly ICopilotConnector[]): void {
@@ -413,8 +458,13 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	override dispose(): void {
 		this.catalogContext.value?.cancel();
+		this.authorizationCancellation.value?.cancel();
 		super.dispose();
 	}
+}
+
+function hasConnectorScope(session: AuthenticationSession, readOnly: boolean): boolean {
+	return session.scopes.includes(copilotConnectorsScope) || readOnly && session.scopes.includes('read:plugin_gateway_connections');
 }
 
 interface IConnectorContinuation {
@@ -706,24 +756,4 @@ function isHttpsUrl(value: string): boolean {
 	} catch {
 		return false;
 	}
-}
-
-function readResponse(context: IRequestContext): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const chunks: VSBuffer[] = [];
-		let bytes = 0;
-		listenStream(context.stream, {
-			onData: chunk => {
-				bytes += chunk.byteLength;
-				if (bytes > maxResponseBytes) {
-					reject(new CopilotConnectorsError(localize('copilotConnectors.responseTooLarge', "The Copilot connectors response is too large.")));
-					context.stream.destroy();
-				} else {
-					chunks.push(chunk);
-				}
-			},
-			onError: reject,
-			onEnd: () => resolve(VSBuffer.concat(chunks).toString()),
-		});
-	});
 }
