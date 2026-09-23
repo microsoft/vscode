@@ -326,6 +326,40 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('keeps a new question from the same session active after dismissing a prior one', () => {
+		const chatResource = URI.parse('test:///chat/repeat-question');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'repeat-question', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setPendingQuestionCarousel(chatResource, {
+			requestId: 'req-1',
+			resolveId: 'resolve-1',
+			allowSkip: true,
+			message: 'First question',
+			questions: [{ id: 'q1', type: 'text', title: 'Question 1', required: true }],
+		});
+
+		const firstId = fixture.service.notifications.get()[0].id;
+		fixture.service.dismissNotification(firstId);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+
+		// The agent asks a different question within the same turn (same updatedAt). It must
+		// surface as an active Critical item, not inherit the prior question's dismissal.
+		chatService.setPendingQuestionCarousel(chatResource, {
+			requestId: 'req-2',
+			resolveId: 'resolve-2',
+			allowSkip: true,
+			message: 'Second question',
+			questions: [{ id: 'q2', type: 'text', title: 'Question 2', required: true }],
+		});
+
+		const active = fixture.service.notifications.get();
+		assert.strictEqual(active.length, 1);
+		assert.strictEqual(active[0].kind, InboxNotificationKind.NeedsInput);
+		assert.notStrictEqual(active[0].id, firstId);
+	});
+
 	test('includes pending confirmation data for needs-input notifications', () => {
 		const chatResource = URI.parse('test:///chat/pending-confirmation');
 		const chatService = new TestChatService();

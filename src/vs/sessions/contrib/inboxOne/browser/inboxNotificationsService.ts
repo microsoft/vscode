@@ -516,7 +516,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		if (status === SessionStatus.NeedsInput) {
 			const needsInputPart = this.getNeedsInputPart(session, reader);
-			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${updatedAt}`;
+			// Key the id by the specific pending request/question rather than the session's
+			// updatedAt: a single agent turn can surface several questions that share an
+			// updatedAt, and answering one dismisses its id. Keying by updatedAt would make
+			// the next question reuse a dismissed id and get filed under Completed instead of
+			// surfacing in its Critical tier.
+			const needsInputKey = needsInputPart ? this.needsInputPartKey(needsInputPart) : `${updatedAt}`;
+			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${needsInputKey}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.NeedsInput,
@@ -900,6 +906,28 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 
 		return bestCandidate?.part;
+	}
+
+	/**
+	 * A stable key identifying the specific pending request behind a needs-input item, so
+	 * each distinct question/confirmation/tool request gets its own inbox id. This keeps
+	 * repeated requests from the same session in their own cards (and their Critical tier)
+	 * instead of colliding on a shared updatedAt and inheriting a prior request's dismissal.
+	 */
+	private needsInputPartKey(part: IInboxNotificationNeedsInputPart): string {
+		switch (part.kind) {
+			case 'questionCarousel': {
+				if (part.resolveId) {
+					return `qc:${part.requestId}:${part.resolveId}`;
+				}
+				const questionsKey = part.questions.map(question => question.id || question.title).join('|');
+				return `qc:${part.requestId}:${hash(questionsKey)}`;
+			}
+			case 'toolConfirmation':
+				return `tc:${part.requestId}:${part.toolCallId}`;
+			case 'confirmation':
+				return `cf:${part.requestId}:${hash(toPreviewPlainText(part.title))}`;
+		}
 	}
 
 	private getNeedsInputPartFromResponse(response: IChatResponseModel, chatResource: URI): IInboxNotificationNeedsInputPart | undefined {
