@@ -32,15 +32,11 @@ suite('ScmMultiDiffSourceResolver', () => {
 			override readonly providerId = 'scm0';
 			override readonly rootUri = URI.file('/repository');
 			override readonly groups = [group];
-			override readonly label = 'SCM';
-			override readonly name = 'SCM';
-			override readonly onDidChangeResources = new Emitter<void>().event;
 			override readonly onDidChangeResourceGroups = new Emitter<void>().event;
 		}();
 		const repository = new class extends mock<ISCMRepository>() {
 			override readonly id = provider.id;
 			override readonly provider = provider;
-			override readonly input = mock<any>();
 		}();
 		const repositories = [repository];
 		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
@@ -62,34 +58,15 @@ suite('ScmMultiDiffSourceResolver', () => {
 		const sourceUri = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(provider.rootUri.toString(), group.id);
 		const sourcePromise = resolver.resolveDiffSource(sourceUri);
 
+		const createResource = (path: string) => new class extends mock<ISCMResource>() {
+			override readonly sourceUri = URI.file(path);
+			override readonly multiDiffEditorModifiedUri = this.sourceUri;
+		}();
+
 		resources.push(
-			new class extends mock<ISCMResource>() {
-				override readonly sourceUri = URI.file('/repository/githubServer.ts');
-				override readonly multiDiffEditorModifiedUri = this.sourceUri;
-				override readonly resourceGroup = group;
-				override readonly decorations = {};
-				override readonly contextValue = undefined;
-				override readonly command = undefined;
-				override open(): Promise<void> { return Promise.resolve(); }
-				override readonly resourceGroup = group;
-				override readonly decorations = {};
-				override readonly contextValue = undefined;
-				override readonly command = undefined;
-				override open(): Promise<void> { return Promise.resolve(); }
-				override readonly resourceGroup = group;
-				override readonly decorations = {};
-				override readonly contextValue = undefined;
-				override readonly command = undefined;
-				override open(): Promise<void> { return Promise.resolve(); }
-			}(),
-			new class extends mock<ISCMResource>() {
-				override readonly sourceUri = URI.file('/repository/env.ts');
-				override readonly multiDiffEditorModifiedUri = this.sourceUri;
-			}(),
-			new class extends mock<ISCMResource>() {
-				override readonly sourceUri = URI.file('/repository/githubUri.ts');
-				override readonly multiDiffEditorModifiedUri = this.sourceUri;
-			}(),
+			createResource('/repository/githubServer.ts'),
+			createResource('/repository/env.ts'),
+			createResource('/repository/githubUri.ts'),
 		);
 		onDidChangeResources.fire();
 
