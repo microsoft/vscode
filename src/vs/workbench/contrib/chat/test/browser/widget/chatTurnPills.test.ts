@@ -76,7 +76,7 @@ suite('ChatTurnPills', () => {
 		const items: readonly [string, IActionViewItem][] = [
 			['icon+label', disposables.add(new ChatPillActionViewItem(undefined, action, {}))],
 			['changes', disposables.add(new ChatChangesPillActionViewItem(action, {}, constObservable(EMPTY_CHAT_CHANGES_STATS), instantiationService))],
-			['resource', disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels))],
+			['resource', disposables.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels))],
 			['dropdown', disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions))],
 		];
 
@@ -112,7 +112,7 @@ suite('ChatTurnPills', () => {
 			open: () => { },
 		};
 		const items: readonly IActionViewItem[] = [
-			disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels)),
+			disposables.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels)),
 			disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions)),
 		];
 
