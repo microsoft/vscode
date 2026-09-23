@@ -751,7 +751,7 @@
               "currentSession",
               "independent"
             ],
-            "description": "Whether the work belongs to the current session or is independently managed. Base this choice only on whether the work is related to the current session. Defaults to `currentSession`."
+            "description": "Use `independent` only for work that is unrelated to the current session's plan or deliverable. Otherwise omit it; defaults to `currentSession`."
           },
           "prompt": {
             "type": "string",

@@ -227,7 +227,7 @@ Explicit UI rename, `/rename`, and user-requested `rename_chat` remain available
 
 ### Server-tool creation provenance
 
-Treat a session as the user-visible unit of work. `create_session` takes an optional relationship, chosen only by whether the work is related to the current session, that defaults to `currentSession`. `currentSession` creates a peer chat that shares the current session's lifecycle and aggregate diff; `independent` creates a top-level session. A title is required for both relationships and is applied before the initial prompt starts.
+Treat a session as the user-visible unit of work. `create_session` takes an optional relationship that defaults to `currentSession`; agents set `independent` only for work that is unrelated to the current session's plan or deliverable. `currentSession` creates a peer chat that shares the current session's lifecycle and aggregate diff; `independent` creates a top-level session. A title is required for both relationships and is applied before the initial prompt starts.
 
 Sessions created by the `create_session` server tool record only the creating session, chat, and turn as immutable, provider-neutral creation provenance in the initial session summary `_meta` bag, before the session is published or its first prompt starts. The reference supports related-session placement, source identification and session-list presentation; it does not define a hierarchy, grant communication privileges, or trigger lifecycle notifications.
 
