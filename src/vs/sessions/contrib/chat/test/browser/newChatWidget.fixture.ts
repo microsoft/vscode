@@ -38,7 +38,8 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -315,6 +316,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onReset = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+
 				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
@@ -327,6 +330,19 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					}));
 					return { type, candidates, files: candidates.map(candidate => candidate.uri) };
 				}
+
+				override async computeMigrationHint(): Promise<ICustomizationMigrationHint | undefined> {
+					return migrationCount > 0 ? {
+						migrationFlowId: 'fixture-migration',
+						message: `${migrationCount} agent customizations need an update to keep working.`,
+						counts: [{ type: CustomizationMigrationType.PromptFiles, count: migrationCount }],
+					} : undefined;
+				}
+			}());
+			reg.defineInstance(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() {
+				override hintComputed() { }
+				override hintShown() { }
+				override hintClicked() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;

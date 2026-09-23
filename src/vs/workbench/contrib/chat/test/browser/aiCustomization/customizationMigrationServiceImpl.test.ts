@@ -293,6 +293,7 @@ suite('CustomizationMigrationService', () => {
 		}([]));
 		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
 			override readonly onDidChangeCustomizations = agentHostCustomizationsChanged.event;
+			override getClientWorkingDirectoryUris() { return []; }
 		}();
 		const mcpWorkbenchService = new class extends mock<IMcpWorkbenchService>() {
 			override readonly onChange = mcpChanged.event;
