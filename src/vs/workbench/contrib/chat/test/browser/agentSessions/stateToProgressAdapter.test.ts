@@ -3396,14 +3396,12 @@ suite('stateToProgressAdapter', () => {
 						history: getSerializedTerminalData(serialized).terminalCommandOutput,
 						liveUri: URI.revive(invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData.terminalCommandUri : undefined)?.toString(),
 						historyUri: URI.revive(getSerializedTerminalData(serialized).terminalCommandUri)?.toString(),
-						historyAuthority: getSerializedTerminalData(serialized).terminalConnectionAuthority,
 					}, {
 						live: expected,
 						completed: expected,
 						history: expected,
 						liveUri: terminalResource,
 						historyUri: terminalResource,
-						historyAuthority: authority,
 					});
 				});
 			}

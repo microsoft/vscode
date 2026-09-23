@@ -5,11 +5,28 @@
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { type TerminalCommandResult } from '../../common/state/protocol/state.js';
+import { AgentSession } from '../../common/agent.js';
+import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { buildNonPtyShellTerminalClaim, buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
 
-export { buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
+/**
+ * Builds the terminal channel URI for a runtime-executed (non-pty) shell tool
+ * call. The session owns the terminal namespace and each tool call addresses a
+ * distinct child terminal, keeping the URI stable across live streaming and
+ * history replay without colliding with other sessions or tool calls.
+ */
+export function buildNonPtyShellTerminalUri(session: URI | string, toolCallId: string): string {
+	return `agenthost-terminal://shell/${encodeURIComponent(AgentSession.id(session))}/${encodeURIComponent(toolCallId)}`;
+}
+
+export function buildNonPtyShellTerminalClaim(session: URI | string, chat: URI | string, toolCallId: string): TerminalSessionClaim {
+	return {
+		kind: TerminalClaimKind.Session,
+		session: session.toString(),
+		chat: chat.toString(),
+		toolCallId,
+	};
+}
 
 interface INonPtyShellStream {
 	readonly uri: string;
@@ -22,7 +39,9 @@ interface INonPtyShellStream {
 }
 
 /**
- * Extracts the command result from older results without structured `shell_exit` content.
+ * Extracts the command result from the runtime's stable text fallback. The
+ * external SDK bridge currently removes the equivalent `shell_exit` content
+ * block for compatibility with older SDK clients.
  */
 function parseCompletedShell(text: string | undefined): TerminalCommandResult | undefined {
 	const match = text && /<shellId: ([^>\r\n]+) completed with exit code (-?\d+)>\s*$/.exec(text);
@@ -229,8 +248,6 @@ export class NonPtyShellTerminalStreams extends Disposable {
 					claim,
 					exitCode: result.exitCode,
 					content: state.content,
-					isPty: state.isPty,
-					supportsCommandDetection: state.supportsCommandDetection,
 				});
 				stream.retained = true;
 			}

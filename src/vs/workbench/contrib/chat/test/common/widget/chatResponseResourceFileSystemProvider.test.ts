@@ -60,7 +60,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			};
 		}
 
-		function createInvocation(terminal = terminalResource, authority = 'local'): IChatToolInvocationSerialized {
+		function createInvocation(terminal = terminalResource): IChatToolInvocationSerialized {
 			return {
 				kind: 'toolInvocationSerialized',
 				toolCallId: 'command-a',
@@ -77,7 +77,6 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 					language: 'shellscript',
 					commandLine: { original: 'build' },
 					terminalCommandUri: terminal,
-					terminalConnectionAuthority: authority,
 					terminalCommandOutput: { text: 'preview', truncated: true },
 				},
 			};
@@ -85,7 +84,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 
 		for (const authority of ['local', 'remote-host']) {
 			test(`reads complete exited terminal output lazily through ${authority}`, async () => {
-				const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(terminalResource, authority), authority, async () => terminalState());
+				const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), authority, async () => terminalState());
 				const stat = await fixture.provider.stat(fixture.resource);
 				const subscriptionsBeforeOpen = fixture.subscriptions.length;
 				const actual = VSBuffer.wrap(await fixture.provider.readFile(fixture.resource)).toString();
@@ -178,7 +177,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			for (const stream of [false, true]) {
 				test(`propagates ${code} from a ${stream ? 'streamed' : 'buffered'} subscription and allows retry`, async () => {
 					let fail = true;
-					const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(terminalResource, 'remote-host'), 'remote-host', async () => {
+					const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(), 'remote-host', async () => {
 						if (fail) {
 							throw new ProtocolError(code, 'Output cannot be read');
 						}
@@ -221,14 +220,6 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			const forged = ChatResponseResource.createTerminalOutputUri(sessionResource, invocation.toolCallId, URI.parse('agenthost-terminal://shell/session/unrelated'), 'unrelated.txt');
 			await assert.rejects(() => fixture.provider.readFile(forged), { code: FileSystemProviderErrorCode.FileNotFound });
 			assert.deepStrictEqual({ content, subscriptions: fixture.subscriptions.map(uri => uri.toString()) }, { content: completeOutput, subscriptions: [updated.toString()] });
-		});
-
-		test('rejects a terminal owned by another Agent Host connection', async () => {
-			const fixture = createTerminalOutputTestFixture(store, sessionResource, createInvocation(terminalResource, 'remote-host'), 'local', async () => {
-				throw new Error('Must not subscribe through the wrong connection');
-			});
-			await assert.rejects(() => fixture.provider.readFile(fixture.resource), { code: FileSystemProviderErrorCode.FileNotFound });
-			assert.deepStrictEqual(fixture.subscriptions, []);
 		});
 
 		test('rejects a terminal resource after its terminal identity is removed', async () => {
@@ -300,6 +291,28 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			afterFirstDisposed: 'artifact',
 			afterSecondDisposed: undefined,
 		});
+	});
+
+	test('tool I/O resources only resolve from chats that are already loaded', async () => {
+		let loadRequests = 0;
+		const chatService = new class extends mock<IChatService>() {
+			override readonly onDidDisposeSession = onDidDisposeSession.event;
+			override getSession() {
+				return undefined;
+			}
+			override async acquireOrLoadSession() {
+				loadRequests++;
+				return undefined;
+			}
+		};
+		const toolProvider = testDisposables.add(new ChatResponseResourceFileSystemProvider(
+			chatService,
+			new class extends mock<IFileService>() { },
+			new class extends mock<IAgentHostConnectionsService>() { },
+		));
+
+		await assert.rejects(() => toolProvider.readFile(ChatResponseResource.createUri(sessionResource, 'tool-1', 0)), { code: FileSystemProviderErrorCode.FileNotFound });
+		assert.strictEqual(loadRequests, 0);
 	});
 
 	test('session-scoped data is released with the session', async () => {

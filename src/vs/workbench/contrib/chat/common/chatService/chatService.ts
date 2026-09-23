@@ -736,8 +736,6 @@ export interface IChatTerminalToolInvocationData {
 	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
-	/** Agent Host connection that owns {@link terminalCommandUri}. */
-	terminalConnectionAuthority?: string;
 	/** Serialized output of the executed command */
 	terminalCommandOutput?: {
 		text: string;

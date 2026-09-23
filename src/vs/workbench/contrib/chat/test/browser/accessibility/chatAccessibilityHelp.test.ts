@@ -284,43 +284,30 @@ suite('Chat Accessibility Help', () => {
 	test('documents full terminal output in chat surfaces that render terminal tools', () => {
 		const keybindingService = new MockKeybindingService();
 		const expectedText = 'Open Full Output (Read-Only) action';
+		const agentViewText = getAccessibilityHelpText('agentView', keybindingService, true);
 
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
-			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+			agentView: agentViewText.includes(expectedText),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
 			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
-			accessibleView: getAccessibilityHelpText('agentView', keybindingService, true).includes('terminal output Accessible View'),
-			activation: getAccessibilityHelpText('agentView', keybindingService, true).includes('then press Enter or Space'),
-			readonly: getAccessibilityHelpText('agentView', keybindingService, true).includes('read-only editor'),
-			bestEffort: getAccessibilityHelpText('agentView', keybindingService, true).includes('if the captured output is still available'),
-			fullOutputLink: getAccessibilityHelpText('agentView', keybindingService, true).includes('Click to open full output link'),
-			editorTitle: getAccessibilityHelpText('agentView', keybindingService, true).includes('editor title includes a short run identifier'),
-			previewClick: getAccessibilityHelpText('agentView', keybindingService, true).includes('click anywhere in the output preview'),
-			outputEnter: getAccessibilityHelpText('agentView', keybindingService, true).includes('focus the output region and press Enter'),
-			approximateSize: getAccessibilityHelpText('agentView', keybindingService, true).includes('approximate full-output size'),
-			truncationNote: getAccessibilityHelpText('agentView', keybindingService, true).includes('whether the preview was truncated'),
-			inlineNote: getAccessibilityHelpText('agentView', keybindingService, true).includes('a message at the end of the inline terminal content'),
-			headerAction: getAccessibilityHelpText('agentView', keybindingService, true).includes('action in the command header'),
+			fullOutputLink: agentViewText.includes('Click to open full output link'),
+			previewClick: agentViewText.includes('Click anywhere in the output preview'),
+			outputEnter: agentViewText.includes('focus the output region and press Enter'),
+			readonly: agentViewText.includes('read-only editor'),
+			accessibleView: agentViewText.includes('terminal output Accessible View'),
 		}, {
 			panelChat: true,
 			quickChat: true,
 			agentView: true,
 			inlineChat: false,
 			editsView: false,
-			accessibleView: true,
-			activation: true,
-			readonly: true,
-			bestEffort: true,
 			fullOutputLink: true,
-			editorTitle: true,
 			previewClick: true,
 			outputEnter: true,
-			approximateSize: true,
-			truncationNote: true,
-			inlineNote: true,
-			headerAction: true,
+			readonly: true,
+			accessibleView: true,
 		});
 	});
 

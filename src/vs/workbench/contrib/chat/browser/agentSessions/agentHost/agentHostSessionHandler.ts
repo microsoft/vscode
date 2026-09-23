@@ -4886,13 +4886,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		const terminalResult = terminalContent.result;
-		// Background hand-offs complete without a renderable result and keep streaming until the turn ends.
-		const hasStaticNonPtyResult = tc.status === ToolCallStatus.Completed
+		const hasRetainedNonPtySnapshot = tc.status === ToolCallStatus.Completed
 			&& !isPty
-			&& terminalResult?.exitCode !== undefined
-			&& (terminalResult.preview !== undefined || terminalResult.truncated === true);
-		if (hasStaticNonPtyResult) {
+			&& terminalContent.result?.exitCode !== undefined
+			&& (terminalContent.result.preview !== undefined || terminalContent.result.truncated === true);
+		if (hasRetainedNonPtySnapshot) {
 			outputTerminalAttachment.disposable.clear();
 			outputTerminalAttachment.sessionId = undefined;
 		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
@@ -4915,7 +4913,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				language: 'shellscript',
 				terminalToolSessionId: sessionId,
 				terminalCommandUri,
-				terminalConnectionAuthority: this._config.connectionAuthority,
 				isPty,
 				terminalCommandId: identityChanged ? undefined : existing?.terminalCommandId,
 				terminalCommandOutput: identityChanged ? undefined : existing?.terminalCommandOutput,

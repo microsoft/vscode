@@ -1026,8 +1026,6 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			claim,
 			exitCode: 0,
 			content,
-			isPty: true,
-			supportsCommandDetection: true,
 		});
 		content[0] = { type: 'unclassified', value: 'mutated source' };
 
@@ -1050,8 +1048,7 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			}],
 			lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
 			claim,
-			isPty: true,
-			supportsCommandDetection: true,
+			isPty: false,
 		});
 	});
 

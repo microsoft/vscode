@@ -16,7 +16,7 @@ import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../commo
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { buildNonPtyShellTerminalUri } from '../shared/nonPtyShellTerminal.js';
+import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';

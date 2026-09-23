@@ -787,15 +787,15 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(fakes[0].raw.modes.showCursor, false);
 		});
 
-		test('inline notices are terminal buffer content and escape control characters in their label', async () => {
+		test('inline notices are terminal buffer content', async () => {
 			const mirror = createSnapshotMirror({ text: 'preview' });
-			mirror.setNotice({ text: 'Saved to: /tmp/a\x1b[2J\x07.txt', linkText: '/tmp/a\x1b[2J\x07.txt', activate: async () => { } });
+			mirror.setNotice({ text: 'Showing a preview. Click to open full output (read-only)', linkText: 'Click to open full output', activate: async () => { } });
 			await mirror.render();
 			await mirror.layout(220);
 			const raw = fakes[0].raw;
 			const rendered = Array.from({ length: raw.buffer.active.length }, (_, y) => raw.buffer.active.getLine(y)?.translateToString(true) ?? '').join('');
 			deepStrictEqual({ rendered, cursor: raw.modes.showCursor }, {
-				rendered: 'previewSaved to: /tmp/a\\x1b[2J\\x07.txt',
+				rendered: 'previewShowing a preview. Click to open full output (read-only)',
 				cursor: false,
 			});
 		});

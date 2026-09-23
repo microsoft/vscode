@@ -88,8 +88,6 @@ export interface IRetainedTerminalState {
 	readonly exitCode?: number;
 	readonly artifact?: URI;
 	readonly content?: readonly TerminalContentPart[];
-	readonly isPty?: boolean;
-	readonly supportsCommandDetection?: boolean;
 }
 
 // Return immediately when no partial query is buffered and this chunk contains no escape character.
@@ -216,8 +214,6 @@ interface IRetainedTerminal {
 	readonly lifecycle: TerminalState['lifecycle'];
 	readonly artifact?: URI;
 	readonly content?: readonly TerminalContentPart[];
-	readonly isPty: boolean;
-	readonly supportsCommandDetection?: boolean;
 }
 
 /**
@@ -332,8 +328,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			content: content ?? [],
 			lifecycle: { ...retained.lifecycle },
 			claim: { ...retained.claim },
-			isPty: retained.isPty,
-			...(retained.supportsCommandDetection !== undefined ? { supportsCommandDetection: retained.supportsCommandDetection } : {}),
+			isPty: false,
 		};
 	}
 
@@ -349,8 +344,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 				: { status: TerminalLifecycleStatus.Exited, exitCode: state.exitCode },
 			...(state.artifact ? { artifact: state.artifact } : {}),
 			...(state.content ? { content: state.content.map(part => ({ ...part })) } : {}),
-			isPty: state.isPty ?? false,
-			...(state.supportsCommandDetection !== undefined ? { supportsCommandDetection: state.supportsCommandDetection } : {}),
 		});
 		this._outputTerminals.delete(uri);
 	}

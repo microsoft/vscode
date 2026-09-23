@@ -307,7 +307,6 @@ suite('ChatModel', () => {
 				language: 'shellscript',
 				commandLine: { original: 'build' },
 				terminalCommandUri: terminal,
-				terminalConnectionAuthority: 'remote-host',
 				terminalCommandOutput: { text: 'preview', truncated: true },
 			},
 		});
@@ -324,12 +323,10 @@ suite('ChatModel', () => {
 			text: output?.text,
 			truncated: output?.truncated,
 			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
-			authority: invocation.toolSpecificData.terminalConnectionAuthority,
 		}, {
 			text: 'preview',
 			truncated: true,
 			terminal: terminal.toString(),
-			authority: 'remote-host',
 		});
 	});
 

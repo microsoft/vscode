@@ -1392,7 +1392,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 

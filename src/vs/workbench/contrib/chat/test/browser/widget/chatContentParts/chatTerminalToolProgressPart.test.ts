@@ -367,7 +367,6 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			intention: options.intention,
 			language: 'shellscript',
 			terminalCommandUri: terminal,
-			terminalConnectionAuthority: terminal ? 'local' : undefined,
 			terminalCommandOutput: {
 				text: options.preview ?? 'preview output',
 				truncated: options.truncated ?? !!terminal,

@@ -786,13 +786,8 @@ interface ITerminalSnapshotNotice {
 	activate(): Promise<void>;
 }
 
-function sanitizeSnapshotNoticeText(text: string): string {
-	// Paths may contain control characters; only our own VT sequences may affect the terminal.
-	return text.replace(/[\x00-\x1f\x7f-\x9f]/g, char => `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`);
-}
-
 function renderSnapshotNotice(notice: ITerminalSnapshotNotice): string {
-	return `\x1b]8;;\x07\x1b[0m${sanitizeSnapshotNoticeText(notice.text)}\r\n`;
+	return `\x1b]8;;\x07\x1b[0m${notice.text}\r\n`;
 }
 
 function findSnapshotTextRange(buffer: IBuffer, text: string): IBufferRange | undefined {
@@ -946,7 +941,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 					callback(undefined);
 					return;
 				}
-				const range = findSnapshotTextRange(raw.buffer.active, sanitizeSnapshotNoticeText(notice.linkText));
+				const range = findSnapshotTextRange(raw.buffer.active, notice.linkText);
 				if (!range || bufferLineNumber < range.start.y || bufferLineNumber > range.end.y) {
 					callback(undefined);
 					return;

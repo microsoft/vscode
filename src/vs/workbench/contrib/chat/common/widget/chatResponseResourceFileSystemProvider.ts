@@ -181,8 +181,8 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		}
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		return this.lookupURI(resource);
+	readFile(resource: URI): Promise<Uint8Array> {
+		return Promise.resolve(this.lookupURI(resource));
 	}
 
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
@@ -244,7 +244,8 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 	}
 
-	private async findMatchingInvocation(sessionResource: URI, toolCallId: string): Promise<IChatToolInvocation | IChatToolInvocationSerialized> {
+	/** Restored output editors can resolve before their chat is opened, so load the chat on demand. */
+	private async findTerminalOutputInvocation(sessionResource: URI, toolCallId: string): Promise<IChatToolInvocation | IChatToolInvocationSerialized> {
 		const existing = this.chatService.getSession(sessionResource);
 		if (existing) {
 			return this.findMatchingInvocationInSession(existing, toolCallId);
@@ -254,7 +255,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			sessionResource,
 			ChatAgentLocation.Chat,
 			CancellationToken.None,
-			'ChatResponseResourceFileSystemProvider#findMatchingInvocation',
+			'ChatResponseResourceFileSystemProvider#findTerminalOutputInvocation',
 		);
 		if (!modelRef) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
@@ -294,7 +295,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		if (!parsed) {
 			return undefined;
 		}
-		const result = await this.findMatchingInvocation(parsed.sessionResource, parsed.toolCallId);
+		const result = await this.findTerminalOutputInvocation(parsed.sessionResource, parsed.toolCallId);
 		const data = result.toolSpecificData;
 		const terminalData = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data) : undefined;
 		const terminal = URI.revive(terminalData?.terminalCommandUri);
@@ -303,7 +304,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
 		}
 		const resolved = this._agentHostConnectionsService.resolveSessionResource(parsed.sessionResource);
-		if (!resolved || (terminalData?.terminalConnectionAuthority && resolved.connectionAuthority !== terminalData.terminalConnectionAuthority)) {
+		if (!resolved) {
 			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
 		}
 		return { connection: resolved.connection, terminal };
@@ -361,7 +362,11 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
 		const { sessionResource, toolCallId, index } = parsed;
-		const result = await this.findMatchingInvocation(sessionResource, toolCallId);
+		const session = this.chatService.getSession(sessionResource);
+		if (!session) {
+			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+		const result = this.findMatchingInvocationInSession(session, toolCallId);
 		const details = IChatToolInvocation.resultDetails(result);
 		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);

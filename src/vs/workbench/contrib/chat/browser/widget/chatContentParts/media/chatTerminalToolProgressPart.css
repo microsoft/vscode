@@ -316,8 +316,3 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	display: inline;
 	white-space: nowrap;
 }
-
-.chat-terminal-show-link:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-}

@@ -1537,7 +1537,7 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 	return undefined;
 }
 
-function getTerminalOutput(tc: ToolCallState, connectionAuthority: string) {
+function getTerminalOutput(tc: ToolCallState) {
 	if (tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.Running) {
 		return undefined;
 	}
@@ -1685,7 +1685,6 @@ function isTerminalToolCall(tc: ToolCallState, existingKind?: string): boolean {
 function buildTerminalToolSpecificData(
 	tc: ToolCallState,
 	sessionResource: URI,
-	connectionAuthority: string,
 	existing?: IChatTerminalToolInvocationData,
 ): IChatTerminalToolInvocationData {
 	const terminalContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
@@ -1696,7 +1695,7 @@ function buildTerminalToolSpecificData(
 	const commandLine = nextCommand
 		? { ...existing?.commandLine, original: nextCommand }
 		: existing?.commandLine ?? { original: '' };
-	const nextOutput = getTerminalOutput(tc, connectionAuthority);
+	const nextOutput = getTerminalOutput(tc);
 	// Spread `existing` so any field set by a prior pass (notably the
 	// async-populated AHP fields and anything we don't explicitly handle)
 	// is preserved unless we have a fresh value to override it with.
@@ -1715,7 +1714,6 @@ function buildTerminalToolSpecificData(
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
-		terminalConnectionAuthority: terminalContentUri ? connectionAuthority : existing?.terminalConnectionAuthority,
 		isPty: terminalContent?.isPty ?? existing?.isPty,
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
 	};
@@ -1993,7 +1991,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
-			...buildTerminalToolSpecificData(tc, sessionResource, connectionAuthority),
+			...buildTerminalToolSpecificData(tc, sessionResource),
 			terminalCommandState: getTerminalCommandState(tc, isSuccess),
 		};
 	} else if (getToolKind(tc) === 'search') {
@@ -2506,7 +2504,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				}),
 			};
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
-			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource, connectionAuthority);
+			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
 		} else if (!isSetWorkspaceTool(tc)) {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
@@ -2564,7 +2562,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// so the AHP-terminal fields (`terminalToolSessionId`,
 		// `terminalCommandUri`) stay undefined — the renderer treats this
 		// as a display-only terminal that still surfaces command + output.
-		invocation.toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource, connectionAuthority);
+		invocation.toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
 	} else if (subagentData) {
 		// Subagent-spawning tool: set subagent toolSpecificData eagerly so the
 		// renderer groups it correctly from the start (before child content
@@ -2793,7 +2791,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		? existing.toolSpecificData
 		: undefined;
 	if (isTerminalToolCall(tc, existing.toolSpecificData?.kind)) {
-		const next = buildTerminalToolSpecificData(tc, sessionResource, connectionAuthority, existingTerminal);
+		const next = buildTerminalToolSpecificData(tc, sessionResource, existingTerminal);
 		const outputChanged = !terminalOutputsEqual(next.terminalCommandOutput, existingTerminal?.terminalCommandOutput);
 		const commandChanged = next.commandLine.original !== existingTerminal?.commandLine.original;
 		if (!existingTerminal || outputChanged || commandChanged) {
@@ -2899,7 +2897,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		const existing = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
 		invocation.presentation = undefined;
 		invocation.toolSpecificData = {
-			...buildTerminalToolSpecificData(tc, backendSession, connectionAuthority, existing),
+			...buildTerminalToolSpecificData(tc, backendSession, existing),
 			terminalCommandState: getTerminalCommandState(tc, isCompleted && tc.success),
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
