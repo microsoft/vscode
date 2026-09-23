@@ -21,6 +21,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -1546,8 +1547,11 @@ suite('AgentSideEffects', () => {
 					initiatorConnectionKind: 'dev_tunnel',
 					initiatorTransportKind: 'websocket',
 					agentSessionId: 'session-1',
+					chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+					turnId: 'turn-1',
 					source: 'direct',
 					messageOriginKind: 'user',
+					messageActorKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					activeClientId: 'test-client',
@@ -3990,8 +3994,11 @@ suite('AgentSideEffects', () => {
 					initiatorConnectionKind: 'unknown',
 					initiatorTransportKind: 'unknown',
 					agentSessionId: 'session-1',
+					chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+					turnId: stateManager.getActiveTurnId(defaultChatUri),
 					source: 'queued',
 					messageOriginKind: 'user',
+					messageActorKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					attachmentCount: 0,
@@ -8102,7 +8109,10 @@ suite('AgentSideEffects', () => {
 				},
 			});
 
-			assert.deepStrictEqual(changesets.toolCallEdits, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+			assert.deepStrictEqual(changesets.toolCallEdits, [
+				{ session: defaultChatUri, turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+			]);
 		});
 
 		test('turn complete fires onTurnComplete once with the right turn id', async () => {
@@ -8129,7 +8139,10 @@ suite('AgentSideEffects', () => {
 			// runs before we assert.
 			await Promise.resolve();
 
-			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+			assert.deepStrictEqual(changesets.turnCompletes, [
+				{ session: defaultChatUri, turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+			]);
 		});
 
 		test('turn complete passes the resolved working directories to the checkpoint capture', async () => {

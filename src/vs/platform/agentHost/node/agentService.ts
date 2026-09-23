@@ -27,7 +27,7 @@ import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommi
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
@@ -64,6 +64,7 @@ import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../commo
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
@@ -1616,7 +1617,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _toSessionMetadata(metadata: IAgentChatMetadata): IAgentSessionMetadata {
-		const { chat, ...rest } = metadata;
+		const { chat, changesets: _changesets, ...rest } = metadata;
 		return {
 			...rest,
 			session: URI.parse(parseRequiredSessionUriFromChatUri(chat)),
@@ -1896,8 +1897,8 @@ export class AgentService extends Disposable implements IAgentService {
 				? liveSummary.workingDirectories.map(directory => URI.parse(directory))
 				: metadata.workingDirectories,
 			changes: liveSummary.changes ?? metadata.changes,
-			chats: this._sessionChatsFromSummary(liveSummary) ?? metadata.chats,
 			changesets: this._stateManager.getSessionState(metadata.session.toString())?.changesets ?? metadata.changesets,
+			chats: this._sessionChatsFromSummary(liveSummary) ?? metadata.chats,
 			...(_meta !== undefined ? { _meta } : {}),
 		};
 	}
@@ -3325,13 +3326,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder. The default changeset catalogue lives
-		// on `state.changesets` (seeded after `createSession` /
-		// `restoreSession` and refreshed after each compute pass) and the
-		// chip aggregate on the catalog summary's `changes`; both must be
-		// surfaced here so a fresh `listSessions` call returns the same values
-		// subscribers see via the per-session action stream and
-		// `notify/sessionSummaryChanged`.
+		// initial empty placeholder. Compact aggregate changes remain on the
+		// session summary while selectable catalogues live on subscribed chat
+		// state, so a fresh `listSessions` call only needs the aggregate.
 		const withStatus = materialized.map(s => {
 			const liveSummary = this._stateManager.getSessionSummary(s.session.toString());
 			const metadata = liveSummary
@@ -4229,6 +4226,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// `SessionReady` means the agent has a live SDK session. Provisional
 			// sessions defer it to {@link _onDidMaterializeChat}.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			this._changesetCoordinator.onSessionReady(session.toString());
 			const gitHubState = readSessionGitHubState(this._stateManager.getSessionSummary(session.toString())?._meta);
 			if (gitHubState) {
 				await this._gitStateService.setSessionGitHubState(session.toString(), gitHubState);
@@ -5521,14 +5519,31 @@ export class AgentService extends Disposable implements IAgentService {
 			// repositories holding this session's refs, and reading them from
 			// session state would silently break the moment `deleteSession` below
 			// is reordered ahead of the data deletion.
-			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
 			const sessionId = AgentSession.id(session);
-			const persistedPeerChats = sessionChats.length === 0 ? await this._peerChatStore.tryRead(session) : undefined;
+			const persistedPeerChats = await this._peerChatStore.tryRead(session);
+			const configuredWorkingDirectories = [
+				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
+				...sessionChats.flatMap(chat => this._configurationService.getEffectiveWorkingDirectories(chat.resource) ?? []),
+				...(persistedPeerChats?.flatMap(chat => chat.workingDirectories ?? []) ?? []),
+			];
+			const workingDirectories: string[] = [];
+			for (const directory of configuredWorkingDirectories) {
+				const uri = URI.parse(directory, true);
+				if (!workingDirectories.some(existing => extUriBiasedIgnorePathCase.isEqual(URI.parse(existing, true), uri))) {
+					workingDirectories.push(directory);
+				}
+			}
 			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-			const cleanupWorkingDirectoryUris = (worktree?.repositoryRoot
+			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
 				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
 				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
+			const cleanupWorkingDirectoryUris: URI[] = [];
+			for (const directory of candidateCleanupWorkingDirectoryUris) {
+				if (!cleanupWorkingDirectoryUris.some(existing => extUriBiasedIgnorePathCase.isEqual(existing, directory))) {
+					cleanupWorkingDirectoryUris.push(directory);
+				}
+			}
 			for (const additionalWorktree of additionalWorktrees) {
 				const workingDirectory = URI.parse(additionalWorktree.workingDirectory, true);
 				const repositoryRoot = URI.parse(additionalWorktree.repositoryRoot, true);
@@ -5675,7 +5690,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._ensureAnnotationsRestored(parsedAnnotations.sessionUri);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
-			if (!snapshot) {
+			if (!snapshot && !parsedChangeset) {
 				// Chat channel URIs carry their owning session URI. The chat
 				// snapshot only materializes once that session is restored
 				// (which seeds the default chat state), so restore the parent
@@ -5696,8 +5711,9 @@ export class AgentService extends Disposable implements IAgentService {
 					snapshot = this._stateManager.getSnapshot(resourceStr);
 				}
 			}
-			if (!snapshot && isAhpChatChannel(resourceStr)) {
+			if (!snapshot && !parsedChangeset && isAhpChatChannel(resourceStr)) {
 				await this._stateManager.resolveChatState(resourceStr);
+				this._changesetCoordinator.onChatAvailable(resourceStr);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			if (!snapshot) {
@@ -5750,10 +5766,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// a branch-less remnant, and it would otherwise mask the very
 			// repair this lazy refresh exists to perform.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
-			if (sessionState && !isAhpChatChannel(resourceStr)) {
+			if (!parsedChangeset && sessionState && !isAhpChatChannel(resourceStr)) {
 				this._changesetCoordinator.ensureSessionSubscription(resourceStr);
 			}
-			if (!isAhpChatChannel(resourceStr) && sessionState && needsSessionGitStateRefresh(readSessionGitState(sessionState._meta))) {
+			if (!parsedChangeset && !isAhpChatChannel(resourceStr) && sessionState && needsSessionGitStateRefresh(readSessionGitState(sessionState._meta))) {
 				const workingDirectory = sessionState.workingDirectories?.[0]
 					? URI.parse(sessionState.workingDirectories[0])
 					: undefined;
@@ -6187,8 +6203,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// per-chat routing in side effects, while deriving the owning session
 		// URI for all session-scoped work (attachment snapshotting, agent
 		// lookup, telemetry, permissions — all keyed by session).
-		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
-		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
+		const changesetChannel = parseChangesetUri(channel);
+		const chatChannel = !changesetChannel && isAhpChatChannel(channel) ? channel : undefined;
+		const sessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel);
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
@@ -6261,7 +6278,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!changeset) {
 					throw new Error(`Invalid changeset URI: ${channel}`);
 				}
-				this._changesets.refreshBranchChangeset(changeset.sessionUri);
+				this._changesets.refreshBranchChangeset(changeset.ownerUri);
 			}
 			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
 		}).catch(err => {
@@ -7535,9 +7552,8 @@ export class AgentService extends Disposable implements IAgentService {
 		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
 
 		// Register the static changeset URIs and reseed them from any
-		// persisted file lists in the batched metadata read. The catalogue
-		// itself is seeded on `state.changesets` synchronously by the
-		// `setSessionChangesets` call above. The coordinator drains any
+		// persisted file lists in the batched metadata read. The coordinator
+		// publishes the selectable catalogue on chat state and drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
 		// `<session>/changeset/uncommitted` before this restore ran (e.g.
@@ -8818,8 +8834,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!gitService) {
 			return undefined;
 		}
-		const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, fields.sessionUri)
-			?? getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
+		const ownerScope = resolveChangesetOwnerScope(this._stateManager, fields.sessionUri);
+		if (parseFolderChangesetOwnerUri(fields.sessionUri) && ownerScope.workingDirectories.length === 0) {
+			return undefined;
+		}
+		const workingDirectories = ownerScope.workingDirectories.length
+			? ownerScope.workingDirectories
+			: getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
 		// Backwards-compat: no resolvable absolute path means we cannot match a
 		// repository root, so fall back to today's primary-directory behavior.
 		if (!fields.absolutePath) {

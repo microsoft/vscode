@@ -8,14 +8,21 @@
 	height: 100%;
 	min-height: 0;
 
-	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
-		padding-bottom: var(--vscode-spacing-size20);
-		background-clip: content-box;
-		outline: 0 !important;
+	&.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
+		left: var(--vscode-spacing-size40);
+		right: var(--vscode-spacing-size40);
+		width: auto;
+		border-radius: var(--vscode-cornerRadius-small);
 
 		> .monaco-tl-row {
 			border-radius: inherit;
 		}
+	}
+
+	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
+		padding-bottom: var(--vscode-spacing-size20);
+		background-clip: content-box;
+		outline: 0 !important;
 	}
 
 	&.session-list-row-spacing .monaco-list .monaco-list-row.session-list-inset-row {

@@ -363,9 +363,10 @@ function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number 
 	return { startedAt, duration: endedAt !== undefined ? Math.max(0, endedAt - startedAt) : undefined };
 }
 
-function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata?: Record<string, unknown>): Message {
+function requestMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata: Record<string, unknown> | undefined, isSystemInitiated: boolean | undefined, origin?: IChatAgentRequest['agentHostMessageOrigin']): Message {
 	return {
-		text, origin: { kind: MessageKind.User },
+		text,
+		origin: origin && (origin.kind !== MessageKind.User || !isSystemInitiated) ? origin : { kind: isSystemInitiated ? MessageKind.SystemNotification : MessageKind.User },
 		...(attachments?.length ? { attachments: [...attachments] } : {}),
 		...(metadata ? { _meta: metadata } : {}),
 	};
@@ -1302,8 +1303,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
 				sessionResource => {
-					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
-					return chatURI ? URI.parse(chatURI) : undefined;
+					const backendSession = this._resolveSessionUri(sessionResource);
+					return backendSession ? URI.parse(this._getChatURIOrDefault(sessionResource, backendSession)) : undefined;
 				},
 				this._logService,
 			)),
@@ -1546,9 +1547,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						));
 						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
-						// Enrich history with inner tool calls from subagent
-						// child sessions. Subscribes to each child session so
-						// its tool calls appear grouped under the parent widget.
+						// Settled child chats need only catalog links; active and legacy children retain inline observation.
 						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState, historySubagentObservations);
 						this._logService.trace(`[AgentHost] provideChatSessionContent: subagent enrichment done for ${resolvedSession.toString()}`);
 
@@ -2158,6 +2157,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const protocolState = this._getSessionState(session, chatURI);
 		const prevSteering = protocolState?.steeringMessage;
 		const prevQueued = protocolState?.queuedMessages ?? [];
+		const previousMessages = new Map(prevQueued.map(p => [p.id, p.message]));
+		if (prevSteering) {
+			previousMessages.set(prevSteering.id, prevSteering.message);
+		}
 
 		// Compute current state from chat model
 		interface IPendingSnapshot { id: string; message: Message }
@@ -2168,10 +2171,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
 			const model = this._createModelSelection(p.sendOptions.userSelectedModelId, p.sendOptions.userSelectedModelConfiguration);
+			const previousMessage = previousMessages.get(p.request.id);
+			const isSystemInitiated = p.request.isSystemInitiated ?? p.sendOptions.isSystemInitiated;
 			const snapshot: IPendingSnapshot = {
 				id: p.request.id,
 				message: {
-					...userOriginMessage(p.request.message.text, attachments, p.sendOptions.metadata),
+					...requestMessage(p.request.message.text, attachments, p.sendOptions.metadata ?? previousMessage?._meta, isSystemInitiated, previousMessage?.origin ?? p.sendOptions.agentHostMessageOrigin),
 					...(model ? { model } : {}),
 				},
 			};
@@ -2266,6 +2271,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
+			agentHostMessageOrigin: pending.message.origin,
+			metadata: pending.message._meta,
+			isSystemInitiated: pending.message.origin.kind === MessageKind.SystemNotification,
+			systemInitiatedLabel: readMessageSystemInitiatedLabel(pending.message),
 		});
 
 		const remote: IRemotePendingRequest[] = [];
@@ -3174,7 +3183,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			startedAt: new Date().toISOString(),
 			message: withMessageHiddenFromTranscript({
-				...userOriginMessage(request.message, messageAttachments, request.metadata),
+				...requestMessage(request.message, messageAttachments, request.metadata, request.isSystemInitiated, request.agentHostMessageOrigin),
 				...(selectedModel ? { model: selectedModel } : {}),
 				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
 			}, request.hideFromTranscript),
@@ -4953,12 +4962,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	// ---- Subagent child session observation ---------------------------------
 
-	/**
-	 * Enriches serialized history with inner tool calls from subagent child
-	 * sessions. For each subagent tool call found in the history, subscribes
-	 * to the corresponding child session and appends its inner tool calls
-	 * (with `subAgentInvocationId` set) to the response parts.
-	 */
+	/** Adds catalog links and enriches only active or legacy subagents with their inner tool calls. */
 	private async _enrichHistoryWithSubagentCalls(
 		history: IChatSessionHistoryItem[],
 		parentSession: URI,
@@ -5013,6 +5017,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						part.toolSpecificData.chatResource,
 					);
 					part.toolSpecificData.chatResource = childChatUri;
+					if (subagentChat
+						&& (subagentChat.status & (SessionStatus.Idle | SessionStatus.Error)) !== 0
+						&& (subagentChat.status & SessionStatus.InProgress) === 0) {
+						part.toolSpecificData.isChatAvailable = true;
+						part.toolSpecificData.isActive = false;
+						delete part.toolSpecificData.hasStarted;
+						continue;
+					}
 					part.toolSpecificData.isChatAvailable = false;
 					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId, childChatUri, requestId });
 				}

@@ -14,7 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -85,9 +85,10 @@ class TestFileService extends mock<IFileService>() {
 	}
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; fileService: TestFileService; session: URI } {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; fileService: TestFileService; stateManager: AgentHostStateManager; refreshes: string[]; session: URI } {
 	const gitService = new TestGitService();
 	const fileService = new TestFileService();
+	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	if (opts?.registerSession !== false) {
@@ -103,11 +104,13 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
+		async sessionKey => { refreshes.push(sessionKey); },
 		gitService,
 		fileService,
 		new NullLogService(),
+		stateManager,
 	);
-	return { handler, gitService, fileService, session };
+	return { handler, gitService, fileService, stateManager, refreshes, session };
 }
 
 function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['target'] {
@@ -120,11 +123,11 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('restores the targeted file on success', async () => {
-		const { handler, gitService, fileService, session } = setup(disposables);
+		const { handler, gitService, fileService, refreshes, session } = setup(disposables);
 		const target = URI.file('/repo/src/file.ts');
 
 		const result = await handler.invoke({
-			channel: buildUncommittedChangesetUri(session.toString()),
+			channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())),
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			target: makeResourceTarget(target),
 		}, CancellationToken.None);
@@ -132,11 +135,37 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			restoreCalls: gitService.restoreCalls,
 			deleteCalls: fileService.deleteCalls,
+			refreshes,
 			message: result.message,
 		}, {
 			restoreCalls: [{ workingDirectory: URI.file('/repo').toString(), paths: [target.fsPath], options: undefined }],
 			deleteCalls: [],
+			refreshes: [buildDefaultChatUri(session.toString())],
 			message: { markdown: 'Discarded changes to `file.ts`.' },
+		});
+	});
+
+	test('restores and refreshes a peer chat in its working directory', async () => {
+		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
+		const peer = buildChatUri(session.toString(), 'peer');
+		const peerRoot = URI.file('/peer-repo');
+		stateManager.addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+		const target = URI.file('/peer-repo/src/file.ts');
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(peer),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			restoreCalls: gitService.restoreCalls,
+			deleteCalls: fileService.deleteCalls,
+			refreshes,
+		}, {
+			restoreCalls: [{ workingDirectory: peerRoot.toString(), paths: [target.fsPath], options: undefined }],
+			deleteCalls: [],
+			refreshes: [peer],
 		});
 	});
 

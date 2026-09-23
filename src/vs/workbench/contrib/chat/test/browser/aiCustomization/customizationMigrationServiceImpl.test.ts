@@ -217,8 +217,8 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 		));
 	}
 
-	protected override generateHintId(): string {
-		return 'test-hint-id';
+	protected override generateMigrationFlowId(): string {
+		return 'test-migration-flow-id';
 	}
 }
 
@@ -513,7 +513,7 @@ suite('CustomizationMigrationService', () => {
 				},
 			],
 			hint: {
-				hintId: 'test-hint-id',
+				migrationFlowId: 'test-migration-flow-id',
 				message: '2 workspace and 3 user customizations need an update to keep working.',
 				counts: [
 					{ type: CustomizationMigrationType.UserData, count: 1 },
@@ -554,7 +554,7 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			hintId: 'test-hint-id',
+			migrationFlowId: 'test-migration-flow-id',
 			message: '1 workspace and 0 user customizations need an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
@@ -580,7 +580,7 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			hintId: 'test-hint-id',
+			migrationFlowId: 'test-migration-flow-id',
 			message: '2 workspace and 2 user customizations need an update to keep working.',
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
@@ -608,7 +608,7 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			hintId: 'test-hint-id',
+			migrationFlowId: 'test-migration-flow-id',
 			message: '2 workspace and 1 user customizations need an update to keep working.',
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
@@ -1002,7 +1002,7 @@ suite('CustomizationMigrationService', () => {
 			disabledRequestedTypes: [],
 			disabledSourceFolderTypes: [],
 			promptOnlyHint: {
-				hintId: 'test-hint-id',
+				migrationFlowId: 'test-migration-flow-id',
 				message: '1 workspace and 0 user customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
@@ -1080,7 +1080,7 @@ suite('CustomizationMigrationService', () => {
 		}, {
 			candidates: [{ name: 'server', source: '/workspace/.vscode/mcp.json', target: '/workspace/.mcp.json' }],
 			hint: {
-				hintId: 'test-hint-id',
+				migrationFlowId: 'test-migration-flow-id',
 				message: '1 workspace and 0 user customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
