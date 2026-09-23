@@ -199,7 +199,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-preview.chat-used-context-collapsed > .chat-used-context-label {
+	.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-preview.chat-used-context-collapsed > .chat-used-context-label:not(.monaco-enable-motion *) {
 		transition: none;
 	}
 }

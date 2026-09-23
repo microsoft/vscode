@@ -4148,6 +4148,30 @@ suite('ChatListRenderer', () => {
 			});
 		});
 
+		test(`persistent progress follows system motion without a workbench override after ${source}`, async () => {
+			const { container, model, request, renderer, template, node, previous, animationContainer } = await createExpandedPersistentPreview(source);
+			container.classList.remove('monaco-enable-motion');
+			const reducedMotion = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response starts here.') });
+			renderer.renderElement(node, 0, template);
+			const header = previous.querySelector<HTMLElement>(':scope > .chat-used-context-label');
+			assert.ok(header);
+			const animations = animationContainer.getAnimations();
+			assert.deepStrictEqual({
+				animated: animations.length > 0,
+				headerDelayed: parseFloat(mainWindow.getComputedStyle(header).transitionDelay) > 0,
+				nextContentVisible: template.value.textContent?.includes('The next response starts here.'),
+			}, {
+				animated: !reducedMotion,
+				headerDelayed: source === 'tools' && !reducedMotion,
+				nextContentVisible: reducedMotion,
+			});
+			for (const animation of animations) {
+				animation.finish();
+			}
+			await timeout(0);
+		});
+
 		test(`persistent progress does not hold new content while focus keeps ${source} open`, async () => {
 			const { model, request, renderer, template, node, previous, animationContainer } = await createExpandedPersistentPreview(source);
 			const link = previous.querySelector<HTMLElement>('.chat-collapsible-content-animation a');

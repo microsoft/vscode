@@ -56,7 +56,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.chat-collapsible-content-animation {
+	.chat-collapsible-content-animation:not(.monaco-enable-motion *) {
 		transition: none !important;
 	}
 }

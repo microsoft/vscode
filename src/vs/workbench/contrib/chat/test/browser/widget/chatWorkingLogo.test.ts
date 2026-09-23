@@ -67,9 +67,11 @@ suite('ChatWorkingLogo', () => {
 	}
 
 	test('configured progress defaults to Draw and switches motions without replacing its faces', async () => {
+		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		store.add(toDisposable(() => parent.remove()));
 		const { configuration, fireChange } = createConfiguration();
 		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService())));
-		mainWindow.document.body.appendChild(logo.domNode);
+		parent.appendChild(logo.domNode);
 		const faces = [...logo.domNode.children];
 		const initial = { animation: logo.domNode.dataset.animation, animated: logo.domNode.getAnimations({ subtree: true }).length > 0 };
 		const snapshots = [];
