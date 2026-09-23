@@ -44,7 +44,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
-	function createPage(enabledSourceIds: readonly string[] = ['agentFinder']) {
+	function createPage(enabledSourceIds: readonly string[] = ['agentFinder'], visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers]) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -111,11 +111,14 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly local = [];
 			override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 		}());
-		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() { }());
+		const creationEvents: string[] = [];
+		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
+		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, closeEditor() { }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { }, selectSectionWithMarketplace() { }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
-		page.rebuildCards(new Set([AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers]));
+		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
 		function getSourceActions() {
 			const button = container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
@@ -132,7 +135,37 @@ suite('AICustomizationDiscoveryPage', () => {
 			sourceMenu = undefined;
 			await timeout(0);
 		}
-		return { page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService };
+		return {
+			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents,
+			selectImport: async (id: string) => {
+				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+				assert.ok(button);
+				button.click();
+				const action = sourceMenu?.getActions?.().find(action => action.id === `customizationDiscovery.${id}`);
+				assert.ok(action);
+				await action.run();
+				sourceMenu?.onHide?.(false);
+				sourceMenu = undefined;
+			},
+		};
+	}
+
+	for (const [action, type] of [
+		['newAgent', PromptsType.agent],
+		['newSkill', PromptsType.skill],
+		['newInstructions', PromptsType.instructions],
+		['newPrompt', PromptsType.prompt],
+	] as const) {
+		test(`Import > ${action} closes Discover before starting creation`, async () => {
+			const fixture = createPage(['agentFinder'], [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Prompts,
+			]);
+			await fixture.selectImport(action);
+			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
+		});
 	}
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
