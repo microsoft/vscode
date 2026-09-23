@@ -3980,6 +3980,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Active chat'),
 				updatedAt: constObservable(new Date()),
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
+				isArchived: constObservable(false),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
