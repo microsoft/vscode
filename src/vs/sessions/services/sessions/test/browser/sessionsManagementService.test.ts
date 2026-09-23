@@ -4183,6 +4183,9 @@ suite('SessionsManagementService', () => {
 		class DraftProvider extends TestSessionsProvider {
 			override readonly id: string;
 			override supportsQuickChats = true;
+			override readonly automations = upcastPartial<NonNullable<ISessionsProvider['automations']>>({
+				catalogueState: constObservable('ready'),
+			});
 			override sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm, supportsWorktreeConfiguration: true }];
 			readonly created: ISession[] = [];
 			readonly createOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
