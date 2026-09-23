@@ -316,7 +316,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
 					if (type === CustomizationMigrationType.McpServers) {
-						return { type, candidates: [], servers: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
+						return { type, candidates: [], servers: [], exclusions: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
 					}
 					const candidates = Array.from({ length: migrationCount }, (_, index) => ({
 						uri: URI.file(`/workspace/.github/prompts/prompt-${index}.prompt.md`),

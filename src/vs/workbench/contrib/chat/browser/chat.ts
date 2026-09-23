@@ -233,6 +233,20 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
 
+export interface IChatContextMenuActionContext {
+	readonly $chatContextMenu: true;
+	readonly item: ChatTreeItem | null;
+	readonly linkTarget?: string;
+}
+
+export function isChatContextMenuActionContext(context: unknown): context is IChatContextMenuActionContext {
+	return typeof context === 'object' && context !== null && '$chatContextMenu' in context && context.$chatContextMenu === true;
+}
+
+export function unwrapChatContextMenuActionContext(context: unknown): unknown {
+	return isChatContextMenuActionContext(context) ? context.item : context;
+}
+
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;

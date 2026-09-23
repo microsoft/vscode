@@ -73,7 +73,7 @@ export interface ITabbedModelPickerContext {
 
 /**
  * A provider-tabbed model picker with a detail card beside the hovered model and an
- * Auto row pinned below. With only the built-in provider there is no tab bar.
+ * Auto row pinned below. Enabling Auto collapses the manual model controls.
  */
 export class TabbedModelPicker extends Disposable {
 
@@ -171,10 +171,8 @@ export class TabbedModelPicker extends Disposable {
 			showCheckedItemHover: !this._isAutoSelected(context),
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
-			// Recomputed on every render so a tab switch reflects the current Auto state.
 			widgetClassNames: () => [
 				'chat-model-picker-widget',
-				...(this._isAutoSelected(this._context ?? context) ? ['auto-enabled'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
 			tabLabels: 'active',
@@ -232,6 +230,12 @@ export class TabbedModelPicker extends Disposable {
 				return welcome;
 			},
 			renderFooter: autoModel ? container => this._renderAutoRow(container, autoModel, context) : undefined,
+			isBodyCollapsed: () => {
+				const current = this._context ?? context;
+				// Keep provider and upgrade actions reachable when Auto is the only available model.
+				return this._isAutoSelected(current) && !!this._fallbackModel(current);
+			},
+			focusFooter: () => this._autoRow.value?.focus(),
 			delegate: {
 				onSelect: action => {
 					void action.run();
@@ -411,8 +415,7 @@ export class TabbedModelPicker extends Disposable {
 				: next);
 		}, section, true);
 		const badge = getModelBadge(model, { configurationAccess: context.configurationAccess, providerLabel });
-		// While Auto is choosing, a model's settings do not apply, so the card that edits
-		// them stays shut. The row is still selectable, which is what turns Auto off.
+		// Auto hides the model controls, so it must not open a model's detail card.
 		const autoEnabled = this._isAutoSelected(context);
 		let selectionVersion = this._selectionVersion;
 		const cardOptions: IModelCardOptions = {

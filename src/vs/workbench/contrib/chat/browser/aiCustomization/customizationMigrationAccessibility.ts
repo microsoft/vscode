@@ -36,7 +36,8 @@ class CustomizationMigrationAccessibleView implements IAccessibleViewImplementat
 			() => this.type === AccessibleViewType.Help ? [
 				localize('migrationHelpOverview', "The migration checklist groups supported migrations by your profile and workspace."),
 				localize('migrationHelpNavigation', "Use Tab and Shift+Tab to move between controls. Review opens the existing migration page filtered to that location. No files change until you confirm migration."),
-				localize('migrationHelpLocations', "Change destinations configures file migration locations. MCP servers always migrate to the workspace root .mcp.json."),
+				localize('migrationHelpLocations', "Change destinations configures file migration locations. MCP servers always migrate to the workspace root .mcp.json. Servers that cannot be migrated are listed separately with the reason."),
+				localize('migrationHelpMcpDetails', "Open an MCP server that cannot be migrated to review its details. Edit Configuration opens the source file and selects that server's JSON configuration."),
 				localize('migrationHelpSkip', "Skip Workspace excludes workspace migrations from the checklist count without changing files. Include Workspace restores them."),
 				localize('migrationHelpActivity', "Migration activity records successful changes locally. Expand an activity entry with Enter or Space to read its source and destination paths. Dismiss removes the activity record, not the migrated files."),
 				localize('migrationHelpView', "Use {0} to read the checklist and activity in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
