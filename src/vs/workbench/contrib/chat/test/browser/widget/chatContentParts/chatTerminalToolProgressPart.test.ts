@@ -333,8 +333,9 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 				throw createFileSystemProviderError('Full output unavailable', FileSystemProviderErrorCode.FileNotFound);
 			}
 			await availability.ready;
+			const artifactSize = availability.size;
 			return new class extends mock<IFileStatWithPartialMetadata>() {
-				override readonly size = availability.size;
+				override readonly size = artifactSize;
 			}();
 		}
 	}());
