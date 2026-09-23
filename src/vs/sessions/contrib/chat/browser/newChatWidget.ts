@@ -702,13 +702,9 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const title = hasRunningSession
-			? localize('newSession.contextualMessage.parallel.title', "Keep Building in Parallel")
-			: localize('newSession.contextualMessage.default.title', "What Do You Want to Work On?");
-		const description = hasRunningSession
-			? localize('newSession.contextualMessage.parallel.description', "Start another task while your agents keep working.")
-			: localize('newSession.contextualMessage.default.description', "Describe what you want to build, fix, or explore.");
+			? localize('newSession.contextualMessage.parallel.title', "Keep building in parallel")
+			: localize('newSession.contextualMessage.default.title', "What do you want to work on?");
 		dom.append(container, dom.$('h2.new-session-contextual-message-title')).textContent = title;
-		dom.append(container, dom.$('p.new-session-contextual-message-description')).textContent = description;
 	}
 
 	private async _prepareSessionTypeSelection(pick: IPickedSessionType): Promise<boolean> {

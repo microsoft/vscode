@@ -605,12 +605,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The experimental new-session composer shows a centered “What Do You Want to Work On?” heading with guidance to describe something to build, fix, or explore. No standalone logo is shown above the composer.'],
+		expectedVisualDescriptions: ['The experimental new-session composer shows a single centered “What do you want to work on?” heading in sentence case. No description or standalone logo is shown above the composer.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionExperimentalComposerParallel: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['When another agent session is running, the experimental new-session composer shows “Keep Building in Parallel” with guidance that another task can be started while agents keep working.'],
+		expectedVisualDescriptions: ['When another agent session is running, the experimental new-session composer shows a single centered “Keep building in parallel” heading in sentence case.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, experimentalComposerLayout: true, withRunningSession: true }),
 	}),
 	NewSessionChatBackground: defineComponentFixture({

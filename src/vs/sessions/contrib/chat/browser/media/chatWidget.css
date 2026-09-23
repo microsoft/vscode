@@ -110,11 +110,9 @@
 
 .new-session-contextual-message {
 	display: flex;
-	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	align-self: center;
-	gap: var(--vscode-spacing-size40);
 	margin-bottom: var(--vscode-spacing-size400);
 	text-align: center;
 }
@@ -125,15 +123,8 @@
 
 .new-session-contextual-message-title {
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-fontSize-heading2);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 1.4;
-	margin: 0;
-}
-
-.new-session-contextual-message-description {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 1.4;
 	margin: 0;
 }

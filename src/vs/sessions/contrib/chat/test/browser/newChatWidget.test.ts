@@ -398,13 +398,12 @@ suite('NewChatWidget', () => {
 		const defaultMessage = {
 			hidden: container.hidden,
 			title: container.querySelector('h2')?.textContent,
-			description: container.querySelector('p')?.textContent,
+			childCount: container.childElementCount,
 		};
 		updateContextualMessage(container, true, true);
 		const parallelMessage = {
 			hidden: container.hidden,
 			title: container.querySelector('h2')?.textContent,
-			description: container.querySelector('p')?.textContent,
 			childCount: container.childElementCount,
 		};
 		updateContextualMessage(container, false, true);
@@ -413,14 +412,13 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ defaultMessage, parallelMessage, legacy }, {
 			defaultMessage: {
 				hidden: false,
-				title: 'What Do You Want to Work On?',
-				description: 'Describe what you want to build, fix, or explore.',
+				title: 'What do you want to work on?',
+				childCount: 1,
 			},
 			parallelMessage: {
 				hidden: false,
-				title: 'Keep Building in Parallel',
-				description: 'Start another task while your agents keep working.',
-				childCount: 2,
+				title: 'Keep building in parallel',
+				childCount: 1,
 			},
 			legacy: { hidden: true, childCount: 0 },
 		});
