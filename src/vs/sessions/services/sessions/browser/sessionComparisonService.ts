@@ -459,7 +459,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _permissionOptions(harness: ISessionComparisonHarness, legacyPermissionLevel: string | undefined) {
 		if (harness.permissionId) {
-			return { permissionId: harness.permissionId };
+			return {
+				...(harness.modeId ? { modeId: harness.modeId } : {}),
+				permissionId: harness.permissionId,
+			};
 		}
 		if (legacyPermissionLevel) {
 			return { permissionLevel: legacyPermissionLevel };

@@ -55,6 +55,7 @@ export interface ISessionComparisonHarness {
 	readonly modelLabel?: string;
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	readonly modelConfigurationLabel?: string;
+	readonly modeId?: string;
 	readonly permissionId?: string;
 	readonly permissionLabel?: string;
 }

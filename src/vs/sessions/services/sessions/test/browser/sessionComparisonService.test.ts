@@ -957,11 +957,11 @@ suite('SessionComparisonService', () => {
 		const comparison = await service.startComparison({
 			...options,
 			attempts: [
-				{ ...options.attempts[0], harness: { ...options.attempts[0].harness, permissionId: 'autoApprove', permissionLabel: 'Allow all' } },
+				{ ...options.attempts[0], harness: { ...options.attempts[0].harness, modeId: 'autopilot', permissionId: 'autoApprove', permissionLabel: 'Allow all' } },
 				{ ...options.attempts[1], harness: { ...options.attempts[1].harness, permissionId: 'default', permissionLabel: 'Default Permissions' } },
 			],
 			judgeHarness: { ...options.judgeHarness, permissionId: 'bypassPermissions', permissionLabel: 'Bypass Permissions' },
-			synthesisHarness: { ...options.synthesisHarness, permissionId: 'autoApprove', permissionLabel: 'Allow all' },
+			synthesisHarness: { ...options.synthesisHarness, modeId: 'autopilot', permissionId: 'autoApprove', permissionLabel: 'Allow all' },
 		});
 		firstStatus.set(SessionStatus.Completed, undefined);
 		secondStatus.set(SessionStatus.Completed, undefined);
@@ -972,13 +972,14 @@ suite('SessionComparisonService', () => {
 		await service.synthesize(comparison.id);
 
 		assert.deepStrictEqual(sessionsManagementService.createCalls.map(call => ({
+			modeId: call.createOptions?.modeId,
 			permissionId: call.createOptions?.permissionId,
 			permissionLevel: call.createOptions?.permissionLevel,
 		})), [
-			{ permissionId: 'autoApprove', permissionLevel: undefined },
-			{ permissionId: 'default', permissionLevel: undefined },
-			{ permissionId: 'bypassPermissions', permissionLevel: undefined },
-			{ permissionId: 'autoApprove', permissionLevel: undefined },
+			{ modeId: 'autopilot', permissionId: 'autoApprove', permissionLevel: undefined },
+			{ modeId: undefined, permissionId: 'default', permissionLevel: undefined },
+			{ modeId: undefined, permissionId: 'bypassPermissions', permissionLevel: undefined },
+			{ modeId: 'autopilot', permissionId: 'autoApprove', permissionLevel: undefined },
 		]);
 	});
 
