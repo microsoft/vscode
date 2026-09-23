@@ -1380,7 +1380,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _restoreInitialChat(session: ISession): IChat {
 		const chats = session.chats.get();
-		let initialChat = chats[0];
+		let initialChat = chats[0] ?? session.mainChat.get();
 		const sessionState = this._sessionStates.get(session.resource);
 		if (sessionState?.activeChatResource) {
 			try {

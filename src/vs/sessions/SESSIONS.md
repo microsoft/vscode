@@ -111,7 +111,7 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 ### Changes
 
-Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
+Sessions expose compact aggregate change summaries; chats own file changes and selectable changeset catalogues. A provider may project a session-owned changeset into each chat catalogue, using the changeset resource to identify equivalent projections across chats. Every chat publishes a changeset observable; `undefined` means its catalogue has not been published yet and an empty array is an authoritative empty catalogue. The Changes editor shows the active chat's catalogue, including projected session-owned entries, and preserves its order. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
 Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
 
@@ -125,7 +125,7 @@ Sessions may expose the artifacts and references recorded by the agent. Both sha
 
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
-GitHub issue and pull-request references promoted into dedicated pills retain their optional recorded-reference ID. Presentation code uses that ID for per-item removal and never infers record identity from a title or URL.
+Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside any repository-discovered associations. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. References retain their optional recorded-reference ID; presentation uses that ID for per-item removal and never infers record identity from a title or URL.
 
 ## Provider contract
 
@@ -152,6 +152,8 @@ A provider that must establish backend state before presenting a session may imp
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
+
+The product protocol link `<product-protocol>://agents/new?workspace=<encoded URI>&prompt=<encoded text>` opens the Agents Window and applies its workspace and prompt through the same draft handoff. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 

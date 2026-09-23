@@ -65,6 +65,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { SessionTestAppButton } from './sessionTestAppButton.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
@@ -245,6 +246,7 @@ export class ChatView extends AbstractChatView {
 	private _isActive = true;
 	/** Whether this view occupies the first group in the session's chat grid. */
 	private readonly _isPrimaryObs = observableValue(this, false);
+	private _isSplit = false;
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
@@ -323,6 +325,7 @@ export class ChatView extends AbstractChatView {
 			},
 			this._buildStyles(this._isActive)
 		));
+		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
 			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
@@ -839,7 +842,12 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
-	override setPrimary(primary: boolean): void {
+	override setPrimary(primary: boolean, split = false): void {
+		if (this._isSplit !== split) {
+			this._isSplit = split;
+			this._widget.setMaximumWidth(split ? Number.POSITIVE_INFINITY : AGENTS_CENTERED_CONTENT_MAX_WIDTH);
+			this._layoutChatWidget();
+		}
 		if (this._isPrimaryObs.get() === primary) {
 			return;
 		}

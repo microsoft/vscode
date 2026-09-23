@@ -453,7 +453,7 @@ export type ISessionTurnFileChange = ISessionFileChange & {
  * Well-known id of the changeset that holds the diff between a session's branch
  * and its base (e.g. `main...feature`). Shared so that consumers which always
  * want the branch diff — regardless of the changeset currently selected in the
- * Changes view — can locate it in {@link ISession.changesets} by id.
+ * Changes view — can locate it in {@link IChat.changesets} by id.
  */
 export const BRANCH_CHANGES_CHANGESET_ID = 'branch';
 
@@ -474,7 +474,7 @@ export const SESSION_CHANGES_CHANGESET_ID = 'session';
  * Well-known id of the changeset that holds the diff made during the session's
  * **last turn** only (as opposed to the cumulative session diff). Consumers that
  * want to reflect just the most recent turn — e.g. the chat input status pills —
- * can locate it in {@link ISession.changesets} by id.
+ * can locate it in {@link IChat.changesets} by id.
  *
  * Must match the agent host provider's `ChangesetKind.Turn` value.
  */
@@ -483,6 +483,8 @@ export const TURN_CHANGES_CHANGESET_ID = 'turn';
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
+	/** Stable backing resource shared by equivalent changeset projections, when available. */
+	readonly resource?: URI;
 	/** Display label for the changeset. */
 	readonly label: string;
 	/** Optional description for the changeset. */
@@ -680,6 +682,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
+	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
@@ -808,10 +812,6 @@ export interface ISession {
 	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
-	/** File changes produced by the session. */
-	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * The artifacts and references the agent recorded for this session (pull
 	 * requests, issues, files, …). Both categories share this observable and are
@@ -858,7 +858,7 @@ export interface ISessionCreationReference {
 	readonly turnId?: string;
 }
 
-/** Returns whether any chat or session-level fallback reports file changes. */
+/** Returns whether any chat or the session summary reports file changes. */
 export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
 	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
 		return true;
@@ -867,7 +867,7 @@ export function sessionHasChanges(session: ISession, reader: IReader | undefined
 	if (changesSummary !== undefined) {
 		return changesSummary.files > 0;
 	}
-	return session.changes.read(reader).length > 0;
+	return session.mainChat.read(reader).changes.read(reader).length > 0;
 }
 
 /**

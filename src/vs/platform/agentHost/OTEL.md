@@ -14,6 +14,95 @@ This is the architecture and integration reference for OTel in Agent Host sessio
 
 ## First Response Diagnostics
 
+### Opt-in OTel export contract (version 1)
+
+The existing Agent Host OTel pipeline also exports content-free diagnostic
+metadata spans. This uses the same exporter configuration, queue, flush and
+SQLite store as host session metadata, **independently of
+`telemetry.telemetryLevel`**. Product telemetry and the existing logs are
+unchanged. OTel must be enabled with a supported destination; content capture
+need not be enabled. With OTel off, neither diagnostic spans nor renderer
+diagnostic requests are emitted.
+
+| Span name | Source | Measurement boundary |
+|---|---|---|
+| `vscode.agent_host.turn_timing` | `host` | Existing host turn tracker start through completion, cancellation or failure |
+| `vscode.agent_host.first_response` | `renderer` | Existing renderer invocation start through its terminal `finally` |
+
+These are standalone **zero-duration metadata spans**, not chat, model,
+inference, or tool spans. Their span timestamps indicate export observation
+time, not the start of the measured operation. They do not have `gen_ai.*`
+operation, token, cost, prompt or response attributes. Do not count them as
+model calls or add their span durations to latency totals. Read their numeric
+measurement attributes instead. No cross-process durations are reconstructed
+from wall clocks.
+
+Every attribute below has the prefix **`vscode.agent_host.`**. Timing numbers
+are **milliseconds**; counts and ordinals are unitless. JSONL and OTLP JSON
+exports preserve numeric and boolean types. SQLite stores generic attributes
+as text, so consumers must parse these values according to the schema below.
+Absent measurements are omitted in every route, never converted to `0`.
+A real observed `0` is retained (as `'0'` in SQLite).
+
+Session anchor spans advertise `vscode.agent_host.timingSchemaVersion=1`.
+Eval consumers can use this to wait for terminal diagnostics after native
+`invoke_agent` roots arrive, within a bounded export-readiness window. Older
+builds without the marker require no additional wait. Missing diagnostics at
+the deadline remain missing; the marker is not proof that a turn completed.
+
+| Attributes | Definition |
+|---|---|
+| `schemaVersion`, `source` | Numeric `1`; `host` or `renderer` |
+| `provider`, `turnId` | Exact provider identifier and protocol turn identifier |
+| `agentSessionId`, `chatId` | Optional opaque backend IDs, not session/chat URIs or telemetry chat-ID hashes |
+| Host `result`, `isSubagentSession` | `success`, `error`, or `cancelled`; existing host subagent classification |
+| Host `totalTime` | Existing local turn-tracker elapsed time through completion |
+| Host `timeToProviderDispatch` | Turn start to provider dispatch; absent if not observed |
+| Host `timeToFirstProgress`, `timeToFirstSubstantiveProgress` | Turn start to existing first visible/substantive progress boundaries; absent if not observed |
+| Host `sendStageWorkingDirectoryMs`, `sendStageModelSelectionMs`, `sendStageAttachmentsMs`, `sendStageContributionsMs` | Elapsed time in each existing pre-send stage that ran; an interrupted open stage retains its partial duration |
+| Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
+| Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
+| Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
+| Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
+| Renderer `firstResponseTextMs`, `totalElapsedMs` | Invocation to qualifying first live root markdown, and invocation to terminal outcome |
+| Renderer `hasResponseText`, `rootToolCallsBeforeFirstText` | Whether qualifying text occurred; distinct live root tools before that text, absent without text |
+| Renderer `rendererRootInvocationOrdinal`, `trustInteractionRequired` | Existing renderer root-attempt ordinal and interactive-trust marker |
+
+Join host **`provider + turnId`** to renderer **`provider + requestId`**
+(equivalently its `turnId` alias), never timestamps. Optional IDs are normalized
+to opaque IDs before transport, not copied from renderer URI-valued product
+telemetry. Identifiers must contain 1–256 ASCII letters, digits, underscores,
+dots or hyphens; invalid optional identifiers are omitted and invalid join
+identifiers suppress the record rather than being truncated or guessed.
+Session/chat identifiers need not match historical log formatting.
+
+The renderer sends one best-effort `vscode/reportAgentHostFirstResponse`
+extension request when the host advertises `_meta['vscode.agentHostTiming']`
+as `true`. This capability is advertised only for enabled diagnostic export.
+The host validates and allowlists the request before exporting through
+`IAgentHostOTelService`; this is not a generated AHP protocol extension.
+Old/disabled hosts receive no request. Disconnection/export failure does not
+fail or delay the invocation, and delivery is not retried.
+
+Host duplicate completion signals are suppressed by the existing tracker;
+renderer observation/replay does not add another emission site. Resuming a
+previously completed turn can produce another completion segment with the
+same turn ID and retained root ordinal. Preserve that ambiguity rather than
+assuming a one-to-one join or summing repeated segments. A renderer
+`notDispatched` attempt can have no backend IDs or host partner. Cancellation
+and errors can also occur before dispatch: missing progress/dispatch fields
+remain missing. Crashes and permanent hangs can omit terminal diagnostics.
+
+File export writes these spans to the configured JSONL file (commonly
+`agent-host-traces.jsonl`). OTLP/HTTP JSON and SQLite DB mode use the existing
+metadata routes. As with session metadata, protobuf/gRPC external forwarding
+is not supported for these host-produced spans: enable DB mode to retain them
+locally, or use file/HTTP JSON. Console export remains a summary, not a
+structured measurement sink. Export destination/resource configuration is
+user-owned; the diagnostics add no workspace paths, content or credentials.
+
+### Existing product telemetry and logs
+
 The renderer reports `agentHost.firstResponse` and writes a content-free
 `[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1
 contains `requestId`, `provider`, optional backend `agentSessionId` / `chatId`,
@@ -287,6 +376,14 @@ src/vs/platform/otel/
 | `chat.agentHost.otel.dbSpanExporter.enabled` | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` |
 
 `OTEL_EXPORTER_OTLP_HEADERS` flows via env inheritance only. `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, and `OTEL_RESOURCE_ATTRIBUTES` are not translated from the local `chat.agentHost.otel.*` settings, but **enterprise managed settings (policy)** can set them on the spawned host: the renderer forwards the resolved policy to the starter, and managed values win over inherited env.
+
+Starting in VS Code 1.140, the shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
+`telemetry.capture.identity` for the legacy Local extension's policy reference.
+Its hidden `chat.agentHost.otel.captureIdentity` delivery slot is not translated
+into environment variables: the native Copilot runtime owns managed identity
+enforcement. The content-capture shorthand does not enable identity. See the
+[Local harness documentation](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md#governed-identity-capture)
+for the extension-host implementation.
 
 `readAgentHostOTelEnv()` ([node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) is the inverse: it reads `process.env` inside the agent host and produces the `ResolvedConfig` that drives mode selection and outbound forwarding.
 

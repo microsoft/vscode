@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -30,6 +31,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -49,7 +51,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
@@ -86,6 +88,7 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
+	const mainChat = upcastPartial<IChat>({ changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -107,8 +110,6 @@ function createSession(id: string, opts: {
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
-		changesets: observableValue(`changesets-${id}`, []),
-		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -117,7 +118,7 @@ function createSession(id: string, opts: {
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
-		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
+		mainChat: observableValue<IChat>(`mainChat-${id}`, mainChat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
@@ -191,7 +192,6 @@ suite('Sessions - SessionsList', () => {
 					status: 'pending',
 					trigger: 'schedule',
 					startedAt: '2026-08-14T00:00:00.000Z',
-					leaderWindowId: 1,
 				}]);
 			};
 			const renderer = new SessionSectionRenderer(
@@ -604,6 +604,12 @@ suite('Sessions - SessionsList', () => {
 				? mainWindow.getComputedStyle(stickyHeaderRow).getPropertyValue('--vscode-list-hoverBackground').trim()
 				: undefined;
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
+			list.layout(0, 400);
+			await timeout(0);
+			const headerRestoredWhileHidden = sessionsHeader.parentElement === sessionsHeaderContainer;
+			list.layout(120, 400);
+			await timeout(0);
+			const headerVisibleAfterRelayout = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
 			list.openFind();
 			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
 			const findFocusedAfterStickyScroll = mainWindow.document.activeElement === findInput;
@@ -614,6 +620,7 @@ suite('Sessions - SessionsList', () => {
 			await timeout(30);
 			const findFocusedAfterFiltering = mainWindow.document.activeElement === findInput;
 			const headerStickyAfterFiltering = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
+			const headerAttachedAfterFiltering = sessionsHeader.parentElement !== null;
 			list.closeFind();
 			await timeout(350);
 			tree.scrollTop = 0;
@@ -624,10 +631,13 @@ suite('Sessions - SessionsList', () => {
 				headerInStickyContainer,
 				stickyHeaderHoverBackground,
 				navigationVisibleAfterScroll,
+				headerRestoredWhileHidden,
+				headerVisibleAfterRelayout,
 				findFocusedAfterStickyScroll,
 				headerStickyAfterOpeningFind,
 				findFocusedAfterFiltering,
 				headerStickyAfterFiltering,
+				headerAttachedAfterFiltering,
 				navigationRestoredAfterScroll: container.querySelector('.monaco-list-rows .session-section-shortcut') !== null,
 				headerRestoredAfterScroll: sessionsHeader.closest('.monaco-list-rows') !== null,
 				headerRowHeight: sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height,
@@ -636,10 +646,13 @@ suite('Sessions - SessionsList', () => {
 				headerInStickyContainer: true,
 				stickyHeaderHoverBackground: 'transparent',
 				navigationVisibleAfterScroll: false,
+				headerRestoredWhileHidden: true,
+				headerVisibleAfterRelayout: true,
 				findFocusedAfterStickyScroll: true,
 				headerStickyAfterOpeningFind: true,
 				findFocusedAfterFiltering: true,
 				headerStickyAfterFiltering: false,
+				headerAttachedAfterFiltering: true,
 				navigationRestoredAfterScroll: true,
 				headerRestoredAfterScroll: true,
 				headerRowHeight: '42px',
@@ -696,7 +709,6 @@ suite('Sessions - SessionsList', () => {
 					trigger: 'schedule',
 					sessionResource: runResource,
 					startedAt: '2026-08-10T00:00:00.000Z',
-					leaderWindowId: 1,
 				}], undefined);
 				statuses.push(renderer.automationStatus.get());
 			}
@@ -764,7 +776,6 @@ suite('Sessions - SessionsList', () => {
 					trigger: 'schedule',
 					sessionResource: runningSession.resource,
 					startedAt: '2026-08-10T00:00:00.000Z',
-					leaderWindowId: 1,
 				},
 				{
 					id: 'needs-input',
@@ -773,7 +784,6 @@ suite('Sessions - SessionsList', () => {
 					trigger: 'schedule',
 					sessionResource: needsInputSession.resource,
 					startedAt: '2026-08-10T00:00:00.000Z',
-					leaderWindowId: 1,
 				},
 			], undefined);
 
@@ -1683,45 +1693,41 @@ suite('Sessions - SessionsList', () => {
 		test('does not read or observe detailed changes when the summary is available', () => {
 			const changesSummary = observableValue<ISessionChangesSummary>('summary', { files: 7, additions: 40, deletions: 20 });
 			const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
-			const changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
 			let detailedReads = 0;
-			let changesetReads = 0;
+			const base = createTestSession('Session').session;
 			const session: ISession = {
-				...createTestSession('Session').session,
+				...base,
 				changesSummary,
-				changes: derived(reader => {
-					detailedReads++;
-					return changes.read(reader);
-				}),
-				changesets: derived(reader => {
-					changesetReads++;
-					return changesets.read(reader);
+				mainChat: constObservable({
+					...base.mainChat.get(),
+					changes: derived(reader => {
+						detailedReads++;
+						return changes.read(reader);
+					}),
 				}),
 			};
 			const results: ReturnType<typeof getSessionDiffStats>[] = [];
 			disposables.add(autorun(reader => results.push(getSessionDiffStats(session, reader))));
 
 			changes.set([{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 }], undefined);
-			changesets.set([], undefined);
 			changesSummary.set({ files: 0, additions: 0, deletions: 0 }, undefined);
 
-			assert.deepStrictEqual({ results, detailedReads, changesetReads }, {
+			assert.deepStrictEqual({ results, detailedReads }, {
 				results: [{ files: 7, insertions: 40, deletions: 20 }, undefined],
 				detailedReads: 0,
-				changesetReads: 0,
 			});
 		});
 
-		test('uses the default changeset only while the summary is absent', () => {
+		test('uses the main chat changes only while the summary is absent', () => {
 			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', undefined);
 			const changes = observableValue<readonly ISessionFileChange[]>('changes', [
 				{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 },
 			]);
-			const changeset = upcastPartial<ISessionChangeset>({ isDefault: constObservable(true), changes });
+			const base = createTestSession('Session').session;
 			const session: ISession = {
-				...createTestSession('Session').session,
+				...base,
 				changesSummary,
-				changesets: constObservable([changeset]),
+				mainChat: constObservable({ ...base.mainChat.get(), changes }),
 			};
 			const results: ReturnType<typeof getSessionDiffStats>[] = [];
 			disposables.add(autorun(reader => results.push(getSessionDiffStats(session, reader))));
@@ -1749,7 +1755,7 @@ suite('Sessions - SessionsList', () => {
 			const zeroSummary = { files: 0, additions: 0, deletions: 0 };
 			const stats = (changesSummary: ISessionChangesSummary | undefined, detailedChanges = changes) => getSessionDiffStats({
 				...base,
-				changes: constObservable(detailedChanges),
+				mainChat: constObservable({ ...base.mainChat.get(), changes: constObservable(detailedChanges) }),
 				changesSummary: constObservable(changesSummary),
 			});
 
@@ -1903,8 +1909,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			changes: constObservable([]),
-			changesets: constObservable([]),
+			mainChat: constObservable(upcastPartial<IChat>({ changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -3168,6 +3173,8 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(title),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(status),
+				changes: constObservable([]),
+				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
 				origin: origin ? { kind: origin } : undefined,
 			});
@@ -3331,6 +3338,8 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
+				changes: constObservable([]),
+				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
 			});
 			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
@@ -3546,6 +3555,8 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
+				changes: constObservable([]),
+				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
 			});
 			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
@@ -3844,6 +3855,46 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('does not reposition an already visible chat when it becomes active', async () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const activeChat = observableValue<IChat>('active-chat', main);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat,
+				sticky: constObservable(false),
+				isCreated: constObservable(true),
+				visibleChatTabs: constObservable([main, peer]),
+			});
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(activeSession);
+					override readonly visibleSessions = constObservable([activeSession]);
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const revealSpy = sinon.spy(WorkbenchObjectTree.prototype, 'reveal');
+			disposables.add(toDisposable(() => revealSpy.restore()));
+
+			activeChat.set(peer, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.strictEqual(revealSpy.callCount, 0);
+		});
+
 		test('ordinary list updates preserve a collapsed active session and user selection', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -3973,7 +4024,7 @@ suite('Sessions - SessionsList', () => {
 					hasNativeGlyph: true,
 					isCollapsible: true,
 					isCollapsed: false,
-					fontSize: '16px',
+					fontSize: '11px',
 					opacity: '0',
 					paddingLeft: '0px',
 					pointerEvents: 'none',
@@ -4705,6 +4756,8 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(id),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
+				changes: constObservable([]),
+				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
 			});
 		}

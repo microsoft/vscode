@@ -42,6 +42,7 @@ import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../comm
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -1851,6 +1852,31 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(request, error);
+	});
+
+	test('first-response diagnostics require an enabled host capability, not product telemetry', async () => {
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			provider: 'copilot', requestId: 'request-1', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown',
+			trustInteractionRequired: true, totalElapsedMs: 0, hasResponseText: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await client.reportFirstResponse(diagnostic);
+			assert.strictEqual(transport.sentMessages.length, 0);
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, enabled));
+			transport.sentMessages.length = 0;
+			const report = client.reportFirstResponse(diagnostic);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportAgentHostFirstResponse', params: diagnostic,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
 	});
 
 	test('removeSessionArtifact sends the VS Code extension request', async () => {

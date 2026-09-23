@@ -715,6 +715,14 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 	private readonly _onDidStartServerRequest = this._register(new Emitter<IChatSessionServerRequest>());
 	readonly onDidStartServerRequest = this._onDidStartServerRequest.event;
+	private readonly _onDidChangeHistory = this._register(new Emitter<readonly IChatSessionHistoryItem[]>());
+	readonly onDidChangeHistory = this._onDidChangeHistory.event;
+	get history(): readonly IChatSessionHistoryItem[] { return this._history; }
+
+	updateHistory(history: readonly IChatSessionHistoryItem[]): void {
+		this._history = history;
+		this._onDidChangeHistory.fire(history);
+	}
 
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 	readonly forkSession: IChatSession['forkSession'];
@@ -723,7 +731,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 	constructor(
 		readonly sessionResource: URI,
-		readonly history: readonly IChatSessionHistoryItem[],
+		private _history: readonly IChatSessionHistoryItem[],
 		readonly title: string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
@@ -1294,8 +1302,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
 				sessionResource => {
-					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
-					return chatURI ? URI.parse(chatURI) : undefined;
+					const backendSession = this._resolveSessionUri(sessionResource);
+					return backendSession ? URI.parse(this._getChatURIOrDefault(sessionResource, backendSession)) : undefined;
 				},
 				this._logService,
 			)),
@@ -1538,9 +1546,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						));
 						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
-						// Enrich history with inner tool calls from subagent
-						// child sessions. Subscribes to each child session so
-						// its tool calls appear grouped under the parent widget.
+						// Settled child chats need only catalog links; active and legacy children retain inline observation.
 						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState, historySubagentObservations);
 						this._logService.trace(`[AgentHost] provideChatSessionContent: subagent enrichment done for ${resolvedSession.toString()}`);
 
@@ -2006,6 +2012,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			});
 			this._telemetryService.publicLog2<IAgentHostFirstResponseEvent, AgentHostFirstResponseClassification>('agentHost.firstResponse', timing);
 			this._logService.info(`[AgentHostFirstResponse] ${JSON.stringify({ ...timing, sessionId, turnId: request.requestId })}`);
+			void this._config.connection.reportFirstResponse?.({
+				...timing,
+				agentSessionId: sessionId ? AgentSession.id(sessionId) : undefined,
+				chatId: chatId ? parseChatUri(chatId)?.chatId : undefined,
+			}).catch(() => this._logService.debug('[AgentHostFirstResponse] OTel diagnostic could not be delivered'));
 		}
 	}
 
@@ -2437,6 +2448,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
+		let historyRefreshPending = false;
+		const refreshHistory = () => {
+			const state = this._getSessionState(sessionStr, chatURI);
+			const chatSession = this._activeSessions.get(sessionResource);
+			if (!historyRefreshPending || !state || state.activeTurn || !chatSession) {
+				return;
+			}
+			historyRefreshPending = false;
+			const lookup = this._createTurnModelLookup(sessionResource, lastTurnModelSelection(state)?.id);
+			const allowTurnResume = !this._isChatReadOnly(sessionStr, chatURI);
+			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
+				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
+				this._config.connection.resourceUris, this._config.provider, turn => this._getTurnErrorDetails(turn, allowTurnResume)));
+		};
+		disposables.add(chatSub.onDidChange(refreshHistory));
+		disposables.add(chatSub.onDidApplyAction(envelope => {
+			if (envelope.action.type === ActionType.ChatTurnsLoaded) {
+				historyRefreshPending = true;
+				refreshHistory();
+			}
+		}));
 		// Conversation contents live on the chat, while its catalog title and
 		// other session-scoped fields live on the session. Re-evaluate on either.
 		const onChange = () => {
@@ -4919,12 +4951,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	// ---- Subagent child session observation ---------------------------------
 
-	/**
-	 * Enriches serialized history with inner tool calls from subagent child
-	 * sessions. For each subagent tool call found in the history, subscribes
-	 * to the corresponding child session and appends its inner tool calls
-	 * (with `subAgentInvocationId` set) to the response parts.
-	 */
+	/** Adds catalog links and enriches only active or legacy subagents with their inner tool calls. */
 	private async _enrichHistoryWithSubagentCalls(
 		history: IChatSessionHistoryItem[],
 		parentSession: URI,
@@ -4979,6 +5006,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						part.toolSpecificData.chatResource,
 					);
 					part.toolSpecificData.chatResource = childChatUri;
+					if (subagentChat
+						&& (subagentChat.status & (SessionStatus.Idle | SessionStatus.Error)) !== 0
+						&& (subagentChat.status & SessionStatus.InProgress) === 0) {
+						part.toolSpecificData.isChatAvailable = true;
+						part.toolSpecificData.isActive = false;
+						delete part.toolSpecificData.hasStarted;
+						continue;
+					}
 					part.toolSpecificData.isChatAvailable = false;
 					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId, childChatUri, requestId });
 				}

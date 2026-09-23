@@ -34,6 +34,7 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionGridLayout } from '../../services/sessions/browser/sessionsPartService.js';
@@ -496,7 +497,13 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
-		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
+		const cardSize = getAgentsPartCardContentSize(
+			width,
+			height,
+			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.layoutService.isVisible(Parts.SIDEBAR_PART),
+			isPhoneLayout(this.layoutService)
+		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);

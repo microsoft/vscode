@@ -69,13 +69,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
-			// Prefer the remote-tracking ref ('origin/<branch>') over the local
-			// branch when both exist, so worktrees are based on the most
-			// up-to-date commit rather than a possibly stale local branch.
-			// This mirrors the extension-host CLI which resolves a branch's
-			// upstream and uses that as the worktree start point. Falls back
-			// to the local branch when the remote-tracking ref is missing
-			// (e.g. fresh clone with no remote-tracking refs yet).
+			// Retain the remote-tracking ref for consumers of the default branch's
+			// start point (e.g. the diff base); worktrees use the selected ref.
 			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
 			if (hasRemoteRef) {
 				return { name: branch, startPoint: `origin/${branch}` };
@@ -156,10 +151,6 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
-		const resolvedCommitish = options.preferRemoteBranch
-			? await this._resolveRemoteTrackingBranch(repositoryRoot, options.commitish, options.track) ?? options.commitish
-			: options.commitish;
-
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
 		if (options.newBranchName) {
@@ -174,7 +165,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			args.push('-b', options.newBranchName);
 		}
 
-		args.push(options.path.fsPath, resolvedCommitish);
+		args.push(options.path.fsPath, options.commitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be

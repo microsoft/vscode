@@ -97,6 +97,14 @@ const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow
 	token: CancellationToken,
 ) => Promise<IOpenNewSessionResult>;
 const canApplyWorkspaceDefault = Reflect.get(NewChatWidget.prototype, '_canApplyWorkspaceDefault') as (this: NewChatWidget) => boolean;
+const isPreferredServable = Reflect.get(NewChatWidget.prototype, '_isPreferredServable') as (
+	this: {
+		readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
+		readonly sessionsManagementService: { getSessionTypesForFolder(folderUri: URI): readonly { readonly providerId: string; readonly sessionType: { readonly id: string } }[] };
+	},
+	folderUri: URI,
+	pick: IPreferredSessionType,
+) => boolean;
 const prepareSessionTypeSelection = Reflect.get(NewChatWidget.prototype, '_prepareSessionTypeSelection') as (
 	this: {
 		readonly _workspacePicker: {
@@ -299,6 +307,7 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
+	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
 		readonly pickerVisibility: SessionInputPickerVisibility;
 		placeRepositoryControls(container?: HTMLElement): void;
@@ -385,6 +394,7 @@ suite('NewChatWidget', () => {
 		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
 		const workspaceVisibility: boolean[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
+			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
 					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
@@ -430,11 +440,11 @@ suite('NewChatWidget', () => {
 			workspaceVisibility,
 		}, {
 			items: [
-				{ label: 'Workspace', className: '' },
+				{ label: isWeb ? 'Select Repository' : 'Workspace', className: '' },
 				{ label: '', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
-			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false }],
+			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: isWeb ? 'repo' : 'project', attachesContext: false }],
 			workspaceVisibility: [false, true],
 		});
 	});
@@ -953,6 +963,25 @@ suite('NewChatWidget', () => {
 		}, {
 			tokenCount: 2, firstCancelledWhenSecondStarted: true, createdSessionId: 'second',
 		});
+	});
+
+	test('restricts saved harness preferences to the explicit creation destination on web', () => {
+		const folder = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+		const picks = [
+			{ providerId: 'cloud', sessionTypeId: 'cloud' },
+			{ sessionTypeId: 'cloud' },
+			{ providerId: 'creation', sessionTypeId: 'sandbox' },
+		];
+
+		assert.deepStrictEqual(picks.map(pick => isPreferredServable.call({
+			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [
+					{ providerId: 'cloud', sessionType: { id: 'cloud' } },
+					{ providerId: 'creation', sessionType: { id: 'sandbox' } },
+				],
+			},
+		}, folder, pick)), isWeb ? [false, false, true] : [true, true, true]);
 	});
 
 	test('sends the user pick to openNewSession, falling back to the preferred type', async () => {

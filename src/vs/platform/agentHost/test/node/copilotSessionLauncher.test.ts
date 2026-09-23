@@ -689,6 +689,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createGitHubMcpToolConfig: createConfigs[0].githubMcpToolConfig,
 				createPluginDirectories: createConfigs[0].pluginDirectories,
 				createMcpServers: createConfigs[0].mcpServers,
+				createMcpOAuthTokenStorage: createConfigs[0].mcpOAuthTokenStorage,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
 				createDisabledMcpServers: createConfigs[0].disabledMcpServers,
@@ -700,6 +701,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
 				resumeMcpServers: resumeConfigs[0].mcpServers,
+				resumeMcpOAuthTokenStorage: resumeConfigs[0].mcpOAuthTokenStorage,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
 				resumeDisabledMcpServers: resumeConfigs[0].disabledMcpServers,
@@ -708,6 +710,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
 				resumeStreaming: resumeConfigs[0].streaming,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
+				ephemeralMcpOAuthTokenStorage: createConfigs[1].mcpOAuthTokenStorage,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
 				mcpProjectionTraces: logService.traces.filter(message => message.includes('MCP launch projection:')).map(message => JSON.parse(message.slice(message.indexOf('{')))),
@@ -736,6 +739,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					},
 				},
 				createSkillDirectories: [],
+				createMcpOAuthTokenStorage: 'in-memory',
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				createDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				createHasExitPlanHandler: true,
@@ -754,6 +758,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					},
 				},
 				resumeSkillDirectories: [],
+				resumeMcpOAuthTokenStorage: 'in-memory',
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				resumeDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				resumeHasExitPlanHandler: true,
@@ -761,6 +766,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				resumeStreaming: true,
 				ephemeralMcpServers: {},
+				ephemeralMcpOAuthTokenStorage: 'in-memory',
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
 				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				mcpProjectionTraces: [
@@ -1627,12 +1633,17 @@ suite('CopilotSessionLauncher resume config', () => {
 				await toolSearchOf({ toolSearchEnabled: false }, { id: 'claude-opus-4.8' }),
 				// unsupported model → disabled even with the flag on
 				await toolSearchOf({ toolSearchEnabled: true }, { id: 'preview-model-x' }),
+				// supported future Claude and GPT-6 families enable tool search directly
+				await toolSearchOf({ toolSearchEnabled: true }, { id: 'claude-opus-5.5' }),
+				await toolSearchOf({ toolSearchEnabled: true }, { id: 'gpt-6-luna' }),
 				// a family alias makes an unsupported preview model tool-search-capable
 				await toolSearchOf({ toolSearchEnabled: true, modelCapabilityOverrides: { 'preview-model-x': { family: 'claude-opus-4.8' } } }, { id: 'preview-model-x' }),
 			],
 			[
 				{ enabled: false },
 				{ enabled: false },
+				{ enabled: true, deferThreshold: 1 },
+				{ enabled: true, deferThreshold: 1 },
 				{ enabled: true, deferThreshold: 1 },
 			]
 		);
@@ -1680,7 +1691,9 @@ suite('CopilotSessionLauncher auto tier', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: {
+				options: { update: async () => ({ success: true }) },
+			},
 		} as unknown as CopilotSession;
 		const client: Pick<CopilotClient, 'createSession' | 'resumeSession'> = {
 			createSession: async config => {
@@ -1756,4 +1769,19 @@ suite('CopilotSessionLauncher auto tier', () => {
 			]
 		);
 	});
+
+	for (const [tier, tierSource] of [['intelligence', 'managed'], ['balance', 'explicit'], ['efficiency', 'explicit']] as const) {
+		test(`passes the advertised ${tierSource} ${tier} at creation without post-create policy mutation`, async () => {
+			const model: ModelSelection = JSON.parse(JSON.stringify({ id: 'auto', config: { tier, tierSource } }));
+			assert.deepStrictEqual({
+				created: await capiOptionsFor('create', model),
+				resumed: await capiOptionsFor('resume', model),
+				emptyFallback: await capiOptionsFor('fallback', model),
+			}, {
+				created: [{ autoTier: tier }],
+				resumed: [undefined],
+				emptyFallback: [undefined, { autoTier: tier }],
+			});
+		});
+	}
 });

@@ -280,6 +280,18 @@ class DispatchingWorkspacePicker extends WorkspacePicker {
 	}
 }
 
+class TestWebWorkspacePicker extends WebWorkspacePicker {
+	getItems() {
+		return this._buildItems();
+	}
+
+	async select(label: string): Promise<void> {
+		const entry = this.getItems().find(candidate => candidate.label === label);
+		assert.ok(entry?.item, `Expected picker item '${label}'`);
+		await this._dispatchPickerItem(entry.item);
+	}
+}
+
 class TestAutomationsWorkspacePicker extends AutomationsWorkspacePicker {
 	getItems() {
 		return this._buildItems();
@@ -4375,6 +4387,70 @@ function hostEntry(providerId: string): IAgentHostFilterEntry {
 
 suite('WebWorkspacePicker - Host scope updates', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('an empty creation group offers repositories without an environment or extension provider', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const repositoryUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
+		const baseWorkspace = createMockProvider('creation').resolveWorkspace(URI.file('/repo'))!;
+		const workspace: ISessionWorkspace = {
+			...baseWorkspace,
+			uri: repositoryUri,
+			label: 'microsoft/vscode',
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: baseWorkspace.folders.map(folder => ({ ...folder, root: repositoryUri, workingDirectory: repositoryUri })),
+		};
+		const creationProvider = {
+			...createMockProvider('creation'),
+			resolveWorkspace: (uri: URI) => uri.toString() === repositoryUri.toString() ? workspace : undefined,
+			browseActions: [{
+				...makeBrowseAction('creation', SESSION_WORKSPACE_GROUP_GITHUB, 'Choose Repository...'),
+				attachesContext: false,
+				run: async () => workspace,
+			}],
+		};
+		providersService.setProviders([creationProvider]);
+		const changed = disposables.add(new Emitter<void>());
+		let selectedHost: IAgentHostFilterEntry = {
+			...hostEntry('sandboxes'),
+			providerIds: ['creation'],
+			grouped: true,
+			connectable: false,
+			status: AgentHostFilterConnectionStatus.Disconnected,
+			sessionCreationProviderId: 'creation',
+		};
+		const picker = createTestPicker(
+			disposables, providersService, undefined, undefined, TestWebWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false },
+			undefined, undefined, undefined, upcastPartial<IAgentHostFilterService>({
+				onDidChange: changed.event,
+				get selectedHost() { return selectedHost; },
+			}),
+		);
+		assert.ok(picker instanceof TestWebWorkspacePicker);
+		const emptyItems = picker.getItems().map(item => ({ label: item.label, disabled: item.disabled }));
+		await picker.select('Choose Repository...');
+		let selectionEvents = 0;
+		disposables.add(picker.onDidSelectWorkspace(() => selectionEvents++));
+		const environment = createMockProvider('environment', { browseActions: [makeBrowseAction('environment', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Folder...')] });
+		const cloud = createMockProvider('default-copilot', { browseActions: [makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Extension Repository...')] });
+		providersService.setProviders([creationProvider, environment, cloud]);
+		selectedHost = { ...selectedHost, providerIds: ['creation', 'environment'], status: AgentHostFilterConnectionStatus.Connected };
+		changed.fire();
+
+		assert.deepStrictEqual({
+			emptyItems,
+			selectedProvider: picker.selectedResolved?.providerId,
+			selectedRepository: picker.selectedFolderUri?.toString(),
+			selectionEvents,
+			items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+		}, {
+			emptyItems: [{ label: 'Choose Repository...', disabled: false }],
+			selectedProvider: 'creation',
+			selectedRepository: repositoryUri.toString(),
+			selectionEvents: 0,
+			items: ['microsoft/vscode', 'Choose Repository...'],
+		});
+	});
 
 	test('only host selection and provider membership changes reset an empty workspace', () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());

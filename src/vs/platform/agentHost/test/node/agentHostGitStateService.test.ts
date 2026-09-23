@@ -16,7 +16,7 @@ import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '..
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
@@ -427,6 +427,53 @@ suite('AgentHostGitStateService', () => {
 			runEvents: []
 		});
 	});
+
+	test('keeps chat Git state separate from the containing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'session-main' };
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: sessionGitState,
+		});
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+
+		const before = h.service.getSessionGitState(chat);
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+		const afterRefresh = h.service.getSessionGitState(chat);
+		h.setGitResult(undefined);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			afterRefresh,
+			afterUnavailable: h.service.getSessionGitState(chat),
+			sessionGitState: h.service.getSessionGitState(SESSION),
+			runEvents: h.runEvents,
+		}, {
+			before: undefined,
+			afterRefresh: chatGitState,
+			afterUnavailable: undefined,
+			sessionGitState,
+			runEvents: [chat, chat],
+		});
+	}));
+
+	test('clears chat Git state when the chat is removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.setGitResult(chatGitState);
+		await h.service.refreshSessionGitState(chat, undefined);
+
+		h.stateManager.removeChat(SESSION, chat);
+
+		assert.strictEqual(h.service.getSessionGitState(chat), undefined);
+	}));
 
 	test('uses the selected worktree base branch when refreshing git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();

@@ -34,6 +34,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -68,6 +69,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/comm
 import { getSessionComparisonWorkspaceError, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from './sessionComparisonSetupDialog.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 
 // #region --- New Chat Widget ---
@@ -299,6 +301,11 @@ export class NewChatWidget extends Disposable {
 		);
 		const comparisonDescription = localize('runMultipleAgents.description', "Compares results and lets you synthesize the best concepts");
 
+		const creationProviderId = observableFromEvent(this, this.agentHostFilterService.onDidChange, () => isWeb ? this.agentHostFilterService.selectedHost?.sessionCreationProviderId : undefined);
+		const creationProviderKey = NewSessionCreationProviderIdContext.bindTo(contextKeyService);
+		this._register(autorun(reader => creationProviderKey.set(creationProviderId.read(reader) ?? '')));
+		this._register(toDisposable(() => creationProviderKey.reset()));
+
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
@@ -324,6 +331,7 @@ export class NewChatWidget extends Disposable {
 			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
 			sessionTypePickerOptions: {
+				providerId: creationProviderId,
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 				additionalAction: {
 					id: 'sessions.runMultipleAgents',
@@ -587,6 +595,7 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
@@ -804,8 +813,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean {
+		const creationProviderId = isWeb ? this.agentHostFilterService.selectedHost?.sessionCreationProviderId : undefined;
 		return this.sessionsManagementService.getSessionTypesForFolder(folderUri).some(t =>
-			(pick.providerId === undefined || t.providerId === pick.providerId)
+			(!creationProviderId || t.providerId === creationProviderId)
+			&& (pick.providerId === undefined || t.providerId === pick.providerId)
 			&& t.sessionType.id === pick.sessionTypeId);
 	}
 
@@ -1012,16 +1023,17 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
+		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
 		const workspaceTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
-			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
+			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
+			ariaLabel: selectsRepository ? localize('newSessionWorkspacePicker.repositoryAriaLabel', "Choose a repository for the new session") : localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
 			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
 			focusCommand: {
 				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
 				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
 				enabled: this._useConsolidatedRemoteWorkspaces,
 			},
-			icon: Codicon.project,
+			icon: selectsRepository ? Codicon.repo : Codicon.project,
 			reflectsWorkspace: true,
 			attachesContext: false,
 		};

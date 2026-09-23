@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -17,11 +18,13 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { COMPARE_AGENTS_ENABLED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
@@ -45,6 +48,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stubContextKeyService(instantiationService, configuration);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
 				.split('\n')
@@ -65,6 +69,35 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
+	for (const sessionCreationProviderId of [undefined, 'creation']) {
+		test(`describes repository creation only for a creation host (provider: ${sessionCreationProviderId})`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, {
+				selectedHost: upcastPartial<IAgentHostFilterEntry>({ sessionCreationProviderId }),
+			});
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+			assert.deepStrictEqual({
+				browserRepositorySearch: content.includes('When choosing a GitHub repository in the browser, search or enter a GitHub URL or owner/repository.'),
+				repositoryCreation: content.includes('Open Select Repository to choose its repository.'),
+				firstSend: content.includes('Selecting a repository does not start an environment; sending your first message does.'),
+				defaultModel: content.includes('Agent Default means the host chooses the model.'),
+			}, {
+				browserRepositorySearch: isWeb,
+				repositoryCreation: sessionCreationProviderId !== undefined,
+				firstSend: sessionCreationProviderId !== undefined,
+				defaultModel: sessionCreationProviderId !== undefined,
+			});
+		});
+	}
+
 	test('describes subagent groups and restoring filtered pills from another context menu', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -73,6 +106,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const content = provider.provideContent();
@@ -97,6 +131,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
@@ -115,6 +150,44 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
+	test('describes the existing response-selection input by default', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.strictEqual(
+			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
+			'When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input.',
+		);
+	});
+
+	test('describes the experimental response-selection menu when enabled', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({
+			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.strictEqual(
+			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
+			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask with /btw opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
+		);
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -123,6 +196,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
@@ -140,6 +214,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
@@ -162,6 +237,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stubContextKeyService(instantiationService, configuration);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent().split('\n');
@@ -201,6 +277,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stubContextKeyService(instantiationService, configuration, promoteNewChatAction);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
@@ -235,6 +312,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const backgroundHelp = provider.provideContent().split('\n').find(line => line.includes('Set Background'));

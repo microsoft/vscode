@@ -29,17 +29,19 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
-import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
+import { CustomizationMigrationService as BaseCustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AgentHostMcpServerMigrationProvider } from '../../../browser/agentSessions/agentHost/agentHostMcpServerMigrationProvider.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
 class TestPromptsService extends MockPromptsService {
@@ -144,6 +146,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 	readonly requestedSourceFolderTypes: PromptsType[] = [];
 	override readonly activeSessionResource;
 	override readonly activeHarness;
+	mcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider | undefined;
 
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
@@ -162,6 +165,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			id: sessionType,
 			label: this.harnessLabel,
 			icon: Codicon.copilot,
+			mcpServerMigrationProvider: this.mcpServerMigrationProvider,
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: async () => [],
@@ -181,6 +185,35 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 				},
 			},
 		};
+	}
+}
+
+class CustomizationMigrationService extends BaseCustomizationMigrationService {
+	constructor(
+		promptsService: TestPromptsService,
+		harnessService: TestCustomizationHarnessService,
+		activeClientService: IAgentHostActiveClientService,
+		agentHostCustomizationService: IAgentHostCustomizationService,
+		fileService: IFileService,
+		logService: ILogService,
+		configurationService: TestConfigurationService,
+		configurationResolverService: TestConfigurationResolverService,
+	) {
+		super(promptsService, harnessService, configurationService);
+		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
+			harnessService,
+			activeClientService,
+			agentHostCustomizationService,
+			fileService,
+			logService,
+			configurationService,
+			configurationResolverService,
+			new TestMcpService(),
+		));
+	}
+
+	protected override generateHintId(): string {
+		return 'test-hint-id';
 	}
 }
 
@@ -429,6 +462,7 @@ suite('CustomizationMigrationService', () => {
 					type: 'mcpServers',
 					servers: [],
 					candidates: [],
+					exclusions: [],
 					discoveryComplete: true,
 					coverage: {
 						restrictedByMcpAccess: false,
@@ -437,13 +471,12 @@ suite('CustomizationMigrationService', () => {
 				},
 			],
 			hint: {
-				message: 'Found 2 workspace customizations and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
+				hintId: 'test-hint-id',
+				message: '2 workspace and 3 user customizations need an update to keep working.',
 				counts: [
 					{ type: CustomizationMigrationType.UserData, count: 1 },
 					{ type: CustomizationMigrationType.PromptFiles, count: 2 },
 					{ type: CustomizationMigrationType.ConfiguredLocations, count: 2 },
-					{ type: CustomizationMigrationType.McpServers, count: 1 },
 				],
 			},
 			localHint: undefined,
@@ -462,7 +495,7 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('uses the session harness label in migration hints', async () => {
+	test('uses scope counts in migration hints', async () => {
 		const promptsService = store.add(new TestPromptsService([
 			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 		]));
@@ -479,8 +512,8 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			message: 'Found 1 workspace customization that is present but not used by Claude and could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
+			hintId: 'test-hint-id',
+			message: '1 workspace and 0 user customizations need an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 	});
@@ -505,8 +538,8 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			message: 'Found 2 workspace customizations and 2 user customizations that are present but not used by Claude and could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
+			hintId: 'test-hint-id',
+			message: '2 workspace and 2 user customizations need an update to keep working.',
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
 				{ type: CustomizationMigrationType.PromptFiles, count: 3 },
@@ -533,8 +566,8 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			message: 'Found 2 workspace customizations and 1 user customization that are present but not used by Claude and could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
+			hintId: 'test-hint-id',
+			message: '2 workspace and 1 user customizations need an update to keep working.',
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
 				{ type: CustomizationMigrationType.PromptFiles, count: 2 },
@@ -542,7 +575,7 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('reports unsupported MCP servers when there are no file migrations', async () => {
+	test('does not report non-migratable MCP servers', async () => {
 		const promptsService = store.add(new TestPromptsService([]));
 		const harnessService = new TestCustomizationHarnessService();
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
@@ -587,11 +620,7 @@ suite('CustomizationMigrationService', () => {
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
 
-		assert.deepStrictEqual(hint, {
-			message: 'Found 2 MCP servers that are not fully supported by Copilot.',
-			target: CustomizationMigrationHintTarget.McpServers,
-			counts: [{ type: CustomizationMigrationType.McpServers, count: 2 }],
-		});
+		assert.strictEqual(hint, undefined);
 	});
 
 	test('gates MCP migration candidate planning and execution by setting', async () => {
@@ -697,7 +726,7 @@ suite('CustomizationMigrationService', () => {
 			target,
 		}, {
 			disabledMigration: {
-				servers: [{ id: 'mcp.config.ws0.server', name: 'server', supported: true }],
+				servers: [],
 				candidates: [],
 			},
 			disabledHint: undefined,
@@ -770,15 +799,23 @@ suite('CustomizationMigrationService', () => {
 			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
 			readsBeforeSupportSettled: [],
-			result: { migratedCount: 0, failures: ['noLongerEligible'] },
-			reads: [],
-			writes: [],
-			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: {} },
+			result: { migratedCount: 1, failures: [] },
+			reads: [
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.mcp.json',
+				'/queued-before-plan/.mcp.json',
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.mcp.json',
+			],
+			writes: ['/queued-before-plan/.mcp.json', '/queued-before-plan/.vscode/mcp.json'],
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
 		});
 	});
 
-	test('keeps MCP support diagnostics when MCP migration is disabled', async () => {
+	test('does not compute MCP migration or compatibility hints when MCP migration is disabled', async () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -859,17 +896,10 @@ suite('CustomizationMigrationService', () => {
 			fileReads: fileProvider.readRequests.map(resource => resource.path),
 		}, {
 			migration: {
-				servers: [
-					{ id: 'mcp.config.ws0.supported', name: 'supported', supported: true },
-					{ id: 'mcp.config.ws0.unsupported', name: 'unsupported', supported: false },
-				],
+				servers: [],
 				candidates: [],
 			},
-			hint: {
-				message: 'Found 1 MCP server that is not fully supported by Copilot.',
-				target: CustomizationMigrationHintTarget.McpServers,
-				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
-			},
+			hint: undefined,
 			fileReads: [],
 		});
 	});
@@ -930,8 +960,8 @@ suite('CustomizationMigrationService', () => {
 			disabledRequestedTypes: [],
 			disabledSourceFolderTypes: [],
 			promptOnlyHint: {
-				message: 'Found 1 workspace customization that is present but not used by Copilot and could be migrated.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
+				hintId: 'test-hint-id',
+				message: '1 workspace and 0 user customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
 			promptOnlyRequestedTypes: [PromptsType.prompt],
@@ -1008,15 +1038,15 @@ suite('CustomizationMigrationService', () => {
 		}, {
 			candidates: [{ name: 'server', source: '/workspace/.vscode/mcp.json', target: '/workspace/.mcp.json' }],
 			hint: {
-				message: 'Found 1 workspace MCP server that can be migrated for Copilot.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
+				hintId: 'test-hint-id',
+				message: '1 workspace and 0 user customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
-			changedDuringWriteResult: { migratedCount: 0, failures: ['noLongerEligible'] },
+			changedDuringWriteResult: { migratedCount: 1, failures: [] },
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
-			source: '{"servers":{"server":{"command":"node"}}}',
-			target: '{"mcpServers":{}}',
+			source: '{\n\t"servers": {}\n}',
+			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "stdio",\n\t\t\t"command": "node"\n\t\t}\n\t}\n}',
 		});
 	});
 

@@ -456,7 +456,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 			if (session && !isQuickChat && isCreated) {
 				const target = this.managedTabs.readTarget(reader);
-				const hasChanges = (session.changes.read(reader).length ?? 0) > 0;
+				const hasChanges = session.activeChat.read(reader).changes.read(reader).length > 0;
 				const ensureChangesActive = changesActivationPendingForSession === sessionKey && hasChanges;
 				if (ensureChangesActive) {
 					changesActivationPendingForSession = undefined;

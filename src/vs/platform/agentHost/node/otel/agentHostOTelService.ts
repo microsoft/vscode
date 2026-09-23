@@ -26,6 +26,7 @@ import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
 import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { IAgentSessionComparisonMetadata } from '../../common/state/sessionState.js';
+import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -247,6 +248,43 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
 	}
 
+	get diagnosticsEnabled(): boolean {
+		const hasDestination = this._config.exporterType === 'console'
+			|| (this._config.exporterType === 'file' && !!this._config.filePath)
+			|| (this._config.exporterType === 'otlp-http' && !!this._config.otlpEndpoint);
+		return this._config.enabled && (this._config.dbSpanExporter || (hasDestination && this._canForwardSyntheticSpan()));
+	}
+
+	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void {
+		this._emitTimingDiagnostic(AgentHostTurnTimingSpanName, diagnostic, 'host');
+	}
+
+	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void {
+		this._emitTimingDiagnostic(AgentHostFirstResponseSpanName, diagnostic, 'renderer');
+	}
+
+	private _emitTimingDiagnostic(name: string, diagnostic: IAgentHostTurnTimingDiagnostic | IAgentHostFirstResponseDiagnostic, source: 'host' | 'renderer'): void {
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const attributes = agentHostTimingAttributes(diagnostic, source);
+		if (!attributes) {
+			this._logService.warn('[agentHost.otel] skipped timing diagnostic with invalid join identifiers');
+			return;
+		}
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name,
+			traceId: generateUuid().replaceAll('-', ''),
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: { ...this._config.resourceAttributes, ...attributes },
+			events: [],
+		});
+	}
+
 	async getSdkTelemetryConfig(): Promise<TelemetryConfig | undefined> {
 		if (!this._config.enabled) {
 			return undefined;
@@ -326,6 +364,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 					[AgentHostComparisonAttemptCountAttribute]: comparison.attemptCount,
 					...(comparison.attemptIndex !== undefined ? { [AgentHostComparisonAttemptIndexAttribute]: comparison.attemptIndex } : {}),
 				} : {}),
+				'vscode.agent_host.timingSchemaVersion': 1,
 			},
 			events: [],
 		});
@@ -496,6 +535,9 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private async _emitSyntheticSpan(span: ICompletedSpanData): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this._config.dbSpanExporter) {
 			await this._ensureStarted();
 		} else if (!this._forwarder) {
@@ -508,7 +550,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		try {
 			this._spanStore?.insertSpan(span);
 		} catch (err) {
-			this._logService.warn('[agentHost.otel] failed to persist session title span', err);
+			this._logService.warn('[agentHost.otel] failed to persist metadata span', err);
 		}
 		const result = { spans: [span], rejected: 0, errors: [] };
 		this._forwarder?.forwardSpans?.(result);
