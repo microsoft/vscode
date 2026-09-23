@@ -4,10 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IGitAuthentication, ILocalGitService } from '../../../../platform/git/common/localGitService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { parseGitHubCloneUrl } from '../browser/githubRepoFetcher.js';
+import { getExistingGitHubAuthenticationToken } from '../browser/pluginGitHubAuthentication.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
+
+const GITHUB_HTTPS_URL_PREFIX = 'https://github.com/';
+
+type GitProcessError = Error & { code?: number | string; stderr?: string };
+
+function isCanonicalGitHubCloneUrl(cloneUrl: string): boolean {
+	if (!parseGitHubCloneUrl(cloneUrl)) {
+		return false;
+	}
+	const url = new URL(cloneUrl);
+	return url.hostname.toLowerCase() === 'github.com' && !url.port;
+}
 
 /**
  * Desktop implementation that always runs git locally via the shared process.
@@ -22,6 +41,9 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	constructor(
 		@ILocalGitService private readonly _localGitService: ILocalGitService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	private _withCancel<T>(token: CancellationToken | undefined, fn: (operationId: string) => Promise<T>): Promise<T> {
@@ -33,11 +55,34 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	}
 
 	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, id => this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref));
+		await this._withCancel(token, id => this._withGitHubAuthenticationFallback(
+			'clone',
+			cloneUrl,
+			token,
+			() => this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref, { logErrors: false }),
+			authentication => this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref, { authentication }),
+			async () => {
+				if (await this._fileService.exists(targetDir)) {
+					await this._fileService.del(targetDir, { recursive: true, useTrash: false });
+				}
+			},
+		));
 	}
 
-	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
-		return this._withCancel(token, id => this._localGitService.pull(id, repoDir.fsPath, { allowHardResetOnDivergence: true }));
+	async pull(repoDir: URI, remoteUrl?: string, token?: CancellationToken): Promise<boolean> {
+		return this._withCancel(token, id => this._withGitHubAuthenticationFallback(
+			'pull',
+			remoteUrl,
+			token,
+			() => this._localGitService.pull(id, repoDir.fsPath, {
+				allowHardResetOnDivergence: true,
+				logErrors: false,
+			}),
+			authentication => this._localGitService.pull(id, repoDir.fsPath, {
+				allowHardResetOnDivergence: true,
+				authentication,
+			}),
+		));
 	}
 
 	async checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void> {
@@ -52,15 +97,85 @@ export class NativePluginGitCommandService implements IPluginGitService {
 		return this._localGitService.revParse(repoDir.fsPath, ref);
 	}
 
-	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
+	async fetch(repoDir: URI, remoteUrl?: string, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, id => this._withGitHubAuthenticationFallback(
+			'fetch',
+			remoteUrl,
+			token,
+			() => this._localGitService.fetch(id, repoDir.fsPath, { logErrors: false }),
+			authentication => this._localGitService.fetch(id, repoDir.fsPath, { authentication }),
+		));
 	}
 
-	async fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void> {
-		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
+	async fetchRepository(repoDir: URI, remoteUrl?: string, token?: CancellationToken): Promise<void> {
+		await this.fetch(repoDir, remoteUrl, token);
 	}
 
 	async revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number> {
 		return this._localGitService.revListCount(repoDir.fsPath, fromRef, toRef);
+	}
+
+	private async _withGitHubAuthenticationFallback<T>(
+		operation: string,
+		remoteUrl: string | undefined,
+		token: CancellationToken | undefined,
+		runNative: () => Promise<T>,
+		runWithAuthentication: (authentication: IGitAuthentication) => Promise<T>,
+		beforeRetry?: () => Promise<void>,
+	): Promise<T> {
+		const canUseEditorAuthentication = remoteUrl !== undefined && isCanonicalGitHubCloneUrl(remoteUrl);
+		let authentication = canUseEditorAuthentication ? await this._getGitHubAuthentication(token) : undefined;
+		this._throwIfCancelled(token);
+
+		try {
+			return await runNative();
+		} catch (error) {
+			const isAuthenticationFailure = this._isAuthenticationFailure(error);
+			if (isAuthenticationFailure && !authentication && canUseEditorAuthentication) {
+				authentication = await this._getGitHubAuthentication(token);
+				this._throwIfCancelled(token);
+			}
+			if (!authentication || !isAuthenticationFailure) {
+				this._logGitError(operation, error);
+				throw error;
+			}
+
+			this._throwIfCancelled(token);
+			this._logService.warn(`[NativePluginGitCommandService] Native Git authentication failed for '${operation}'. Retrying with VS Code authentication.`);
+			await beforeRetry?.();
+			this._throwIfCancelled(token);
+			return runWithAuthentication(authentication);
+		}
+	}
+
+	private async _getGitHubAuthentication(cancellationToken: CancellationToken | undefined): Promise<IGitAuthentication | undefined> {
+		const accessToken = await getExistingGitHubAuthenticationToken(this._authenticationService, this._logService, ['repo']);
+		if (cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return accessToken ? {
+			urlPrefix: GITHUB_HTTPS_URL_PREFIX,
+			authorizationHeader: `Authorization: Basic ${encodeBase64(VSBuffer.fromString(`x-access-token:${accessToken}`))}`,
+		} : undefined;
+	}
+
+	private _isAuthenticationFailure(error: unknown): boolean {
+		const candidate = error as GitProcessError | undefined;
+		if (candidate?.code !== undefined && candidate.code !== 128 && candidate.code !== '128') {
+			return false;
+		}
+		const details = `${candidate?.stderr ?? ''}\n${candidate?.message ?? ''}`;
+		return /authentication failed|invalid username or token|(?:could not read|unable to get) (?:username|password)|terminal prompts disabled/i.test(details);
+	}
+
+	private _logGitError(operation: string, error: unknown): void {
+		const candidate = error as GitProcessError | undefined;
+		this._logService.error(`[NativePluginGitCommandService] git ${operation} failed:`, candidate?.message ?? String(error), candidate?.stderr ?? '');
+	}
+
+	private _throwIfCancelled(token: CancellationToken | undefined): void {
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 	}
 }
