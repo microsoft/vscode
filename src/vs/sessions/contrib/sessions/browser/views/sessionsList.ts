@@ -2942,16 +2942,13 @@ function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 
 
 //#region Sessions List Control
 
-export interface ISessionsListControlOptions {
+interface ISessionsListControlBaseOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly findWidgetContainer?: HTMLElement;
-	readonly sessionsHeader?: HTMLElement;
-	readonly sessionsHeaderContainer?: HTMLElement;
-	readonly layoutSessionsHeader?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -2970,6 +2967,16 @@ export interface ISessionsListControlOptions {
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
 }
+
+export type ISessionsListControlOptions = ISessionsListControlBaseOptions & ({
+	readonly sessionsHeader: HTMLElement;
+	readonly sessionsHeaderContainer: HTMLElement;
+	readonly layoutSessionsHeader?: () => void;
+} | {
+	readonly sessionsHeader?: undefined;
+	readonly sessionsHeaderContainer?: undefined;
+	readonly layoutSessionsHeader?: undefined;
+});
 
 /**
  * @deprecated Use {@link ISessionsListControlOptions} instead.
@@ -3188,6 +3195,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
+		if ((this.options.sessionsHeader === undefined) !== (this.options.sessionsHeaderContainer === undefined)) {
+			throw new Error('Sessions header and its container must be provided together.');
+		}
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
@@ -3349,6 +3359,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 		);
 		this._delegate = delegate;
+		const sessionsHeaderRenderer = this.options.sessionsHeader
+			? [new SessionsHeaderRenderer(this.options.sessionsHeader, this.options.sessionsHeaderContainer, () => this.options.layoutSessionsHeader?.())]
+			: [];
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -3358,9 +3371,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[
 				sessionRenderer,
 				chatRenderer,
-				...(this.options.sessionsHeader && this.options.sessionsHeaderContainer
-					? [new SessionsHeaderRenderer(this.options.sessionsHeader, this.options.sessionsHeaderContainer, () => this.options.layoutSessionsHeader?.())]
-					: []),
+				...sessionsHeaderRenderer,
 				shortcutSectionRenderer,
 				sectionRenderer,
 				groupRenderer,
