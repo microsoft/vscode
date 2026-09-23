@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, mergeClientAgentMergeFolders, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -333,6 +333,57 @@ suite('Agent Merge gate', () => {
 				[SessionConfigKey.AgentMerge]: undefined,
 				[SessionConfigKey.AgentMergeController]: undefined,
 			},
+		});
+	});
+
+	test('moves the elevated configuration of earlier versions to its own key when writing the session folder', () => {
+		const folderKey = 'file:///repo';
+		const injectedConfiguration = { previous: { [SessionConfigKey.Mode]: 'interactive' }, applied: { [SessionConfigKey.Mode]: 'autopilot' } };
+		const legacy = {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: { injectedConfiguration },
+		};
+
+		assert.deepStrictEqual({
+			sessionFolder: withAgentMergeFolderState(legacy, folderKey, folderKey, { enabled: false })[SessionConfigKey.AgentMergeInjectedConfiguration],
+			otherFolder: withAgentMergeFolderState(legacy, 'file:///other', folderKey, { enabled: true })[SessionConfigKey.AgentMergeInjectedConfiguration],
+		}, {
+			sessionFolder: injectedConfiguration,
+			otherFolder: undefined,
+		});
+	});
+
+	test('lifecycle updates keep the user settings as they are', () => {
+		const folderKey = 'file:///other';
+		const values = {
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer' } },
+			[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { totalPromptCount: 1 } },
+			[SessionConfigKey.AgentMergeInjectedConfiguration]: { previous: {}, applied: {} },
+		};
+
+		assert.deepStrictEqual(withAgentMergeFolderControllerState(values, folderKey, 'file:///repo', { totalPromptCount: 2 }), {
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer' } },
+			[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { totalPromptCount: 2 } },
+		});
+	});
+
+	test('merges a client write into the other folders, keying it on the host and dropping a foreign chat', () => {
+		const values = {
+			[SessionConfigKey.AgentMergeFolders]: {
+				'file:///repo': { enabled: false, overrides: { fixCI: false } },
+				'file:///other': { enabled: true, chat: 'copilot:/session#peer' },
+			},
+		};
+		const merged = mergeClientAgentMergeFolders(values, {
+			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
+			'file:///third': { enabled: true, chat: 'copilot:/another-session#chat' },
+			'file:///invalid': { enabled: 'yes' },
+		}, chat => chat === 'copilot:/session#peer');
+
+		assert.deepStrictEqual(merged, {
+			'file:///repo': { enabled: false, overrides: { fixCI: false } },
+			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
+			'file:///third': { enabled: true },
 		});
 	});
 

@@ -17,7 +17,7 @@ import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '..
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeInjectedConfiguration, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderState, withAgentMergeInjectedConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeInjectedConfiguration, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, AgentMergeFolderControllerState } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -144,6 +144,11 @@ export class AgentMergeController extends Disposable {
 			const sessionFolderKey = this._getSessionFolderKey(session);
 			const previousStates = readAgentMergeFolderStates(event.previous?.values, sessionFolderKey);
 			const currentStates = readAgentMergeFolderStates(event.current?.values, sessionFolderKey);
+			// Unrelated changes, such as a model or mode pick, leave monitoring as it is.
+			if (structuralEquals([...previousStates], [...currentStates])
+				&& structuralEquals(readAgentMergeInjectedConfiguration(event.previous?.values), readAgentMergeInjectedConfiguration(event.current?.values))) {
+				return;
+			}
 			for (const [folderKey, current] of currentStates) {
 				const previous = previousStates.get(folderKey);
 				if (!previous?.enabled && current.enabled && current.target) {
@@ -161,6 +166,9 @@ export class AgentMergeController extends Disposable {
 			// Every action that ends a chat's turn: completion, cancellation and errors.
 			if (isAhpChatChannel(envelope.channel) && (envelope.action.type === ActionType.ChatTurnComplete || envelope.action.type === ActionType.ChatTurnCancelled || envelope.action.type === ActionType.ChatError)) {
 				void this._completeTurn(envelope.channel);
+			} else if (envelope.action.type === ActionType.SessionChatRemoved) {
+				// A removed chat's turn never reports its end.
+				void this._completeTurn(envelope.action.chat);
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
@@ -223,16 +231,32 @@ export class AgentMergeController extends Disposable {
 		this._syncSession(session);
 	}
 
+	/**
+	 * The repair turn `chat` is running, if any. Only the chat running the
+	 * repair gets its authorization: other chats working in the same folder
+	 * run their own turns concurrently. A session URI stands for its default chat.
+	 */
 	getTurnContext(chat: string): IAgentMergeTurnContext | undefined {
-		const folder = resolveGitHubStateFolder(this._stateManager, chat);
-		if (folder.folderKey === undefined) {
-			return undefined;
-		}
-		const context = this._activeTurns.get(this._runtimeKey(folder.sessionUri.toString(), folder.folderKey));
+		const caller = isAhpChatChannel(chat) ? chat : buildDefaultChatUri(chat);
+		const context = this._findActiveTurn(caller);
 		if (!context || this._stateManager.getChatState(context.chat)?.activeTurn?.id !== context.turnId) {
 			return undefined;
 		}
 		return context;
+	}
+
+	/** The runtime key and context of the repair turn `chat` is running. */
+	private _findActiveTurnEntry(chat: string): [string, IAgentMergeTurnContext] | undefined {
+		for (const entry of this._activeTurns) {
+			if (entry[1].chat === chat) {
+				return entry;
+			}
+		}
+		return undefined;
+	}
+
+	private _findActiveTurn(chat: string): IAgentMergeTurnContext | undefined {
+		return this._findActiveTurnEntry(chat)?.[1];
 	}
 
 	/**
@@ -297,6 +321,8 @@ export class AgentMergeController extends Disposable {
 			}
 			if (readAgentMergeInjectedConfiguration(state?.config?.values)) {
 				this._restoreInjectedConfiguration(session);
+			} else if (state) {
+				this._clearDisabledFolderLifecycle(session, states);
 			}
 			return;
 		}
@@ -342,6 +368,29 @@ export class AgentMergeController extends Disposable {
 		for (const [folderKey, agentMerge] of enabled) {
 			this._syncFolder(session, folderKey, agentMerge);
 		}
+		this._clearDisabledFolderLifecycle(session, states);
+	}
+
+	/**
+	 * Drops the lifecycle state of folders that were turned off, so turning one
+	 * on again binds afresh instead of resuming its old target, feedback
+	 * watermark and repair budget.
+	 */
+	private _clearDisabledFolderLifecycle(session: string, states: ReadonlyMap<string, AgentMergeFolderState>): void {
+		const folderKeys = [...states].filter(([, state]) => !state.enabled && hasAgentMergeFolderControllerState(state)).map(([folderKey]) => folderKey);
+		if (folderKeys.length === 0) {
+			return;
+		}
+		const sessionFolderKey = this._getSessionFolderKey(session);
+		let values = this._configurationService.getSessionConfigValues(session) ?? {};
+		let patch: Record<string, unknown> = {};
+		for (const folderKey of folderKeys) {
+			const folderPatch = withAgentMergeFolderControllerState(values, folderKey, sessionFolderKey, undefined);
+			patch = { ...patch, ...folderPatch };
+			values = { ...values, ...folderPatch };
+		}
+		this._logService.debug(`[AgentMergeController] Clearing the state of turned-off folders: session=${session}, folders=${folderKeys.length}`);
+		this._configurationService.updateSessionConfig(session, patch);
 	}
 
 	private _syncFolder(session: string, folderKey: string, agentMerge: AgentMergeFolderState): void {
@@ -424,6 +473,8 @@ export class AgentMergeController extends Disposable {
 			: {
 				...withAgentMergeInjectedConfiguration(undefined),
 				[SessionConfigKey.AgentMergeController]: undefined,
+				// Every folder is off, so each binds afresh when turned on again.
+				[SessionConfigKey.AgentMergeControllerFolders]: undefined,
 			};
 		this._addInjectedConfigurationRestore(patch, session, injected);
 		this._logService.info(`[AgentMergeController] Restoring session configuration: session=${session}, restoreMode=${Object.hasOwn(patch, SessionConfigKey.Mode)}, restoreApprovals=${Object.hasOwn(patch, SessionConfigKey.AutoApprove)}, preserveControllerState=${preserveControllerState}`);
@@ -468,6 +519,12 @@ export class AgentMergeController extends Disposable {
 		const state = this._stateManager.getSessionState(session.toString());
 		const agentMerge = readAgentMergeFolderState(state?.config?.values, runtime?.folderKey, this._sessionFolderKey(state));
 		const chat = runtime ? this._resolveOwningChat(session, runtime.folderKey, agentMerge) : undefined;
+		if (runtime && agentMerge?.enabled && !chat) {
+			// Waits for a chat to work in the folder again rather than repairing from another checkout.
+			this._logService.trace(`[AgentMergeController] Waiting for a chat working in the folder: session=${session}, folder=${runtime.folderKey}`);
+			runtime.backstopScheduler.schedule();
+			return;
+		}
 		if (!runtime || !state || !agentMerge?.enabled || !chat || this._stateManager.getChatState(chat)?.activeTurn) {
 			return;
 		}
@@ -492,7 +549,7 @@ export class AgentMergeController extends Disposable {
 			// Announce only on the first capture: a resumed session already has a
 			// target, so restarting the host must not repeat the notice.
 			this._postEnabledNotice(session, runtime.folderKey, { ...agentMerge, target });
-			this._updateAgentMergeState(session, runtime.folderKey, agentMerge, { target });
+			this._updateAgentMergeState(session, runtime.folderKey, { target });
 			return;
 		}
 		if (target.branchName !== branchName) {
@@ -520,7 +577,7 @@ export class AgentMergeController extends Disposable {
 			}
 			target = { ...target, pullRequestUrl };
 			this._logService.info(`[AgentMergeController] Bound folder to its pull request: session=${session}, folder=${runtime.folderKey}`);
-			this._updateAgentMergeState(session, runtime.folderKey, agentMerge, { target });
+			this._updateAgentMergeState(session, runtime.folderKey, { target });
 			return;
 		}
 		if (pullRequestUrl && pullRequestUrl.toLowerCase() !== target.pullRequestUrl.toLowerCase()) {
@@ -653,7 +710,7 @@ export class AgentMergeController extends Disposable {
 				}
 				this._activeTurns.set(key, context);
 				this._logService.info(`[AgentMergeController] Started repair turn: session=${session}, turn=${turnId}, actions=${gate.actions.join(',')}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}`);
-				this._updateAgentMergeState(session, runtime.folderKey, agentMerge, {
+				this._updateAgentMergeState(session, runtime.folderKey, {
 					lastPromptFingerprint: gate.fingerprint,
 					lastPromptAt: new Date().toISOString(),
 					repeatedPromptCount,
@@ -668,7 +725,7 @@ export class AgentMergeController extends Disposable {
 					runtime.backstopScheduler.schedule();
 					return;
 				}
-				this._updateAgentMergeState(session, runtime.folderKey, agentMerge, {
+				this._updateAgentMergeState(session, runtime.folderKey, {
 					lastPromptFingerprint: gate.fingerprint,
 					lastPromptAt: new Date().toISOString(),
 				});
@@ -727,7 +784,8 @@ export class AgentMergeController extends Disposable {
 
 	private async _processDeferredWorkflowReruns(key: string, runtime: AgentMergeRuntime, ref: PullRequestRef, target: AgentMergeTarget, headSha: string): Promise<void> {
 		const session = runtime.session;
-		const chat = this._resolveOwningChat(session, runtime.folderKey);
+		const sessionState = this._stateManager.getSessionState(session.toString());
+		const chat = this._resolveOwningChat(session, runtime.folderKey, readAgentMergeFolderState(sessionState?.config?.values, runtime.folderKey, this._sessionFolderKey(sessionState)));
 		const pending = [...runtime.deferredWorkflowReruns.values()].filter(request => !request.settled);
 		if (pending.length === 0) {
 			return;
@@ -1043,20 +1101,25 @@ export class AgentMergeController extends Disposable {
 		);
 	}
 
+	/**
+	 * Handles the end of a turn in `chat`: its repair turn, found by the chat
+	 * that runs it so a change of the chat's folder meanwhile does not lose
+	 * it, or else any turn that kept the chat's folder busy.
+	 */
 	private async _completeTurn(chat: string): Promise<void> {
-		const folder = resolveGitHubStateFolder(this._stateManager, chat);
-		if (folder.folderKey === undefined) {
+		const entry = this._findActiveTurnEntry(chat);
+		if (!entry) {
+			const folder = resolveGitHubStateFolder(this._stateManager, chat);
+			if (folder.folderKey !== undefined) {
+				this._schedule(this._runtimeKey(folder.sessionUri.toString(), folder.folderKey), 0);
+			}
 			return;
 		}
-		const key = this._runtimeKey(folder.sessionUri.toString(), folder.folderKey);
-		const context = this._activeTurns.get(key);
-		if (!context) {
-			this._schedule(key, 0);
-			return;
-		}
+		const [key, context] = entry;
 		this._activeTurns.delete(key);
-		const session = folder.sessionUri.toString();
-		const state = this._stateManager.getSessionState(folder.sessionUri);
+		const folder = { sessionUri: context.session, folderKey: context.folderKey };
+		const session = context.session;
+		const state = this._stateManager.getSessionState(session);
 		const completedTurn = this._stateManager.getChatState(context.chat)?.turns.find(turn => turn.id === context.turnId);
 		const agentMerge = readAgentMergeFolderState(state?.config?.values, folder.folderKey, this._sessionFolderKey(state));
 		const runtime = this._runtimes.get(key);
@@ -1067,7 +1130,7 @@ export class AgentMergeController extends Disposable {
 		const shouldAdvanceWatermark = context.actions.includes('addressReviews') && completedTurn?.state === TurnState.Complete;
 		this._logService.info(`[AgentMergeController] Repair turn ended: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}, advanceFeedbackWatermark=${shouldAdvanceWatermark}`);
 		if (shouldAdvanceWatermark && agentMerge.target && context.commentWatermark !== agentMerge.target.commentWatermark) {
-			this._updateAgentMergeState(session, folder.folderKey, agentMerge, {
+			this._updateAgentMergeState(session, folder.folderKey, {
 				target: { ...agentMerge.target, commentWatermark: context.commentWatermark },
 			});
 		}
@@ -1076,7 +1139,7 @@ export class AgentMergeController extends Disposable {
 		// commit is authoritative the instant the agent makes it, while the
 		// pull request's published head lags behind the push. Re-read the state
 		// so an advanced watermark is not written back stale.
-		const currentState = this._stateManager.getSessionState(folder.sessionUri);
+		const currentState = this._stateManager.getSessionState(session);
 		const current = readAgentMergeFolderState(currentState?.config?.values, folder.folderKey, this._sessionFolderKey(currentState)) ?? agentMerge;
 		if (await this._demoteMergePullRequestIfChanged(session, folder.folderKey, current, this._getConfiguration(current))) {
 			// The config write re-enters evaluation with the demoted value.
@@ -1133,9 +1196,8 @@ export class AgentMergeController extends Disposable {
 		}
 		this._logService.info(`[AgentMergeController] Turning automatic merge off because a repair turn changed the worktree: session=${session}, repairBaseCommit=${agentMerge.repairBaseCommit}, currentCommit=${currentCommit ?? 'unresolved'}`);
 		this._postNotice(session, folderKey, AgentSystemNotificationKind.AgentMergeDisabled, agentMergeMergePullRequestDemotedNotice());
-		const overrides = { ...agentMerge.overrides, mergePullRequest: 'never' } as const;
-		this._setAnnouncedConfiguration(this._runtimeKey(session, folderKey), { ...agentMerge, overrides });
-		this._updateAgentMergeState(session, folderKey, agentMerge, { overrides, repairBaseCommit: undefined });
+		this._setAnnouncedConfiguration(this._runtimeKey(session, folderKey), { ...agentMerge, overrides: { ...agentMerge.overrides, mergePullRequest: 'never' } });
+		this._updateAgentMergeState(session, folderKey, { overrides: { mergePullRequest: 'never' }, repairBaseCommit: undefined });
 		return true;
 	}
 
@@ -1165,19 +1227,29 @@ export class AgentMergeController extends Disposable {
 			return false;
 		}
 		this._logService.info(`[AgentMergeController] Starting a fresh unchanged-merge baseline after the choice was reselected: session=${session}`);
-		this._updateAgentMergeState(session, folderKey, current, { repairBaseCommit: undefined });
+		this._updateAgentMergeState(session, folderKey, { repairBaseCommit: undefined });
 		return true;
 	}
 
-	private _updateAgentMergeState(session: string, folderKey: string, current: AgentMergeFolderState, patch: Partial<AgentMergeFolderState>): void {
-		const state = this._stateManager.getSessionState(session.toString());
-		const sessionFolderKey = this._sessionFolderKey(state);
-		this._configurationService.updateSessionConfig(session, withAgentMergeFolderState(
-			this._configurationService.getSessionConfigValues(session),
-			folderKey,
-			sessionFolderKey,
-			{ ...current, ...patch },
-		));
+	/**
+	 * Updates a folder's lifecycle state on top of a fresh read, so an update
+	 * computed across an evaluation's awaits never reverts settings the user
+	 * or {@link _reconcileInjectedConfiguration} changed meanwhile. `overrides`
+	 * patches the user's overrides (demoting the merge choice). Nothing is
+	 * written once the folder is no longer enabled.
+	 */
+	private _updateAgentMergeState(session: string, folderKey: string, patch: AgentMergeFolderControllerState & { readonly overrides?: Partial<AgentMergeSessionOverrides> }): void {
+		const values = this._configurationService.getSessionConfigValues(session);
+		const sessionFolderKey = this._getSessionFolderKey(session);
+		const current = readAgentMergeFolderState(values, folderKey, sessionFolderKey);
+		if (!current?.enabled) {
+			this._logService.debug(`[AgentMergeController] Skipping a state update because Agent Merge was turned off: session=${session}, folder=${folderKey}`);
+			return;
+		}
+		const { overrides, ...controller } = patch;
+		this._configurationService.updateSessionConfig(session, overrides
+			? withAgentMergeFolderState(values, folderKey, sessionFolderKey, { ...current, ...controller, overrides: { ...current.overrides, ...overrides }, injectedConfiguration: undefined })
+			: withAgentMergeFolderControllerState(values, folderKey, sessionFolderKey, { ...current, ...controller }));
 	}
 
 	private _disable(session: string, folderKey: string, current: AgentMergeFolderState, reason: AgentMergeDisableReason, notificationKind = AgentSystemNotificationKind.AgentMergeDisabled): void {
@@ -1189,10 +1261,12 @@ export class AgentMergeController extends Disposable {
 		this._monitoredSessions.delete(key);
 		this._announcedConfigurations.delete(key);
 		this._postNotice(session, folderKey, notificationKind, reason.notice);
-		const state = this._stateManager.getSessionState(session.toString());
-		const sessionFolderKey = this._sessionFolderKey(state);
-		const next = { enabled: false, ...(current.overrides ? { overrides: current.overrides } : {}), ...(current.chat ? { chat: current.chat } : {}) };
-		const patch: Record<string, unknown> = withAgentMergeFolderState(this._configurationService.getSessionConfigValues(session), folderKey, sessionFolderKey, next);
+		const values = this._configurationService.getSessionConfigValues(session);
+		const sessionFolderKey = this._getSessionFolderKey(session);
+		// Keep the user's settings as they are now, not as `current` read them.
+		const settings = readAgentMergeFolderState(values, folderKey, sessionFolderKey) ?? current;
+		const next = { enabled: false, ...(settings.overrides ? { overrides: settings.overrides } : {}), ...(settings.chat ? { chat: settings.chat } : {}) };
+		const patch: Record<string, unknown> = withAgentMergeFolderState(values, folderKey, sessionFolderKey, next);
 		if (!this._hasOtherEnabledFolder(session, folderKey)) {
 			this._addInjectedConfigurationRestore(patch, session, readAgentMergeInjectedConfiguration(this._configurationService.getSessionConfigValues(session)));
 			Object.assign(patch, withAgentMergeInjectedConfiguration(undefined));
@@ -1207,7 +1281,8 @@ export class AgentMergeController extends Disposable {
 	 */
 	private _postNotice(session: string, folderKey: string, kind: AgentSystemNotificationKind, content: string): void {
 		try {
-			const chat = this._resolveOwningChat(session, folderKey);
+			const state = this._stateManager.getSessionState(session.toString());
+			const chat = this._resolveOwningChat(session, folderKey, readAgentMergeFolderState(state?.config?.values, folderKey, this._sessionFolderKey(state)));
 			this._options.postNotice(chat ?? buildDefaultChatUri(session), kind, content);
 		} catch (error) {
 			this._logService.warn(`[AgentMergeController] Failed to post an Agent Merge notice: session=${session}`, error);
@@ -1248,12 +1323,20 @@ export class AgentMergeController extends Disposable {
 		return directory ? URI.parse(directory) : undefined;
 	}
 
+	/**
+	 * The chat whose checkout a folder's repairs run in: the chat that turned
+	 * Agent Merge on, else the default chat for the session folder, else the
+	 * first chat working in the folder. `undefined` when no chat of the session
+	 * works in the folder any more, so its work never lands in another checkout.
+	 */
 	private _resolveOwningChat(session: string, folderKey: string, agentMerge?: Pick<AgentMergeFolderState, 'chat'>): string | undefined {
-		if (agentMerge?.chat && this._chatWorksInFolder(agentMerge.chat, folderKey)) {
-			return agentMerge.chat;
-		}
 		const state = this._stateManager.getSessionState(session.toString());
 		const defaultChat = buildDefaultChatUri(session);
+		// Client-written, so only honored for a chat of this session.
+		const isSessionChat = (chat: string) => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true;
+		if (agentMerge?.chat && isAhpChatChannel(agentMerge.chat) && isSessionChat(agentMerge.chat) && this._chatWorksInFolder(agentMerge.chat, folderKey)) {
+			return agentMerge.chat;
+		}
 		if (folderKey === this._sessionFolderKey(state)) {
 			return defaultChat;
 		}
@@ -1262,7 +1345,7 @@ export class AgentMergeController extends Disposable {
 				return chat;
 			}
 		}
-		return defaultChat;
+		return undefined;
 	}
 
 	private _chatWorksInFolder(chat: string, folderKey: string): boolean {

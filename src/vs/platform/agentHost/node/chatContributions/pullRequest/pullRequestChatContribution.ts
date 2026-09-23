@@ -52,7 +52,8 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 		const current = readAgentMergeFolderState(values, folder.folderKey, sessionFolderKey);
 		if (options.agentMerge) {
 			const overrides = { ...current?.overrides, ...options.agentMergeOptions };
-			this._configurationService.updateSessionConfig(turn.session, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, { ...current, enabled: true, overrides, chat: turn.chat }));
+			// A new pull request binds afresh, so the folder's earlier lifecycle state is not carried over.
+			this._configurationService.updateSessionConfig(turn.session, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, { enabled: true, overrides, chat: turn.chat }));
 		} else if (current?.enabled) {
 			this._configurationService.updateSessionConfig(turn.session, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, { ...current, enabled: false }));
 		}

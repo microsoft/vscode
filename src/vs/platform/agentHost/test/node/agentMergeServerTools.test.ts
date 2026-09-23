@@ -177,8 +177,9 @@ suite('Agent Merge server tools', () => {
 			rootEnabled: stateManager.rootState.config?.values[AgentMergeConfigKey.Enabled],
 		}, {
 			results: [{ enabled: true }, { enabled: true }, { enabled: false }],
-			enabledAgentMerge: { enabled: true, overrides },
-			disabledAgentMerge: { enabled: false, overrides },
+			// The elevated configuration survives, so turning Agent Merge off can still restore the user's settings.
+			enabledAgentMerge: { enabled: true, overrides, injectedConfiguration: controllerState.injectedConfiguration },
+			disabledAgentMerge: { enabled: false, overrides, injectedConfiguration: controllerState.injectedConfiguration },
 			mode: 'plan',
 			changes: 2,
 			rootEnabled: true,

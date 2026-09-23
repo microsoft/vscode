@@ -761,7 +761,8 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					},
 					mutations: ['createBranch', 'commitAll', 'push', 'createPullRequest', ...(autoMergeMethod ? ['enablePullRequestAutoMerge'] : [])]
 						.map(operation => ({ operation, agentMergeEnabled: false })),
-					sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: false, overrides })],
+					// Earlier versions kept the elevated configuration with the lifecycle state, so it moves to its own key.
+					sessionConfigUpdates: [{ ...agentMergeFolderPatch(session, { enabled: false, overrides }), [SessionConfigKey.AgentMergeInjectedConfiguration]: controllerState.injectedConfiguration }],
 					sessionConfigValues: {
 						[SessionConfigKey.AgentMerge]: undefined,
 						[SessionConfigKey.AgentMergeController]: undefined,
@@ -769,6 +770,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 							[getWorkingDirectoryKey(URI.file('/repo').toString())]: { enabled: false, overrides },
 						},
 						[SessionConfigKey.AgentMergeControllerFolders]: {},
+						[SessionConfigKey.AgentMergeInjectedConfiguration]: controllerState.injectedConfiguration,
 					},
 				});
 			});
