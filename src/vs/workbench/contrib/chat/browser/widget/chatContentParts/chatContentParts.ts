@@ -76,6 +76,7 @@ export interface IChatContentPartRenderContext {
 	readonly contentIndex: number;
 	/** Whether the response-level progress indicator owns progress animation for this render. */
 	readonly suppressProgressShimmer?: boolean;
+	readonly onWillCollapse?: (target: HTMLElement) => void;
 	/** A tool group, separate from reasoning, in the persistent progress layout. */
 	readonly isToolChain?: boolean;
 	/**

@@ -26,14 +26,15 @@ import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserTogg
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -121,6 +122,7 @@ suite('ChatListWidget', () => {
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
@@ -1111,7 +1113,9 @@ suite('ChatListWidget', () => {
 	// new end, so the revealed content grew *upwards* and pushed the summary off the top of the
 	// viewport. The summary must stay put and the content must grow downwards instead.
 	test('expanding a collapsible at the bottom of the transcript keeps its header anchored', async () => {
-		const { disposables, model, container, widget } = createWidget();
+		const { disposables, model, container, widget } = createWidget({}, configurationService => {
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		});
 
 		// Enough completed turns for the transcript to overflow the viewport, each with enough
 		// steps for the renderer to fold them into a completed-response disclosure.
@@ -1169,5 +1173,275 @@ suite('ChatListWidget', () => {
 		}, `summary moved by ${summaryMovedBy}px`);
 
 		disposables.dispose();
+	});
+
+	suite('persistent progress collapse anchoring', () => {
+		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0) {
+			const context = createWidget({ paddingBottom }, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+			}, true);
+			const { model, container, widget } = context;
+			container.classList.add('interactive-list');
+			const text = 'Keep the earlier content in place';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			if (kind === 'thinking') {
+				model.acceptResponseProgress(request, {
+					kind: 'thinking',
+					id: 'thinking',
+					value: '**Reviewing the transition**\n\nKeep the preceding paragraph still while this preview folds upward.\n\nCheck the following response after the collapse.',
+				});
+			} else {
+				for (const toolCallId of ['read', 'search', 'check']) {
+					const tool = new ChatToolInvocation({
+						invocationMessage: `Running ${toolCallId}`,
+						pastTenseMessage: `Completed ${toolCallId}`,
+					}, {
+						id: toolCallId,
+						displayName: toolCallId,
+						modelDescription: 'Test tool',
+						source: ToolDataSource.Internal,
+					}, toolCallId, undefined, {}, {}, request.id);
+					model.acceptResponseProgress(request, tool);
+					await tool.didExecuteTool(undefined);
+				}
+			}
+
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+
+			const precedingParagraph = container.querySelector<HTMLElement>('.interactive-response .value > .chat-markdown-part p:last-child');
+			const preview = container.querySelector<HTMLElement>('.chat-thinking-box');
+			assert.ok(precedingParagraph && preview);
+			return { ...context, request, precedingParagraph, preview };
+		}
+
+		async function collapsePreview({ model, request, widget }: Awaited<ReturnType<typeof createPreview>>) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response.') });
+			widget.refresh();
+			await waitForStableLayout(widget);
+		}
+
+		async function appendResponse({ model, request, widget }: Awaited<ReturnType<typeof createPreview>>) {
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('\n\n' + Array.from({ length: 12 }, (_, index) => `Following paragraph ${index}.`).join('\n\n')),
+			});
+			request.response?.complete();
+			widget.refresh();
+			await waitForStableLayout(widget);
+		}
+
+		for (const kind of ['thinking', 'tools'] as const) {
+			for (const incrementalRendering of [false, true]) {
+				test(`${kind} collapses upward without moving preceding content (incremental: ${incrementalRendering})`, async () => {
+					const context = await createPreview(kind, incrementalRendering);
+					const { container, widget, precedingParagraph, preview } = context;
+					const before = {
+						scrollTop: widget.scrollTop,
+						paragraphTop: precedingParagraph.getBoundingClientRect().top,
+						previewTop: preview.getBoundingClientRect().top,
+						previewHeight: preview.getBoundingClientRect().height,
+						atBottom: widget.isScrolledToBottom,
+					};
+
+					await collapsePreview(context);
+
+					assert.deepStrictEqual({
+						startedAtBottom: before.atBottom && before.scrollTop > 0,
+						anchorWasVisible: before.paragraphTop >= 0,
+						collapsed: preview.classList.contains('chat-used-context-collapsed'),
+						shrank: preview.getBoundingClientRect().height < before.previewHeight,
+						paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+						previewStayedAnchored: Math.abs(preview.getBoundingClientRect().top - before.previewTop) <= 1,
+						hasWorkingIndicator: !!container.querySelector('.chat-working-progress'),
+					}, {
+						startedAtBottom: true,
+						anchorWasVisible: true,
+						collapsed: true,
+						shrank: true,
+						paragraphStayedAnchored: true,
+						previewStayedAnchored: true,
+						hasWorkingIndicator: true,
+					}, `preceding content moved by ${precedingParagraph.getBoundingClientRect().top - before.paragraphTop}px`);
+				});
+			}
+
+			test(`manually collapsing ${kind} preserves its header and preceding content`, async () => {
+				const context = await createPreview(kind);
+				await collapsePreview(context);
+				const { preview, precedingParagraph, widget } = context;
+				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+				assert.ok(button);
+				button.click();
+				await waitForStableLayout(widget);
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const before = { paragraphTop: precedingParagraph.getBoundingClientRect().top, previewTop: preview.getBoundingClientRect().top };
+
+				button.click();
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+					previewStayedAnchored: Math.abs(preview.getBoundingClientRect().top - before.previewTop) <= 1,
+				}, { collapsed: true, paragraphStayedAnchored: true, previewStayedAnchored: true });
+			});
+		}
+
+		test('new response content consumes reserved space before following the bottom again', async () => {
+			const context = await createPreview('thinking', true, 32);
+			const { widget } = context;
+			const scrollTop = widget.scrollTop;
+			await collapsePreview(context);
+			const reservedPadding = widget.scrollHeight - widget.contentHeight;
+			const collapsedScrollTop = widget.scrollTop;
+
+			await appendResponse(context);
+
+			assert.deepStrictEqual({
+				reservedSpace: reservedPadding > 32,
+				collapsePreservedScrollTop: collapsedScrollTop === scrollTop,
+				remainingPadding: widget.scrollHeight - widget.contentHeight,
+				followedNewContent: widget.scrollTop > scrollTop,
+				atBottom: widget.isScrolledToBottom,
+			}, {
+				reservedSpace: true,
+				collapsePreservedScrollTop: true,
+				remainingPadding: 32,
+				followedNewContent: true,
+				atBottom: true,
+			});
+		});
+
+		for (const hold of [false, true]) {
+			test(`preserves user scroll intent while collapsing and streaming (hold: ${hold})`, async () => {
+				const context = await createPreview('thinking', true);
+				const { widget, precedingParagraph } = context;
+				if (hold) {
+					store.add(widget.acquireAutoScrollHold());
+				} else {
+					widget.scrollTop -= 16;
+				}
+				const before = { scrollTop: widget.scrollTop, paragraphTop: precedingParagraph.getBoundingClientRect().top };
+
+				await collapsePreview(context);
+				const atBottomAfterCollapse = widget.isScrolledToBottom;
+				await appendResponse(context);
+
+				assert.deepStrictEqual({
+					scrollTop: widget.scrollTop,
+					paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+					atBottomAfterCollapse,
+					atBottom: widget.isScrolledToBottom,
+				}, { scrollTop: before.scrollTop, paragraphStayedAnchored: true, atBottomAfterCollapse: hold, atBottom: false });
+			});
+		}
+
+		test('clears reserved collapse space when the view model changes', async () => {
+			const context = await createPreview('thinking', true, 32);
+			const { widget } = context;
+			await collapsePreview(context);
+			const reservedSpace = widget.scrollHeight - widget.contentHeight > 32;
+
+			widget.setViewModel(undefined);
+			widget.refresh();
+			await waitForStableLayout(widget);
+
+			assert.deepStrictEqual({
+				reservedSpace,
+				remainingPadding: widget.scrollHeight - widget.contentHeight,
+			}, { reservedSpace: true, remainingPadding: 32 });
+		});
+
+		test('completed progress summaries preserve preceding content during automatic and manual collapse', async () => {
+			const { model, container, widget } = createWidget({}, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Verbose);
+			}, true);
+			container.classList.add('interactive-list');
+			for (let turn = 0; turn < 2; turn++) {
+				const text = `question ${turn}`;
+				const request = model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				if (turn === 0) {
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+					});
+					request.response?.complete();
+				} else {
+					for (const toolCallId of ['read', 'search', 'check']) {
+						const tool = new ChatToolInvocation({
+							invocationMessage: `Running ${toolCallId}`,
+							pastTenseMessage: `Completed ${toolCallId}`,
+						}, {
+							id: toolCallId, displayName: toolCallId, modelDescription: 'Test tool', source: ToolDataSource.Internal,
+						}, toolCallId, undefined, {}, {}, request.id);
+						model.acceptResponseProgress(request, tool);
+						await tool.didExecuteTool(undefined);
+					}
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The final response.') });
+				}
+			}
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+
+			const anchor = Array.from(container.querySelectorAll<HTMLElement>('.interactive-request')).at(-1);
+			const request = model.getRequests().at(-1);
+			assert.ok(anchor && request);
+			const before = { top: anchor.getBoundingClientRect().top, atBottom: widget.isScrolledToBottom && widget.scrollTop > 0 };
+			request.response?.complete();
+			widget.refresh();
+			await waitForStableLayout(widget);
+			const automaticCollapseStayedAnchored = Math.abs(anchor.getBoundingClientRect().top - before.top) <= 1;
+
+			const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+			const summary = disclosure?.querySelector<HTMLElement>('.completed-response-summary');
+			assert.ok(disclosure && summary);
+			const automaticallyCollapsed = !disclosure.open;
+			summary.click();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const beforeManualCollapse = { top: anchor.getBoundingClientRect().top, headerTop: summary.getBoundingClientRect().top };
+			summary.click();
+			await waitForStableLayout(widget);
+
+			assert.deepStrictEqual({
+				startedAtBottom: before.atBottom,
+				automaticallyCollapsed,
+				automaticCollapseStayedAnchored,
+				manuallyCollapsed: !disclosure.open,
+				manualCollapseStayedAnchored: Math.abs(anchor.getBoundingClientRect().top - beforeManualCollapse.top) <= 1,
+				headerStayedAnchored: Math.abs(summary.getBoundingClientRect().top - beforeManualCollapse.headerTop) <= 1,
+			}, {
+				startedAtBottom: true,
+				automaticallyCollapsed: true,
+				automaticCollapseStayedAnchored: true,
+				manuallyCollapsed: true,
+				manualCollapseStayedAnchored: true,
+				headerStayedAnchored: true,
+			});
+		});
 	});
 });

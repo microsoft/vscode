@@ -1571,7 +1571,15 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 	});
 }
 
-async function renderPersistentProgressHandoff(context: ComponentFixtureContext, reasoning: boolean): Promise<void> {
+async function renderPersistentProgressHandoff(context: ComponentFixtureContext, reasoning: boolean, atBottom = false): Promise<void> {
+	const progress: NonNullable<IFixtureMessage['assistant']> = reasoning ? [{
+		kind: 'thinking',
+		text: '**Reviewing the transition**\n\nCheck how the preview collapses when the response resumes.\n\n**Keeping the next content in place**\n\nWait for the collapse to finish before showing the next paragraph.',
+		generatedTitle: 'Reviewed the progress transition',
+	}] : [
+		{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the progress renderer', complete: true },
+		{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found the related rendering tests', complete: true },
+	];
 	await renderChatWidget(context, {
 		width: 720,
 		height: 480,
@@ -1583,17 +1591,16 @@ async function renderPersistentProgressHandoff(context: ComponentFixtureContext,
 		collapseCompletedResponses: false,
 		messages: [{
 			user: 'Keep the next response in place while progress collapses',
-			assistant: reasoning ? [{
-				kind: 'thinking',
-				text: '**Reviewing the transition**\n\nCheck how the preview collapses when the response resumes.\n\n**Keeping the next content in place**\n\nWait for the collapse to finish before showing the next paragraph.',
-				generatedTitle: 'Reviewed the progress transition',
-			}] : [
-				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the progress renderer', complete: true },
-				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found the related rendering tests', complete: true },
-			],
+			assistant: atBottom ? [{
+				kind: 'markdown',
+				text: Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index + 1} stays in place while progress folds upward.`).join('\n\n'),
+			}, ...progress] : progress,
 			responseComplete: false,
 		}],
-		onRendered: ({ model }) => {
+		onRendered: ({ model, listWidget }) => {
+			if (atBottom) {
+				listWidget.scrollToEnd();
+			}
 			const request = model.getRequests().at(-1);
 			if (!request) {
 				throw new Error('The progress handoff fixture requires an active request');
@@ -2331,6 +2338,8 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		CollapseHandoff: defineThemedFixtureGroup({
 			ThinkingToMarkdown: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, true) }),
 			ToolsToMarkdown: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, false) }),
+			ThinkingAtBottom: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, true, true) }),
+			ToolsAtBottom: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, false, true) }),
 		}),
 		ReasoningTitles: defineThemedFixtureGroup({
 			SingleHeadingStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentReasoningTitle(context, false, false) }),
