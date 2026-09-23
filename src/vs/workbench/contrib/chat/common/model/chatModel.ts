@@ -2428,7 +2428,7 @@ export function parseChatImport(content: string): IExportableChatData {
 				throw new Error('Invalid chat session data');
 			}
 			// URI.revive trusts serialized external and fsPath caches.
-			return URI.from(value).toJSON();
+			return URI.from(value, true).toJSON();
 		}
 		return value;
 	}));

@@ -1771,15 +1771,16 @@ suite('parseChatImport', () => {
 	});
 
 	test('rejects malformed imported URI components', () => {
-		const data = {
+		const createData = (newResource: object) => ({
 			initialLocation: ChatAgentLocation.Chat,
 			responderUsername: 'assistant',
 			requests: [{
-				response: [{ kind: 'workspaceEdit', edits: [{ newResource: { $mid: 1, scheme: 'file', path: 42 } }] }],
+				response: [{ kind: 'workspaceEdit', edits: [{ newResource }] }],
 			}],
-		};
+		});
 
-		assert.throws(() => parseChatImport(JSON.stringify(data)), /Invalid chat session data/);
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: 'file', path: 42 }))), /Invalid chat session data/);
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: '', path: '/workspace/example.ts' }))), /Scheme is missing/);
 	});
 
 	test('preserves unrelated isTrusted properties', () => {
