@@ -274,7 +274,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 				path: resolveToolInputPath(file, this.promptPathRepresentationService),
 				movePath: changes.movePath ? resolveToolInputPath(changes.movePath, this.promptPathRepresentationService) : undefined,
 			}));
-			for (const { changes, path, movePath } of fileChanges) {
+			for (const { file, changes, path, movePath } of fileChanges) {
 				const affectedUris = movePath
 					? [{ uri: path, contents: undefined }, { uri: movePath, contents: changes.newContent ?? '' }]
 					: [{ uri: path, contents: undefined }];
