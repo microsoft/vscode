@@ -39,7 +39,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
@@ -210,6 +210,10 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 			configurationResolverService,
 			new TestMcpService(),
 		));
+	}
+
+	protected override generateHintId(): string {
+		return 'test-hint-id';
 	}
 }
 
@@ -467,8 +471,8 @@ suite('CustomizationMigrationService', () => {
 				},
 			],
 			hint: {
+				hintId: 'test-hint-id',
 				message: '2 workspace and 3 user customizations need an update to keep working.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
 				counts: [
 					{ type: CustomizationMigrationType.UserData, count: 1 },
 					{ type: CustomizationMigrationType.PromptFiles, count: 2 },
@@ -508,8 +512,8 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
+			hintId: 'test-hint-id',
 			message: '1 workspace and 0 user customizations need an update to keep working.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 	});
@@ -534,8 +538,8 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
+			hintId: 'test-hint-id',
 			message: '2 workspace and 2 user customizations need an update to keep working.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
 				{ type: CustomizationMigrationType.PromptFiles, count: 3 },
@@ -562,8 +566,8 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
+			hintId: 'test-hint-id',
 			message: '2 workspace and 1 user customizations need an update to keep working.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
 				{ type: CustomizationMigrationType.PromptFiles, count: 2 },
@@ -956,8 +960,8 @@ suite('CustomizationMigrationService', () => {
 			disabledRequestedTypes: [],
 			disabledSourceFolderTypes: [],
 			promptOnlyHint: {
+				hintId: 'test-hint-id',
 				message: '1 workspace and 0 user customizations need an update to keep working.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
 			promptOnlyRequestedTypes: [PromptsType.prompt],
@@ -1034,8 +1038,8 @@ suite('CustomizationMigrationService', () => {
 		}, {
 			candidates: [{ name: 'server', source: '/workspace/.vscode/mcp.json', target: '/workspace/.mcp.json' }],
 			hint: {
+				hintId: 'test-hint-id',
 				message: '1 workspace and 0 user customizations need an update to keep working.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
 				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },

@@ -163,14 +163,9 @@ export function isMcpServerCustomizationMigrationCandidate(candidate: Customizat
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
-export const enum CustomizationMigrationHintTarget {
-	FileMigrations = 'fileMigrations',
-	McpServers = 'mcpServers',
-}
-
 export interface ICustomizationMigrationHint {
+	readonly hintId: string;
 	readonly message: string;
-	readonly target: CustomizationMigrationHintTarget;
 	readonly counts: readonly ICustomizationMigrationCount[];
 }
 
