@@ -90,7 +90,8 @@ export class NewSessionTourContribution extends Disposable implements IWorkbench
 		// the grid. A new request restarts the timer for the latest session.
 		this._pendingCheck.value = disposableTimeout(() => {
 			this._pendingCheck.value = autorun(reader => {
-				const stillVisible = this.sessionsService.visibleSessions.get().some(s => s?.sessionId === session.sessionId);
+				// Retry on assignment resolution, not when navigating back to a previously hidden session.
+				const stillVisible = this.sessionsService.visibleSessions.read(undefined).some(s => s?.sessionId === session.sessionId);
 				if (stillVisible) {
 					this._startNewSessionButtonPulse(reader);
 				}
