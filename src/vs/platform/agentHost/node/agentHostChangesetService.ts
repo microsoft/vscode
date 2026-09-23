@@ -715,14 +715,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return this._queueUncommittedChangeset(session, undefined, false);
 	}
 
-	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, statusBeforeRefresh?: ChangesetState): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
-		if (!this._hasSubscription(session, uncommittedUri)) {
-			return uncommittedUri;
-		}
-
-		const workingDirectory = this._getEffectiveWorkingDirectories(session)?.[0];
-		if (!workingDirectory) {
+		if (!this._hasSubscription(session, uncommittedUri) || !this._hasWorkingDirectory(session)) {
+			this._restoreStaticChangesetStatus(uncommittedUri, statusBeforeRefresh);
 			return uncommittedUri;
 		}
 
@@ -1320,10 +1316,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _queueUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
-		if (this._hasSubscription(session, buildUncommittedChangesetUri(session)) && this._getEffectiveWorkingDirectories(session)?.[0]) {
-			this._markChangesetComputing(buildUncommittedChangesetUri(session));
+		const changesetUri = buildUncommittedChangesetUri(session);
+		let statusBeforeRefresh: ChangesetState | undefined;
+		if (this._hasSubscription(session, changesetUri) && this._hasWorkingDirectory(session)) {
+			statusBeforeRefresh = this._markChangesetComputing(changesetUri);
 		}
-		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext));
+		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext, statusBeforeRefresh));
 	}
 
 	/**

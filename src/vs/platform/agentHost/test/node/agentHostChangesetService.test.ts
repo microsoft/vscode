@@ -1674,7 +1674,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					await gate.p;
 					return [];
 				};
-				const changesetUri = kind === 'branch' ? buildBranchChangesetUri(sessionStr) : buildUncommittedChangesetUri(sessionStr);
+				const changesetUri = kind === 'branch'
+					? buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])))
+					: buildUncommittedChangesetUri(sessionStr);
 				const { svc, stateManager } = build({
 					workingDirectories: ['file:///repo'],
 					git,
@@ -1728,7 +1730,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
-		const changesetUri = buildBranchChangesetUri(sessionStr);
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
 		svc.restoreStaticChangeset(sessionStr, 'branch', [gitDiff('/repo/cached.ts')]);
 		const error = { errorType: 'computeFailed', message: 'Previous refresh failed' };
 		stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Error, error });

@@ -124,9 +124,8 @@ export interface IAgentHostChangesetService {
 	 * persisted restore and should only be used on real restore/subscribe
 	 * paths that need a subscribable changeset snapshot.
 	 *
-	 * Honours `seedIfEmpty`: when a live changeset state already has files
-	 * for the same kind, persisted diffs are NOT applied (they would
-	 * otherwise overwrite the live state).
+	 * Honours `seedIfEmpty`: a completed live result, including an empty
+	 * one, takes precedence over persisted diffs.
 	 */
 	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void;
 
