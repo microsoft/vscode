@@ -207,19 +207,19 @@ suite('InboxNotificationsService', () => {
 		})), [
 			{
 				kind: InboxNotificationKind.NeedsInput,
-				priority: InboxNotificationPriority.Critical,
+				priority: InboxNotificationPriority.Now,
 				description: 'waiting for user answer',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 			{
 				kind: InboxNotificationKind.Completed,
-				priority: InboxNotificationPriority.Low,
+				priority: InboxNotificationPriority.Later,
 				description: 'Review this completed session or mark it done.',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 			{
 				kind: InboxNotificationKind.Completed,
-				priority: InboxNotificationPriority.Low,
+				priority: InboxNotificationPriority.Later,
 				description: 'Review this completed session or mark it done.',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
@@ -288,7 +288,7 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
-	test('a re-completed session after dismissal surfaces as a fresh low-priority item', () => {
+	test('a re-completed session after dismissal surfaces as a fresh later-priority item', () => {
 		const chatResource = URI.parse('test:///chat/recompleted');
 		const chatService = new TestChatService();
 		chatService.setCompletedResponse(chatResource, { requestId: 'turn-1', markdown: 'First result.' });
@@ -307,7 +307,7 @@ suite('InboxNotificationsService', () => {
 		const active = fixture.service.notifications.get();
 		assert.strictEqual(active.length, 1);
 		assert.strictEqual(active[0].kind, InboxNotificationKind.Completed);
-		assert.strictEqual(active[0].priority, InboxNotificationPriority.Low);
+		assert.strictEqual(active[0].priority, InboxNotificationPriority.Later);
 		assert.notStrictEqual(active[0].id, firstId);
 	});
 
@@ -370,7 +370,7 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 
 		// The agent asks a different question within the same turn (same updatedAt). It must
-		// surface as an active Critical item, not inherit the prior question's dismissal.
+		// surface as an active Now item, not inherit the prior question's dismissal.
 		chatService.setPendingQuestionCarousel(chatResource, {
 			requestId: 'req-2',
 			resolveId: 'resolve-2',
@@ -759,7 +759,7 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.ReviewComments,
 			title: 'Updated',
 			description: 'Updated description',
-			priority: InboxNotificationPriority.Critical,
+			priority: InboxNotificationPriority.Now,
 		});
 
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
@@ -772,7 +772,7 @@ suite('InboxNotificationsService', () => {
 			id: 'external-1',
 			kind: InboxNotificationKind.ReviewComments,
 			title: 'Updated',
-			priority: InboxNotificationPriority.Critical,
+			priority: InboxNotificationPriority.Now,
 			actionKinds: [InboxNotificationActionKind.MarkDone],
 		}]);
 	});

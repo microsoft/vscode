@@ -28,12 +28,12 @@ export function getInboxNotificationKindLabel(kind: InboxNotificationKind): stri
 
 export function getInboxNotificationPriorityLabel(priority: InboxNotificationPriority): string {
 	switch (priority) {
-		case InboxNotificationPriority.Critical:
-			return localize('inboxNotifications.priority.critical', "Critical");
-		case InboxNotificationPriority.Moderate:
-			return localize('inboxNotifications.priority.moderate', "Moderate");
-		case InboxNotificationPriority.Low:
+		case InboxNotificationPriority.Now:
+			return localize('inboxNotifications.priority.now', "Now");
+		case InboxNotificationPriority.Next:
+			return localize('inboxNotifications.priority.next', "Next");
+		case InboxNotificationPriority.Later:
 		default:
-			return localize('inboxNotifications.priority.low', "Low");
+			return localize('inboxNotifications.priority.later', "Later");
 	}
 }

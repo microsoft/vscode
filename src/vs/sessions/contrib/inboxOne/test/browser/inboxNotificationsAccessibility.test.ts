@@ -23,7 +23,7 @@ suite('InboxNotificationsAccessibility', () => {
 			buildInboxNotificationsAccessibleContent([
 				{
 					kind: InboxNotificationKind.NeedsInput,
-					priority: InboxNotificationPriority.Critical,
+					priority: InboxNotificationPriority.Now,
 					title: 'Input Needed for Session A',
 					description: 'Open this session to answer.',
 					repositoryLabel: 'microsoft/vscode',
@@ -34,7 +34,7 @@ suite('InboxNotificationsAccessibility', () => {
 				},
 				{
 					kind: InboxNotificationKind.Completed,
-					priority: InboxNotificationPriority.Low,
+					priority: InboxNotificationPriority.Later,
 					title: 'Completed: Session B',
 					description: 'Review and mark done.'
 				},
@@ -43,12 +43,12 @@ suite('InboxNotificationsAccessibility', () => {
 				'Inbox notifications',
 				'',
 				'1. Input Needed for Session A',
-				'   Priority: Critical. Type: Needs Input',
+				'   Priority: Now. Type: Needs Input',
 				'   Repository: microsoft/vscode',
 				'   Pull request states: #123 (Checks failed), #124 (Unresolved comments)',
 				'   Open this session to answer.',
 				'2. Completed: Session B',
-				'   Priority: Low. Type: Completed',
+				'   Priority: Later. Type: Completed',
 				'   Review and mark done.',
 			].join('\n'),
 		);

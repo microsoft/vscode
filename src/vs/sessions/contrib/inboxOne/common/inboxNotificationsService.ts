@@ -13,9 +13,9 @@ import { IChatQuestion } from '../../../../workbench/contrib/chat/common/chatSer
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
 
 export const enum InboxNotificationPriority {
-	Critical = 0,
-	Moderate = 1,
-	Low = 2,
+	Now = 0,
+	Next = 1,
+	Later = 2,
 }
 
 export const enum InboxNotificationKind {

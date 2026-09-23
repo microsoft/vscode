@@ -851,7 +851,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const item: IInboxNotificationItem = {
 			id: notification.id,
 			kind: notification.kind ?? InboxNotificationKind.External,
-			priority: notification.priority ?? InboxNotificationPriority.Moderate,
+			priority: notification.priority ?? InboxNotificationPriority.Next,
 			title: notification.title,
 			description: notification.description,
 			repositoryLabel: notification.repositoryLabel,
@@ -911,13 +911,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			// updatedAt: a single agent turn can surface several questions that share an
 			// updatedAt, and answering one dismisses its id. Keying by updatedAt would make
 			// the next question reuse a dismissed id and get filed under Completed instead of
-			// surfacing in its Critical tier.
+			// surfacing in its Now tier.
 			const needsInputKey = needsInputPart ? this.needsInputPartKey(needsInputPart) : `${updatedAt}`;
 			const id = `${session.sessionId}:${InboxNotificationKind.NeedsInput}:${needsInputKey}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.NeedsInput,
-				priority: InboxNotificationPriority.Critical,
+				priority: InboxNotificationPriority.Now,
 				title,
 				description: needsInputPart ? this.getNeedsInputPartDescription(needsInputPart) : this.getNeedsInputDescription(session, reader),
 				repositoryLabel,
@@ -937,14 +937,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		// needing attention (e.g. no open pull request notifications). Key it by the
 		// completing turn (the latest response) rather than a per-session id, so once a
 		// completed item is dismissed a *new* turn that finishes without needing input
-		// surfaces as a fresh low-priority item instead of inheriting the dismissal.
+		// surfaces as a fresh Later-priority item instead of inheriting the dismissal.
 		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
 			const turnId = this.getLatestResponseRequestId(session, reader) ?? `${updatedAt}`;
 			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.Completed,
-				priority: InboxNotificationPriority.Low,
+				priority: InboxNotificationPriority.Later,
 				title,
 				description: this.getCompletedSessionDescription(session, reader),
 				repositoryLabel,
@@ -1125,7 +1125,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.Critical,
+					priority: InboxNotificationPriority.Now,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.failingCi.title.single', "CI Failing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.failingCi.title.multiple', "CI Failing on {0} Pull Requests", pullRequestCount),
@@ -1143,7 +1143,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.Moderate,
+					priority: InboxNotificationPriority.Next,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.passingCi.title.single', "CI Passing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.passingCi.title.multiple', "CI Passing on {0} Pull Requests", pullRequestCount),
@@ -1161,7 +1161,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				itemsById.set(`${session.sessionId}:${kind}:${idSuffix}`, {
 					id: `${session.sessionId}:${kind}:${idSuffix}`,
 					kind,
-					priority: InboxNotificationPriority.Critical,
+					priority: InboxNotificationPriority.Now,
 					title: pullRequestCount === 1
 						? localize('inboxNotifications.reviewComments.title.single', "Copilot Comments on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.reviewComments.title.multiple', "Copilot Comments on {0} Pull Requests", pullRequestCount),
@@ -1305,7 +1305,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	/**
 	 * A stable key identifying the specific pending request behind a needs-input item, so
 	 * each distinct question/confirmation/tool request gets its own inbox id. This keeps
-	 * repeated requests from the same session in their own cards (and their Critical tier)
+	 * repeated requests from the same session in their own cards (and their Now tier)
 	 * instead of colliding on a shared updatedAt and inheriting a prior request's dismissal.
 	 */
 	private needsInputPartKey(part: IInboxNotificationNeedsInputPart): string {

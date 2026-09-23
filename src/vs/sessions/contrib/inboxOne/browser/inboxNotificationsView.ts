@@ -88,9 +88,9 @@ interface IInboxTierSpec {
 
 /** Importance tiers in display order. Empty tiers are hidden at render time. */
 const TIER_SECTIONS: readonly IInboxTierSpec[] = [
-	{ key: 'critical', priority: InboxNotificationPriority.Critical },
-	{ key: 'moderate', priority: InboxNotificationPriority.Moderate },
-	{ key: 'low', priority: InboxNotificationPriority.Low },
+	{ key: 'now', priority: InboxNotificationPriority.Now },
+	{ key: 'next', priority: InboxNotificationPriority.Next },
+	{ key: 'later', priority: InboxNotificationPriority.Later },
 ];
 
 type InboxInteractionTelemetryEvent = {
