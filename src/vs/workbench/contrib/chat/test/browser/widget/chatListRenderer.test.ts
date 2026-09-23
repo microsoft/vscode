@@ -3539,6 +3539,8 @@ suite('ChatListRenderer', () => {
 		const changed = disposables.add(new Emitter<void>());
 		const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
 			override readonly id = 'mcp';
+			override readonly name = 'MCP server';
+			override readonly enabled = true;
 			override readonly status = McpServerStatus.AuthRequired;
 		}();
 		let needsAuthentication = true;

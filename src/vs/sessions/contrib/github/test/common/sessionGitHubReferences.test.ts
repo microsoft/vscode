@@ -9,7 +9,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../common/sessionGitHubReferences.js';
 
 suite('Session GitHub References', () => {
@@ -95,6 +95,55 @@ suite('Session GitHub References', () => {
 		assert.deepStrictEqual([before, after].map(refs => refs.pullRequests.map(ref => [ref.number, ref.recordedReferenceId, ref.createdByThisSession])), [
 			[[1, 'artifact', true]],
 			[[1, undefined, false]],
+		]);
+	});
+
+	test('resolves a chat\'s pull requests from its own repository only', () => {
+		const sessionPullRequest = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') };
+		const chatPullRequest = { owner: 'contoso', repo: 'tools', number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') };
+		const session = createSession([
+			{ id: 'session-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Session repo PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/2') },
+			{ id: 'chat-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Chat repo PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Contoso/Tools/pull/8') },
+		], { owner: 'microsoft', repo: 'vscode', pullRequests: [sessionPullRequest] });
+		const chatRoot = URI.file('/other');
+		const chat = upcastPartial<IChat>({
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root: chatRoot, workingDirectory: chatRoot, name: 'other', description: undefined,
+					gitRepository: { uri: chatRoot, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'tools', pullRequests: [chatPullRequest] }) },
+				}],
+			})),
+		});
+
+		assert.deepStrictEqual({
+			session: getSessionGitHubReferences(session, undefined).pullRequests.map(ref => ref.uri.toString()),
+			chat: getSessionGitHubReferences(session, undefined, chat).pullRequests.map(ref => ref.uri.toString()),
+		}, {
+			session: ['https://github.com/microsoft/vscode/pull/2', 'https://github.com/Contoso/Tools/pull/8', 'https://github.com/microsoft/vscode/pull/1'],
+			chat: ['https://github.com/Contoso/Tools/pull/8', 'https://github.com/contoso/tools/pull/7'],
+		});
+	});
+
+	test('resolves pull requests from every folder of a chat', () => {
+		const folder = (path: string, gitHubInfo: IGitHubInfo) => {
+			const root = URI.file(path);
+			return { root, workingDirectory: root, name: path, description: undefined, gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable<IGitHubInfo | undefined>(gitHubInfo) } };
+		};
+		const session = createSession([
+			{ id: 'foreign', kind: SessionArtifactKind.PullRequest, label: 'Foreign', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/3') },
+		]);
+		const chat = upcastPartial<IChat>({
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [
+					folder('/repo', { owner: 'microsoft', repo: 'vscode', pullRequests: [{ owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') }] }),
+					folder('/tools', { owner: 'contoso', repo: 'tools', pullRequests: [{ owner: 'contoso', repo: 'tools', number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') }] }),
+				],
+			})),
+		});
+
+		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat).pullRequests.map(ref => ref.uri.toString()), [
+			'https://github.com/microsoft/vscode/pull/1',
+			'https://github.com/contoso/tools/pull/7',
 		]);
 	});
 });

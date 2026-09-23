@@ -15,7 +15,7 @@ import type { GitHubAccountHandle } from '../../github/common/githubTypes.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, readSessionGitHubState, readSessionGitState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, readSessionFolderGitHubState, readSessionGitState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { parsePullRequestUrl } from './agentMergeController.js';
@@ -169,7 +169,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const gitHubState = readSessionFolderGitHubState(this._stateManager.getSessionState(sessionKey));
 		const currentPullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0] ?? gitHubState?.pullRequestUrls?.[0];
 		const mergedPullRequest = parsePullRequestUrl(pullRequestUrl);
 		const currentPullRequest = currentPullRequestUrl ? parsePullRequestUrl(currentPullRequestUrl) : undefined;
@@ -367,7 +367,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private _hasPersistedMergedState(sessionKey: string, ref: PullRequestRef): boolean {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const gitHubState = readSessionFolderGitHubState(this._stateManager.getSessionState(sessionKey));
 		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
 		return gitHubState?.pullRequestState === 'merged'
 			&& persistedPullRequest !== undefined
@@ -404,7 +404,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0) {
 			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
-		const gitHubState = readSessionGitHubState(state._meta);
+		const gitHubState = readSessionFolderGitHubState(state);
 		const gitState = readSessionGitState(state._meta);
 		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
 			return { kind: 'skip', reason: `no pull request is known for branch '${gitState?.branchName ?? 'unknown'}'` };
@@ -416,7 +416,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private _updateStatus(sessionKey: string, watch: IWatch, snapshot: PullRequestSnapshot): void {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const gitHubState = readSessionFolderGitHubState(this._stateManager.getSessionState(sessionKey));
 		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
 		const persistedMergedStateApplies = gitHubState?.pullRequestState === 'merged'
 			&& persistedPullRequest !== undefined
@@ -447,7 +447,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private _publishPullRequestState(sessionKey: string, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const gitHubState = readSessionFolderGitHubState(this._stateManager.getSessionState(sessionKey));
 		if (gitHubState?.pullRequestState === state && gitHubState.pullRequestStateUrl === pullRequestUrl) {
 			return;
 		}
