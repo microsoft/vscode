@@ -46,6 +46,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 			{ type: this.type, language: 'plaintext' },
 			() => this.type === AccessibleViewType.Help ? [
 				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
+				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. Quick filters update the same query and can be combined."),
 				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
 				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens the related settings."),

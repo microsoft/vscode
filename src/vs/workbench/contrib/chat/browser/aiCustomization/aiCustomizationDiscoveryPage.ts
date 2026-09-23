@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationDiscovery.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
@@ -400,6 +401,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly loadMoreContainer: HTMLElement;
 	private readonly loadMoreButton: Button;
 	private readonly browseDisposables = this._register(new DisposableStore());
+	private readonly descriptionDisposables = this._register(new DisposableStore());
 	private readonly searchActionDisposables = this._register(new DisposableStore());
 	private readonly sourceHover = this._register(new MutableDisposable());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -428,7 +430,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		parent: HTMLElement,
 		_welcomePageFeatures: IWelcomePageFeatures | undefined,
 		private readonly callbacks: IWelcomePageCallbacks,
-		private harnessLabel: string,
+		_harnessLabel: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -714,7 +716,36 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private updateDescription(): void {
-		this.titleDescription.textContent = localize('customizationDiscovery.description', "Find and manage customizations for {0}. Search installed items or explore skills, MCP servers, and plugins.", this.harnessLabel);
+		this.descriptionDisposables.clear();
+		const sections = [
+			AICustomizationManagementSection.Plugins,
+			AICustomizationManagementSection.McpServers,
+			AICustomizationManagementSection.Skills,
+			AICustomizationManagementSection.Instructions,
+			AICustomizationManagementSection.Agents,
+			AICustomizationManagementSection.Hooks,
+		] as const;
+		const description = localize({
+			key: 'customizationDiscovery.description',
+			comment: [
+				'Preserve the double square brackets: they mark the customization types that become links. Keep all six links in this order: Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+			],
+		}, "Find new ways to extend your agent with [[Plugins]], [[MCP Servers]], [[Skills]], [[Instructions]], [[Agents]], and [[Hooks]].");
+		renderFormattedText(description, {
+			actionHandler: {
+				callback: (index, event) => {
+					event.preventDefault();
+					const section = sections[Number(index)];
+					if (section) {
+						this.callbacks.selectSection(section);
+					}
+				},
+				disposables: this.descriptionDisposables,
+			},
+		}, this.titleDescription);
+		for (const link of this.titleDescription.children) {
+			link.setAttribute('href', '#');
+		}
 	}
 
 	private onQueryChanged(): void {
@@ -1361,9 +1392,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.refreshInstalledItems();
 	}
 
-	setHarnessLabel(label: string): void {
-		this.harnessLabel = label;
-		this.updateDescription();
+	setHarnessLabel(_label: string): void {
 		this.refreshInstalledItems();
 	}
 

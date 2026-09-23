@@ -1457,6 +1457,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
+		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
+		assert(
+			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
+			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
+			'Discover must link each customization type from its description.',
+		);
 	}
 
 	if (options.discoveryQuery) {

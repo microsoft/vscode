@@ -54,6 +54,21 @@
 	line-height: 1.4;
 }
 
+.customization-discovery-description a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.customization-discovery-description a:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.customization-discovery-description a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
 .customization-discovery-migration {
 	display: flex;
 	align-items: center;
