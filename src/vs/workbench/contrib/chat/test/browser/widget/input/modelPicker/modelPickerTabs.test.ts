@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { IModelConfigurationAccess, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { IModelConfigurationAccess, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
 import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
@@ -604,28 +604,25 @@ suite('Model picker destinations', () => {
 		});
 	});
 
-	test('badges rank a retiring model over an offer over the settings a model was tuned to', () => {
+	test('badges retain notices and provider labels independently of configuration', () => {
 		const retiring = { ...gpt, metadata: { ...gpt.metadata, warningText: { model_pending_deprecation: 'Retiring soon.' } } };
 		const promo = { ...claude, metadata: { ...claude.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };
 		const tuned = createConfigurableModel();
-		const badge = (model: ILanguageModelChatMetadataAndIdentifier, values: IStringDictionary<unknown> = {}, providerLabel?: string) =>
-			getModelBadge(model, { configurationAccess: createConfigurationAccess(values), providerLabel });
+		const badge = (model: ILanguageModelChatMetadataAndIdentifier, providerLabel?: string) =>
+			getModelBadge(model, { providerLabel });
 
 		assert.deepStrictEqual(
 			{
 				retiring: badge(retiring),
 				promo: badge(promo),
-				tuned: badge(tuned, { reasoningEffort: 'xhigh', contextSize: 1000000 }),
-				// Left at its defaults, so there is nothing to report.
-				untouched: badge(tuned),
-				provider: badge(gpt, {}, 'Ollama'),
+				configurable: badge(tuned),
+				provider: badge(gpt, 'Ollama'),
 				plain: badge(gpt),
 			},
 			{
 				retiring: { text: 'Retiring', tone: 'warning' },
 				promo: { text: '25% off', tone: 'promo' },
-				tuned: { text: 'Extra high \u00b7 1M', tone: 'selected' },
-				untouched: undefined,
+				configurable: undefined,
 				provider: { text: 'Ollama', tone: 'neutral' },
 				plain: undefined,
 			},
@@ -741,16 +738,75 @@ suite('Model picker destinations', () => {
 		);
 	});
 
-	test('the configuration summary names only what was changed from the defaults', () => {
+	test('the configuration summary includes effective defaults and fixed context', () => {
 		const model = createConfigurableModel();
 		assert.deepStrictEqual(
 			{
 				defaults: getModelConfigSummary(model, createConfigurationAccess()),
+				explicitDefaults: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'medium', contextSize: 264000 })),
 				bothChanged: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'xhigh', contextSize: 1000000 })),
 				oneChanged: getModelConfigSummary(model, createConfigurationAccess({ contextSize: 1000000 })),
 				noSchema: getModelConfigSummary(gpt, createConfigurationAccess()),
 			},
-			{ defaults: undefined, bothChanged: 'Extra high · 1M', oneChanged: '1M', noSchema: undefined },
+			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: '132K' },
 		);
+	});
+
+	test('summaries use scoped defaults without changing provider metadata', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh' },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+			providerDefault: schema.properties?.reasoningEffort.default,
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Thinking Effort: Extra high, Context: 264K',
+			providerDefault: 'medium',
+		});
+	});
+
+	test('unknown settings and routing models never invent effective values', () => {
+		const model = createConfigurableModel();
+		const properties = model.metadata.configurationSchema!.properties!;
+		const unresolved = {
+			...model,
+			metadata: {
+				...model.metadata,
+				configurationSchema: { properties: {
+					reasoningEffort: { ...properties.reasoningEffort, default: undefined },
+					contextSize: { ...properties.contextSize, default: undefined },
+				} },
+			},
+		};
+		assert.deepStrictEqual({
+			unresolved: getModelConfigSummary(unresolved, createConfigurationAccess()),
+			stale: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'removed', contextSize: NaN })),
+			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
+			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion'), createConfigurationAccess()),
+			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
+		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
+	});
+
+	test('effort-only and context-only models summarize the available settings', () => {
+		const model = createConfigurableModel();
+		const properties = model.metadata.configurationSchema!.properties!;
+		const summarize = (keys: string[]) => getModelConfigSummary({
+			...model,
+			metadata: { ...model.metadata, configurationSchema: { properties: Object.fromEntries(keys.map(key => [key, properties[key]])) } },
+		}, createConfigurationAccess());
+		assert.deepStrictEqual({
+			effort: summarize(['reasoningEffort']),
+			context: summarize(['contextSize']),
+		}, { effort: 'Medium · 132K', context: '264K' });
 	});
 });

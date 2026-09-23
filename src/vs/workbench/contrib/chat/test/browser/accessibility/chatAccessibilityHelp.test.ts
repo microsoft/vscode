@@ -71,7 +71,7 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			collapsed: help.includes('turning Auto on collapses the provider tabs, search, and model list'),
-			preferences: help.includes('Auto and its preferences remain available'),
+			preferences: help.includes('Auto and its Details action remain available'),
 			restored: help.includes('Turn Auto off to restore the model controls and the previous model selection'),
 			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
 		}, { collapsed: true, preferences: true, restored: true, reducedMotion: true });
@@ -80,12 +80,14 @@ suite('Chat Accessibility Help', () => {
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			details: help.includes('selected model\'s details open beside the list'),
-			immediatePreview: help.includes('updates the details immediately without selecting a model'),
-			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
-			mutedPreferences: help.includes('They look muted while off but remain interactive'),
+			details: help.includes('Tab to reach its Details action'),
+			inspection: help.includes('configuration page without selecting it'),
+			inputShortcut: help.includes('opens the same page for the current model'),
+			defaults: help.includes('Known values remain visible even at their defaults'),
+			detailsPreferences: help.includes('Open Auto Details to configure its "Optimize for" preference'),
+			inactivePreferences: help.includes('options are available in details whether Auto is on or off'),
 			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
-		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, detailsPreferences: true, inactivePreferences: true, activation: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -104,8 +106,8 @@ suite('Chat Accessibility Help', () => {
 			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
 			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
-			pinning: help.includes('Pinning or unpinning moves the model in the list without moving its details or keyboard focus'),
-			dismissal: help.includes('Escape again to close the picker'),
+			pinning: help.includes('Pinning or unpinning updates the model list without moving its details or keyboard focus'),
+			dismissal: help.includes('Escape again closes the picker'),
 		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
 	});
 
