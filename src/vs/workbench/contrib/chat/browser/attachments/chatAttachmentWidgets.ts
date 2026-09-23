@@ -1896,7 +1896,8 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 			content: this._input
 				? {
 					[BrowserViewSharingState.Shared]: this._input.getTitle() ?? '',
-					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared', "This browser page is not shared with the agent."),
+					[BrowserViewSharingState.Available]: localize('chat.browserViewNotShared', "This browser page is not shared with the agent."),
+					[BrowserViewSharingState.BlockedByNetworkPolicy]: localize('chat.browserViewBlockedByNetworkPolicy', "This browser page cannot be shared because its address is blocked by network policy."),
 					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled', "Browser tools are not enabled."),
 				}[this._input.model?.sharingState ?? BrowserViewSharingState.Shared]
 				: localize('chat.browserViewClosed', "This browser page is no longer open."),
@@ -1959,7 +1960,8 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._input
 				? {
 					[BrowserViewSharingState.Shared]: localize('chat.browserViewAttachment.aria', "Attached browser page, {0}", name),
-					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared.aria', "Browser page not shared with agent, {0}", name),
+					[BrowserViewSharingState.Available]: localize('chat.browserViewNotShared.aria', "Browser page not shared with agent, {0}", name),
+					[BrowserViewSharingState.BlockedByNetworkPolicy]: localize('chat.browserViewBlockedByNetworkPolicy.aria', "Browser page blocked by network policy, {0}", name),
 					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled.aria', "Browser tools are not enabled, {0}", name),
 				}[sharingState]
 				: localize('chat.browserViewClosed.aria', "Browser page unavailable, {0}", name)

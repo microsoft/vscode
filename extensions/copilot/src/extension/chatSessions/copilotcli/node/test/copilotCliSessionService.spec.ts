@@ -13,6 +13,7 @@ import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
 import { FileType } from '../../../../../platform/filesystem/common/fileTypes';
@@ -725,6 +726,26 @@ describe('CopilotCLISessionService', () => {
 				readDirectoryCallCount: 1,
 				statCallCount: 0,
 			});
+		});
+
+		it('lists all legacy sessions when migration is enabled (extension owns them until opened)', async () => {
+			await (configurationService as InMemoryConfigurationService).setNonExtensionConfig('chat.agentSessions.migrateLegacyCopilotCli', true);
+			const migrateService = disposables.add(createSessionService());
+			const migrateManager = await migrateService.getSessionManager() as unknown as MockCliSdkSessionManager;
+
+			for (const id of ['legacy-active', 'legacy-archived']) {
+				const sdkSession = new MockCliSdkSession(id, new Date(0));
+				sdkSession.clientName = 'vscode';
+				sdkSession.summary = id;
+				migrateManager.sessions.set(id, sdkSession);
+			}
+			await metadataStore.setSessionArchived('legacy-archived', true);
+
+			const result = await migrateService.getAllSessions(CancellationToken.None);
+
+			// The agent host no longer surfaces un-adopted legacy rows, so this list keeps
+			// every legacy session (archived or not) until it is opened and thereby adopted.
+			expect(result.map(item => item.id).sort()).toEqual(['legacy-active', 'legacy-archived']);
 		});
 
 		it('does not list sessions created outside VS Code, even once loaded into memory', async () => {

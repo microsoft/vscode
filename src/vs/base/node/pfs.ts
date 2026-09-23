@@ -827,7 +827,10 @@ export const Promises = new class {
 		};
 	}
 
+	get readFile() { return promisify(fs.readFile); }
+
 	get fdatasync() { return promisify(fs.fdatasync); } // not exposed as API in 22.x yet
+	get fstat() { return promisify(fs.fstat); } 		// not exposed as API due to the `FileHandle` return type of `open`
 
 	get open() { return promisify(fs.open); } 			// changed to return `FileHandle` in promise API
 	get close() { return promisify(fs.close); } 		// not exposed as API due to the `FileHandle` return type of `open`

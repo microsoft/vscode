@@ -105,6 +105,40 @@ export interface ILocalTurnRecord {
 	payload: string;
 }
 
+interface ISessionCatalogSyncIdentity {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+}
+
+/** Durable canonical catalog projection awaiting central acknowledgement. */
+export interface ISessionCatalogSyncPendingSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: string;
+	readonly payloadHash: string;
+	readonly acknowledgedHash?: string;
+	readonly state: 'pending';
+}
+
+/** Compact receipt retained after the pending payload has been acknowledged. */
+export interface ISessionCatalogSyncAcknowledgedSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: undefined;
+	readonly payloadHash: string;
+	readonly acknowledgedHash: string;
+	readonly state: 'acknowledged';
+}
+
+export type ISessionCatalogSyncSnapshot = ISessionCatalogSyncPendingSnapshot | ISessionCatalogSyncAcknowledgedSnapshot;
+
+/** Identity fields required to acknowledge exactly one catalog synchronization snapshot. */
+export interface ISessionCatalogSyncAcknowledgement {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+	readonly payloadHash: string;
+}
+
+/** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -135,20 +169,29 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Retrieves the SDK event ID previously stored for a turn.
 	 * Returns `undefined` if no event ID has been set.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the turn inserted immediately after the
 	 * given turn, or `undefined` if the given turn is the last one.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the earliest turn in insertion order,
 	 * or `undefined` if there are no turns.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Returns whether the session database contains any persisted conversation
+	 * turn, including host-injected local turns.
+	 */
+	hasConversationTurns(): Promise<boolean>;
 
 	/**
 	 * Persists the JSON-serialized {@link UsageInfo} reported for a turn.
@@ -179,6 +222,27 @@ export interface ISessionDatabase extends IDisposable {
 	 * and its provider event id when one has been recorded.
 	 */
 	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
+	 * Persists the JSON-serialized successful workspace transition for a turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void>;
+
+	/**
+	 * Atomically persists converted session metadata and the workspace
+	 * transition associated with its deferred continuation turn.
+	 */
+	setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void>;
+
+	/** Deletes a persisted workspace transition without deleting its owning turn. */
+	deleteTurnWorkspaceTransition(turnId: string): Promise<void>;
+
+	/**
+	 * Returns every persisted workspace transition, keyed by both the turn's
+	 * own id and its provider event id when one has been recorded.
+	 */
+	getTurnWorkspaceTransitions(): Promise<Map<string, string>>;
 
 	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
@@ -303,10 +367,35 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
 
 	/**
+	 * Atomically delete metadata keys.
+	 */
+	deleteMetadata(keys: readonly string[]): Promise<void>;
+
+	/**
 	 * Atomically stores metadata values only when `key` is absent. Values named
 	 * by `copies` are read from their source keys and copied when present.
 	 */
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+
+	/**
+	 * Atomically stores metadata and advances the durable catalog relay snapshot.
+	 */
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+
+	/**
+	 * Atomically transitions to a new session generation when the stored generation matches.
+	 */
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+
+	/**
+	 * Returns the durable catalog relay snapshot, if one has been stored.
+	 */
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined>;
+
+	/**
+	 * Acknowledges the snapshot only when every supplied identity field still matches.
+	 */
+	acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean>;
 
 	/**
 	 * Store or clear the draft for a chat in this session.
@@ -401,6 +490,7 @@ export interface ISessionDataService {
 	 * Equivalent to {@link getSessionDataDir} but without requiring a full URI.
 	 */
 	getSessionDataDirById(sessionId: string): URI;
+	listSessionDataIds?(prefix: string): Promise<readonly string[]>;
 
 	/**
 	 * Opens (or creates) a per-session SQLite database. The database file is
@@ -418,6 +508,7 @@ export interface ISessionDataService {
 	 * already exists on disk**. Returns `undefined` when no database has
 	 * been created yet, avoiding the side effect of materializing empty
 	 * database files during read-only operations like listing sessions.
+	 * Errors other than file-not-found are propagated.
 	 */
 	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
 
@@ -466,6 +557,33 @@ export interface ISessionDataService {
 	 * otherwise be lost when the process exits.
 	 */
 	whenIdle(): Promise<void>;
+
+	/**
+	 * Cumulative per-session storage access counts for this host process, when
+	 * the implementation tracks them.
+	 *
+	 * Opening a session database is the dominant cost of any listing that
+	 * cannot be served from the catalog, and it is the one figure that
+	 * compares across machines — wall-clock timings do not, because per-file
+	 * costs differ by an order of magnitude between platforms (virus
+	 * scanning, filesystem). Diagnostics log these counts so a single log
+	 * export explains a slow session list without needing a custom build.
+	 *
+	 * Optional because it is diagnostics only: an implementation that does not
+	 * own real files (test doubles, in-memory fakes) has nothing to report.
+	 */
+	readonly storageAccessCounts?: ISessionStorageAccessCounts;
+}
+
+/**
+ * Cumulative counts of per-session storage accesses. See
+ * {@link ISessionDataService.storageAccessCounts}.
+ */
+export interface ISessionStorageAccessCounts {
+	/** Databases actually opened (cache misses), not reference acquisitions. */
+	readonly opens: number;
+	/** Existence probes performed by `tryOpenDatabase`. */
+	readonly stats: number;
 }
 
 /**

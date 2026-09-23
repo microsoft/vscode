@@ -8,20 +8,37 @@ import { ExperimentationTelemetry } from './common/experimentationService';
 import { AuthProviderType, UriEventHandler } from './github';
 import { Log } from './common/logger';
 import { isSupportedClient, isSupportedTarget } from './common/env';
+import { AccountLinks } from './common/accountLinks';
+import { fetchUserInfo, IGitHubUserInfo } from './common/gitHubAccount';
+import { IHttpClient } from './common/http';
+import { IMicrosoftAuthentication } from './common/microsoftAuthentication';
+import { FetchHttpClient } from './httpClient';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
-import { ExtensionHost, GitHubSocialSignInProvider, GitHubTarget, getFlows } from './flows';
-import { CANCELLATION_ERROR, NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { ExtensionHost, GitHubOAuthSignInProvider, GitHubTarget, getFlows } from './flows';
+import { CANCELLATION_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { Config } from './config';
 import { base64Encode } from './node/buffer';
+import { EntraTokenExchange, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken, ModalConfirmationDialog } from './entraTokenExchange';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
+	login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
+	/**
+	 * Signs in with Microsoft and exchanges the resulting Entra identity for a GitHub token on this
+	 * host. Fails when the host does not accept an exchange, which is every self-hosted GitHub
+	 * Enterprise Server: the Entra to GitHub identity mapping is a service GitHub runs.
+	 */
+	loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken>;
+	/**
+	 * Mints a fresh token for a session that was brokered through Microsoft, without showing the
+	 * user anything. Fails rather than prompting when it cannot be done silently.
+	 */
+	renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
-	getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl: string | undefined }>;
+	getUserInfo(token: string): Promise<IGitHubUserInfo>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
 }
@@ -31,6 +48,8 @@ export class GitHubServer implements IGitHubServer {
 	readonly friendlyName: string;
 
 	private readonly _type: AuthProviderType;
+	private readonly _entraTokenExchange: EntraTokenExchange;
+	private readonly _http: IHttpClient;
 
 	private _redirectEndpoint: string | undefined;
 
@@ -39,10 +58,29 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _extensionKind: vscode.ExtensionKind,
+		microsoft: IMicrosoftAuthentication,
+		accountLinks: AccountLinks,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 		this.friendlyName = this._type === AuthProviderType.github ? 'GitHub' : _ghesUri?.authority!;
+		this._http = new FetchHttpClient(_logger);
+		// The Entra to GitHub identity mapping is a service GitHub runs, so a self-hosted GitHub
+		// Enterprise Server has no endpoint to exchange against. Where there is one it is the same
+		// endpoint the authorization code flow posts to, and it authenticates the client the same
+		// way, so the client id and secret carry over unchanged.
+		const tokenExchange = isSupportedTarget(this._type, _ghesUri)
+			? this.baseUri.with({ path: '/login/oauth/access_token' }).toString(true)
+			: undefined;
+		// Both endpoints come from this host, so a token minted here can only ever be described by
+		// this host's `GET /user`.
+		this._entraTokenExchange = new EntraTokenExchange(
+			_logger,
+			{ tokenExchange, userInfo: this.getServerUri('/user').toString() },
+			microsoft,
+			accountLinks,
+			this._http,
+			new ModalConfirmationDialog());
 	}
 
 	get baseUri() {
@@ -50,6 +88,14 @@ export class GitHubServer implements IGitHubServer {
 			return vscode.Uri.parse('https://github.com/');
 		}
 		return this._ghesUri!;
+	}
+
+	async loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken> {
+		return await this._entraTokenExchange.login(scopes, options);
+	}
+
+	async renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken> {
+		return await this._entraTokenExchange.renew(renewal);
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {
@@ -87,7 +133,7 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string> {
+	public async login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -217,47 +263,8 @@ export class GitHubServer implements IGitHubServer {
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl: string | undefined }> {
-		let result;
-		try {
-			this._logger.info('Getting user info...');
-			result = await fetching(this.getServerUri('/user').toString(), {
-				logger: this._logger,
-				retryFallbacks: true,
-				expectJSON: true,
-				headers: {
-					Authorization: `token ${token}`,
-					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
-				}
-			});
-		} catch (ex) {
-			this._logger.error(ex.message);
-			throw new Error(NETWORK_ERROR);
-		}
-
-		if (result.ok) {
-			try {
-				const json = await result.json() as { id: number; login: string; avatar_url?: string };
-				this._logger.info('Got account info!');
-				return { id: `${json.id}`, accountName: json.login, avatarUrl: json.avatar_url };
-			} catch (e) {
-				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
-				throw e;
-			}
-		} else {
-			// either display the response message or the http status text
-			let errorMessage = result.statusText;
-			try {
-				const json = await result.json();
-				if (json.message) {
-					errorMessage = json.message;
-				}
-			} catch (err) {
-				// noop
-			}
-			this._logger.error(`Getting account info failed: ${errorMessage}`);
-			throw new Error(errorMessage);
-		}
+	public async getUserInfo(token: string): Promise<IGitHubUserInfo> {
+		return await fetchUserInfo(this._http, this.getServerUri('/user').toString(), token, this._logger);
 	}
 
 	public async sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void> {
@@ -281,32 +288,43 @@ export class GitHubServer implements IGitHubServer {
 	private async checkUserDetails(session: vscode.AuthenticationSession): Promise<void> {
 		let edu: string | undefined;
 
-		try {
-			const result = await fetching('https://education.github.com/api/user', {
-				logger: this._logger,
-				retryFallbacks: true,
-				expectJSON: true,
-				headers: {
-					Authorization: `token ${session.accessToken}`,
-					'faculty-check-preview': 'true',
-					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
-				}
-			});
+		// The account label is the GitHub login. Normal logins only allow alphanumerics and
+		// hyphens, but Enterprise Managed User (EMU) accounts are provisioned as
+		// `<idp-username>_<shortcode>`, so an underscore in the login means a managed account.
+		const isManaged = session.account.label.includes('_');
 
-			if (result.ok) {
-				const json: { student: boolean; faculty: boolean } = await result.json();
-				edu = json.student
-					? 'student'
-					: json.faculty
-						? 'faculty'
-						: 'none';
-			} else {
-				this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
+		if (isManaged) {
+			// EMU accounts can't access the education.github.com endpoint, so skip the fetch entirely.
+			this._logger.info('Skipping optional EDU details check for a managed account.');
+			edu = 'none';
+		} else {
+			try {
+				const result = await fetching('https://education.github.com/api/user', {
+					logger: this._logger,
+					retryFallbacks: true,
+					expectJSON: true,
+					headers: {
+						Authorization: `token ${session.accessToken}`,
+						'faculty-check-preview': 'true',
+						'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
+					}
+				});
+
+				if (result.ok) {
+					const json: { student: boolean; faculty: boolean } = await result.json();
+					edu = json.student
+						? 'student'
+						: json.faculty
+							? 'faculty'
+							: 'none';
+				} else {
+					this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
+					edu = 'unknown';
+				}
+			} catch (e) {
+				this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
 				edu = 'unknown';
 			}
-		} catch (e) {
-			this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
-			edu = 'unknown';
 		}
 
 		/* __GDPR__
@@ -318,8 +336,7 @@ export class GitHubServer implements IGitHubServer {
 		*/
 		this._telemetryReporter.sendTelemetryEvent('session', {
 			isEdu: edu,
-			// Apparently, this is how you tell if a user is an EMU...
-			isManaged: session.account.label.includes('_') ? 'true' : 'false'
+			isManaged: isManaged ? 'true' : 'false'
 		});
 	}
 

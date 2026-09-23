@@ -37,6 +37,41 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
 	}
 
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		if (!this._agentService.createDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.createDetachedWorktree!(session, prompt));
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		if (!this._agentService.setDetachedWorktreeArchived) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.setDetachedWorktreeArchived!(handle, archived));
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		if (!this._agentService.claimDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.claimDetachedWorktree!(handle));
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		if (!this._agentService.deleteDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.deleteDetachedWorktree!(handle));
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		if (!this._agentService.reconcileDetachedWorktrees) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
+	}
+
 	shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._shuttingDown = true;
@@ -88,11 +123,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		if (!this._agentService.getSessionStateFile) {
 			throw new Error('Agent Host session state files are unavailable');
 		}
-		return this._agentService.getSessionStateFile(session);
+		return this._agentService.getSessionStateFile(session, chat);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

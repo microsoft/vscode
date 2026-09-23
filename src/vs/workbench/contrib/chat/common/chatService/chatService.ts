@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
@@ -35,6 +38,7 @@ import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import { ConfirmationOptionKind, type McpOAuthClient } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 
 export interface IChatRequest {
 	message: string;
@@ -211,11 +215,25 @@ export interface IChatUsage {
 	kind: 'usage';
 }
 
+const copilotCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 1 });
+
 /**
- * Formats a copilot credit value for display.
+ * Formats a Copilot credit value with locale-aware grouping and at most one decimal place.
  */
 export function formatCopilotCredits(credits: number): string {
-	return parseFloat(credits.toFixed(1)).toString();
+	const roundedCredits = parseFloat(credits.toFixed(1));
+	return copilotCreditsFormatter.value.format(roundedCredits === 0 ? 0 : roundedCredits);
+}
+
+/**
+ * Formats a credit value as a pluralized label such as "1 credit" or "2.5 credits".
+ * Shared so every credit readout agrees.
+ */
+export function formatCopilotCreditsLabel(credits: number): string {
+	const formatted = formatCopilotCredits(credits);
+	return parseFloat(credits.toFixed(1)) === 1
+		? localize('chat.credit', "{0} credit", formatted)
+		: localize('chat.credits', "{0} credits", formatted);
 }
 
 export interface IChatContentInlineReference {
@@ -309,6 +327,16 @@ export interface IChatSystemNotificationPart {
 	 * notifications that report something completing.
 	 */
 	icon?: ThemeIcon;
+	/** Render the first line as an always-visible summary and the remaining Markdown as collapsible details. */
+	collapsible?: boolean;
+	/** Render response timing beside the notification instead of using the response footer. */
+	renderInlineTiming?: boolean;
+	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
+	presentation?: 'workspaceTransition' | 'workflow';
+	/** Workspace folder name emphasized by the transition presentation. */
+	workspaceName?: string;
+	/** Complete accessible description for non-visual presentation and announcements. */
+	accessibilityLabel?: string;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -644,6 +672,17 @@ export interface IChatTerminalToolInvocationData {
 		isSandboxWrapped?: boolean;
 	};
 	/**
+	 * Whether the user may edit the command before confirming.
+	 *
+	 * Omitted means editable, the historical behavior for the built-in terminal
+	 * tool, which runs `commandLine.userEdited` when it is set. A producer whose
+	 * confirmation does not return the edit — an agent-host session, whose edit
+	 * would have to travel back as `chat/toolCallConfirmed.editedToolInput` —
+	 * MUST set `false`. Letting someone edit a command they are approving and
+	 * then running the original is worse than showing it read-only.
+	 */
+	editable?: boolean;
+	/**
 	 * LM-generated intention describing why the command is being run, shown
 	 * above the command in the terminal tool card. Set by the Agent Host; the
 	 * built-in terminal tool leaves this unset.
@@ -786,6 +825,21 @@ export interface IChatToolInputInvocationData {
 	rawInput: any;
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
+	/**
+	 * Whether the user may edit {@link rawInput} before confirming.
+	 *
+	 * Omitted means editable, the historical behavior: the confirmation editor
+	 * writes back into `rawInput`, and for an extension-contributed tool
+	 * `ILanguageModelToolsService` then invokes it with that value as its
+	 * parameters. That path always honours an edit, which is why no opt-out
+	 * existed before.
+	 *
+	 * A producer whose confirmation does not run through it — an agent-host
+	 * session, whose edit would have to travel back as
+	 * `chat/toolCallConfirmed.editedToolInput` — MUST set `false`. Inviting an
+	 * edit and then running the original is worse than showing none.
+	 */
+	editable?: boolean;
 }
 
 export const enum ToolConfirmKind {
@@ -1140,6 +1194,13 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	/** Reuse the compact pill for a phase summary without a child-chat navigation target. */
+	presentation?: 'phase';
+	phaseStatus?: AgentFusionPhaseStatus;
+	/** Content-free phase activity, not a tool name or a model-authored summary. */
+	activityDescription?: string;
+	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
+	hasStarted?: boolean;
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
@@ -1149,6 +1210,8 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	/** Chat-layer model identifier (raw provider id for phases), independent of its display name. */
+	modelId?: string;
 	modelName?: string;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
@@ -1156,13 +1219,20 @@ export interface IChatSubagentToolInvocationData {
 	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
 	duration?: number;
 	/**
-	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
-	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
-	 * chat" link that reveals the subagent's read-only chat. Undefined when the
-	 * subagent has no separately-openable chat. A string (not a `URI`) so it stays
-	 * serializable across the extension host protocol.
+	 * Serializable URI of a distinct subagent chat, including a prospective URI; undefined when no target is known.
+	 * Presence does not imply readiness: use {@link isChatAvailable} to gate navigation.
 	 */
 	chatResource?: string;
+	/**
+	 * `true` means the provider reports the chat available; `false` means it is not yet or no longer available.
+	 * `undefined` preserves legacy navigation behavior based on the resource and opener.
+	 */
+	isChatAvailable?: boolean;
+}
+
+/** Phase status is authoritative; ordinary subagents retain their independently observed activity. */
+export function getSubagentIsActive(data: Pick<IChatSubagentToolInvocationData, 'presentation' | 'phaseStatus' | 'isActive'>): boolean | undefined {
+	return data.presentation === 'phase' ? data.phaseStatus === 'running' : data.isActive;
 }
 
 /**
@@ -1362,6 +1432,7 @@ export interface IChatMcpAuthenticationRequired {
 	readonly kind: 'mcpAuthenticationRequired';
 	readonly sessionResource: UriComponents;
 	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	/** Set by the producer before publishing the empty server list on completion. */
 	isUsed: boolean;
 }
 
@@ -1867,6 +1938,8 @@ export interface IRemotePendingRequest {
 	/** The raw message text. */
 	readonly message: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 }
 
@@ -1894,6 +1967,8 @@ export interface IChatSendRequestOptions {
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	/** Provider-specific request metadata, separate from the prompt. */
+	metadata?: Record<string, unknown>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -1962,6 +2037,12 @@ export interface IChatRequestSubmittedEvent {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 }
 
+/** A new submission accepted for sending or queuing, not a retry or a queue drain. */
+export interface IChatRequestAcceptedEvent {
+	readonly chatSessionResource: URI;
+	readonly isNewSession: boolean;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
@@ -1969,6 +2050,7 @@ export interface IChatService {
 	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
+	readonly onDidAcceptRequest: Event<IChatRequestAcceptedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 

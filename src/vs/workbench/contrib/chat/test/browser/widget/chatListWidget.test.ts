@@ -4,24 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatAccessibilityService } from '../../../browser/chat.js';
-import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions } from '../../../browser/widget/chatListWidget.js';
+import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
@@ -31,10 +41,12 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
+import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
 import '../../../browser/widget/media/chat.css';
 
 function nextFrame(): Promise<void> {
@@ -62,7 +74,141 @@ async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Pro
 suite('ChatListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false) {
+	test('identifies transcript background context menu targets', () => {
+		const row = mainWindow.document.createElement('div');
+		row.className = 'monaco-list-row';
+		const rowGutter = mainWindow.document.createElement('div');
+		rowGutter.className = 'monaco-tl-row';
+		row.appendChild(rowGutter);
+		const content = mainWindow.document.createElement('div');
+		content.className = 'interactive-item-container';
+		row.appendChild(content);
+		const contentChild = mainWindow.document.createElement('div');
+		content.appendChild(contentChild);
+		const link = mainWindow.document.createElement('a');
+		link.href = 'https://fallback.example.com';
+		link.dataset.href = 'https://example.com/docs';
+		const linkChild = mainWindow.document.createElement('span');
+		link.appendChild(linkChild);
+		content.appendChild(link);
+		const katexContainer = mainWindow.document.createElement('span');
+		katexContainer.className = katexContainerClassName;
+		content.appendChild(katexContainer);
+		const svg = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		katexContainer.appendChild(svg);
+		const svgPath = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		svg.appendChild(svgPath);
+		const scrollbar = mainWindow.document.createElement('div');
+		scrollbar.className = 'scrollbar';
+
+		assert.deepStrictEqual({
+			row: isChatBackgroundContextMenuTarget(row),
+			rowGutter: isChatBackgroundContextMenuTarget(rowGutter),
+			content: isChatBackgroundContextMenuTarget(content),
+			contentChild: isChatBackgroundContextMenuTarget(contentChild),
+			linkChild: getChatContextMenuTargetContext(linkChild),
+			svgPath: getChatContextMenuTargetContext(svgPath),
+			scrollbar: isChatBackgroundContextMenuTarget(scrollbar),
+			missing: isChatBackgroundContextMenuTarget(undefined),
+		}, {
+			row: true,
+			rowGutter: true,
+			content: false,
+			contentChild: false,
+			linkChild: {
+				isKatexElement: false,
+				isBackground: false,
+				linkTarget: 'https://example.com/docs',
+			},
+			svgPath: {
+				isKatexElement: true,
+				isBackground: false,
+			},
+			scrollbar: false,
+			missing: false,
+		});
+	});
+
+	test('provides registered menu commands with the link context', async () => {
+		let contextMenuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+		const contextMenuService: IContextMenuService = {
+			_serviceBrand: undefined,
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+			showContextMenu: delegate => contextMenuDelegate = delegate,
+		};
+		const editorResolverService = upcastPartial<IEditorResolverService>({
+			getEditors: () => [{
+				id: 'test.editor',
+				label: 'Test Editor',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option,
+				},
+			}],
+		});
+		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const requestText = 'Show documentation';
+		const request = model.addRequest({
+			text: requestText,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, requestText.length), new Range(1, 1, 1, requestText.length + 1), requestText)]
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, {
+			kind: 'markdownContent',
+			content: new MarkdownString('[Documentation](file:///workspace/README.md)'),
+		});
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const link = container.querySelector('a[data-href="file:///workspace/README.md"]');
+		assert.ok(link);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+
+		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const actionContext = menuDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(actionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		assert.deepStrictEqual({
+			linkTarget: actionContext.linkTarget,
+			itemKind: isResponseVM(actionContext.item) ? 'response' : 'other',
+		}, {
+			linkTarget: 'file:///workspace/README.md',
+			itemKind: 'response',
+		});
+	});
+
+	test('shows Open With only for resources backed by a file system provider', () => {
+		const editorResolverService = upcastPartial<IEditorResolverService>({
+			getEditors: () => [{
+				id: 'test.editor',
+				label: 'Test Editor',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option,
+				},
+			}],
+		});
+		const fileService = upcastPartial<IFileService>({
+			hasProvider: () => true,
+		});
+
+		assert.deepStrictEqual({
+			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
+			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
+			http: shouldShowChatLinkOpenWith(URI.parse('http://example.com'), fileService, editorResolverService),
+		}, {
+			file: true,
+			https: false,
+			http: false,
+		});
+	});
+
+	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -70,13 +216,20 @@ suite('ChatListWidget', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		if (contextMenuService) {
+			instantiationService.stub(IContextMenuService, contextMenuService);
+		}
+		if (editorResolverService) {
+			instantiationService.stub(IEditorResolverService, editorResolverService);
+		}
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
 		instantiationService.stub(IChatAccessibilityService, {
 			acceptRequest: () => { },
@@ -120,7 +273,7 @@ suite('ChatListWidget', () => {
 		}));
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
-		return { disposables, model, viewModel, container, widget };
+		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
 
 	async function measureFirstRequestPushOut(firstText: string) {
@@ -222,6 +375,14 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual(states, [false, true, true, true, false]);
 	});
 
+	test('disables the generic tree Find widget', () => {
+		const { disposables, contextKeyService } = createWidget();
+
+		assert.strictEqual(contextKeyService.getContextKeyValue(WorkbenchListSupportsFind.key), false);
+
+		disposables.dispose();
+	});
+
 	test('keeps user toggle tracking active until resizing settles', () => {
 		const state = new UserToggleResizeState(2);
 		const states = [state.isActive];
@@ -279,8 +440,8 @@ suite('ChatListWidget', () => {
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
 	// streaming auto-scroll and the scroll-down button depend on.
-	test('scrolls through the bottom padding to reach the end', async () => {
-		const { disposables, model, widget } = createWidget({ paddingBottom: 30 });
+	test('updates bottom padding while keeping the list at the end', async () => {
+		const { disposables, model, widget } = createWidget();
 		for (let i = 0; i < 10; i++) {
 			const text = `question ${i}`;
 			const request = model.addRequest({
@@ -295,14 +456,51 @@ suite('ChatListWidget', () => {
 		await waitForStableLayout(widget);
 		widget.scrollToEnd();
 		await waitForStableLayout(widget);
+		const scrollHeightWithoutPadding = widget.scrollHeight;
+
+		widget.setPaddingBottom(30);
+		await waitForStableLayout(widget);
 
 		assert.deepStrictEqual({
 			// Guards the test from passing vacuously on a list that cannot scroll.
 			overflows: widget.scrollHeight > widget.renderHeight,
+			paddingAdded: widget.scrollHeight - scrollHeightWithoutPadding,
 			atBottom: widget.isScrolledToBottom,
 		}, {
 			overflows: true,
+			paddingAdded: 30,
 			atBottom: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('keeps request content tabbable when the transcript root is removed from the tab order', async () => {
+		const { disposables, model, container, widget } = createWidget({ tabIndex: -1 });
+		const text = 'question';
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const transcriptRoot = container.querySelector<HTMLElement>('.monaco-list');
+		const requestContent = container.querySelector<HTMLElement>('.interactive-request .chat-markdown-part');
+		assert.ok(transcriptRoot);
+		assert.ok(requestContent);
+		widget.focus();
+
+		assert.deepStrictEqual({
+			transcriptTabIndex: transcriptRoot.tabIndex,
+			requestTabIndex: requestContent.tabIndex,
+			programmaticallyFocused: mainWindow.document.activeElement === transcriptRoot,
+		}, {
+			transcriptTabIndex: -1,
+			requestTabIndex: 0,
+			programmaticallyFocused: true,
 		});
 
 		disposables.dispose();
@@ -831,6 +1029,39 @@ suite('ChatListWidget', () => {
 			},
 			stickyRows: 0,
 			stickyContainerEmpty: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('renders transcript context above the request message', async () => {
+		const { disposables, model, container, widget } = createWidget();
+		const text = 'Tell me about this pull request';
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'transcriptContext',
+			id: 'pull-request-context',
+			name: '#42 Fix the issue',
+			value: '{}',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'),
+		};
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [attachment] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
+		assert.ok(requestValue);
+		const children = Array.from(requestValue.children);
+		assert.deepStrictEqual({
+			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
+			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),
+		}, {
+			attachmentIndex: 0,
+			messageIndex: 1,
 		});
 
 		disposables.dispose();

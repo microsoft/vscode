@@ -50,7 +50,7 @@ import { IContextKey, IContextKeyService } from '../../../../../../../platform/c
 import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
-import { DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror } from '../../../../../terminal/browser/chatTerminalCommandMirror.js';
+import { DetachedTerminalCommandMirror, DetachedTerminalSnapshotMirror, type IDetachedTerminalCommandMirrorRenderResult } from '../../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { TerminalLocation } from '../../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../../terminal/terminalContribExports.js';
@@ -477,7 +477,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			} : undefined
 		};
 
-		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), markdownOptions));
+		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate, markdownOptions));
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
@@ -595,6 +595,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			isSkipped,
 			isRunningInBackground,
 			this._terminalData.isPty === false ? undefined : () => this.focusTerminal(),
+			this._isInThinkingContainer,
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -1332,6 +1333,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 	private _lastRenderedLineCount: number | undefined;
+	private readonly _outputRelayout = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -1403,8 +1405,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 		// Only now show the expanded state (after content is ready)
 		this._setExpanded(true);
-		await this._layoutMirrorWidth();
-		this._layoutOutput();
+		const result = await this._layoutMirrorWidth();
+		this._layoutOutput(result?.lineCount);
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
 		return true;
@@ -1693,7 +1695,11 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _scheduleOutputRelayout(): void {
-		dom.getWindow(this.domNode).requestAnimationFrame(() => {
+		if (this._outputRelayout.value || this._store.isDisposed) {
+			return;
+		}
+		this._outputRelayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+			this._outputRelayout.clear();
 			this._layoutOutput();
 			this._scrollOutputToBottom();
 		});
@@ -1704,18 +1710,23 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	 * font estimate, and later renders can reflect DPR changes. Re-run layout so the box
 	 * height and wrap width match what xterm actually painted.
 	 */
-	private _handleMirrorRowHeightChange(): void {
-		void this._layoutMirrorWidth();
-		this._layoutOutput();
+	private async _handleMirrorRowHeightChange(): Promise<void> {
+		const result = await this._layoutMirrorWidth();
+		if (!this._store.isDisposed) {
+			this._layoutOutput(result?.lineCount);
+		}
 	}
 
-	private _handleResize(): void {
+	private async _handleResize(): Promise<void> {
 		if (!this._scrollableContainer) {
 			return;
 		}
 		if (this.isExpanded) {
-			void this._layoutMirrorWidth();
-			this._layoutOutput();
+			const result = await this._layoutMirrorWidth();
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._layoutOutput(result?.lineCount);
 			this._scrollOutputToBottom();
 		} else {
 			this._scrollableContainer.scanDomNode();
@@ -1727,19 +1738,15 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	 * width is unmeasurable (e.g. collapsed); the mirror keeps its current cols until the next
 	 * layout opportunity.
 	 */
-	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<void> {
+	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
 		if (!mirror) {
-			return;
+			return undefined;
 		}
 		const width = this._terminalContainer.clientWidth || this._outputBody.clientWidth || this.domNode.clientWidth || (this.domNode.parentElement?.clientWidth ?? 0);
 		if (width <= 0) {
-			return;
+			return undefined;
 		}
-		const result = await mirror.layout(width);
-		if (!this._store.isDisposed && result?.lineCount !== undefined) {
-			// Re-wrapping can change the number of rendered rows, so refresh the box height
-			this._layoutOutput(result.lineCount);
-		}
+		return mirror.layout(width);
 	}
 
 	private _layoutOutput(lineCount?: number): void {
@@ -1753,8 +1760,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			lineCount = this._lastRenderedLineCount;
 		}
 
-		this._scrollableContainer.scanDomNode();
 		if (!this.isExpanded || lineCount === undefined) {
+			this._scrollableContainer.scanDomNode();
 			return;
 		}
 
@@ -1838,6 +1845,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 	private readonly _isSkipped: boolean;
 	private _isRunningInBackground: boolean;
 	private readonly _onFocusTerminal: (() => void) | undefined;
+	private readonly _inThinking: boolean;
 	private readonly _showLinkDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _showLinkElement: HTMLElement | undefined;
 
@@ -1852,8 +1860,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		isSkipped: boolean,
 		isRunningInBackground: boolean,
 		onFocusTerminal: (() => void) | undefined,
+		inThinking: boolean,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// When the model supplied an intention (why it's running the command),
 		// use it as the descriptive text instead of the generic verb. Skipped
@@ -1873,7 +1883,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 				? `${intentionText} ${commandText}${localize('chat.terminal.backgroundSuffix', " in background")}`
 				: `${intentionText} ${commandText}`
 			: stateTitle;
-		super(title, context, undefined, hoverService, configurationService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
@@ -1883,6 +1893,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._isSkipped = isSkipped;
 		this._isRunningInBackground = isRunningInBackground;
 		this._onFocusTerminal = onFocusTerminal;
+		this._inThinking = inThinking;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1893,6 +1904,14 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._setCodeFormattedTitle();
 		this._updateShowLink();
 		this.setExpanded(initialExpanded);
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'terminal';
+	}
+
+	protected override get collapsibleInThinking(): boolean {
+		return this._inThinking;
 	}
 
 	protected override shouldAnimateContent(): boolean {

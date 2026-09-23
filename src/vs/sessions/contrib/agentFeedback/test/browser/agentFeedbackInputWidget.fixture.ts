@@ -6,7 +6,6 @@
 import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -22,6 +21,8 @@ import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import '../../browser/media/agentFeedbackEditorInput.css';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
@@ -115,10 +116,8 @@ function renderInputWidget(context: ComponentFixtureContext, options: IInputFixt
 
 /** A session whose feedback scopes {@link fileResource}, for the mock service. */
 function createFixtureSession(): ISession {
-	const changes = observableValue<readonly ISessionFileChange[]>('agentFeedbackFixtureChanges', []);
 	return new class extends mock<ISession>() {
 		override readonly resource = sessionResource;
-		override readonly changes = changes;
 	}();
 }
 
@@ -147,11 +146,15 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
 		}
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			return isEqual(resourceUri, fileResource) ? session : undefined;
+		}
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {
 			return isEqual(resourceUri, fileResource) ? sessionResource : undefined;
@@ -173,6 +176,7 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, createMockCodeReviewService());
 			reg.defineInstance(IContextKeyService, contextKeyService);
 		},
 	});

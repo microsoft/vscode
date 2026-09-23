@@ -7,9 +7,20 @@
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
 	width: 520px;
 	max-width: 100%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 	color: var(--vscode-editorHoverWidget-foreground);
+}
+
+.sessions-issue-hover.compact {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+.sessions-issue-hover a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .sessions-issue-hover-header {
@@ -17,7 +28,6 @@
 	align-items: baseline;
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0;
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 }
@@ -34,17 +44,55 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.sessions-issue-hover-status-row {
+	display: flex;
+}
+
+.sessions-issue-hover-status {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	width: max-content;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-issue-hover-status .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .sessions-issue-hover-title {
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160) var(--vscode-spacing-size120);
-	font-size: var(--vscode-fontSize-heading2, 18px);
+	min-width: 0;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
-	line-height: 1.25;
+	line-height: 1.4;
+}
+
+.sessions-issue-hover-title-content {
+	display: block;
+	min-width: 0;
 	overflow-wrap: anywhere;
 }
 
+.sessions-issue-hover-title-tail {
+	white-space: nowrap;
+}
+
+.sessions-issue-hover .sessions-issue-hover-reference {
+	font-weight: var(--vscode-fontWeight-regular);
+	overflow-wrap: normal;
+	white-space: nowrap;
+}
+
+.sessions-issue-hover-author {
+	color: var(--vscode-descriptionForeground);
+}
+
 .sessions-issue-hover-description {
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);

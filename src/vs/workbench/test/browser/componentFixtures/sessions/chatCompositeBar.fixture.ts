@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -85,13 +88,17 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override async renameChat() { }
-				override async deleteChat() { }
+				override async deleteChat() { return true; }
 			}());
 			// Tabs are drag sources that ask the owning provider for the referenced
 			// chat's backend resource. These fixtures mock a provider-less session,
 			// so no provider resolves and the drag offers no chat reference.
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override getProvider() { return undefined; }
+			}());
+			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly onDidChangeEditorPartOptions = Event.None;
+				override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
 			}());
 		},
 	});
@@ -101,7 +108,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	container.classList.add('chat-groups-view', 'single-group');
 
 	const session = createMockSession(chats, activeChat, sessionTitle);
-	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar));
+	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar, undefined));
 	bar.setGroup(createMockDelegate(session, chats, activeChat));
 	container.appendChild(bar.element);
 

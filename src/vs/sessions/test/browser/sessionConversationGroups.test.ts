@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { extUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { getSessionConversationGroupId, getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel, SESSION_CONVERSATION_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../browser/sessionConversationGroups.js';
-import { ChatOriginKind, IChat, IChatOrigin, SessionStatus } from '../../services/sessions/common/session.js';
+import { getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel } from '../../browser/sessionConversationGroups.js';
+import { ChatOriginKind, IChat, IChatOrigin, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 
 function createChat(id: string, origin?: IChatOrigin): IChat {
 	return new class extends mock<IChat>() {
@@ -21,18 +20,19 @@ function createChat(id: string, origin?: IChatOrigin): IChat {
 suite('Sessions - Session conversation groups', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('omits side chats and separates active-chat subagents', () => {
-		const activeChat = createChat('active');
+	test('identifies only side chats belonging to the given parent chat', () => {
+		const parent = createChat('main');
+		const otherParent = createChat('other');
 		assert.deepStrictEqual([
-			getSessionConversationGroupId(createChat('regular'), activeChat, extUri),
-			getSessionConversationGroupId(createChat('side', { kind: ChatOriginKind.SideChat }), activeChat, extUri),
-			getSessionConversationGroupId(createChat('subagent', { kind: ChatOriginKind.Tool, parentChat: activeChat.resource }), activeChat, extUri),
-			getSessionConversationGroupId(createChat('other-subagent', { kind: ChatOriginKind.Tool, parentChat: URI.parse('test-chat:/other') }), activeChat, extUri),
+			isSideChatOf(createChat('regular'), parent.resource),
+			isSideChatOf(createChat('side', { kind: ChatOriginKind.SideChat, parentChat: parent.resource }), parent.resource),
+			isSideChatOf(createChat('otherSide', { kind: ChatOriginKind.SideChat, parentChat: otherParent.resource }), parent.resource),
+			isSideChatOf(createChat('subagent', { kind: ChatOriginKind.Tool, parentChat: parent.resource }), parent.resource),
 		], [
-			SESSION_CONVERSATION_CHATS_GROUP,
-			undefined,
-			SESSION_CONVERSATION_SUBAGENTS_GROUP,
-			undefined,
+			false,
+			true,
+			false,
+			false,
 		]);
 	});
 

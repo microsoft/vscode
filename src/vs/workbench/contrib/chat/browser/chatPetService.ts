@@ -27,7 +27,7 @@ const CHAT_PET_LOCAL_ACHIEVEMENT_MIGRATION_VERSION_STORAGE_KEY = 'chat.vscodePet
 const CHAT_PET_LOCAL_ACHIEVEMENT_MIGRATION_VERSION = 1;
 const CHAT_PET_SCALE_STORAGE_KEY = 'chat.vscodePet.scale';
 const CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY = 'chat.vscodePet.horizontalPosition';
-const CHAT_PET_DEFAULT_SCALE = 1;
+export const CHAT_PET_DEFAULT_SCALE = 1;
 
 export type ChatPetVariant = 'stable' | 'insiders';
 

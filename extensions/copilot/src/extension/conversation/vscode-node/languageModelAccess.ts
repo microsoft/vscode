@@ -10,6 +10,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { AUTO_MODE_TIER_PROPERTY, defaultAutoModeTier, selectableAutoModeTiers } from '../../../platform/endpoint/common/autoModeTiers';
@@ -31,7 +32,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
+import { asThinkingOriginApi, isEncryptedThinkingDelta, thinkingOriginToMetadata } from '../../../platform/thinking/common/thinking';
 import { BaseTokensPerCompletion } from '../../../platform/tokenizer/node/tokenizer';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
 import { CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
@@ -119,11 +120,9 @@ function buildAutoRoutingContext(
 
 // Auto model delegates to different backends, so the only picker it exposes is
 // the routing tier; per-model options belong to the model it routes to.
-function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(endpoint: IChatEndpoint, opusDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
-		return autoTiersEnabled
-			? { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } }
-			: {};
+		return { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } };
 	}
 
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
@@ -131,7 +130,9 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 	// Reasoning effort config
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
-		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, endpoint.family.toLowerCase());
+		const family = endpoint.family.toLowerCase();
+		const defaultOverride = family.includes('opus') ? opusDefaultEffort : undefined;
+		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, family, defaultOverride);
 	}
 
 	// Context size config
@@ -156,8 +157,11 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 	return { configurationSchema: { properties } };
 }
 
+const DICTATION_CLEANUP_NANO_ALIAS = 'copilot-dictation-cleanup-nano';
 const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
-const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_LUNA_ALIAS];
+const DICTATION_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
+const dictationCleanupAliases: ReadonlySet<string> = new Set([DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS]);
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS];
 
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
@@ -173,7 +177,7 @@ const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-sm
  * normal copilot model entry.
  */
 export function buildUtilityAliasModelInfo(
-	family: ChatEndpointFamily,
+	family: string,
 	endpoint: IChatEndpoint,
 	models: readonly vscode.LanguageModelChatInformation[],
 	baseCount: number,
@@ -201,6 +205,7 @@ export function buildUtilityAliasModelInfo(
 			version: endpoint.version,
 			maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 			maxOutputTokens: endpoint.maxOutputTokens,
+			maxContextWindowTokens: endpoint.maxContextWindowTokens,
 			requiresAuthorization,
 			isUserSelectable: false,
 			isDefault: false,
@@ -243,6 +248,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		@IVSCodeExtensionContext private readonly _vsCodeExtensionContext: IVSCodeExtensionContext,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -291,10 +297,10 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
-		this._register(this._automodeService.onDidChangeAutoModeTierSupport(() => {
-			// Withdraws (or restores) the Auto model's tier picker, which is only
-			// honored while routing goes through `POST /auto`.
-			this._onDidChange.fire();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ConfigKey.ClaudeOpusDefaultReasoningEffort.fullyQualifiedId)) {
+				this._onDidChange.fire();
+			}
 		}));
 		void this._refreshUtilityOverrides().catch(err => {
 			this._logService.warn(`[LanguageModelAccess] Failed to pre-resolve internal model aliases: ${err}`);
@@ -328,7 +334,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
-		const autoTiersEnabled = this._automodeService.areAutoModeTiersSupported();
+		const opusDefaultEffort = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeOpusDefaultReasoningEffort, this._expService) || undefined;
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -392,6 +398,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
+				maxContextWindowTokens: endpoint.maxContextWindowTokens,
 				requiresAuthorization: session && { label: session.account.label },
 				isDefault: {
 					[ApiChatLocation.Panel]: isDefault,
@@ -407,7 +414,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, autoTiersEnabled),
+				...buildConfigurationSchema(endpoint, opusDefaultEffort),
 			};
 
 			models.push(model);
@@ -449,6 +456,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to publish utility alias '${family}' -> ${endpoint.model}; skipping. Error: ${err}`);
 			}
+		}
+
+		const luna = this._resolvedUtilityEndpoints.get(DICTATION_CLEANUP_LUNA_ALIAS);
+		if (luna && !models.some(model => model.id === DICTATION_CLEANUP_LUNA_MODEL_ID)) {
+			this._utilityAliasEndpoints.set(DICTATION_CLEANUP_LUNA_MODEL_ID, luna.endpoint);
+			const modelInfo = buildUtilityAliasModelInfo(DICTATION_CLEANUP_LUNA_MODEL_ID, luna.endpoint, models, luna.baseCount, requiresAuthorization);
+			this._logService.trace(`[LanguageModelAccess] Publishing core-only model '${DICTATION_CLEANUP_LUNA_MODEL_ID}' -> ${luna.endpoint.model}.`);
+			models.push(modelInfo.info);
 		}
 
 		// Resolution may hang (override lookups, base-count tokenization), so keep it off
@@ -544,7 +559,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		if (model.id === DICTATION_CLEANUP_LUNA_ALIAS && options.requestInitiator !== 'core') {
+		const isCoreOnlyModel = dictationCleanupAliases.has(model.id) || (model.id === DICTATION_CLEANUP_LUNA_MODEL_ID && this._utilityAliasEndpoints.has(model.id));
+		if (isCoreOnlyModel && options.requestInitiator !== 'core') {
 			throw new Error(`Model ${model.id} is only available to VS Code core.`);
 		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
@@ -883,6 +899,10 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
 		let thinkingActive = false;
+		// Tag encrypted reasoning with the API that produced it so a consumer can tell whether it
+		// may be replayed, rather than having to guess from the payload's id.
+		const originApi = asThinkingOriginApi(endpoint.apiType);
+		const originMetadata = originApi ? thinkingOriginToMetadata(originApi) : undefined;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
 				if (isEncryptedThinkingDelta(delta.thinking)) {
@@ -890,7 +910,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 						progress.report(new vscode.LanguageModelThinkingPart(
 							delta.thinking.text ?? '',
 							delta.thinking.id,
-							{ encrypted_content: delta.thinking.encrypted },
+							{ encrypted_content: delta.thinking.encrypted, ...originMetadata },
 						));
 					}
 				} else {

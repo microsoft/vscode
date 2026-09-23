@@ -25,6 +25,7 @@ import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackConte
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -108,6 +109,14 @@ export interface IAgentFeedbackSubmittedEvent {
 	readonly replyCount: number;
 }
 
+/** Controls which accepted feedback items are submitted and the request used for them. */
+export interface ISubmitFeedbackOptions {
+	readonly query?: string;
+	/** Selected feedback for Agent Host requests. Other providers submit their complete reactive attachment. */
+	readonly feedbackIds?: readonly string[];
+	readonly onRequestAccepted?: () => void;
+}
+
 // --- Service Interface --------------------------------------------------------
 
 export const IAgentFeedbackService = createDecorator<IAgentFeedbackService>('agentFeedbackService');
@@ -146,7 +155,7 @@ export interface IAgentFeedbackService {
 	 * to {@link AgentFeedbackState.Accepted}) sets the initial lifecycle state
 	 * and selects which lifecycle event is fired.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind, state?: AgentFeedbackState): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind, state?: AgentFeedbackState, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback;
 
 	/**
 	 * Accept a feedback item that is currently in the
@@ -170,6 +179,8 @@ export interface IAgentFeedbackService {
 	 * Update the text of an existing feedback item.
 	 */
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
+	/** Associate legacy PR-review feedback with its originating pull request. */
+	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest): void;
 
 	/**
 	 * Mark an existing feedback item as resolved. Resolving moves the item to
@@ -188,6 +199,8 @@ export interface IAgentFeedbackService {
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
+	/** Whether feedback for this session is owned by an Agent Host annotations channel. */
+	isAgentHostSession(sessionResource: URI): boolean;
 
 	/** Show resolved feedback items in editor comment surfaces for this window. */
 	showFeedbackInEditor(sessionResource: URI, feedbackIds: readonly string[]): void;
@@ -215,6 +228,9 @@ export interface IAgentFeedbackService {
 	 * output-channel resource) or when there is no created session to scope to.
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
+
+	/** File changes for the focused chat in the given session. */
+	getChatChanges(sessionResource: URI): readonly ISessionFileChange[];
 
 	/**
 	 * Resolve the feedback scope shown for a file in the current session view, or
@@ -265,7 +281,7 @@ export interface IAgentFeedbackService {
 	 * straight to {@link AgentFeedbackState.Resolved}. No-op when there are no
 	 * accepted items.
 	 */
-	markFeedbackSubmitted(sessionResource: URI): void;
+	markFeedbackSubmitted(sessionResource: URI, feedbackIds?: readonly string[]): void;
 
 	/**
 	 * Submit the currently accumulated accepted feedback for the session to the
@@ -274,13 +290,17 @@ export interface IAgentFeedbackService {
 	 * while another request is in progress, means it was queued rather than sent. Returns whether
 	 * the feedback was submitted.
 	 */
-	submitFeedback(sessionResource: URI): Promise<boolean>;
+	submitFeedback(sessionResource: URI, options?: ISubmitFeedbackOptions): Promise<boolean>;
 
 	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
 	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void>;
+}
+
+export function shouldIncludeRawPRReviewComments(agentFeedbackService: IAgentFeedbackService, sessionResource: URI): boolean {
+	return !agentFeedbackService.isAgentHostSession(sessionResource) || !agentFeedbackService.hasLoadedFeedback(sessionResource);
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -451,7 +471,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	/** Resolves the storage backend that owns feedback for the given session. */
 	private _backendForSession(sessionResource: URI): IAgentFeedbackItemsBackend {
-		if (this._isAgentHostSession(sessionResource)) {
+		if (this.isAgentHostSession(sessionResource)) {
 			return this._getAnnotationsBackend();
 		}
 		return this._inMemoryBackend;
@@ -550,6 +570,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
+	getChatChanges(sessionResource: URI): readonly ISessionFileChange[] {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession.activeChat.get().changes.get();
+		}
+		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
+	}
+
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
@@ -589,7 +617,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return resourceUri.scheme !== Schemas.outputChannel;
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {
 		const backend = this._backendForSession(sessionResource);
 
 		// A sourcePRReviewCommentId implies the feedback originated from a PR review.
@@ -606,6 +634,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			diffHunks: context?.diffHunks,
 			kind: effectiveKind,
 			sourcePRReviewCommentId,
+			sourcePullRequest,
 			state,
 		};
 
@@ -665,6 +694,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 		backend.upsert({ ...existing, text: newText });
+	}
+
+	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest): void {
+		const backend = this._backendForSession(sessionResource);
+		const existing = backend.getItems(sessionResource).find(item => item.id === feedbackId);
+		if (!existing || existing.sourcePullRequest) {
+			return;
+		}
+		backend.upsert({ ...existing, sourcePullRequest });
 	}
 
 	setFeedbackResolved(sessionResource: URI, feedbackId: string, resolved: boolean): void {
@@ -778,7 +816,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return false;
 		}
 
-		const changes = session.changes.get();
+		const changes = this.getChatChanges(sessionResource);
 		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
 			return true;
 		}
@@ -798,8 +836,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
 		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
-		const sessionData = this._sessionsManagementService.getSession(sessionResource);
-		const sessionChange = this._getSessionChange(resourceUri, sessionData?.changes.get());
+		const sessionChange = this._getSessionChange(resourceUri, this.getChatChanges(sessionResource));
 
 		if (sessionChange?.isDeletion && sessionChange.originalUri) {
 			await this._editorService.openEditor({
@@ -922,7 +959,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 
-		if (!this._isAgentHostSession(sessionResource)) {
+		if (!this.isAgentHostSession(sessionResource)) {
 			// Wait for the attachment contribution to update the chat widget's attachment model
 			const widget = await whenChatWidgetForSession(this._chatWidgetService, sessionResource);
 			if (widget) {
@@ -942,12 +979,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		await this.submitFeedback(sessionResource);
 	}
 
-	private _isAgentHostSession(sessionResource: URI): boolean {
+	isAgentHostSession(sessionResource: URI): boolean {
 		const session = this._resolveSession(sessionResource);
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
-	async submitFeedback(sessionResource: URI): Promise<boolean> {
+	async submitFeedback(sessionResource: URI, options?: ISubmitFeedbackOptions): Promise<boolean> {
 		if (isEqual(sessionResource, AGENT_FEEDBACK_NEW_SESSION_RESOURCE)) {
 			if (!this.getFeedback(sessionResource).some(item => item.state === AgentFeedbackState.Accepted)) {
 				return false;
@@ -967,8 +1004,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// items — which are about to become submitted — to this single request
 		// so the agent receives the comments, then remove the transient
 		// attachment again once the request has been accepted.
-		if (this._isAgentHostSession(sessionResource)) {
-			const acceptedItems = this.getFeedback(sessionResource).filter(item => item.state === AgentFeedbackState.Accepted);
+		if (this.isAgentHostSession(sessionResource)) {
+			const feedbackIds = options?.feedbackIds ? new Set(options.feedbackIds) : undefined;
+			const acceptedItems = this.getFeedback(sessionResource).filter(item =>
+				item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
 			const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
 			if (acceptedItems.length) {
 				const annotationsResource = this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource);
@@ -976,13 +1015,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				widget.attachmentModel.addContext(createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
 			}
 
-			return this._sendActOnFeedbackRequest(widget, sessionResource, () => widget.attachmentModel.delete(attachmentId));
+			return this._sendActOnFeedbackRequest(widget, sessionResource, options, () => widget.attachmentModel.delete(attachmentId));
 		}
 
 		// For non-agent-host sessions the reactive attachment contribution also
 		// marks submission on send; marking from the helper is idempotent and
 		// covers sessions without that contribution.
-		return this._sendActOnFeedbackRequest(widget, sessionResource);
+		const nonAgentHostOptions = options?.feedbackIds ? { ...options, feedbackIds: undefined } : options;
+		return this._sendActOnFeedbackRequest(widget, sessionResource, nonAgentHostOptions);
 	}
 
 	/**
@@ -993,14 +1033,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * once that queued request eventually runs — the feedback items must move to
 	 * the submitted state right away.
 	 */
-	private _sendActOnFeedbackRequest(widget: IChatWidget, sessionResource: URI, cleanup?: () => void): Promise<boolean> {
+	private _sendActOnFeedbackRequest(widget: IChatWidget, sessionResource: URI, options?: ISubmitFeedbackOptions, cleanup?: () => void): Promise<boolean> {
 		const submitted = new DeferredPromise<boolean>();
 		const cleanupOnce = cleanup && createSingleCallFunction(cleanup);
 
-		widget.acceptInput('/act-on-feedback', {
+		widget.acceptInput(options?.query ?? '/act-on-feedback', {
 			onRequestAccepted: () => {
 				cleanupOnce?.();
-				this.markFeedbackSubmitted(sessionResource);
+				this.markFeedbackSubmitted(sessionResource, options?.feedbackIds);
+				options?.onRequestAccepted?.();
 				submitted.complete(true);
 			}
 		}).then(() => {
@@ -1015,16 +1056,17 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return submitted.p;
 	}
 
-	markFeedbackSubmitted(sessionResource: URI): void {
+	markFeedbackSubmitted(sessionResource: URI, feedbackIds?: readonly string[]): void {
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
+		const selectedFeedbackIds = feedbackIds ? new Set(feedbackIds) : undefined;
 
 		// Agent-host sessions hand the feedback to an agent that resolves each
 		// comment (via the resolveComments tool) once it has acted on it, so the
 		// items stay visible in the submitted state until then. Other providers
 		// have no such agent loop, so submitting resolves the comments directly
 		// to hide them from the UI.
-		const submittedState = this._isAgentHostSession(sessionResource)
+		const submittedState = this.isAgentHostSession(sessionResource)
 			? AgentFeedbackState.Submitted
 			: AgentFeedbackState.Resolved;
 
@@ -1034,7 +1076,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		let replyCount = 0;
 		const submitted: IAgentFeedback[] = [];
 		for (const item of feedbackItems) {
-			if (item.state !== AgentFeedbackState.Accepted) {
+			if (item.state !== AgentFeedbackState.Accepted || selectedFeedbackIds && !selectedFeedbackIds.has(item.id)) {
 				continue;
 			}
 			switch (item.kind) {

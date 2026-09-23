@@ -70,7 +70,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
 	supportsRuntimeSlashCommandsE2E: true,
 	supportsAttachmentsE2E: true,
-	fileToolDenialReplayUnstableOnLinux: true,
 	supportsWorktreeIncludeFilesE2E: true,
 	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,
@@ -84,13 +83,10 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSubagents: true,
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
-	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
-	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
-	subagentReplayUnstableOnWindows: true,
+	fileDeleteReplayUnstableOnWindows: true,
 	// Plan mode is wired (`ExitPlanMode` interactive tool exists) but the
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.
-	supportsPlanMode: false,
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,

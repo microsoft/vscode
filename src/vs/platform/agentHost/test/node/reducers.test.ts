@@ -260,7 +260,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 	});
 
-	test('ChatInputRequested replacement preserves purpose and synchronized answers through completion', () => {
+	test('ChatInputRequested replacement preserves synchronized answers through completion', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
