@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -89,20 +89,22 @@ export class NewSessionTourContribution extends Disposable implements IWorkbench
 		// Wait, then only trigger if the user is still looking at this session in
 		// the grid. A new request restarts the timer for the latest session.
 		this._pendingCheck.value = disposableTimeout(() => {
-			const stillVisible = this.sessionsService.visibleSessions.get().some(s => s?.sessionId === session.sessionId);
-			if (stillVisible) {
-				this._startNewSessionButtonPulse();
-			}
+			this._pendingCheck.value = autorun(reader => {
+				const stillVisible = this.sessionsService.visibleSessions.get().some(s => s?.sessionId === session.sessionId);
+				if (stillVisible) {
+					this._startNewSessionButtonPulse(reader);
+				}
+			});
 		}, NewSessionTourContribution.VISIBILITY_DELAY_MS);
 	}
 
-	private _startNewSessionButtonPulse(): void {
+	private _startNewSessionButtonPulse(reader: IReader): void {
 		if (this._pulse.value || this._trigger.get() || this.onboardingScenarioService.hasBeenShown(NEW_SESSION_TOUR_ID)) {
 			return;
 		}
 
 		const target = findOnboardingTarget(mainWindow, NEW_SESSION_BUTTON_TARGET);
-		if (!target || !this.onboardingScenarioService.shouldShowNudge(NEW_SESSION_TOUR_ID)) {
+		if (!target || !this.onboardingScenarioService.shouldShowNudge(NEW_SESSION_TOUR_ID, reader)) {
 			return;
 		}
 

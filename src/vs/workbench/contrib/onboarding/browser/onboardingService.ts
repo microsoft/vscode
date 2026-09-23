@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -71,6 +71,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	/** Resolved experiment treatment state, keyed by scenario id. */
 	private readonly _experimentStates = new Map<string, IExperimentState>();
+	private readonly _experimentStatesChanged = observableSignal(this);
 
 	/**
 	 * Assignment-context ids whose telemetry gate is open. While an onboarding id is *not* in
@@ -170,7 +171,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		return this._hasBeenShownKey(scenario ? this._seenKey(scenario) : id, id);
 	}
 
-	shouldShowNudge(id: string): boolean {
+	shouldShowNudge(id: string, reader?: IReader): boolean {
+		this._experimentStatesChanged.read(reader);
 		const scenario = onboardingScenarioRegistry.getScenario(id);
 		if (!scenario) {
 			throw new Error(`Unknown onboarding scenario '${id}'.`);
@@ -536,6 +538,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 					behavior: behavior === true,
 					assignmentContextId: active ? assignmentContextId! : ''
 				});
+				this._experimentStatesChanged.trigger(undefined);
 				if (active) {
 					this._evaluate();
 				}

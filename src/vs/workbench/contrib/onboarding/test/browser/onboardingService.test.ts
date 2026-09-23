@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -521,6 +521,42 @@ suite('OnboardingScenarioService', () => {
 		});
 	}
 
+	for (const behavior of [false, true]) {
+		test(`pre-tour nudge re-evaluates when delayed assignments resolve (${behavior})`, async () => {
+			const resolved = new DeferredPromise<void>();
+			const assignment = new class extends FakeAssignmentService {
+				override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+					await resolved.p;
+					return super.getTreatment<T>(name);
+				}
+			}({ 'exp.show': behavior, 'exp.id': 'onb-delayed' });
+			registerScenario({
+				id: 'delayed-nudge',
+				experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+				trigger: { kind: 'observable', signal: observableValue('trigger', false) },
+				presentation: { kind: uniqueKind(), payload: undefined },
+			});
+			const { service } = createService({}, assignment);
+			service.start();
+			const eligibility: boolean[] = [];
+			disposables.add(autorun(reader => {
+				eligibility.push(service.shouldShowNudge('delayed-nudge', reader));
+			}));
+			await resolved.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				eligibility,
+				excluded: assignment.isExcluded('onb-delayed:12345'),
+				shown: service.hasBeenShown('delayed-nudge'),
+			}, {
+				eligibility: [false, behavior],
+				excluded: false,
+				shown: false,
+			});
+		});
+	}
+
 	test('pre-tour nudge respects context, shown state and the global switch', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
@@ -531,7 +567,7 @@ suite('OnboardingScenarioService', () => {
 			presentation: { kind: presentation.kind, payload: undefined },
 		});
 		const { service, contextKeyService, config } = createService();
-		const ready = contextKeyService.createKey('nudgeReady', false);
+		const ready = contextKeyService.createKey<boolean>('nudgeReady', false);
 		const contextBlocked = service.shouldShowNudge('nudge');
 		ready.set(true);
 		const eligible = service.shouldShowNudge('nudge');

@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IReader, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
@@ -85,6 +85,57 @@ suite('NewSessionTourContribution', () => {
 				nudgeChecks: [NEW_SESSION_TOUR_ID],
 				afterClick: false,
 				triggered: allowed,
+			});
+		}));
+	}
+
+	for (const state of ['visible', 'hidden', 'superseded', 'disposed'] as const) {
+		test(`delayed assignment only pulses for a current visible request (${state})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const button = mainWindow.document.createElement('button');
+			button.textContent = 'New Session';
+			mainWindow.document.body.appendChild(button);
+			disposables.add(toDisposable(() => button.remove()));
+			disposables.add(markOnboardingTarget(button, 'sessions.newSession.button'));
+			const requests = disposables.add(new Emitter<ISession>());
+			const session = new class extends mock<IActiveSession>() {
+				override readonly sessionId = 'session';
+			}();
+			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', [session]);
+			const allowed = observableValue('allowed', false);
+			const contribution = disposables.add(new NewSessionTourContribution(
+				new class extends mock<ISessionsManagementService>() {
+					override readonly onWillSendRequest = requests.event;
+				}(),
+				new class extends mock<IOnboardingScenarioService>() {
+					override hasBeenShown(): boolean { return false; }
+					override shouldShowNudge(_id: string, reader?: IReader): boolean { return allowed.read(reader); }
+				}(),
+				new class extends mock<ISessionsService>() {
+					override readonly visibleSessions = visibleSessions;
+				}(),
+				disposables.add(new InMemoryStorageService()),
+				new TestConfigurationService(),
+			));
+			const isPulsing = () => button.classList.contains(ONBOARDING_TARGET_PULSE_CLASS);
+			requests.fire(session);
+			await timeout(5_000);
+			const beforeResolution = isPulsing();
+			if (state === 'hidden') {
+				visibleSessions.set([], undefined);
+			} else if (state === 'superseded') {
+				requests.fire(session);
+			} else if (state === 'disposed') {
+				contribution.dispose();
+			}
+			allowed.set(true, undefined);
+			const afterResolution = isPulsing();
+			await timeout(5_000);
+			assert.deepStrictEqual({
+				beforeResolution, afterResolution, afterNextDelay: isPulsing(),
+			}, {
+				beforeResolution: false,
+				afterResolution: state === 'visible',
+				afterNextDelay: state === 'visible' || state === 'superseded',
 			});
 		}));
 	}
