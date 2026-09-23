@@ -24,7 +24,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
-import { createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getPermissionLevelBadge } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
 
 suite('Combined mode and permissions picker', () => {
@@ -50,9 +50,14 @@ suite('Combined mode and permissions picker', () => {
 		let closes = 0;
 		let sandboxed = false;
 		const permissionItems: IActionListItem<IAction>[] = [
-			...['Manual permissions', 'Assisted permissions', 'Allow all'].map(label => ({
+			...[
+				{ label: 'Manual permissions', level: ChatPermissionLevel.Default },
+				{ label: 'Assisted permissions', level: ChatPermissionLevel.Assisted },
+				{ label: 'Allow all', level: ChatPermissionLevel.AutoApprove },
+			].map(({ label, level }) => ({
 				kind: ActionListItemKind.Action,
 				label,
+				...getPermissionLevelBadge(level),
 				detail: `${label} description`,
 				hover: { content: `${label} details` },
 				item: toAction({
@@ -92,7 +97,6 @@ suite('Combined mode and permissions picker', () => {
 					item: toAction({ id: 'plan', label: 'Plan', checked: false, run: () => { } }),
 				},
 			], true),
-			{ kind: ActionListItemKind.Separator },
 			...createModePickerPermissionsItems<IAction>({
 				label: 'Manual permissions',
 				level: ChatPermissionLevel.Default,
@@ -105,16 +109,17 @@ suite('Combined mode and permissions picker', () => {
 		const show = () => service.show('combinedPermissions', false, items, {
 			onSelect: action => action.run(),
 			onHide: () => { closes++; },
-		}, { x: 350, y: 450, width: 150, height: 24 }, undefined, [], getModePermissionsPickerAccessibilityProvider<IAction>(true), getModePermissionsPickerOptions(openPermissions));
+		}, { x: 350, y: 450, width: 150, height: 24 }, undefined, [], getModePermissionsPickerAccessibilityProvider<IAction>(true), getModePermissionsPickerOptions(openPermissions, openPermissions ? 'Manual permissions' : 'interactive'));
 		show();
+		const modeHeader = () => container.querySelector<HTMLElement>('.agent-host-mode-section')!;
 		const permissionHeader = () => container.querySelector<HTMLElement>('.agent-host-mode-permissions')!;
 		const popup = container.querySelector<HTMLElement>('.agent-host-mode-permissions-popup')!;
 		const labels = () => Array.from(popup.querySelectorAll('.monaco-list-row.action > .title'), label => label.textContent);
-		return { container, service, popup, permissionHeader, labels, selections, show, items, getCloses: () => closes, isSandboxed: () => sandboxed };
+		return { container, service, popup, modeHeader, permissionHeader, labels, selections, show, items, getCloses: () => closes, isSandboxed: () => sandboxed };
 	}
 
 	function highlightedLabels(popup: HTMLElement): (string | null)[] {
-		return Array.from(popup.querySelectorAll('.focus-group-highlighted > .title'), title => title.textContent);
+		return Array.from(popup.querySelectorAll('.monaco-list-row.action.focused > .title'), title => title.textContent);
 	}
 
 	function selectedLabels(popup: HTMLElement): (string | null)[] {
@@ -133,17 +138,93 @@ suite('Combined mode and permissions picker', () => {
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 
+	test('renders a compact neutral right-aligned Experimental badge and announces it', () => {
+		const { popup } = setup(true);
+		popup.style.setProperty('--vscode-fontSize-label3', '10px');
+		popup.style.setProperty('--vscode-spacing-size160', '16px');
+		popup.style.setProperty('--vscode-spacing-size60', '6px');
+		popup.style.setProperty('--vscode-strokeThickness', '1px');
+		popup.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+		popup.style.setProperty('--vscode-badge-background', '#007acc');
+		popup.style.setProperty('--vscode-foreground', '#cccccc');
+		popup.style.setProperty('--vscode-descriptionForeground', '#999999');
+		const row = getRow(popup, 'Assisted permissions');
+		const title = row.querySelector<HTMLElement>('.title')!;
+		const badge = row.querySelector<HTMLElement>('.action-item-badge')!;
+		const badgeStyle = dom.getWindow(badge).getComputedStyle(badge);
+		const badgeBounds = badge.getBoundingClientRect();
+		const titleBounds = title.getBoundingClientRect();
+		const rowContentRight = row.getBoundingClientRect().right - parseFloat(dom.getWindow(row).getComputedStyle(row).paddingRight);
+		const textRange = document.createRange();
+		textRange.selectNodeContents(badge);
+		const textBounds = textRange.getBoundingClientRect();
+		assert.deepStrictEqual({
+			badge: badge.textContent,
+			afterTitle: title.nextElementSibling === badge,
+			titleFlexGrow: dom.getWindow(title).getComputedStyle(title).flexGrow,
+			fontSize: badgeStyle.fontSize,
+			height: badgeBounds.height,
+			borderRadius: badgeStyle.borderRadius,
+			background: badgeStyle.backgroundColor,
+			color: badgeStyle.color,
+			borderColor: badgeStyle.borderColor,
+			rightAligned: Math.abs(badgeBounds.right - rowContentRight) < 0.5,
+			textCenteredHorizontally: Math.abs(textBounds.left + textBounds.width / 2 - badgeBounds.left - badgeBounds.width / 2) < 0.5,
+			textCenteredVertically: Math.abs(textBounds.top + textBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
+			alignedWithTitle: Math.abs(titleBounds.top + titleBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
+			ariaLabel: row.ariaLabel,
+		}, {
+			badge: 'Experimental',
+			afterTitle: true,
+			titleFlexGrow: '0',
+			fontSize: '10px',
+			height: 16,
+			borderRadius: '9999px',
+			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
+			color: 'rgb(153, 153, 153)',
+			borderColor: 'color(srgb 0.8 0.8 0.8 / 0.2)',
+			rightAligned: true,
+			textCenteredHorizontally: true,
+			textCenteredVertically: true,
+			alignedWithTitle: true,
+			ariaLabel: 'Assisted permissions, Experimental, Assisted permissions description, Assisted permissions details',
+		});
+	});
+
+	test('the Experimental badge respects focus and high-contrast colors with a neutral fill', () => {
+		const { service, popup } = setup(true);
+		popup.style.setProperty('--vscode-strokeThickness', '1px');
+		popup.style.setProperty('--vscode-foreground', '#cccccc');
+		popup.style.setProperty('--vscode-contrastBorder', '#ffffff');
+		service.focusItemById('Assisted permissions');
+		const row = getRow(popup, 'Assisted permissions');
+		const badge = row.querySelector<HTMLElement>('.action-item-badge')!;
+		const badgeStyle = dom.getWindow(badge).getComputedStyle(badge);
+
+		assert.deepStrictEqual({
+			background: badgeStyle.backgroundColor,
+			borderWidth: badgeStyle.borderWidth,
+			borderColor: badgeStyle.borderColor,
+			matchesRowColor: badgeStyle.color === dom.getWindow(row).getComputedStyle(row).color,
+		}, {
+			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
+			borderWidth: '1px',
+			borderColor: 'rgb(255, 255, 255)',
+			matchesRowColor: true,
+		});
+	});
+
 	test('opens the same menu with permissions collapsed or expanded for its originating button', () => {
 		assert.deepStrictEqual([false, true].map(openPermissions => {
-			const options = getModePermissionsPickerOptions(openPermissions);
+			const options = getModePermissionsPickerOptions(openPermissions, openPermissions ? 'Manual permissions' : 'interactive');
 			return {
 				collapsed: [...options.collapsedByDefault ?? []],
-				focusGroup: options.initialFocusGroup,
+				initialFocusItemId: options.initialFocusItemId,
 				widgetClassName: options.widgetClassName,
 			};
 		}), [
-			{ collapsed: ['agentHostModePicker.permissions'], focusGroup: undefined, widgetClassName: 'agent-host-mode-permissions-popup' },
-			{ collapsed: [], focusGroup: 'agentHostModePicker.permissions', widgetClassName: 'agent-host-mode-permissions-popup' },
+			{ collapsed: ['agentHostModePicker.permissions'], initialFocusItemId: 'interactive', widgetClassName: 'agent-host-mode-permissions-popup' },
+			{ collapsed: ['agentHostModePicker.mode'], initialFocusItemId: 'Manual permissions', widgetClassName: 'agent-host-mode-permissions-popup' },
 		]);
 	});
 
@@ -170,9 +251,9 @@ suite('Combined mode and permissions picker', () => {
 			closes: getCloses(),
 			lists: popup.querySelectorAll('.actionList').length,
 		}, {
-			initial: { labels: ['Interactive', 'Plan', 'Permissions'], expanded: 'false' },
-			afterExpansion: { labels: ['Interactive', 'Plan', 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', 'Sandboxing for terminal'], expanded: 'true' },
-			final: { labels: ['Interactive', 'Plan', 'Permissions'], expanded: 'false' },
+			initial: { labels: ['Agent mode', 'Interactive', 'Plan', 'Permissions'], expanded: 'false' },
+			afterExpansion: { labels: ['Agent mode', 'Interactive', 'Plan', 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', 'Sandboxing for terminal'], expanded: 'true' },
+			final: { labels: ['Agent mode', 'Interactive', 'Plan', 'Permissions'], expanded: 'false' },
 			grew: true,
 			anchorStable: true,
 			widthStable: true,
@@ -182,11 +263,13 @@ suite('Combined mode and permissions picker', () => {
 		});
 	});
 
-	test('opening permissions directly focuses the current permission without highlighting the disclosure', () => {
-		const { container, popup, permissionHeader, labels } = setup(true);
+	test('opening permissions collapses mode and focuses the current permission', () => {
+		const { container, popup, modeHeader, permissionHeader, labels } = setup(true);
 		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
 		const permission = getRow(popup, 'Manual permissions');
 		assert.deepStrictEqual({
+			modeExpanded: modeHeader().ariaExpanded,
+			modeSummary: modeHeader().querySelector('.description')?.textContent,
 			expanded: permissionHeader().ariaExpanded,
 			headerFocused: permissionHeader().classList.contains('focused'),
 			permissionFocused: permission.classList.contains('focused'),
@@ -197,15 +280,44 @@ suite('Combined mode and permissions picker', () => {
 			popups: container.querySelectorAll('.action-widget.agent-host-mode-permissions-popup').length,
 			lists: popup.querySelectorAll('.actionList').length,
 		}, {
+			modeExpanded: 'false',
+			modeSummary: 'Interactive',
 			expanded: 'true',
 			headerFocused: false,
 			permissionFocused: true,
 			activeDescendant: true,
-			highlights: ['Interactive', 'Manual permissions'],
+			highlights: ['Manual permissions'],
 			listFocused: true,
-			labels: ['Interactive', 'Plan', 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', 'Sandboxing for terminal'],
+			labels: ['Agent mode', 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', 'Sandboxing for terminal'],
 			popups: 1,
 			lists: 1,
+		});
+	});
+
+	test('opening mode collapses permissions and focuses the current mode', () => {
+		const { popup, modeHeader, permissionHeader, labels } = setup();
+		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
+		const mode = getRow(popup, 'Interactive');
+		assert.deepStrictEqual({
+			modeExpanded: modeHeader().ariaExpanded,
+			modeSummary: modeHeader().querySelector('.description')?.textContent,
+			permissionExpanded: permissionHeader().ariaExpanded,
+			permissionSummary: permissionHeader().querySelector('.description')?.textContent,
+			modeFocused: mode.classList.contains('focused'),
+			activeDescendant: list.getAttribute('aria-activedescendant') === mode.id,
+			highlights: highlightedLabels(popup),
+			selections: selectedLabels(popup),
+			labels: labels(),
+		}, {
+			modeExpanded: 'true',
+			modeSummary: 'Interactive',
+			permissionExpanded: 'false',
+			permissionSummary: 'Manual',
+			modeFocused: true,
+			activeDescendant: true,
+			highlights: ['Interactive'],
+			selections: ['Interactive'],
+			labels: ['Agent mode', 'Interactive', 'Plan', 'Permissions'],
 		});
 	});
 
@@ -229,8 +341,8 @@ suite('Combined mode and permissions picker', () => {
 				hoverDisplay: 'none',
 				hoverText: '',
 				focused: true,
-				highlights: ['Interactive', 'Manual permissions'],
-				selections: ['Interactive', 'Manual permissions'],
+				highlights: ['Manual permissions'],
+				selections: ['Manual permissions'],
 			},
 			hoverAfterNavigation: 'Assisted permissions details',
 			activated: [],
@@ -275,33 +387,122 @@ suite('Combined mode and permissions picker', () => {
 		});
 	});
 
-	test('labels the mode section and initially highlights the selected option in each group', () => {
-		const { container, popup } = setup(true);
+	test('section headers show current selections and are not radio choices', () => {
+		const { container, popup, modeHeader, permissionHeader } = setup(true);
+		container.style.color = '#f0f0f0';
+		container.style.setProperty('--vscode-descriptionForeground', '#8c8c8c');
 		container.style.setProperty('--vscode-list-hoverBackground', '#234567');
-		const highlights = Array.from(popup.querySelectorAll('.focus-group-highlighted'), row => ({
+		container.style.setProperty('--vscode-spacing-size20', '2px');
+		container.style.setProperty('--vscode-spacing-size40', '4px');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size80', '8px');
+		container.style.setProperty('--vscode-spacing-size120', '12px');
+		const highlights = Array.from(popup.querySelectorAll('.monaco-list-row.action.focused'), row => ({
 			label: row.querySelector('.title')?.textContent,
 			background: dom.getWindow(row).getComputedStyle(row).backgroundColor,
 		}));
+		const permissionSummary = permissionHeader().querySelector<HTMLElement>('.description')!;
+		const modeSummary = modeHeader().querySelector<HTMLElement>('.description')!;
+		const permissionGear = permissionHeader().querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		const modeTitle = modeHeader().querySelector<HTMLElement>('.title')!;
+		const permissionChoiceTitle = getRow(popup, 'Manual permissions').querySelector<HTMLElement>('.title')!;
+		const modeBounds = modeHeader().getBoundingClientRect();
+		const permissionBounds = permissionHeader().getBoundingClientRect();
+		const modeSummaryBounds = modeSummary.getBoundingClientRect();
+		const summaryBounds = permissionSummary.getBoundingClientRect();
+		const gearBounds = permissionGear.getBoundingClientRect();
 
 		assert.deepStrictEqual({
-			header: popup.querySelector('.group-header')?.textContent,
+			mode: {
+				label: modeHeader().querySelector('.title')?.textContent,
+				summary: modeHeader().querySelector('.description')?.textContent,
+				aria: modeHeader().getAttribute('aria-label'),
+				expanded: modeHeader().ariaExpanded,
+			},
+			permissions: {
+				label: permissionHeader().querySelector('.title')?.textContent,
+				summary: permissionHeader().querySelector('.description')?.textContent,
+				expanded: permissionHeader().ariaExpanded,
+			},
 			selections: selectedLabels(popup),
 			highlights,
+			layout: {
+				titleColumnAligned: Math.abs(modeTitle.getBoundingClientRect().left - permissionChoiceTitle.getBoundingClientRect().left) < 1,
+				gearBeforeSummary: gearBounds.right <= summaryBounds.left,
+				gearSummaryGap: summaryBounds.left - gearBounds.right,
+				rightInsets: {
+					mode: modeBounds.right - modeSummaryBounds.right,
+					permissions: permissionBounds.right - summaryBounds.right,
+				},
+			},
+			colors: {
+				modeHeader: dom.getWindow(modeHeader()).getComputedStyle(modeHeader()).color,
+				permissionHeader: dom.getWindow(permissionHeader()).getComputedStyle(permissionHeader()).color,
+				permissionGear: dom.getWindow(permissionGear).getComputedStyle(permissionGear).color,
+				permissionChoice: dom.getWindow(popup).getComputedStyle(getRow(popup, 'Manual permissions')).color,
+			},
+			modeDisclosureIsChoice: modeHeader().getAttribute('role') === 'menuitemradio',
 			disclosureIsChoice: popup.querySelector('.agent-host-mode-permissions')?.getAttribute('role') === 'menuitemradio',
 		}, {
-			header: 'Agent mode',
-			selections: ['Interactive', 'Manual permissions'],
+			mode: {
+				label: 'Agent mode',
+				summary: 'Interactive',
+				aria: 'Agent mode, Current mode: Interactive',
+				expanded: 'false',
+			},
+			permissions: {
+				label: 'Permissions',
+				summary: 'Manual',
+				expanded: 'true',
+			},
+			selections: ['Manual permissions'],
 			highlights: [
-				{ label: 'Interactive', background: 'rgb(35, 69, 103)' },
 				{ label: 'Manual permissions', background: 'rgb(35, 69, 103)' },
 			],
+			layout: {
+				titleColumnAligned: true,
+				gearBeforeSummary: true,
+				gearSummaryGap: 4,
+				rightInsets: {
+					mode: 20,
+					permissions: 20,
+				},
+			},
+			colors: {
+				modeHeader: 'rgb(140, 140, 140)',
+				permissionHeader: 'rgb(140, 140, 140)',
+				permissionGear: 'rgb(140, 140, 140)',
+				permissionChoice: 'rgb(240, 240, 240)',
+			},
+			modeDisclosureIsChoice: false,
 			disclosureIsChoice: false,
 		});
 	});
 
+	test('focused section headers use the standard list hover foreground', () => {
+		const { container, service, modeHeader, permissionHeader } = setup(true);
+		container.style.setProperty('--vscode-descriptionForeground', '#8c8c8c');
+		container.style.setProperty('--vscode-list-hoverForeground', '#fedcba');
+		const colors = [];
+		for (const [id, header] of [['agentHostModePicker.mode', modeHeader], ['agentHostModePicker.permissions', permissionHeader]] as const) {
+			service.focusItemById(id);
+			colors.push({
+				label: header().querySelector('.title')?.textContent,
+				color: dom.getWindow(header()).getComputedStyle(header()).color,
+			});
+		}
+
+		assert.deepStrictEqual(colors, [
+			{ label: 'Agent mode', color: 'rgb(254, 220, 186)' },
+			{ label: 'Permissions', color: 'rgb(254, 220, 186)' },
+		]);
+	});
+
 	for (const contrastBorder of [undefined, '#ff00ff']) {
-		test(`initial and retained highlights match hover and keyboard focus${contrastBorder ? ' with contrast borders' : ''}`, () => {
+		test(`hover and keyboard focus highlight only one row${contrastBorder ? ' with contrast borders' : ''}`, () => {
 			const { container, service, popup } = setup(true);
+			service.focusItemById('agentHostModePicker.mode');
+			service.expandSection();
 			container.style.setProperty('--vscode-list-hoverBackground', '#234567');
 			container.style.setProperty('--vscode-list-hoverForeground', '#fedcba');
 			container.style.setProperty('--vscode-list-inactiveSelectionBackground', '#765432');
@@ -325,114 +526,141 @@ suite('Combined mode and permissions picker', () => {
 					detailOpacity: detail.opacity,
 				};
 			};
-			const states = [['Interactive', 'interactive'], ['Manual permissions', 'Manual permissions']].map(([label, id]) => {
-				const row = getRow(popup, label);
-				const initial = readStyle(row);
-				hoverRow(popup, label);
-				const hovered = readStyle(row);
-				hoverRow(popup, 'Permissions');
-				const retained = readStyle(row);
-				service.focusItemById(id);
-				return { initial, hovered, retained, keyboard: readStyle(row) };
-			});
+			const interactive = getRow(popup, 'Interactive');
+			const initial = readStyle(interactive);
+			hoverRow(popup, 'Interactive');
+			const hovered = readStyle(interactive);
+			const hoverHighlights = highlightedLabels(popup);
+			hoverRow(popup, 'Permissions');
+			const released = readStyle(interactive);
+			const headerHighlights = highlightedLabels(popup);
+			service.focusItemById('Manual permissions');
+			const keyboard = readStyle(getRow(popup, 'Manual permissions'));
 
-			assert.deepStrictEqual(states, states.map(({ hovered }) => ({
-				initial: hovered,
-				hovered,
-				retained: hovered,
-				keyboard: hovered,
-			})));
+			assert.deepStrictEqual({
+				hoverHighlights,
+				headerHighlights,
+				keyboardHighlights: highlightedLabels(popup),
+				hoverChangesBackground: hovered.background !== initial.background,
+				releasedMatchesInitial: released.background === initial.background && released.foreground === initial.foreground && released.outline === initial.outline,
+				keyboardMatchesHover: keyboard.background === hovered.background && keyboard.foreground === hovered.foreground && keyboard.outline === hovered.outline,
+				selections: selectedLabels(popup),
+			}, {
+				hoverHighlights: ['Interactive'],
+				headerHighlights: ['Permissions'],
+				keyboardHighlights: ['Manual permissions'],
+				hoverChangesBackground: true,
+				releasedMatchesInitial: true,
+				keyboardMatchesHover: true,
+				selections: ['Interactive', 'Manual permissions'],
+			});
 		});
 	}
 
-	test('hover immediately moves only its group highlight without selecting an option', () => {
-		const { container, popup, selections } = setup(true);
+	test('hover moves the only visual highlight without changing radio selections', () => {
+		const { container, service, popup, selections } = setup(true);
+		service.focusItemById('agentHostModePicker.mode');
+		service.expandSection();
 		container.style.setProperty('--vscode-list-hoverBackground', '#234567');
 		const highlights = [highlightedLabels(popup)];
 		for (const label of ['Plan', 'Allow all', 'Interactive', 'Assisted permissions', 'Sandboxing for terminal', 'Permissions']) {
 			hoverRow(popup, label);
 			highlights.push(highlightedLabels(popup));
 		}
-		const manual = getRow(popup, 'Manual permissions');
 		assert.deepStrictEqual({
 			highlights,
 			selections: selectedLabels(popup),
 			activated: selections,
-			oldPermissionHighlightCleared: dom.getWindow(manual).getComputedStyle(manual).backgroundColor !== 'rgb(35, 69, 103)',
 		}, {
 			highlights: [
-				['Interactive', 'Manual permissions'],
-				['Plan', 'Manual permissions'],
-				['Plan', 'Allow all'],
-				['Interactive', 'Allow all'],
-				['Interactive', 'Assisted permissions'],
-				['Interactive', 'Sandboxing for terminal'],
-				['Interactive', 'Sandboxing for terminal'],
+				['Agent mode'],
+				['Plan'],
+				['Allow all'],
+				['Interactive'],
+				['Assisted permissions'],
+				['Sandboxing for terminal'],
+				['Permissions'],
 			],
 			selections: ['Interactive', 'Manual permissions'],
 			activated: [],
-			oldPermissionHighlightCleared: true,
 		});
 	});
 
-	test('keyboard navigation moves group highlights across collapse and expansion and reopening resets them', () => {
-		const { container, service, popup, show } = setup(true);
-		service.focusItemById('plan');
-		const highlights = [highlightedLabels(popup)];
-		service.collapseSection();
-		highlights.push(highlightedLabels(popup));
-		service.focusNext();
-		highlights.push(highlightedLabels(popup));
-		service.focusNext();
-		service.focusNext();
-		highlights.push(highlightedLabels(popup));
-		service.collapseSection();
-		highlights.push(highlightedLabels(popup));
-		const collapsedSelections = selectedLabels(popup);
+	test('keyboard collapse moves focus to the section header and reopening resets the originating section', () => {
+		const { container, service, popup, modeHeader, show } = setup(true);
+		const initial = {
+			labels: Array.from(popup.querySelectorAll('.monaco-list-row.action > .title'), label => label.textContent),
+			highlights: highlightedLabels(popup),
+			selections: selectedLabels(popup),
+		};
+		service.focusItemById('agentHostModePicker.mode');
 		service.expandSection();
-		highlights.push(highlightedLabels(popup));
+		service.focusItemById('plan');
+		service.collapseSection();
+		const collapsed = {
+			expanded: modeHeader().ariaExpanded,
+			headerFocused: modeHeader().classList.contains('focused'),
+			highlights: highlightedLabels(popup),
+			selections: selectedLabels(popup),
+		};
+		service.expandSection();
 		service.focusNext();
-		highlights.push(highlightedLabels(popup));
+		const reexpanded = {
+			expanded: modeHeader().ariaExpanded,
+			highlights: highlightedLabels(popup),
+			selections: selectedLabels(popup),
+			focused: popup.querySelector('.monaco-list-row.focused > .title')?.textContent,
+		};
 		service.hide();
 		show();
 		const reopened = container.querySelector<HTMLElement>('.agent-host-mode-permissions-popup')!;
 
 		assert.deepStrictEqual({
-			highlights,
-			collapsedSelections,
+			initial,
+			collapsed,
+			reexpanded,
+			reopenedLabels: Array.from(reopened.querySelectorAll('.monaco-list-row.action > .title'), label => label.textContent),
 			reopenedHighlights: highlightedLabels(reopened),
 			reopenedSelections: selectedLabels(reopened),
 		}, {
-			highlights: [
-				['Plan', 'Manual permissions'],
-				['Plan', 'Manual permissions'],
-				['Plan', 'Manual permissions'],
-				['Plan', 'Assisted permissions'],
-				['Plan'],
-				['Plan', 'Assisted permissions'],
-				['Plan', 'Manual permissions'],
-			],
-			collapsedSelections: ['Interactive'],
-			reopenedHighlights: ['Interactive', 'Manual permissions'],
-			reopenedSelections: ['Interactive', 'Manual permissions'],
+			initial: {
+				labels: ['Agent mode', 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', 'Sandboxing for terminal'],
+				highlights: ['Manual permissions'],
+				selections: ['Manual permissions'],
+			},
+			collapsed: {
+				expanded: 'false',
+				headerFocused: true,
+				highlights: ['Agent mode'],
+				selections: ['Manual permissions'],
+			},
+			reexpanded: {
+				expanded: 'true',
+				highlights: ['Interactive'],
+				selections: ['Interactive', 'Manual permissions'],
+				focused: 'Interactive',
+			},
+			reopenedLabels: ['Agent mode', 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', 'Sandboxing for terminal'],
+			reopenedHighlights: ['Manual permissions'],
+			reopenedSelections: ['Manual permissions'],
 		});
 	});
 
 	test('the permissions disclosure never retains a group highlight, including while collapsed', () => {
 		const { container, service, popup, permissionHeader } = setup(true);
+		service.focusItemById('agentHostModePicker.mode');
+		service.expandSection();
 		container.style.setProperty('--vscode-list-hoverBackground', '#234567');
 		hoverRow(popup, 'Allow all');
 		hoverRow(popup, 'Permissions');
 		const hoveredHeader = {
 			focused: permissionHeader().classList.contains('focused'),
-			retained: permissionHeader().classList.contains('focus-group-highlighted'),
 			highlights: highlightedLabels(popup),
 		};
 		service.collapseSection();
 		hoverRow(popup, 'Plan');
 		const collapsed = {
 			focused: permissionHeader().classList.contains('focused'),
-			retained: permissionHeader().classList.contains('focus-group-highlighted'),
 			highlights: highlightedLabels(popup),
 			headerBackground: dom.getWindow(popup).getComputedStyle(permissionHeader()).backgroundColor,
 		};
@@ -445,9 +673,9 @@ suite('Combined mode and permissions picker', () => {
 			reexpanded: highlightedLabels(popup),
 			selection: selectedLabels(popup),
 		}, {
-			hoveredHeader: { focused: true, retained: false, highlights: ['Interactive', 'Allow all'] },
-			collapsed: { focused: false, retained: false, highlights: ['Plan'], headerBackground: 'rgba(0, 0, 0, 0)' },
-			reexpanded: ['Plan', 'Allow all'],
+			hoveredHeader: { focused: true, highlights: ['Permissions'] },
+			collapsed: { focused: false, highlights: ['Plan'], headerBackground: 'rgba(0, 0, 0, 0)' },
+			reexpanded: ['Plan'],
 			selection: ['Interactive', 'Manual permissions'],
 		});
 	});

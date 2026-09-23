@@ -275,11 +275,12 @@ export interface ISSHResolvedConfig {
 	readonly port: number;
 	readonly identityFile: string[];
 	readonly identityAgent: string | undefined;
+	/** Command providing the raw SSH connection over standard input/output. */
+	readonly proxyCommand?: string;
 	readonly forwardAgent: boolean;
 	/**
-	 * `UserKnownHostsFile` paths, in priority order. `ssh -G` emits these as a
-	 * single space-separated list, so this is already split. Typically
-	 * `~/.ssh/known_hosts` and `~/.ssh/known_hosts2`.
+	 * `UserKnownHostsFile` paths, in priority order. The node service recovers
+	 * unquoted paths containing spaces only when filesystem matches are unambiguous.
 	 */
 	readonly userKnownHostsFiles: string[];
 	/** `GlobalKnownHostsFile` paths, e.g. `/etc/ssh/ssh_known_hosts`. */

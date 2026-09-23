@@ -28,11 +28,19 @@ export class NonReconnectableTransportError extends Error {
 	}
 }
 
+export interface ITransportCloseDetails {
+	readonly code?: number;
+	readonly reason?: string;
+	readonly wasClean?: boolean;
+}
+
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Diagnostic metadata can arrive after onClose has already reported a transport failure. */
+	readonly onDidCloseDetails?: Event<ITransportCloseDetails>;
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 

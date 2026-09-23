@@ -15,7 +15,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -46,6 +46,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
@@ -224,9 +225,37 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionLoading = activeSession?.loading.read(reader) ?? true;
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
+			const activeSessionHasChanges = this.activeSessionChangesObs.read(reader).length > 0;
 
-			return activeSessionLoading || activeSessionChangesetsLoading || activeSessionChangesetLoading;
+			return activeSessionLoading || activeSessionChangesetsLoading || (activeSessionChangesetLoading && !activeSessionHasChanges);
 		});
+
+		const activeSessionChangesSummaryObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {
+			if (this.activeSessionLoadingObs.read(reader)) {
+				return lastValue;
+			}
+
+			const changes = this.activeSessionChangesObs.read(reader);
+			if (changes.length === 0) {
+				return undefined;
+			}
+
+			let additions = 0;
+			let deletions = 0;
+			for (const change of changes) {
+				additions += change.insertions;
+				deletions += change.deletions;
+			}
+
+			return {
+				additions,
+				deletions,
+				files: changes.length,
+			};
+		});
+		this.activeSessionChangesSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({
+			equalsFn: structuralEquals
+		}, reader => activeSessionChangesSummaryObs.read(reader));
 
 		// Active session state
 		this.activeSessionStateObs = this._getActiveSessionState();

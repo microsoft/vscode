@@ -332,7 +332,8 @@ export abstract class BaseLayoutController extends Disposable {
 		const activeSessionForWorkingSet = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			const activeSessionWorkspaceUri = activeSession?.workspace.read(reader)?.folders[0]?.workingDirectory;
+			const activeChat = activeSession?.activeChat.read(reader);
+			const activeSessionWorkspaceUri = activeChat?.workspace.read(reader)?.folders[0]?.workingDirectory;
 
 			if (
 				activeSessionWorkspaceUri &&

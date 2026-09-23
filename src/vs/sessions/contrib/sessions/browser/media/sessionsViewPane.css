@@ -92,6 +92,7 @@
 	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
+		flex-shrink: 0;
 		padding: 0 var(--vscode-spacing-size100);
 		height: var(--vscode-spacing-size320);
 		box-sizing: border-box;

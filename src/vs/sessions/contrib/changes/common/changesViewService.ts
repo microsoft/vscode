@@ -6,7 +6,7 @@
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {
@@ -53,6 +53,7 @@ export interface IChangesViewService {
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;

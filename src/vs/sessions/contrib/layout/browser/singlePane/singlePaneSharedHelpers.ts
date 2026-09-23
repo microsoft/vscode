@@ -7,6 +7,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -44,7 +45,9 @@ export function isChangesEditorInput(editor: EditorInput, sessionChangesService:
 /** Whether `editor` is a file-like editor (the empty Files placeholder, a real file, or a markdown preview). Shared by the New/Existing detail-panel mapping. */
 export function isFileEditorInput(editor: EditorInput): boolean {
 	if (editor instanceof WebviewInput) {
-		return MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType) || MARKDOWN_EDITOR_VIEW_TYPES.has(editor.providerId ?? '');
+		return MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType)
+			|| MARKDOWN_EDITOR_VIEW_TYPES.has(editor.providerId ?? '')
+			|| (editor instanceof CustomEditorInput && editor.resource?.scheme === Schemas.untitled);
 	}
 	return editor instanceof EmptyFileEditorInput || editor instanceof FileEditorInput || editor.resource?.scheme === Schemas.untitled;
 }
@@ -52,6 +55,7 @@ export function isFileEditorInput(editor: EditorInput): boolean {
 /** Whether `editor` owns its full presentation and must hide the docked Details panel. */
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
+		|| (editor instanceof CustomEditorInput && editor.resource?.scheme !== Schemas.untitled)
 		|| (editor instanceof WebviewInput
 			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE
 				|| editor.providerId === PULL_REQUEST_OVERVIEW_VIEW_TYPE

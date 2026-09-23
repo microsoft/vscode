@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -42,9 +43,10 @@ suite('SessionChangesEditorInput', () => {
 		});
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
-		const viewModel = disposables.add(new MultiDiffEditorViewModel({
+		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() { }());
+		const viewModel = disposables.add(instantiationService.createInstance(MultiDiffEditorViewModel, {
 			documents: ValueWithChangeEvent.const([]),
-		}, instantiationService));
+		}));
 
 		let firstModelReferenceDisposed = false;
 		instantiationService.stubInstance(MultiDiffEditorInput, {

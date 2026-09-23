@@ -36,7 +36,9 @@ export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, 
 }
 
 export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService, configurationService: IConfigurationService): Promise<void> {
-	if (provider.disconnect) {
+	if (provider.remove) {
+		await provider.remove();
+	} else if (provider.disconnect) {
 		await provider.disconnect();
 	} else if (provider.remoteAddress) {
 		await removeWebSocketRemoteAgentHostEntry(configurationService, provider.remoteAddress);

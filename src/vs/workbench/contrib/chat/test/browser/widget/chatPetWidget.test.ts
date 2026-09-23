@@ -26,7 +26,7 @@ import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetServi
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -652,21 +652,23 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(CHAT_PET_CONFIRMATION_ATTENTION_DURATION, 2_000);
 	});
 
-	test('shows the window pet only in the active VS Code window and reserves space in every visible chat', () => {
+	test('shows the window pet only in the active VS Code window and pads every visible chat list', () => {
 		assert.deepStrictEqual({
 			visible: [
 				isChatPetVisible(false, false),
 				isChatPetVisible(true, false),
 				isChatPetVisible(true, true),
 			],
-			spaceReserved: [
-				shouldReserveChatPetSpace(false, false),
-				shouldReserveChatPetSpace(true, false),
-				shouldReserveChatPetSpace(true, true),
+			listPadding: [
+				getChatPetListPadding(false, false, 1),
+				getChatPetListPadding(true, false, 2),
+				getChatPetListPadding(true, true, 0.5),
+				getChatPetListPadding(true, true, 1),
+				getChatPetListPadding(true, true, 2),
 			],
 		}, {
 			visible: [false, false, true],
-			spaceReserved: [false, false, true],
+			listPadding: [0, 0, 24, 48, 96],
 		});
 	});
 

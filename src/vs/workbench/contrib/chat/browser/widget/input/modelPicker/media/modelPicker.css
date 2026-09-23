@@ -20,7 +20,6 @@
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
 	padding: 0;
 	overflow: visible;
-	height: auto;
 	position: relative;
 	cursor: default;
 }
@@ -545,19 +544,6 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button,
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action,
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.separator {
-	opacity: 0.6;
-}
-
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action:hover,
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action.focused,
-.action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:hover,
-.action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
-	opacity: 1;
-}
-
 .action-widget .chat-model-picker-tabbed,
 .action-widget .chat-model-picker-welcome {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone);
@@ -800,7 +786,7 @@
 
 .chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button,
 .chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active {
-	color: color-mix(in srgb, var(--vscode-foreground) 75%, transparent);
+	color: var(--vscode-descriptionForeground);
 	background: transparent;
 	border-color: transparent;
 	box-shadow: none;

@@ -17,6 +17,7 @@ interface IHasToolCallMeta {
  * wrong-typed values.
  */
 export interface IToolCallMeta {
+	readonly 'agentHost.sandboxBypass'?: boolean;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -51,6 +52,21 @@ export interface IToolCallMeta {
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 	/** Latest progress message from a running tool; transient, meaningful only while Running. */
 	readonly progressMessage?: string;
+	/** Presentation-only Fusion phase, not an SDK tool call or a separately addressable subagent chat. */
+	readonly fusionPhase?: IFusionPhaseMeta;
+}
+
+const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as const;
+export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
+const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
+
+export interface IFusionPhaseMeta {
+	readonly fusionId: string;
+	readonly phaseId: string;
+	readonly model: string;
+	readonly status: AgentFusionPhaseStatus;
+	readonly startedAt: number;
+	readonly duration?: number;
 }
 
 /** Minimal metadata needed to embed and rank a deferred tool. */
@@ -63,7 +79,7 @@ export interface IToolSearchCandidate {
  * The set of VS Code-recognized tool-call rendering kinds. Add a new value here
  * (and teach the renderer to handle it) rather than matching on tool name.
  */
-export type ToolKind = 'terminal' | 'subagent' | 'search' | 'read';
+export type ToolKind = 'terminal' | 'subagent' | 'fusionPhase' | 'search' | 'read';
 
 /**
  * MCP App render data carried under {@link IToolCallMeta.ui}. Clients gate
@@ -78,7 +94,21 @@ export interface IToolCallUiMeta {
 }
 
 function isToolKind(value: unknown): value is ToolKind {
-	return value === 'terminal' || value === 'subagent' || value === 'search' || value === 'read';
+	return value === 'terminal' || value === 'subagent' || value === 'fusionPhase' || value === 'search' || value === 'read';
+}
+
+function readFusionPhase(value: unknown): IFusionPhaseMeta | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const data = value as Partial<IFusionPhaseMeta>;
+	if (typeof data.fusionId !== 'string' || typeof data.phaseId !== 'string' || typeof data.model !== 'string'
+		|| typeof data.status !== 'string' || !knownFusionPhaseStatuses.has(data.status)
+		|| typeof data.startedAt !== 'number' || !Number.isFinite(data.startedAt)
+		|| (data.duration !== undefined && (typeof data.duration !== 'number' || !Number.isFinite(data.duration) || data.duration < 0))) {
+		return undefined;
+	}
+	return data as IFusionPhaseMeta;
 }
 
 function readToolCallUiMeta(value: unknown): IToolCallUiMeta | undefined {
@@ -127,6 +157,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
 	if (isToolKind(meta['toolKind'])) { result.toolKind = meta['toolKind']; }
 	if (typeof meta['language'] === 'string') { result.language = meta['language']; }
 	if (typeof meta['subagentDescription'] === 'string') { result.subagentDescription = meta['subagentDescription']; }
@@ -135,6 +166,8 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['progressMessage'] === 'string') { result.progressMessage = meta['progressMessage']; }
+	const fusionPhase = readFusionPhase(meta['fusionPhase']);
+	if (fusionPhase) { result.fusionPhase = fusionPhase; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
 	if (typeof meta['autoApproveRuleResolvable'] === 'boolean') { result.autoApproveRuleResolvable = meta['autoApproveRuleResolvable']; }
 	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
@@ -142,6 +175,14 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	const ui = readToolCallUiMeta(meta['ui']);
 	if (ui) { result.ui = ui; }
 	return result;
+}
+
+/**
+ * Identifies tool calls that present progress without executing a tool.
+ * Producers must stamp `_meta.toolKind` on every lifecycle action.
+ */
+export function isPresentationOnlyToolCall(source: IHasToolCallMeta): boolean {
+	return readToolCallMeta(source).toolKind === 'fusionPhase';
 }
 
 /**

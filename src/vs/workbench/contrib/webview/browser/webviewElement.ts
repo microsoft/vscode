@@ -245,7 +245,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			const message = this.extension
+				? localize('fatalErrorMessageWithExtension', "Error loading webview provided by '{0}': {1}", this.extension.id.value, e.message)
+				: localize('fatalErrorMessage', "Error loading webview: {0}", e.message);
+			notificationService.error(message);
 			this._onFatalError.fire({ message: e.message });
 		}));
 

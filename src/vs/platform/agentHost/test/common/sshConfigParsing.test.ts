@@ -167,6 +167,27 @@ suite('SSH Config Parsing', () => {
 			assert.strictEqual(parseSSHGOutput(output).identityAgent, '//./pipe/pageant.user.1234');
 		});
 
+		test('preserves ProxyCommand tokens and quoted executables', () => {
+			assert.deepStrictEqual([
+				parseSSHGOutput('proxycommand "/opt/docker tools/sbx" ssh proxy %n').proxyCommand,
+				parseSSHGOutput('proxycommand none').proxyCommand,
+				parseSSHGOutput('proxycommand NONE').proxyCommand,
+				parseSSHGOutput('').proxyCommand,
+			], ['"/opt/docker tools/sbx" ssh proxy %n', undefined, undefined, undefined]);
+		});
+
+		test('does not guess boundaries of unquoted known-hosts paths containing spaces', () => {
+			assert.deepStrictEqual(parseSSHGOutput([
+				'userknownhostsfile /Users/test/Library/Application Support/Docker/known_hosts /Users/test/.ssh/known_hosts',
+				'globalknownhostsfile C:\\Users\\Test User\\known_hosts C:\\ProgramData\\ssh\\known_hosts',
+			].join('\n')), {
+				hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false,
+				userKnownHostsFiles: ['/Users/test/Library/Application', 'Support/Docker/known_hosts', '/Users/test/.ssh/known_hosts'],
+				globalKnownHostsFiles: ['C:\\Users\\Test', 'User\\known_hosts', 'C:\\ProgramData\\ssh\\known_hosts'],
+				strictHostKeyChecking: undefined,
+			});
+		});
+
 		test('parses non-standard port', () => {
 			const output = [
 				'hostname example.com',
@@ -257,6 +278,11 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(
 				parseSSHGOutput(output).userKnownHostsFiles,
 				['/home/my user/.ssh/known_hosts', '/home/u/other']);
+		});
+
+		test('preserves relative known-hosts paths following absolute paths', () => {
+			assert.deepStrictEqual(parseSSHGOutput('userknownhostsfile /var/keys/known_hosts relative_known_hosts relative/path').userKnownHostsFiles,
+				['/var/keys/known_hosts', 'relative_known_hosts', 'relative/path']);
 		});
 
 		test('normalizes effective StrictHostKeyChecking values and ignores others', () => {

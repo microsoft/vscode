@@ -60,34 +60,34 @@ suite('AgentHostDownloadProgress', () => {
 	test('determinate download opens one notification, reports percent, dismisses on terminal frame', async () => {
 		const { controller, progressService } = create();
 
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' }));
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 500, total: 1000, message: 'Downloading Claude agent' }));
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 1000, total: 1000, message: 'Downloading Claude agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 500, total: 1000, message: 'Downloading Claude Agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 1000, total: 1000, message: 'Downloading Claude Agent' }));
 
 		// The terminal frame resolves the notification promise asynchronously.
 		await progressService.opened[0].settled;
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message), dismissed: o.dismissed })),
-			[{ title: 'Downloading Claude agent', steps: ['0%', '50%'], dismissed: true }],
+			[{ title: 'Downloading Claude Agent', steps: ['0%', '50%'], dismissed: true }],
 		);
 	});
 
 	test('indeterminate download (no total) reports megabytes received', () => {
 		const { controller, progressService } = create();
 
-		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex agent' }));
+		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex Agent' }));
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message) })),
-			[{ title: 'Downloading Codex agent', steps: ['5.0 MB'] }],
+			[{ title: 'Downloading Codex Agent', steps: ['5.0 MB'] }],
 		);
 	});
 
 	test('no notification when AI features are disabled', () => {
 		const { controller, progressService } = create(true);
 
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
 
 		assert.strictEqual(progressService.opened.length, 0);
 	});

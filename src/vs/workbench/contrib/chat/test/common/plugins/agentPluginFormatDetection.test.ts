@@ -547,6 +547,70 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins[0].agents.get()[0].name, 'reviewer');
 	}));
 
+	test('reads Automation blueprints from Agent Plugin default and configured directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/automation-plugin');
+		await writeFile('/plugins/automation-plugin/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'automation-plugin',
+			extensions: {
+				'com.github.copilot': {
+					automations: { paths: ['./custom-automations/'] },
+				},
+			},
+		}));
+		await writeFile('/plugins/automation-plugin/automations/daily-review.automation.md', [
+			'---',
+			'version: 1',
+			'id: daily-review',
+			'name: Daily review',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "0 9 * * *"',
+			'  timeZone: local',
+			'---',
+			'Review the workspace.',
+		].join('\n'));
+		await writeFile('/plugins/automation-plugin/com.github.copilot/custom-automations/weekly-review.automation.md', [
+			'---',
+			'version: 1',
+			'id: weekly-review',
+			'name: Weekly review',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "30 10 * * 5"',
+			'  timeZone: local',
+			'---',
+			'Review the workspace for the past week.',
+		].join('\n'));
+		await writeFile('/plugins/automation-plugin/automations/invalid.automation.md', 'Not a blueprint');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		await waitForState(plugins[0].automations, automations => automations.length === 2);
+		assert.deepStrictEqual(plugins[0].automations.get().map(automation => ({
+			id: automation.blueprint.id,
+			name: automation.blueprint.name,
+			schedule: automation.blueprint.schedule,
+			path: automation.uri.path,
+		})), [
+			{
+				id: 'daily-review',
+				name: 'Daily review',
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+				path: '/plugins/automation-plugin/automations/daily-review.automation.md',
+			},
+			{
+				id: 'weekly-review',
+				name: 'Weekly review',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				path: '/plugins/automation-plugin/com.github.copilot/custom-automations/weekly-review.automation.md',
+			},
+		]);
+	}));
+
 	test('manifest skills field adds supplemental skill directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/custom-skills');
 		await writeFile('/plugins/custom-skills/.plugin/plugin.json', JSON.stringify({

@@ -8,12 +8,12 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKinds, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKinds, ToggleTooltipCommand, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { isThemeColor } from '../../../../editor/common/editorCommon.js';
-import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, hide, show, append, EventHelper, $, isPointerEvent } from '../../../../base/browser/dom.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Command } from '../../../../editor/common/languages.js';
@@ -37,6 +37,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly backgroundListener = this._register(new MutableDisposable());
 
 	private readonly commandMouseListener = this._register(new MutableDisposable());
+	private readonly commandPointerListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
 
@@ -145,13 +146,32 @@ export class StatusbarEntryItem extends Disposable {
 		// Update: Command
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandMouseListener.clear();
+			this.commandPointerListener.clear();
 			this.commandTouchListener.clear();
 			this.commandKeyboardListener.clear();
 
 			const command = entry.command;
-			if (command && (command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */) {
-				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
-				this.commandTouchListener.value = addDisposableListener(this.labelContainer, TouchEventType.Tap, () => this.executeCommand(command));
+			const isTooltipCommand = command === ShowTooltipCommand || command === ToggleTooltipCommand;
+			if (command && (!isTooltipCommand || this.hover)) {
+				let tooltipPointerDown: { pointerId: number; wasPinned: boolean } | undefined;
+				if (command === ToggleTooltipCommand) {
+					// Mouse-down dismisses the hover before click, so capture pinned state on pointer-down.
+					this.commandPointerListener.value = addDisposableListener(this.labelContainer, EventType.POINTER_DOWN, (e: PointerEvent) => {
+						tooltipPointerDown = e.button === 0 ? {
+							pointerId: e.pointerId,
+							wasPinned: !!this.hoverService.getStickyHover(this.container)
+						} : undefined;
+					});
+				}
+				const executeCommand = (event: MouseEvent) => {
+					const wasPinned = tooltipPointerDown && isPointerEvent(event) && event.detail > 0 && event.pointerId === tooltipPointerDown.pointerId
+						? tooltipPointerDown.wasPinned
+						: undefined;
+					tooltipPointerDown = undefined;
+					this.executeCommand(command, wasPinned);
+				};
+				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, executeCommand);
+				this.commandTouchListener.value = addDisposableListener(this.labelContainer, TouchEventType.Tap, executeCommand);
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
@@ -224,11 +244,17 @@ export class StatusbarEntryItem extends Disposable {
 		return tooltip === otherTooltip;
 	}
 
-	private async executeCommand(command: string | Command): Promise<void> {
+	private async executeCommand(command: string | Command, tooltipWasPinnedOnPointerDown?: boolean): Promise<void> {
 
-		// Custom command from us: Show tooltip
-		if (command === ShowTooltipCommand) {
-			this.hover?.show(true /* focus */);
+		// Custom commands from us: Show or toggle tooltip
+		if (command === ShowTooltipCommand || command === ToggleTooltipCommand) {
+			const stickyHover = command === ToggleTooltipCommand ? this.hoverService.getStickyHover(this.container) : undefined;
+			if (command === ToggleTooltipCommand && (tooltipWasPinnedOnPointerDown ?? !!stickyHover)) {
+				this.hover?.hide();
+				stickyHover?.dispose();
+			} else {
+				this.hover?.show(true /* focus */);
+			}
 		}
 
 		// Any other command is going through command service

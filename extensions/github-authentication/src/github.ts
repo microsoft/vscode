@@ -269,9 +269,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	/** Every session held only by this process, whether or not its token is still any good. */
 	private get transientSessions(): vscode.AuthenticationSession[] {
+		const now = Date.now();
 		return [...this._transientSessions.values()].map(held => ({
 			...held.session,
-			expiresIn: held.expiresAt > Date.now() ? Math.ceil((held.expiresAt - Date.now()) / 1000) : undefined
+			expiresAfter: held.expiresAt > now ? held.expiresAt - now : undefined
 		}));
 	}
 
@@ -402,7 +403,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
-		const session = this.storeTransientSession(this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]), renewed.expiresIn);
+		const session = this.storeTransientSession(this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]), renewed.expiresAfter);
 		this.afterSessionLoad(session);
 		return session;
 	}
@@ -453,7 +454,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			if (held && remainingLifetime > 0) {
 				retained.push({
 					...held.session,
-					expiresIn: Math.ceil(remainingLifetime / 1000)
+					expiresAfter: remainingLifetime
 				});
 			} else {
 				expired.push(stale[index]);
@@ -553,7 +554,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		// The same session with a new token, so it keeps its id and is reported as changed rather
 		// than as one session going away and another arriving.
-		const next = this.storeTransientSession({ ...session, accessToken: renewed.token }, renewed.expiresIn);
+		const next = this.storeTransientSession({ ...session, accessToken: renewed.token }, renewed.expiresAfter);
 		this._logger.info(`Renewed session ${session.id}.`);
 		this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [next] });
 		return next;
@@ -815,16 +816,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const exchanged = await this._githubServer.loginWithMicrosoft(scopes, {
 			microsoftAccount: await this.rememberedMicrosoftAccount(gitHubAccountLabel)
 		});
-		const session = this.storeTransientSession(this.sessionFor(exchanged.account, exchanged.token, scopes), exchanged.expiresIn);
+		const session = this.storeTransientSession(this.sessionFor(exchanged.account, exchanged.token, scopes), exchanged.expiresAfter);
 		this.afterSessionLoad(session);
 
 		this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 		return session;
 	}
 
-	private storeTransientSession(session: vscode.AuthenticationSession, expiresIn: number): vscode.AuthenticationSession {
-		const result = { ...session, expiresIn };
-		this._transientSessions.set(result.id, { session: result, expiresAt: Date.now() + expiresIn * 1000 });
+	private storeTransientSession(session: vscode.AuthenticationSession, expiresAfter: number): vscode.AuthenticationSession {
+		const result = { ...session, expiresAfter };
+		this._transientSessions.set(result.id, { session: result, expiresAt: Date.now() + expiresAfter });
 		return result;
 	}
 

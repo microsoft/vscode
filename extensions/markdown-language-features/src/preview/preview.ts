@@ -472,7 +472,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
 			const resolved = await this.#opener.resolveDocumentLink(href, this.resource);
-			if (resolved.kind === 'file') {
+			if (resolved?.kind === 'file') {
 				try {
 					const doc = await vscode.workspace.openTextDocument(vscode.Uri.from(resolved.uri));
 					if (isMarkdownFile(doc)) {

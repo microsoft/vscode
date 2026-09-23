@@ -12,7 +12,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../../request/common/request.js';
-import { IGalleryMcpServer, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
 import { McpGalleryService } from '../../common/mcpGalleryService.js';
 
@@ -23,9 +23,10 @@ function serverUrl(name: string): string {
 	return `https://registry.test/servers/${name}`;
 }
 
-function serverDocumentData(name: string, registryTypes: readonly string[], remotes?: readonly { type: string; url: string }[]) {
+function serverDocumentData(name: string, registryTypes: readonly string[], remotes?: readonly { type: string; url: string; variables?: Record<string, IMcpServerInput> }[]) {
 	return {
 		server: {
+			$schema: 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json',
 			name,
 			description: 'Test server',
 			version: '1.0.0',
@@ -331,7 +332,18 @@ suite('McpGalleryService - getMcpServer validation', () => {
 		const data = serverDocumentData(
 			'io.github.owner/server',
 			['mcpb', 'npm'],
-			[{ type: 'streamable-http', url: 'https://mcp.example/server' }]
+			[{
+				type: 'streamable-http',
+				url: 'https://{environment_id}.{region}.example/{prefix}server',
+				variables: {
+					environment_id: {
+						description: 'Environment ID',
+						isRequired: true
+					},
+					region: { value: 'eu' },
+					prefix: { value: '' }
+				}
+			}]
 		);
 		const requestService = new StatusRequestService(200, JSON.stringify(data));
 		const service = createService(requestService, { ...manifest, version: 'v0.1' });
@@ -343,7 +355,18 @@ suite('McpGalleryService - getMcpServer validation', () => {
 			remotes: server?.configuration.remotes
 		}, {
 			packageTypes: ['npm'],
-			remotes: [{ type: 'streamable-http', url: 'https://mcp.example/server' }]
+			remotes: [{
+				type: 'streamable-http',
+				url: 'https://{environment_id}.{region}.example/{prefix}server',
+				variables: {
+					environment_id: {
+						description: 'Environment ID',
+						isRequired: true
+					},
+					region: { value: 'eu' },
+					prefix: { value: '' }
+				}
+			}]
 		});
 	});
 

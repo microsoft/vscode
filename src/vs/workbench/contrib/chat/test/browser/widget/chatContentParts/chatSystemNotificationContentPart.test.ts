@@ -85,6 +85,40 @@ suite('ChatSystemNotificationContentPart', () => {
 		});
 	});
 
+	test('renders a workflow introduction with a quiet title and always-visible explanation', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const notification = {
+			kind: 'systemNotification', presentation: 'workflow',
+			content: new MarkdownString('Selected Single workflow\n\nUsing Single: one solver will work on your request.\n\nMain pass'),
+		} as const;
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, notification, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.querySelector('.chat-system-notification-workflow-title')?.textContent?.trim(),
+			body: [...part.domNode.querySelectorAll('.chat-system-notification-workflow-body > p')].map(p => p.textContent),
+			collapsed: part.domNode.classList.contains('collapsed'),
+			buttons: part.domNode.querySelectorAll('button, .monaco-button').length,
+			icons: part.domNode.querySelectorAll('.codicon').length,
+			same: part.hasSameContent(notification),
+			differentPresentation: part.hasSameContent({ ...notification, presentation: undefined }),
+		}, {
+			title: 'Selected Single workflow', body: ['Using Single: one solver will work on your request.', 'Main pass'],
+			collapsed: false, buttons: 0, icons: 0, same: true, differentPresentation: false,
+		});
+	});
+
+	test('older workflow records without an explanation still render their title', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+			kind: 'systemNotification', presentation: 'workflow', content: new MarkdownString('Selected Single workflow'),
+		}, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.textContent?.trim(),
+			body: part.domNode.querySelector('.chat-system-notification-workflow-body'),
+		}, { title: 'Selected Single workflow', body: null });
+	});
+
 	test('renders background agent titles as code without exposing markdown delimiters', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);

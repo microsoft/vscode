@@ -134,7 +134,7 @@ parameters:
     type: string
     default: none
   - name: VSCODE_CLI_CANARY_VERSION
-    displayName: "Product @github/copilot runtime version ('auto' = committed version or infer from SDK override)"
+    displayName: "Expected SDK-bundled runtime version ('auto' = infer from SDK)"
     type: string
     default: auto
 

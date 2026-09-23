@@ -81,6 +81,13 @@
 	color: var(--vscode-surface-foreground);
 }
 
+/* When a horizontal panel spans beneath the primary side bar, its trailing edge can meet
+ * the right activity bar directly. Supply the gap that the rail cannot add without also
+ * separating it from the side bar above. An outer panel edge keeps its perimeter gutter. */
+.monaco-workbench.floating-panels:not(.nosidebar):is(.panel-alignment-justify, .panel-alignment-right) .part.panel:is(.top, .bottom):not(.floating-part-outer-right) {
+	margin-right: var(--modern-ui-floating-card-margin);
+}
+
 .monaco-workbench.floating-panels .part.panel.top {
 	margin-bottom: var(--modern-ui-floating-card-inner-margin);
 }
@@ -239,6 +246,24 @@
 	margin-left: var(--modern-ui-floating-card-inner-margin);
 	margin-right: var(--modern-ui-floating-card-outer-margin);
 	border-radius: 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0;
+}
+
+/* A horizontal panel can shorten the primary side bar while the activity bar stays full-height.
+ * Round the rail corner exposed beyond the attached side bar. Compact density stays connected. */
+.monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-top:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-left) .part.activitybar.left {
+	border-top-right-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-top:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-right) .part.activitybar.right {
+	border-top-left-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-bottom:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-left) .part.activitybar.left {
+	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-bottom:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-right) .part.activitybar.right {
+	border-bottom-left-radius: var(--vscode-cornerRadius-large);
 }
 
 /* With the primary side bar collapsed there is no card to connect to, so the rail closes up

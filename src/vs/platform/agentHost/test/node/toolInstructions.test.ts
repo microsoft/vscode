@@ -7,7 +7,7 @@ import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from '../../node/copilot/prompts/toolInstructions.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -35,7 +35,7 @@ suite('toolInstructions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
-	const UNCONDITIONAL_TOOL_INSTRUCTIONS = LARGE_OUTPUT_LINE;
+	const UNCONDITIONAL_TOOL_INSTRUCTIONS = `${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`;
 
 	suite('universalToolInstructions', () => {
 		test('joins applicable lines in order and drops gated-out ones', () => {
@@ -46,26 +46,14 @@ suite('toolInstructions', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('x'), [lineFor('a')]), undefined);
 		});
 
-		test('always renders the registered unconditional instructions', () => {
+		test('always renders the registered unconditional instructions in order', () => {
 			assert.deepStrictEqual([
 				COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
+				COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS,
 				universalToolInstructions(hasTools()),
 			], [
 				'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.',
-				UNCONDITIONAL_TOOL_INSTRUCTIONS,
-			]);
-		});
-
-		test('adds the registered subagent model guidance only when its setting is enabled', () => {
-			assert.deepStrictEqual([
-				COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS,
-				universalToolInstructions(context([], { [CopilotCliConfigKey.SubagentModelGuidance]: true })),
-				universalToolInstructions(context([], { [CopilotCliConfigKey.SubagentModelGuidance]: false })),
-				universalToolInstructions(context()),
-			], [
 				'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.\nOnly set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
-				`${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`,
-				UNCONDITIONAL_TOOL_INSTRUCTIONS,
 				UNCONDITIONAL_TOOL_INSTRUCTIONS,
 			]);
 		});

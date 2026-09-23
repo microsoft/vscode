@@ -31,7 +31,7 @@ export interface IAgentHostSessionLifecycleAccessor {
 	readonly archiveSession: (session: URI) => void;
 	readonly canDeleteSession: (session: URI) => Promise<boolean>;
 	readonly cleanupWorktree: (session: URI, sessionId: string) => Promise<void>;
-	readonly deleteSession: (session: URI, validate: () => Promise<boolean>) => Promise<boolean>;
+	readonly deleteSession: (session: URI, validate: () => Promise<boolean>, canCommit: () => boolean) => Promise<boolean>;
 }
 
 export interface IAgentHostSessionLifecycleOptions {
@@ -161,6 +161,9 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 
 		if (candidate.action === 'archive') {
+			if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+				return;
+			}
 			const finalArchiveAfterDays = this._settings.archiveAfterDays;
 			const finalPullRequestUrls = finalArchiveAfterDays > 0
 				? this._getArchiveCandidate(
@@ -171,14 +174,12 @@ export class AgentHostSessionLifecycle extends Disposable {
 			if (!samePullRequestUrls(finalPullRequestUrls, candidate.pullRequestUrls)) {
 				return;
 			}
-			if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
-				return;
-			}
 			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
 			this._accessor.archiveSession(session);
 			await this._accessor.setAutoArchivedAt(session, this._now());
 		} else {
 			try {
+				let validatedDeleteAfterDays: number | undefined;
 				const deleted = await this._accessor.deleteSession(session, async () => {
 					if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
 						return false;
@@ -199,10 +200,24 @@ export class AgentHostSessionLifecycle extends Disposable {
 							this._now() - finalDeleteAfterDays * DAY_MS,
 						)
 						: undefined;
-					return this._settings.deleteAfterDays === finalDeleteAfterDays
-						&& finalCandidate?.action === 'delete'
-						&& samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls)
-						&& await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls);
+					if (this._settings.deleteAfterDays !== finalDeleteAfterDays
+						|| finalCandidate?.action !== 'delete'
+						|| !samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls)
+						|| !await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+						return false;
+					}
+					validatedDeleteAfterDays = finalDeleteAfterDays;
+					return true;
+				}, () => {
+					const latestSummary = this._stateManager.getSessionSummary(sessionKey);
+					return this._settings.deleteAfterDays === validatedDeleteAfterDays
+						&& latestSummary !== undefined
+						&& isSessionStatusArchived(latestSummary.status)
+						&& !isSessionStatusActive(latestSummary.status)
+						&& samePullRequestUrls(
+							getSessionRelatedPullRequestUrls(readSessionGitHubState(latestSummary._meta)),
+							candidate.pullRequestUrls,
+						);
 				});
 				if (deleted) {
 					this._logService.info(`[AgentHostSessionLifecycle] Permanently deleted inactive archived merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);

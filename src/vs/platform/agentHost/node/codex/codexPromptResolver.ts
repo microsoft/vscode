@@ -6,10 +6,11 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
+import { getMediaMime } from '../../../../base/common/mime.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MessageAttachmentKind, type MessageAttachment, type MessageEmbeddedResourceAttachment } from '../../common/state/sessionState.js';
-import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageEmbeddedResourceAttachment, type MessageResourceAttachment } from '../../common/state/sessionState.js';
+import { isHostSnapshotAttachment, readHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { TextElement } from './protocol/generated/v2/TextElement.js';
 
@@ -19,9 +20,10 @@ import type { TextElement } from './protocol/generated/v2/TextElement.js';
  *
  * Phase 2 minimum:
  *  - The prompt text becomes a single `{ type: 'text' }` input item.
- *  - `Resource` attachments referencing local files are inlined into the
- *    text as `@<path>` mentions so codex's prompt template picks them up;
- *    selections append a one-based line reference.
+ *  - Image `Resource` attachments referencing local files become
+ *    `{ type: 'localImage' }`; other local files are inlined into the text as
+ *    `@<path>` mentions so codex's prompt template picks them up. Selections
+ *    append a one-based line reference.
  *  - `Simple` attachments with a `modelRepresentation` get appended to the
  *    prompt text as a separate paragraph.
  *  - `EmbeddedResource` attachments with an `image/*` content type are
@@ -58,11 +60,15 @@ export function resolveCodexInput(
 		for (const att of attachments) {
 			switch (att.type) {
 				case MessageAttachmentKind.Resource: {
+					const uri = URI.parse(att.uri);
+					if (uri.scheme === 'file' && isImageResourceAttachment(att, uri)) {
+						input.push({ type: 'localImage', path: uri.fsPath });
+						break;
+					}
 					// Resource attachments reference a URI (on the wire,
 					// already a string). For file URIs we inline the
 					// absolute path as a `@<path>` mention so the codex
 					// prompt template can render / read it.
-					const uri = URI.parse(att.uri);
 					const mention = uri.scheme === 'file'
 						// Non-file URIs (vscode-userdata://, untitled://, …)
 						// are surfaced as a plain string so they still show
@@ -137,6 +143,13 @@ export function resolveCodexInput(
 	input.unshift({ type: 'text', text, text_elements: EMPTY_TEXT_ELEMENTS });
 
 	return { input, cleanupPaths };
+}
+
+function isImageResourceAttachment(att: MessageResourceAttachment, uri: URI): boolean {
+	const contentType = att.contentType
+		?? readHostSnapshotAttachmentMeta(att)?.contentType
+		?? getMediaMime(uri.path);
+	return att.displayKind === 'image' || contentType?.startsWith('image/') === true;
 }
 
 function guessImageExtension(contentType: string): string {

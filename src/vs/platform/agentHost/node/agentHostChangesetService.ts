@@ -7,7 +7,8 @@ import { disposableTimeout, Limiter, Promises, SequencerByKey } from '../../../b
 import { equals } from '../../../base/common/arrays.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -29,6 +30,7 @@ import {
 	ChangesetStatus,
 	type ChangesetFile,
 	type ISessionFileDiff,
+	type SessionConfigState,
 	type URI as ProtocolURI,
 	readSessionGitState,
 	isDefaultChatUri,
@@ -55,7 +57,8 @@ import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetCom
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
-import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
+import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -118,7 +121,7 @@ function computeChangesSummaryFromLiveState(
 	return summariseDiffs(sessionDiffs);
 }
 
-/** Aggregates persisted session diffs for an unopened session without a cached summary. */
+/** Aggregates persisted diffs for an unopened session without a cached summary. */
 function computeChangesSummaryFromPersistedDiffs(
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
 ): ChangesSummary | undefined {
@@ -244,8 +247,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 		// Prefer persisted counts until the session is opened and recomputed.
-		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
-		if (liveSession?.status === ChangesetStatus.Ready) {
+		// Cold isolation is only available after the metadata read, so require both possible sources.
+		if ([buildSessionChangesetUri(sessionUri), buildBranchChangesetUri(sessionUri)].every(uri => this._stateManager.getChangesetState(uri)?.status === ChangesetStatus.Ready)) {
 			return CHANGES_SUMMARY_METADATA_KEYS;
 		}
 		// Cold session: nothing live to lean on, so read the full set (summary
@@ -273,8 +276,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 
-		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
-		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
+		const kind = this._getPersistedSummaryKind(sessionUri, metadata.configValues);
+		const liveChanges = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(staticChangesetUri(sessionUri, kind)));
 		if (liveChanges) {
 			// Migrate the changes summary to the new storage mechanism.
 			this.persistChangesSummary(sessionUri, liveChanges);
@@ -282,18 +285,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		// No live source — try persisted blobs (if the caller batched them).
-		const sessionRaw = metadata[META_CHANGESET_SESSION];
-		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (sessionRaw === undefined && legacyRaw === undefined) {
-			return undefined;
-		}
-		const restored = this.parsePersistedStaticChangesets(sessionUri, { sessionRaw, legacyRaw });
+		const restored = this.parsePersistedStaticChangesets(sessionUri, kind === ChangesetKind.Branch
+			? { branchRaw: metadata[META_CHANGESET_BRANCH] }
+			: { sessionRaw: metadata[META_CHANGESET_SESSION], legacyRaw: metadata[META_LEGACY_DIFFS] });
 
 		// `listSessions` must not seed full changeset state for every row; it
 		// only parses persisted blobs enough to render the chip aggregate.
 		// Once the session is opened via `restoreSession`, the live overlay in
 		// `AgentService.listSessions` replaces this parse-only aggregate.
-		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
+		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored[kind]);
 		if (persistedChanges) {
 			// Migrate the changes summary to the new storage mechanism.
 			this.persistChangesSummary(sessionUri, persistedChanges);
@@ -301,6 +301,28 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		return undefined;
+	}
+
+	private _getPersistedSummaryKind(session: ProtocolURI, configRaw: string | undefined): StaticChangesetKind {
+		if (configRaw !== undefined) {
+			try {
+				const config: SessionConfigState['values'] = JSON.parse(configRaw);
+				if (!isObject(config)) {
+					throw new Error('Expected session configuration to be an object');
+				}
+
+				const isolation = config[SessionConfigKey.Isolation];
+				if (isolation !== undefined && isolation !== 'folder' && isolation !== 'worktree') {
+					throw new Error('Invalid session isolation');
+				}
+
+				return getSummaryChangesetKind({ [SessionConfigKey.Isolation]: isolation });
+			} catch (err) {
+				this._logService.warn(`[AgentHostChangesetService] Failed to parse persisted isolation for ${session}: ${toErrorMessage(err)}`);
+			}
+		}
+
+		return getSummaryChangesetKind(undefined);
 	}
 
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean {
@@ -356,7 +378,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * recomputes skip while the working directory is still unknown.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
-		const subscriptions = resolveChangesetSubscriptions(session, this._changesetSubscriptions.getSessionSubscriptions(session));
+		const subscriptions = resolveChangesetSubscriptions(session, this._changesetSubscriptions.getSessionSubscriptions(session), this._stateManager.getSessionState(session)?.config?.values);
 		if (subscriptions.size === 0) {
 			return;
 		}
@@ -1061,6 +1083,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+		const summaryKind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
 		let outcome: StaticChangesetOutcome = 'error';
 		let fileCount = 0;
 		let incrementalUsed = false;
@@ -1094,7 +1117,24 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			emitStaticTelemetry();
 			return;
 		}
+
+		const computeDisposables = new DisposableStore();
+		computeDisposables.add(ref);
+		let summaryInvalidated = false;
+		computeDisposables.add(this._stateManager.onDidChangeSessionConfig(event => {
+			if (event.session === session && getSummaryChangesetKind(event.previous?.values) !== getSummaryChangesetKind(event.current?.values)) {
+				summaryInvalidated = true;
+			}
+		}));
+
+		let workingDirectoriesInvalidated = false;
+		computeDisposables.add(this._stateManager.onDidChangeSessionWorkingDirectories(() => {
+			if (!equals(workingDirectories, this._configurationService.getEffectiveWorkingDirectories(session))) {
+				workingDirectoriesInvalidated = true;
+			}
+		}));
 		this._stateManager.registerChangeset(changesetUri);
+
 		try {
 			let diffs: readonly ISessionFileDiff[] | undefined;
 			if (kind === 'session' && isMultiRootSession(workingDirectories)) {
@@ -1154,15 +1194,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 
-			if (kind === 'session' && !equals(workingDirectories, this._configurationService.getEffectiveWorkingDirectories(session))) {
+			const reviewed = kind === ChangesetKind.Branch
+				? await this._computeReviewedInfo(session, ref.object)
+				: undefined;
+			if (workingDirectoriesInvalidated || !equals(workingDirectories, this._configurationService.getEffectiveWorkingDirectories(session))) {
 				this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 				outcome = 'preserved';
 				return;
 			}
 
-			const reviewed = kind === ChangesetKind.Branch
-				? await this._computeReviewedInfo(session, ref.object)
-				: undefined;
 			this._publishChangesetDiffs(session, changesetUri, diffs, reviewed);
 			fileCount = diffs.length;
 			outcome = 'computed';
@@ -1179,7 +1219,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
 			}
 
-			if (kind === 'session') {
+			if (!summaryInvalidated && kind === summaryKind && kind === getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values)) {
 				const changesSummary = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(changesetUri));
 				if (changesSummary) {
 					this.persistChangesSummary(session, changesSummary);
@@ -1197,7 +1237,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} finally {
 			this._activeStaticComputes.delete(changesetUri);
 			this._stateManager.onChangesetLivenessChanged();
-			ref.dispose();
+			computeDisposables.dispose();
 			emitStaticTelemetry();
 		}
 	}

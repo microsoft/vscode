@@ -5,33 +5,20 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IReader } from '../../../../base/common/observable.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
-/**
- * Aggregated insertions/deletions across all of a session's changes,
- * or `undefined` when the session has no pending changes.
- */
-export function getSessionDiffStats(session: ISession): { files: number; insertions: number; deletions: number } | undefined {
-	const changes = session.changes.get();
-	if (changes.length === 0) {
-		return undefined;
-	}
-	let insertions = 0;
-	let deletions = 0;
-	for (const change of changes) {
-		insertions += change.insertions;
-		deletions += change.deletions;
-	}
-	if (insertions === 0 && deletions === 0) {
-		return undefined;
-	}
-	return { files: changes.length, insertions, deletions };
+/** Shared session diff counts, omitting entries without line changes. */
+export function getSessionDiffStats(session: ISession, reader?: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	const stats = readSessionChangesStats(session, reader);
+	return stats && (stats.insertions > 0 || stats.deletions > 0) ? stats : undefined;
 }
 
 /**
@@ -50,9 +37,11 @@ export function getSessionSummaryHoverData(
 	labelService: ILabelService,
 	preferencesService: IPreferencesService,
 	createdBy?: ISessionSummaryHoverData['createdBy'],
+	includeUpdatedAt = false,
 ): ISessionSummaryHoverData {
 	return {
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
+		...(includeUpdatedAt ? { updatedAt: session.updatedAt.get() } : {}),
 		location: getLocation(session, labelService),
 		pullRequests: getPullRequests(session, openerService),
 		createdBy,
@@ -89,9 +78,8 @@ function getLocation(session: ISession, labelService: ILabelService): ISessionSu
 }
 
 /**
- * Pull requests the session itself produced. Pull requests inherited from the
- * checkout it started from, or merely referenced by the agent, are left out —
- * they are not this session's work.
+ * Pull requests produced by or explicitly associated with the session.
+ * Excludes inherited checkout PRs and mere references when provider provenance is available.
  */
 function getPullRequests(session: ISession, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
 	const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
@@ -99,13 +87,7 @@ function getPullRequests(session: ISession, openerService: IOpenerService): read
 		return undefined;
 	}
 
-	// Providers that do not distinguish created from inherited pull requests
-	// publish only the main one, which is the pull request of the session.
-	const refs: readonly IGitHubPullRequestRef[] = gitHubInfo.pullRequests
-		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
-		: gitHubInfo.pullRequest
-			? [{ owner: gitHubInfo.owner, repo: gitHubInfo.repo, ...gitHubInfo.pullRequest }]
-			: [];
+	const refs = getSessionOwnedGitHubPullRequestRefs(gitHubInfo);
 
 	return refs.length
 		? refs.map(ref => ({

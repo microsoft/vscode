@@ -15,6 +15,7 @@ import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
+import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -496,6 +497,7 @@ import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
+import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
 

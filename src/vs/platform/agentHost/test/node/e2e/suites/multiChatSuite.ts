@@ -131,7 +131,6 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc): void {
-		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
 		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
 	}
 
@@ -759,7 +758,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(readFileSync(file, 'utf8').trim(), 'AFTER_PEER');
 	});
 
-	// Directory creation always uses shell, so apply the Codex packaged-Linux replay gate directly.
+	// Directory creation always uses the shell, even for providers with native file tools.
 	providerTest('peer chat creates a file in a nested directory', async function () {
 		const { sessionUri, workspace } = await createSession('nested-create');
 		const file = join(workspace, 'peer-output', 'report.txt');

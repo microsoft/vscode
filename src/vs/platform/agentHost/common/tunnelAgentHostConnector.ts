@@ -7,6 +7,7 @@ import { raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { emitConnectionDiagnostic, getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import {
 	createTunnelGatewaySelectionRejectedError,
 	parseTunnelGatewayInventory,
@@ -168,6 +169,7 @@ export class PendingGatewaySelection implements IDisposable {
 		readonly socket: ITunnelMessageSocket,
 		readonly relayClient: ITunnelRelayClient,
 		private readonly _onUnexpectedClose: () => void,
+		readonly onDiagnostic?: ConnectionDiagnosticObserver,
 	) {
 		this._onSocketClosedListener = this.socket.onDidClose(() => {
 			if (!this._disposed) {
@@ -264,23 +266,23 @@ export class TunnelAgentHostConnector extends Disposable {
 		super();
 	}
 
-	async connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult> {
+	async connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, onDiagnostic?: ConnectionDiagnosticObserver): Promise<ITunnelConnectResult> {
 		this.closeTunnelConnections(tunnelId, 'reconnecting');
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel ${tunnelId} in cluster ${clusterId}...`);
 
-		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
+		const session = await traceConnectionOperation(onDiagnostic, 'tunnel.lookup', () => this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token));
 		if (!session) {
 			throw new TunnelNotFoundError(tunnelId);
 		}
 
 		const { tunnel } = session;
-		const relayClient = await session.createRelayClient();
+		const relayClient = await traceConnectionOperation(onDiagnostic, 'relay.create', () => session.createRelayClient());
 		let portStream: ITunnelDuplexStream;
 		try {
-			await withTimeout(() => relayClient.connect(), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect');
+			await traceConnectionOperation(onDiagnostic, 'relay.connect', () => withTimeout(() => relayClient.connect(), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect'));
 			this._logService.info(`${LOG_PREFIX} Tunnel relay connected, waiting for port ${TUNNEL_AGENT_HOST_PORT}...`);
-			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-			portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+			await traceConnectionOperation(onDiagnostic, 'relay.waitForPort', () => withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`));
+			portStream = await traceConnectionOperation(onDiagnostic, 'relay.forwardPort', () => withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`));
 			this._logService.info(`${LOG_PREFIX} Connected to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
 		} catch (err) {
 			this._disposeRelayClient(relayClient);
@@ -292,18 +294,18 @@ export class TunnelAgentHostConnector extends Disposable {
 		const connectionId = generateUuid();
 		let socket: ITunnelMessageSocket;
 		try {
-			socket = await withTimeout(
+			socket = await traceConnectionOperation(onDiagnostic, 'relay.websocket', () => withTimeout(
 				() => this._socketFactory.open(portStream, `/?tkn=${encodeURIComponent(connectionToken)}`),
 				TUNNEL_STEP_TIMEOUT_MS,
 				'WebSocket relay open',
-			);
+			));
 			this._logService.info(`${LOG_PREFIX} WebSocket relay connected to agent host via tunnel`);
 		} catch (err) {
 			this._disposeRelayClient(relayClient);
 			throw err;
 		}
 
-		this._createConnection(connectionId, `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`, name, connectionToken, socket, relayClient);
+		this._createConnection(connectionId, `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`, name, connectionToken, socket, relayClient, onDiagnostic);
 		return {
 			connectionId,
 			address: `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`,
@@ -313,8 +315,8 @@ export class TunnelAgentHostConnector extends Disposable {
 		};
 	}
 
-	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined> {
-		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
+	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, onDiagnostic?: ConnectionDiagnosticObserver): Promise<ITunnelGatewaySelectionSession | undefined> {
+		const session = await traceConnectionOperation(onDiagnostic, 'tunnel.lookup', () => this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token));
 		if (!session) {
 			throw new TunnelNotFoundError(tunnelId);
 		}
@@ -326,13 +328,13 @@ export class TunnelAgentHostConnector extends Disposable {
 		}
 
 		this._logService.info(`${LOG_PREFIX} Preparing gateway selection for tunnel ${tunnelId} in cluster ${clusterId}...`);
-		const relayClient = await session.createRelayClient();
+		const relayClient = await traceConnectionOperation(onDiagnostic, 'relay.create', () => session.createRelayClient());
 		let socket: ITunnelMessageSocket;
 		try {
-			await withTimeout(() => relayClient.connect(), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect');
-			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-			const portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-			socket = await withTimeout(() => this._socketFactory.open(portStream, TUNNEL_GATEWAY_SELECT_PATH), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection WebSocket open');
+			await traceConnectionOperation(onDiagnostic, 'relay.connect', () => withTimeout(() => relayClient.connect(), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect'));
+			await traceConnectionOperation(onDiagnostic, 'relay.waitForPort', () => withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`));
+			const portStream = await traceConnectionOperation(onDiagnostic, 'relay.forwardPort', () => withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`));
+			socket = await traceConnectionOperation(onDiagnostic, 'relay.websocket', () => withTimeout(() => this._socketFactory.open(portStream, TUNNEL_GATEWAY_SELECT_PATH), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection WebSocket open'));
 		} catch (err) {
 			this._disposeRelayClient(relayClient);
 			throw err;
@@ -340,7 +342,7 @@ export class TunnelAgentHostConnector extends Disposable {
 
 		let inventoryText: string;
 		try {
-			inventoryText = await withTimeout(() => this._readNextGatewayMessage(socket), TUNNEL_STEP_TIMEOUT_MS, 'gateway inventory message');
+			inventoryText = await traceConnectionOperation(onDiagnostic, 'gateway.inventory', () => withTimeout(() => this._readNextGatewayMessage(socket), TUNNEL_STEP_TIMEOUT_MS, 'gateway inventory message'));
 		} catch (err) {
 			this._disposeSocket(socket);
 			this._disposeRelayClient(relayClient);
@@ -369,6 +371,7 @@ export class TunnelAgentHostConnector extends Disposable {
 				this._logService.warn(`${LOG_PREFIX} Gateway selection WebSocket for ${selectionId} closed before a selection was made`);
 				this._pendingSelections.deleteAndDispose(selectionId);
 			},
+			onDiagnostic,
 		));
 		return { selectionId, inventory };
 	}
@@ -398,7 +401,7 @@ export class TunnelAgentHostConnector extends Disposable {
 		}
 
 		const connectionId = generateUuid();
-		this._createConnection(connectionId, pending.address, pending.name, pending.connectionToken, pending.socket, pending.relayClient);
+		this._createConnection(connectionId, pending.address, pending.name, pending.connectionToken, pending.socket, pending.relayClient, pending.onDiagnostic);
 		this._logService.info(`${LOG_PREFIX} Gateway selection ${selectionId} completed: selected ${response.selected.serverType} ${response.selected.instanceId}`);
 		return { connectionId, address: pending.address, name: pending.name, connectionToken: pending.connectionToken, selected: response.selected };
 	}
@@ -435,7 +438,7 @@ export class TunnelAgentHostConnector extends Disposable {
 		this._pendingSelections.deleteAndDispose(selectionId);
 	}
 
-	private _createConnection(connectionId: string, address: string, name: string, connectionToken: string, socket: ITunnelMessageSocket, relayClient: ITunnelRelayClient): void {
+	private _createConnection(connectionId: string, address: string, name: string, connectionToken: string, socket: ITunnelMessageSocket, relayClient: ITunnelRelayClient, onDiagnostic?: ConnectionDiagnosticObserver): void {
 		const connection = new TunnelConnection(
 			connectionId,
 			address,
@@ -444,7 +447,19 @@ export class TunnelAgentHostConnector extends Disposable {
 			socket,
 			relayClient,
 			data => this._onDidRelayMessage.fire({ connectionId, data }),
-			event => this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${event.code}, reason=${event.reason || '(empty)'}`),
+			event => {
+				emitConnectionDiagnostic(onDiagnostic, {
+					operationId: connectionId, phase: 'relay.closed', timestamp: Date.now(), outcome: 'info',
+					detail: `code=${event.code ?? 'unavailable'}; reason=${sanitizeConnectionDiagnosticText(event.reason ?? '(empty)')}`,
+					error: event.error ? getConnectionDiagnosticError(event.error) : undefined,
+				});
+				const message = `${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${event.code}, reason=${event.reason || '(empty)'}`;
+				if (event.error) {
+					this._logService.warn(`${message}, error=${event.error.message}`);
+				} else {
+					this._logService.info(message);
+				}
+			},
 		);
 		const onConnectionClose = connection.onDidClose(() => {
 			onConnectionClose.dispose();

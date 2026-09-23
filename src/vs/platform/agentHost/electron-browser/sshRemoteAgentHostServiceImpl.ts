@@ -114,11 +114,9 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 			}
 		};
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, () => {
-			// Logged under the seed channel id: the re-established id is not known
-			// until `establish()` resolves, after the logger has to exist.
-			const createLogger = () => ahpLoggingEnabled ? this._instantiationService.createInstance(
+			const createLogger = (activeConnectionId: string) => ahpLoggingEnabled ? this._instantiationService.createInstance(
 				AhpJsonlLogger,
-				{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
+				{ logsHome: this._environmentService.logsHome, logId: address, connectionId: activeConnectionId, transport: 'ssh' },
 			) : undefined;
 			return new ReconnectingRelayTransport(
 				establish,

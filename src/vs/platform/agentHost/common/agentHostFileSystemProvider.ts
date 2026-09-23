@@ -8,7 +8,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
+import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
@@ -147,6 +147,8 @@ interface IAuthorityEntry {
 	 * Empty while the entry is inside the grace window.
 	 */
 	connections: IRemoteFilesystemConnection[];
+	activeConnectionVersion: number;
+	readonly onDidChangeActiveConnection: Emitter<void>;
 	/**
 	 * Pending eviction timer; armed while {@link connections} is empty,
 	 * cleared on re-registration or eviction.
@@ -232,15 +234,18 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		if (!entry) {
 			entry = {
 				connections: [connection],
+				activeConnectionVersion: 0,
+				onDidChangeActiveConnection: new Emitter<void>({ leakWarningThreshold: 0 }),
 				expiry: new MutableDisposable<IDisposable>(),
 			};
 			this._authorities.set(authority, entry);
+			this._onDidChangeConnection.fire(authority);
 		} else {
 			entry.expiry.clear();
 			entry.connections.push(connection);
+			this._notifyActiveConnectionChanged(authority, entry);
 		}
 		const adopted = entry;
-		this._onDidChangeConnection.fire(authority);
 
 		return toDisposable(() => {
 			const idx = adopted.connections.indexOf(connection);
@@ -258,9 +263,15 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			}
 
 			if (wasActive) {
-				this._onDidChangeConnection.fire(authority); // Falling back to an older connection — surface the change.
+				this._notifyActiveConnectionChanged(authority, adopted);
 			}
 		});
+	}
+
+	private _notifyActiveConnectionChanged(authority: string, entry: IAuthorityEntry): void {
+		entry.activeConnectionVersion++;
+		entry.onDidChangeActiveConnection.fire();
+		this._onDidChangeConnection.fire(authority);
 	}
 
 	private _expireAuthority(authority: string, entry: IAuthorityEntry): void {
@@ -271,15 +282,19 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		}
 		this._authorities.delete(authority);
 		entry.expiry.dispose();
-		this._onDidChangeConnection.fire(authority);
+		this._notifyActiveConnectionChanged(authority, entry);
+		entry.onDidChangeActiveConnection.dispose();
 	}
 
 	override dispose(): void {
-		for (const entry of this._authorities.values()) {
+		const authorities = [...this._authorities];
+		this._authorities.clear();
+		for (const [authority, entry] of authorities) {
 			entry.expiry.dispose();
 			entry.connections.length = 0;
+			this._notifyActiveConnectionChanged(authority, entry);
+			entry.onDidChangeActiveConnection.dispose();
 		}
-		this._authorities.clear();
 		super.dispose();
 	}
 
@@ -417,9 +432,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
-		const connection = await this._getConnection(resource.authority);
 		try {
-			const resolved = await this._resolve(connection, decoded);
+			const resolved = await this._readFromConnection(resource.authority, connection => this._resolve(connection, decoded));
 
 			return {
 				type: resolved.type === 'directory' ? FileType.Directory
@@ -445,9 +459,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		if (this._isContentRef(resource, decoded) || decoded.path === '/' || decoded.path === '') {
 			return path;
 		}
-		const connection = await this._getConnection(resource.authority);
 		try {
-			const resolved = await this._resolve(connection, decoded);
+			const resolved = await this._readFromConnection(resource.authority, connection => this._resolve(connection, decoded));
 			// `resolved.uri` is the remote canonical (realpath) URI. Re-encode
 			// it back into provider space; the file service applies the
 			// returned path onto the original provider URI.
@@ -463,10 +476,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			const result = await connection.resourceRead(originalUri, ContentEncoding.Base64);
+			const result = await this._readFromConnection(resource.authority, connection => connection.resourceRead(originalUri, ContentEncoding.Base64));
 			if (result.encoding === ContentEncoding.Base64) {
 				return decodeBase64(result.data).buffer;
 			}
@@ -564,49 +576,64 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 
 	// ---- Internals ----------------------------------------------------------
 
-	private _getConnection(authority: string): Promise<IRemoteFilesystemConnection> {
+	private async _getConnection(authority: string): Promise<IRemoteFilesystemConnection> {
+		return (await this._getConnectionState(authority)).connection;
+	}
+
+	private async _getConnectionState(authority: string): Promise<{ connection: IRemoteFilesystemConnection; entry: IAuthorityEntry; version: number }> {
 		const entry = this._authorities.get(authority);
 		if (!entry) {
-			return Promise.reject(createFileSystemProviderError(
+			throw createFileSystemProviderError(
 				`No connection for authority: ${authority}`,
 				FileSystemProviderErrorCode.Unavailable,
-			));
+			);
 		}
 
 		const active = entry.connections.at(-1);
 		if (active) {
-			return Promise.resolve(active);
+			return { connection: active, entry, version: entry.activeConnectionVersion };
 		}
-		// Entry is inside its grace window after the last registration
-		// was disposed. Wait until either a new registration arrives
-		// (resolve) or the grace timer expires and evicts the entry
-		// (reject).
-		return new Promise((resolve, reject) => {
-			const settle = (): void => {
-				const current = this._authorities.get(authority);
-				if (!current) {
-					sub.dispose();
-					reject(createFileSystemProviderError(
-						`No connection for authority: ${authority}`,
-						FileSystemProviderErrorCode.Unavailable,
-					));
-					return;
+		const version = entry.activeConnectionVersion;
+		const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
+		const current = this._authorities.get(authority);
+		if (current !== entry || current.activeConnectionVersion !== version) {
+			changed.cancel();
+			return this._getConnectionState(authority);
+		}
+		try {
+			await changed;
+		} finally {
+			changed.cancel();
+		}
+		return this._getConnectionState(authority);
+	}
+
+	private async _readFromConnection<T>(authority: string, operation: (connection: IRemoteFilesystemConnection) => Promise<T>): Promise<T> {
+		while (true) {
+			const { connection, entry, version } = await this._getConnectionState(authority);
+			const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
+			const current = this._authorities.get(authority);
+			if (current !== entry || current.activeConnectionVersion !== version) {
+				changed.cancel();
+				continue;
+			}
+			try {
+				const result = await Promise.race([
+					operation(connection).then(value => ({ kind: 'result' as const, value })),
+					changed.then(() => ({ kind: 'connectionChanged' as const })),
+				]);
+				if (result.kind === 'result') {
+					return result.value;
 				}
-				const c = current.connections.at(-1);
-				if (c) {
-					sub.dispose();
-					resolve(c);
+			} catch (error) {
+				const latest = this._authorities.get(authority);
+				if (latest === entry && latest.activeConnectionVersion === version) {
+					throw error;
 				}
-			};
-			const sub = this._onDidChangeConnection.event(a => {
-				if (a === authority) {
-					settle();
-				}
-			});
-			// Re-check after subscribing in case the state changed between
-			// our initial check and the listener registration.
-			settle();
-		});
+			} finally {
+				changed.cancel();
+			}
+		}
 	}
 
 	/**
@@ -619,6 +646,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	private _mapError(err: unknown, defaultCode: FileSystemProviderErrorCode): Error {
 		if (err instanceof ProtocolError && err.code === AhpErrorCodes.PermissionDenied) {
 			return createFileSystemProviderError(err.message, FileSystemProviderErrorCode.NoPermissions);
+		}
+		if (err instanceof Error && toFileSystemProviderErrorCode(err) !== FileSystemProviderErrorCode.Unknown) {
+			return err;
 		}
 		return createFileSystemProviderError(
 			err instanceof Error ? err.message : String(err),
@@ -635,10 +665,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	private async _listDirectory(authority: string, resource: URI): Promise<readonly DirectoryEntry[]> {
-		const connection = await this._getConnection(authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			const result = await connection.resourceList(originalUri);
+			const result = await this._readFromConnection(authority, connection => connection.resourceList(originalUri));
 			return result.entries;
 		} catch (err) {
 			throw this._mapError(err, FileSystemProviderErrorCode.Unavailable);

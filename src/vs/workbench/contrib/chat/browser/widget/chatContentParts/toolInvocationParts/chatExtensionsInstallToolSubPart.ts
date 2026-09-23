@@ -89,6 +89,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				}
 			));
 			this._confirmWidget = confirmWidget;
+			this.primaryAction = () => confirmWidget.runPrimaryAction();
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 				IChatToolInvocation.confirmWith(toolInvocation, button.data);

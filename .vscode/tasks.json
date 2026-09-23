@@ -10,7 +10,6 @@
 				"Watch Client Transpile"
 			],
 			"dependsOrder": "sequence",
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -21,7 +20,6 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -32,7 +30,6 @@
 				"Watch"
 			],
 			"dependsOrder": "sequence",
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -59,6 +56,20 @@
 				"close": false
 			},
 			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Build Fast",
+			"type": "shell",
+			"command": "npm run build-fast",
+			"windows": {
+				"command": "cmd /c \"npm run build-fast\""
+			},
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
 		},
 		{
 			"label": "Watch",
@@ -100,8 +111,7 @@
 					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
-			},
-			"inAgents": true,
+			}
 		},
 		{
 			"type": "npm",
@@ -370,41 +380,9 @@
 			}
 		},
 		{
-			"label": "Run Dev Agents",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"args": [
-				"--agents",
-				"--user-data-dir=${userHome}/.vscode-oss-dev",
-				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
-			],
-			"problemMatcher": []
-		},
-		{
 			"label": "Transpile Client",
 			"type": "npm",
 			"script": "transpile-client",
-			"problemMatcher": []
-		},
-		{
-			"label": "Run and Compile Agents - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev Agents"
-			],
-			"dependsOrder": "sequence",
-			"problemMatcher": []
-		},
-		{
-			"label": "Run and Compile Code - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev"
-			],
-			"dependsOrder": "sequence",
 			"problemMatcher": []
 		},
 		{
@@ -486,7 +464,6 @@
 				"--port",
 				"8080"
 			],
-			"inAgents": true,
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {
@@ -568,12 +545,59 @@
 			]
 		},
 		{
-			"label": "Run Dev",
+			"label": "Run Code",
 			"type": "shell",
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Agents",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--agents",
+				"--user-data-dir=${userHome}/.vscode-oss-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
+			],
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build Fast & Run Code",
+			"dependsOn": [
+				"Build Fast",
+				"Run Code"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Build Fast & Run Agents",
+			"dependsOn": [
+				"Build Fast",
+				"Run Agents"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Install Dependencies & Build Fast",
+			"detail": "Install dependencies and build VS Code.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Build Fast"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
 			"problemMatcher": []
 		},
 		{

@@ -95,6 +95,9 @@ import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateT
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { CreatePullRequestContextView } from './createPullRequestContextView.js';
+import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
+import { isSessionPullRequestOperation } from '../common/pullRequestCreation.js';
 
 const $ = dom.$;
 
@@ -313,11 +316,18 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const createPullRequestContextView = this._register(instantiationService.createInstance(CreatePullRequestContextView));
+		const createPullRequestChatRequest = instantiationService.createInstance(CreatePullRequestChatRequest);
+		this._register(autorun(reader => {
+			changesViewService.activeSessionResourceObs.read(reader);
+			createPullRequestContextView.close();
+		}));
 
 		// Whether the primary button's work is in flight. Read by the button
 		// config provider below, which `buttonBar.update` calls synchronously
@@ -338,7 +348,12 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				}
 			}
 		));
-		this._register(buttonBar.onWillRun(e => unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService)));
+		this._register(buttonBar.onWillRun(e => {
+			const operation = changesViewService.activeSessionChangesetOperationsObs.get().find(operation => operation.id === e.action.id);
+			if (!operation || !isSessionPullRequestOperation(operation)) {
+				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
+			}
+		}));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
@@ -403,6 +418,21 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => {
+					if (isSessionPullRequestOperation(op)) {
+						const state = changesViewService.activeSessionStateObs.read(undefined);
+						const session = sessionsService.activeSession.read(undefined);
+						createPullRequestContextView.show(container, op.pullRequestCreation, {
+							branchName: state?.branchName,
+							baseBranchName: state?.baseBranchName,
+							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation) : undefined,
+							onRestoreFocus: () => buttonBar.buttons[0]?.focus(),
+						}, options => {
+							if (!options.draft) {
+								unlockChatPetCreatePullRequestAchievement(op.id, chatPetService);
+							}
+						});
+						return;
+					}
 					this.logService.info(`[ChangesWorkbenchButtonBarWidget] Invoking changeset operation from the title bar: operation=${op.id}`);
 					return changeset.invokeOperation(op.id);
 				},
@@ -2020,17 +2050,17 @@ class VersionsPickerAction extends Action2 {
 registerAction2(VersionsPickerAction);
 
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private readonly _summaryWidget: ChangesSummaryWidget | undefined;
+	private readonly _labelObs: IObservable<string | undefined>;
+	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
 
 	constructor(
 		action: MenuItemAction,
-		showSummary: boolean,
+		private readonly _showSummary: boolean,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IChangesViewService changesViewService: IChangesViewService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -2059,10 +2089,22 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._summaryWidget = showSummary ? this._register(instantiationService.createInstance(ChangesSummaryWidget)) : undefined;
+		this._labelObs = derivedObservableWithCache<string | undefined>(this, (reader, lastValue) => {
+			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+			if (!changeset && changesViewService.activeSessionLoadingObs.read(reader)) {
+				return lastValue;
+			}
+
+			return changeset?.label;
+		});
+
+		this._summaryObs = this._showSummary
+			? changesViewService.activeSessionChangesSummaryObs
+			: undefined;
+
 		this._register(autorun(reader => {
-			changesViewService.activeSessionChangesetObs.read(reader);
-			this._summaryWidget?.summary.read(reader);
+			this._labelObs.read(reader);
+			this._summaryObs?.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -2073,18 +2115,19 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+
 		container.classList.add('changes-picker-action-rich');
-		container.classList.toggle('changes-picker-action-with-summary', this._summaryWidget !== undefined);
+		container.classList.toggle('changes-picker-action-with-summary', this._showSummary);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
-		if (!changeset) {
+		const label = this._labelObs.get();
+		if (!label) {
 			return null;
 		}
 
-		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, changeset.label)];
-		const summary = this._summaryWidget?.summary.get();
+		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label)];
+		const summary = this._summaryObs?.get();
 		if (summary) {
 			contents.push(dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7'));
 			const summaryElement = dom.$('span.changes-picker-summary', { 'aria-hidden': 'true' });
@@ -2101,20 +2144,21 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		chevron.setAttribute('aria-hidden', 'true');
 		contents.push(chevron);
 		dom.reset(element, ...contents);
+
 		return null;
 	}
 
 	protected override getTooltip(): string {
+		const label = this._labelObs.get();
 		const title = super.getTooltip() || this.action.label;
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
-		if (!changeset) {
+		if (!label) {
 			return title;
 		}
 
-		const summary = this._summaryWidget?.summary.get();
+		const summary = this._summaryObs?.get();
 		return summary
-			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, changeset.label, getChangesSummaryLabel(summary))
-			: localize('changesView.picker.tooltip', "{0}: {1}", title, changeset.label);
+			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, label, getChangesSummaryLabel(summary))
+			: localize('changesView.picker.tooltip', "{0}: {1}", title, label);
 	}
 
 	protected override setAriaLabelAttributes(element: HTMLElement): void {

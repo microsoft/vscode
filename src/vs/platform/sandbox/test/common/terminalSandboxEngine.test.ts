@@ -18,7 +18,7 @@ import type { ISandboxDependencyStatus, IWindowsMxcConfig, IWindowsMxcFilesystem
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
+import { type ITerminalSandboxResolvedNetworkDomains, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
 
 suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -296,6 +296,110 @@ suite('TerminalSandboxEngine', () => {
 		});
 	});
 
+	for (const { name, os } of [
+		{ name: 'Linux', os: OperatingSystem.Linux },
+		{ name: 'macOS', os: OperatingSystem.Macintosh },
+	]) {
+		test(`canonicalizes Unicode domain policies before writing the ${name} sandbox configuration`, async () => {
+			const allowedDomains = ['*.example.test', 'b\u00fccher.allowed.test', 'localhost', '127.0.0.1'];
+			const deniedDomains = ['*.b\u00fccher.example.test', 'b\u00fccher.example.test', '*.xn--bcher-kva.existing.test'];
+			setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, allowedDomains);
+			setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, deniedDomains);
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+				getOS: () => Promise.resolve(os),
+			})));
+
+			const wrapped = await engine.wrapCommand('node ./script.js');
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath);
+			const config: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				network: config.network,
+				resolvedDomains: engine.getResolvedNetworkDomains(),
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				configuredDomains: { allowedDomains, deniedDomains },
+			}, {
+				network: {
+					allowedDomains: ['*.example.test', 'xn--bcher-kva.allowed.test', 'localhost', '127.0.0.1'],
+					deniedDomains: ['*.xn--bcher-kva.example.test', 'xn--bcher-kva.example.test', '*.xn--bcher-kva.existing.test'],
+				},
+				resolvedDomains: {
+					allowedDomains: ['*.example.test', 'xn--bcher-kva.allowed.test', 'localhost', '127.0.0.1'],
+					deniedDomains: ['*.xn--bcher-kva.example.test', 'xn--bcher-kva.example.test', '*.xn--bcher-kva.existing.test'],
+				},
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: undefined,
+				configuredDomains: {
+					allowedDomains: ['*.example.test', 'b\u00fccher.allowed.test', 'localhost', '127.0.0.1'],
+					deniedDomains: ['*.b\u00fccher.example.test', 'b\u00fccher.example.test', '*.xn--bcher-kva.existing.test'],
+				},
+			});
+		});
+	}
+
+	for (const settingId of [AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeniedNetworkDomains]) {
+		test(`invalid sandbox domain patterns in ${settingId} use a deny-all policy without throwing`, async () => {
+			setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
+			setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.test']);
+			setSandboxSetting(settingId, ['*.example.test', '*.bad..example.test']);
+			const warn = instantiationService.spy(ILogService, 'warn');
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+			const resolvedDomains = engine.getResolvedNetworkDomains();
+			const wrapped = await engine.wrapCommand('echo offline');
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath);
+			const config: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				resolvedDomains,
+				network: config.network,
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				warningLogged: warn.calledWith(`TerminalSandboxEngine: Cannot normalize a domain pattern in ${settingId}; blocking all network access.`),
+			}, {
+				resolvedDomains: { allowedDomains: [], deniedDomains: [] },
+				network: { allowedDomains: [], deniedDomains: [] },
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: undefined,
+				warningLogged: true,
+			});
+		});
+	}
+
+	test('recovers after invalid sandbox domain patterns are corrected', async () => {
+		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.bad..example.test']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath);
+		const invalidConfig: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.example.test']);
+		const wrapped = await engine.wrapCommand('echo offline');
+		const correctedConfig: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual({
+			invalidNetwork: invalidConfig.network,
+			correctedNetwork: correctedConfig.network,
+			resolvedDomains: engine.getResolvedNetworkDomains(),
+			isSandboxWrapped: wrapped.isSandboxWrapped,
+		}, {
+			invalidNetwork: { allowedDomains: [], deniedDomains: [] },
+			correctedNetwork: {
+				allowedDomains: ['*.example.test'],
+				deniedDomains: ['*.xn--bcher-kva.example.test'],
+			},
+			resolvedDomains: {
+				allowedDomains: ['*.example.test'],
+				deniedDomains: ['*.xn--bcher-kva.example.test'],
+			},
+			isSandboxWrapped: true,
+		});
+	});
+
 	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
@@ -355,6 +459,48 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(wrapped.blockedDomains, ['example.com']);
 		deepStrictEqual(wrapped.deniedDomains, ['example.com']);
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+	});
+
+	test('detects Unicode URL domains denied by sandbox policy before network relaxation', async () => {
+		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.example.test']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		const commands = [
+			'curl https://x.b\u00fccher.example.test/private',
+			'curl https://x.xn--bcher-kva.example.test/private',
+			'curl https://x.allowed.example.test/private',
+		];
+		const results = [];
+		for (const command of commands) {
+			const wrapped = await engine.wrapCommand(command);
+			results.push({
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				blockedDomains: wrapped.blockedDomains,
+				deniedDomains: wrapped.deniedDomains,
+			});
+		}
+
+		deepStrictEqual(results, [
+			{
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: true,
+				blockedDomains: ['x.xn--bcher-kva.example.test'],
+				deniedDomains: ['x.xn--bcher-kva.example.test'],
+			},
+			{
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: true,
+				blockedDomains: ['x.xn--bcher-kva.example.test'],
+				deniedDomains: ['x.xn--bcher-kva.example.test'],
+			},
+			{
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: undefined,
+				blockedDomains: undefined,
+				deniedDomains: undefined,
+			},
+		]);
 	});
 
 	test('onDidChangeRoots triggers a sandbox config rewrite on the next wrap', async () => {

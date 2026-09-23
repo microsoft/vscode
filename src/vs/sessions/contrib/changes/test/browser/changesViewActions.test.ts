@@ -498,7 +498,7 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode toggles are moved to the editor header layout overflow for non-text single-file diffs', () => {
+	test('view mode toggles are in the editor title overflow for non-text single-file diffs', () => {
 		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
@@ -567,8 +567,8 @@ suite('Changes View Actions', () => {
 			headerLayout: getItems(Menus.SessionsEditorHeaderLayout),
 			editorTitleOverflow: getItems(Menus.SessionsEditorTitle),
 		}, {
-			headerLayout: expectedItems('secondary/2_viewMode'),
-			editorTitleOverflow: [],
+			headerLayout: [],
+			editorTitleOverflow: expectedItems('2_viewMode'),
 		});
 	});
 

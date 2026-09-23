@@ -25,7 +25,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
 
-	function createPart(servers: readonly IChatMcpStartingServer[]) {
+	function createPart(servers: readonly IChatMcpStartingServer[], showSpinner = true) {
 		const servers$ = observableValue<readonly IChatMcpStartingServer[]>('servers', servers);
 		const data: IChatMcpServersStartingSlow = {
 			kind: 'mcpServersStartingSlow',
@@ -42,6 +42,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 		let finishedCount = 0;
 		const part = disposables.add(instantiationService.createInstance(ChatMcpServersStartingContentPart, data, {
 			createSpinner,
+			showSpinner,
 			onDidFinishStarting: () => finishedCount++,
 		}));
 		return { part, servers$, getFinishedCount: () => finishedCount, getDisposedSpinners: () => disposedSpinners };
@@ -70,6 +71,30 @@ suite('ChatMcpServersStartingContentPart', () => {
 			initial: { hidden: false, text: 'Starting MCP servers alpha, beta...', hasPixelSpinner: true, disposedSpinners: 0, finishedCount: 0 },
 			afterOneFinished: { hidden: false, text: 'Starting MCP servers alpha...', hasPixelSpinner: true, disposedSpinners: 1, finishedCount: 0 },
 			afterAllFinished: { hidden: true, text: '', hasPixelSpinner: false, disposedSpinners: 2, finishedCount: 1 },
+		});
+	});
+
+	test('preserves server status without creating a competing spinner', () => {
+		const { part, servers$, getFinishedCount, getDisposedSpinners } = createPart([{ id: 'a', name: 'alpha' }], false);
+		const initial = {
+			text: part.domNode.textContent,
+			hasPixelSpinner: !!part.domNode.querySelector('.monaco-pixel-spinner'),
+		};
+		servers$.set([{ id: 'b', name: 'beta' }], undefined);
+		const updatedText = part.domNode.textContent;
+		servers$.set([], undefined);
+		assert.deepStrictEqual({
+			initial,
+			updatedText,
+			hidden: part.domNode.style.display === 'none',
+			disposedSpinners: getDisposedSpinners(),
+			finishedCount: getFinishedCount(),
+		}, {
+			initial: { text: 'Starting MCP servers alpha...', hasPixelSpinner: false },
+			updatedText: 'Starting MCP servers beta...',
+			hidden: true,
+			disposedSpinners: 0,
+			finishedCount: 1,
 		});
 	});
 

@@ -320,6 +320,22 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
 	},
 	{
+		id: 'tip.btw',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.btw', "Use `/btw <question>` to ask a side question without adding it to the current conversation.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			ContextKeyExpr.has('sessionIsCreated'),
+			ContextKeyExpr.not('sessionIsArchived'),
+			ContextKeyExpr.has('sessionSupportsSideChat'),
+		),
+		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
+	},
+	{
 		id: 'tip.forkConversation',
 		tier: ChatTipTier.Qol,
 		buildMessage(ctx) {

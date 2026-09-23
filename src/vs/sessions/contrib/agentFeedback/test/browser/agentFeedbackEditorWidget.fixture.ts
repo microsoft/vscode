@@ -114,6 +114,7 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
@@ -284,6 +285,7 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();

@@ -9,11 +9,13 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ToolDefinition } from '../../../../common/state/sessionState.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession, dispatchTurn, driveTurnToCompletion, driveTurnWithModelToCompletion } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, driveTurnWithModelToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { anthropicMessageToSse } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -31,6 +33,64 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		const sessionUri = await createRealSession(context.client, context.config, prefix, context.createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };
 	}
+
+	async function initializeAdditionalClient(clientId: string): Promise<TestProtocolClient> {
+		const client = await context.connectClient();
+		await client.call('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId,
+		});
+		return client;
+	}
+
+	test('runtime tools: compacted shell output preserves the complete original', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createSession('shell-compaction');
+		const warning = '(node:123) Warning: repeated warning for shell compaction';
+		const original = [...Array<string>(80).fill(warning), 'FINAL_STATUS: SHELL_COMPACTION_OK'].join('\n');
+		assert.ok(Buffer.byteLength(original) < 8192, 'Output must not take the generic large-output spill path');
+		writeFileSync(join(workspace, 'warnings.ts'), `process.stdout.write(${JSON.stringify(original)});\n`);
+		await driveTurnWithModelToCompletion(context.client, sessionUri, 'turn-shell-compaction',
+			'Run exactly `node warnings.ts` with your shell tool in synchronous mode. Do not run any other tools. Then reply exactly "DONE".',
+			'claude-sonnet-5', 1);
+
+		const compacted = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
+			.map(n => getActionEnvelope(n))
+			.filter(envelope => envelope.channel === buildDefaultChatUri(sessionUri))
+			.flatMap(({ action }) => action.type === ActionType.ChatToolCallComplete && action.turnId === 'turn-shell-compaction'
+				? [textFromContent(action.result.content ?? [])] : [])
+			.find(text => text.includes('Shell output was automatically compacted'));
+		assert.ok(compacted, 'Expected lossy native-shell compaction in the AHP tool result');
+		const originalPath = /Original at (?<path>.+?); only use if exact omitted lines are needed\./.exec(compacted)?.groups?.path;
+		assert.ok(originalPath, 'Compacted output must advertise its recoverable original');
+		const recovered = await context.client.call<ResourceReadResult>('resourceRead', {
+			channel: ROOT_STATE_URI,
+			uri: URI.file(originalPath).toString(),
+			encoding: ContentEncoding.Utf8,
+		});
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-compaction-followup', 'Reply exactly "FOLLOWUP_DONE".', 2);
+
+		assert.deepStrictEqual({
+			omitsRepeatedWarnings: compacted.includes('[node warnings: omitted 79 repeated warning line(s)]'),
+			modelReceivesCompaction: context.observedModelRequestBodies.some(body => body.includes('Shell output was automatically compacted')),
+			retainsFinalStatus: compacted.includes('FINAL_STATUS: SHELL_COMPACTION_OK'),
+			retainsExitCode: compacted.includes('completed with exit code 0'),
+			fitsOutputLimit: Buffer.byteLength(compacted) <= 8192,
+			savesAtLeastOneThousandCharacters: original.length - compacted.length >= 1000,
+			recovered: recovered.data,
+			followup: followup.responseText.trim(),
+		}, {
+			omitsRepeatedWarnings: true,
+			modelReceivesCompaction: true,
+			retainsFinalStatus: true,
+			retainsExitCode: true,
+			fitsOutputLimit: true,
+			savesAtLeastOneThousandCharacters: true,
+			recovered: original,
+			followup: 'FOLLOWUP_DONE',
+		});
+	});
 
 	test('runtime tools: an accepted empty response reports a query error instead of completing silently', async function () {
 		this.timeout(180_000);
@@ -162,6 +222,105 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 				action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.ToolSearchEnabled]: false } },
 			});
 			await context.client.waitForNotification(n => isActionNotification(n, ActionType.RootConfigChanged), 30_000);
+		}
+	});
+
+	test('runtime tools: removing a client transfers duplicate tool ownership to the surviving client', async function () {
+		this.timeout(180_000);
+		const removedClientId = 'runtime-tool-owner-removed';
+		const survivingClientId = 'runtime-tool-owner-surviving';
+		let removedClient: TestProtocolClient | undefined;
+		let survivingClient: TestProtocolClient | undefined;
+		try {
+			removedClient = await initializeAdditionalClient(removedClientId);
+			survivingClient = await initializeAdditionalClient(survivingClientId);
+			const { sessionUri } = await createSession('runtime-tool-owner-cleanup');
+			const chatUri = buildDefaultChatUri(sessionUri);
+			const tool: ToolDefinition = {
+				name: 'route_probe',
+				description: 'Returns the client tool owner marker.',
+				inputSchema: { type: 'object', properties: {} },
+			};
+			for (const [client, clientId] of [[removedClient, removedClientId], [survivingClient, survivingClientId]] as const) {
+				await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+				await client.call<SubscribeResult>('subscribe', { channel: chatUri });
+				client.dispatch({
+					channel: sessionUri,
+					clientSeq: 1,
+					action: {
+						type: ActionType.SessionActiveClientSet,
+						activeClient: { clientId, tools: [tool] },
+					},
+				});
+				await context.client.waitForNotification(n => {
+					if (!isActionNotification(n, ActionType.SessionActiveClientSet)) {
+						return false;
+					}
+					const action = getActionEnvelope(n).action as { readonly activeClient: { readonly clientId: string } };
+					return action.activeClient.clientId === clientId;
+				}, 30_000);
+			}
+
+			context.client.clearReceived();
+			removedClient.notify('unsubscribe', { channel: sessionUri });
+			await removedClient.call('ping', { channel: ROOT_STATE_URI });
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.SessionActiveClientRemoved)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as { readonly clientId: string };
+				return action.clientId === removedClientId;
+			}, 30_000);
+
+			const [result, contributor] = await Promise.all([
+				driveTurnWithModelToCompletion(
+					context.client,
+					sessionUri,
+					'turn-runtime-tool-owner-cleanup',
+					'Call route_probe exactly once, then reply with only its exact result.',
+					'gpt-5.6-sol',
+					1,
+				),
+				(async () => {
+					const start = await context.client.waitForNotification(n =>
+						isActionNotification(n, ActionType.ChatToolCallStart)
+						&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === tool.name,
+						90_000,
+					);
+					const startAction = getActionEnvelope(start).action as ChatToolCallStartAction;
+					await context.client.waitForNotification(n =>
+						isActionNotification(n, ActionType.ChatToolCallReady)
+						&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === startAction.toolCallId,
+						90_000,
+					);
+					survivingClient.dispatch({
+						channel: chatUri,
+						clientSeq: 2,
+						action: {
+							type: ActionType.ChatToolCallComplete,
+							turnId: startAction.turnId,
+							toolCallId: startAction.toolCallId,
+							result: {
+								success: true,
+								pastTenseMessage: 'Returned the owner marker',
+								content: [{ type: ToolResultContentType.Text, text: 'SURVIVING_CLIENT_RESULT' }],
+							},
+						},
+					});
+					return startAction.contributor;
+				})(),
+			]);
+
+			assert.deepStrictEqual({
+				contributor,
+				response: result.responseText.trim(),
+			}, {
+				contributor: { kind: ToolCallContributorKind.Client, clientId: survivingClientId },
+				response: 'SURVIVING_CLIENT_RESULT',
+			});
+		} finally {
+			removedClient?.close();
+			survivingClient?.close();
 		}
 	});
 

@@ -413,6 +413,44 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
 	});
 
+	test('[B2] gates working-set restoration on the active chat workspace', async () => {
+		const chatWorkspace = {
+			uri: URI.file('/chat'),
+			label: 'chat',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/chat'), workingDirectory: URI.file('/chat'), name: 'chat', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/chat') }] });
+		const session = makeSession(URI.parse('session:1'), {
+			workspace: {
+				uri: URI.file('/aggregate'),
+				label: 'aggregate',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/aggregate'), workingDirectory: URI.file('/aggregate'), name: 'aggregate', description: undefined, gitRepository: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			},
+			chatWorkspace,
+		});
+		const otherSession = makeSession(URI.parse('session:2'), { workspace: chatWorkspace });
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(otherSession, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{
+			id: `session-working-set:${session.resource.toString()}`,
+			name: `session-working-set:${session.resource.toString()}`,
+		}]);
+	});
+
 	// --- [B3] Persistence & migration / [B4] Save ---
 
 	test('[B3] migrates legacy sessions.workingSets key and [B4] persists to sessions.layoutState', () => {

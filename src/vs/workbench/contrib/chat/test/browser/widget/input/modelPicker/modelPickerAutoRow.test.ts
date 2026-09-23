@@ -8,6 +8,7 @@ import { getWindow } from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
@@ -62,6 +63,7 @@ suite('ModelPickerAutoRow', () => {
 	function createRow(initiallyEnabled: boolean, options: {
 		autoModel?: ILanguageModelChatMetadataAndIdentifier;
 		configurationAccess?: IModelConfigurationAccess;
+		selectionVersion?: () => number;
 		onToggle?: (enabled: boolean) => void;
 	} = {}) {
 		const toggles: boolean[] = [];
@@ -72,6 +74,7 @@ suite('ModelPickerAutoRow', () => {
 			autoModel: options.autoModel ?? createAutoModel(),
 			configurationAccess,
 			isEnabled: () => enabled,
+			selectionVersion: options.selectionVersion,
 			onToggle: next => {
 				enabled = next;
 				toggles.push(next);
@@ -166,6 +169,17 @@ suite('ModelPickerAutoRow', () => {
 			{ strip: true, description: true });
 	});
 
+	test('an internal Auto preset is not exposed as a selectable tier or mislabeled as Efficiency', () => {
+		const result = createRow(true, {
+			autoModel: createAutoModel(true),
+			configurationAccess: createConfigurationAccess({ tier: 'fast' }),
+		});
+		assert.deepStrictEqual({
+			tiers: result.tiers.map(element => element.textContent),
+			description: result.description.textContent,
+		}, { tiers: [], description: 'Automatic model selection' });
+	});
+
 	test('inactive tiers remain visible and interactive with the remembered tier and description', () => {
 		const { row, tiers, description, toggle, configurationAccess } = createRow(false, {
 			autoModel: createAutoModel(true),
@@ -195,15 +209,46 @@ suite('ModelPickerAutoRow', () => {
 			toggle: 'false',
 			group: 'Optimize for',
 			tiers: [
-				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'color(srgb 1 1 1 / 0.75)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
-				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'color(srgb 1 1 1 / 0.75)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
-				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true, color: 'color(srgb 1 1 1 / 0.75)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
 			],
 			selectionVisibility: 'hidden',
 			description: 'Automatic model selection · Most capable models',
 			descriptionVisible: true,
 			savedTier: 'max',
 		});
+	});
+
+	test('Auto-off tiers meet normal-text contrast with Light+ theme defaults', () => {
+		const { row, tiers } = createRow(false, { autoModel: createAutoModel(true) });
+		row.element.style.setProperty('--vscode-foreground', '#616161');
+		row.element.style.setProperty('--vscode-descriptionForeground', '#717171');
+		row.element.style.setProperty('--vscode-menu-background', '#ffffff');
+		row.element.style.backgroundColor = 'var(--vscode-menu-background)';
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		const context = canvas.getContext('2d', { willReadFrequently: true });
+		assert.ok(context);
+		const background = Color.white;
+		const contrasts = tiers.map(tier => {
+			context.fillStyle = getWindow(row.element).getComputedStyle(row.element).backgroundColor;
+			context.fillRect(0, 0, 1, 1);
+			context.fillStyle = getWindow(tier).getComputedStyle(tier).color;
+			context.fillRect(0, 0, 1, 1);
+			const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+			return background.getContrastRatio(new Color(new RGBA(red, green, blue)));
+		});
+
+		assert.deepStrictEqual({
+			passesAA: contrasts.map(contrast => contrast >= 4.5),
+			interactive: tiers.map(tier => tier.getAttribute('aria-disabled')),
+			selectedIndicator: getWindow(row.element).getComputedStyle(row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
+		}, {
+			passesAA: [true, true, true],
+			interactive: ['false', 'false', 'false'],
+			selectedIndicator: 'hidden',
+		}, `Tier contrast ratios: ${contrasts.join(', ')}`);
 	});
 
 	for (const [index, tier, description] of [
@@ -336,7 +381,7 @@ suite('ModelPickerAutoRow', () => {
 			toggles: [false, true],
 			inactive: initial,
 			restored: initial,
-			inactiveAppearance: { color: 'color(srgb 1 1 1 / 0.75)', background: 'rgba(0, 0, 0, 0)', selectionVisibility: 'hidden', weight: '400', opacity: '1' },
+			inactiveAppearance: { color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', selectionVisibility: 'hidden', weight: '400', opacity: '1' },
 			restoredHighlight: 'visible',
 			savedTier: 'max',
 			toggleFocused: true,
@@ -514,6 +559,39 @@ suite('ModelPickerAutoRow', () => {
 			});
 		});
 	}
+
+	test('a model selected elsewhere during a pending save is not overridden by enabling Auto', async () => {
+		const saved = new DeferredPromise<void>();
+		const access = createConfigurationAccess({ tier: 'balanced' });
+		let selectionVersion = 0;
+		const result = createRow(false, {
+			autoModel: createAutoModel(true),
+			selectionVersion: () => selectionVersion,
+			configurationAccess: {
+				...access,
+				setModelConfiguration: async (modelId, values) => {
+					await saved.p;
+					await access.setModelConfiguration(modelId, values);
+				},
+			},
+		});
+		result.tiers[2].click();
+		await timeout(0);
+		// E.g. HydraFusion switched on: Auto stays off, so only the selection moves.
+		selectionVersion++;
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			toggles: result.toggles,
+			enabled: result.row.element.classList.contains('enabled'),
+			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
+		}, {
+			toggles: [],
+			enabled: false,
+			savedTier: 'max',
+		});
+	});
 
 	test('a disposed row does not enable Auto or recreate controls after a pending save', async () => {
 		const saved = new DeferredPromise<void>();

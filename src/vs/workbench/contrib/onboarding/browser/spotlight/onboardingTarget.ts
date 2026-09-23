@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import '../media/onboardingTarget.css';
 
@@ -20,6 +21,12 @@ export const ONBOARDING_TARGET_PULSE_CLASS = 'onboarding-target-pulse';
 export interface IOnboardingTargetOptions {
 	/** Opens or expands the target before its spotlight step is shown. */
 	readonly open?: () => Promise<void> | void;
+
+	/** Whether this control already has a selected value, independent of asynchronous acceptance. */
+	readonly hasSelection?: () => boolean;
+
+	/** Reports a user selection and resolves once it is accepted or rejected. */
+	readonly onDidSelect?: Event<Promise<boolean>>;
 }
 
 interface IOnboardingTargetRegistration {
@@ -49,6 +56,16 @@ export function markOnboardingTarget(element: HTMLElement, id: string, options: 
 /** Opens or expands a target through the behavior registered by its owner. */
 export function openOnboardingTarget(element: HTMLElement): Promise<void> | void {
 	return onboardingTargetRegistrations.get(element)?.options.open?.();
+}
+
+/** Observes selections reported by the target's owner. */
+export function onDidSelectOnboardingTarget(element: HTMLElement): Event<Promise<boolean>> {
+	return onboardingTargetRegistrations.get(element)?.options.onDidSelect ?? Event.None;
+}
+
+/** Reads selection state from the target's owner, without depending on downstream session state. */
+export function hasOnboardingTargetSelection(element: HTMLElement): boolean {
+	return onboardingTargetRegistrations.get(element)?.options.hasSelection?.() ?? false;
 }
 
 /**

@@ -1061,6 +1061,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	detachFromElement(): void {
 		this._wrapperElement.remove();
 		this._container = undefined;
+		this._dndObserver.clear();
 	}
 
 	attachToElement(container: HTMLElement): void {
@@ -1085,7 +1086,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.refresh();
 
 		setTimeout(() => {
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || this._container !== container) {
 				return;
 			}
 			this._initDragAndDrop(container);
@@ -2139,6 +2140,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
 		if (title === undefined) {
+			if (eventSource === TitleEventSource.Api) {
+				this._staticTitle = undefined;
+				this._titleSource = TitleEventSource.Process;
+				this._messageTitleDisposable.value = this.xterm?.raw.onTitleChange(e => this._onTitleChange(e));
+			}
 			return this._processName;
 		}
 		switch (eventSource) {

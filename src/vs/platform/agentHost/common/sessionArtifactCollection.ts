@@ -160,6 +160,20 @@ export class SessionArtifactCollection {
 		return { artifacts: [...this._artifacts, artifact], artifact, added: true };
 	}
 
+	/** Adds an entry, or promotes an existing reference with the same value when the input is an artifact. */
+	addOrPromoteArtifact(input: ISessionArtifactInput, createId: () => string): IAddSessionArtifactResult {
+		const result = this.add(input, createId);
+		if (result.added || result.artifact.isArtifact || !input.isArtifact) {
+			return result;
+		}
+		const artifact = this._create(input, () => result.artifact.id);
+		return {
+			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
+			artifact,
+			added: false,
+		};
+	}
+
 	remove(id: string): IRemoveSessionArtifactResult {
 		const removed = this._artifacts.find(artifact => artifact.id === id);
 		return {

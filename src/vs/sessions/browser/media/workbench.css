@@ -308,6 +308,14 @@
 	background-color: var(--vscode-editor-background);
 }
 
+.agent-sessions-workbench .explorer-folders-view .monaco-list-row,
+.agent-sessions-workbench .changes-file-list .monaco-list-row {
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	width: auto;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
 	overflow: hidden;
 }

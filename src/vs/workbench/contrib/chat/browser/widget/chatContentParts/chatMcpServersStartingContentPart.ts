@@ -36,6 +36,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		private readonly data: IChatMcpServersStartingSlow,
 		private readonly options: {
 			readonly createSpinner?: typeof createPixelSpinner;
+			readonly showSpinner?: boolean;
 			readonly onDidFinishStarting?: () => void;
 		} | undefined,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
@@ -74,11 +75,13 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	private _renderMessage(content: string): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
-		const iconElement = dom.$('.chat-mcp-servers-icon');
-		this.spinner.value = (this.options?.createSpinner ?? createPixelSpinner)(iconElement);
+		if (this.options?.showSpinner !== false) {
+			const iconElement = dom.$('.chat-mcp-servers-icon');
+			this.spinner.value = (this.options?.createSpinner ?? createPixelSpinner)(iconElement);
+			messageContainer.appendChild(iconElement);
+		}
 
 		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
-		messageContainer.appendChild(iconElement);
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);

@@ -12,7 +12,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../../platform/ac
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
 import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
 
 /**
  * Builds a model whose schema advertises a Thinking Effort and a Context Size
@@ -95,9 +95,10 @@ function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
  * returns a snapshot of everything the user can see: the button label, its
  * accessible name, the list options and the option rows.
  */
-function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}) {
+function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema) {
 	const access: IModelConfigurationAccess = {
 		getModelConfiguration: () => configuration,
+		getModelConfigurationSchema: () => schema,
 		setModelConfiguration: async (_modelId, values) => { Object.assign(configuration, values); },
 		getModelConfigurationActions: () => [],
 	};
@@ -206,6 +207,51 @@ suite('ModelPickerConfiguration', () => {
 
 	// The navigation group is generic: Copilot's Auto model uses it for the
 	// routing tier rather than thinking effort, and names it through `title`.
+	test('keeps public tier choices reachable without exposing an internal preset name', () => {
+		const model = createTierModel();
+		const rendered = render({
+			...model,
+			metadata: {
+				...model.metadata,
+				configurationSchema: {
+					properties: {
+						tier: {
+							type: 'string', title: 'Optimize for', group: 'navigation',
+							enum: ['efficiency', 'balance', 'intelligence'],
+							enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'balance',
+						}
+					}
+				},
+			},
+		}, { tier: 'fast' });
+		assert.deepStrictEqual({
+			label: rendered.label,
+			ariaLabel: rendered.ariaLabel,
+			choices: rendered.sections.map(section => section.label),
+		}, { label: 'Automatic', ariaLabel: 'Optimize for: Automatic', choices: ['Optimize for', 'Efficiency', 'Balance', 'Intelligence'] });
+	});
+
+	test('uses the scoped managed default in the menu without rewriting provider metadata', () => {
+		const model = createTierModel();
+		const original = model.metadata.configurationSchema!;
+		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, default: 'max' } } };
+		const result = render(model, { tier: 'balanced' }, schema);
+		assert.deepStrictEqual({
+			selectedLabel: result.label,
+			options: result.sections.map(section => ({ label: section.label, checked: section.checked, description: section.ariaDescription })),
+			providerDefault: original.properties?.tier.default,
+		}, {
+			selectedLabel: 'Balance',
+			options: [
+				{ label: 'Optimize for', checked: undefined, description: undefined },
+				{ label: 'Efficiency', checked: false, description: 'Cheaper models' },
+				{ label: 'Balance', checked: true, description: 'Balances capability and cost' },
+				{ label: 'Intelligence', checked: false, description: 'Default, Most capable models' },
+			],
+			providerDefault: 'balanced',
+		});
+	});
+
 	test('names the navigation group after the schema title when one is given', () => {
 		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
 			label: 'Intelligence',

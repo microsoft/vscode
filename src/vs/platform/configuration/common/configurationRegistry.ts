@@ -281,7 +281,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * When specified, this setting is governed by a policy owned by another setting.
 	 * A setting must not declare both `policy` and `policyReference`.
-	 * The type must match the owning setting (enforced when exporting the policy catalog).
+	 * The non-null types must match the owning setting (enforced when exporting the policy catalog).
 	 */
 	policyReference?: IPolicyReference;
 

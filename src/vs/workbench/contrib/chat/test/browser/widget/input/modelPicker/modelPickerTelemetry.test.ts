@@ -65,6 +65,7 @@ function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> =
 suite('ModelPickerTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const model = createModel('test-model');
+	const fastModel = createModel('test-model-fast');
 	const otherModel = createModel('other-model');
 	const thirdPartyModel = createModel('private-model', { vendor: 'third-party' });
 	const autoModel = createModel('auto', {
@@ -95,7 +96,7 @@ suite('ModelPickerTelemetry', () => {
 			},
 			getModelConfigurationActions: () => [],
 		};
-		const models = [autoModel, model, otherModel, thirdPartyModel];
+		const models = [autoModel, model, fastModel, otherModel, thirdPartyModel];
 		const container = dom.append(mainWindow.document.body, dom.$('.monaco-reduce-motion'));
 		store.add(toDisposable(() => container.remove()));
 		const footer = dom.append(container, dom.$('div'));
@@ -318,6 +319,54 @@ suite('ModelPickerTelemetry', () => {
 			}
 		});
 	}
+
+	test('accepting a row during a speed change does not report a revert to Standard', () => {
+		const result = createPicker(true);
+		option(result.showCard(model.metadata.name), 'Fast').click();
+		result.selectItem(model.metadata.name);
+
+		assert.deepStrictEqual({ selected: result.picker.selectedModel?.identifier, events: result.events }, {
+			selected: fastModel.identifier,
+			events: [modelChange(model, fastModel), modelChange(fastModel, fastModel)],
+		});
+	});
+
+	for (const initiallyFast of [false, true]) {
+		test(`selecting a remembered speed through search reports Fast (initially fast: ${initiallyFast})`, async () => {
+			const result = createPicker(true, initiallyFast ? fastModel : model);
+			if (!initiallyFast) {
+				option(result.showCard(model.metadata.name), 'Fast').click();
+				await timeout(0);
+			}
+			result.selectItem(otherModel.metadata.name);
+			result.picker.show(result.container);
+			result.listOptions.onType?.('test');
+			result.selectItem(fastModel.metadata.name);
+
+			assert.deepStrictEqual({ searching: result.listOptions.showFilter, events: result.events }, {
+				searching: true,
+				events: [
+					...(initiallyFast ? [] : [modelChange(model, fastModel)]),
+					modelChange(fastModel, otherModel),
+					modelChange(otherModel, fastModel),
+				],
+			});
+		});
+	}
+
+	test('pinning a model then changing speed preserves its pin without a configuration event', async () => {
+		const result = createPicker(true);
+		const card = result.showCard(model.metadata.name);
+		card.querySelector<HTMLElement>('[aria-label="Pin Model"]')!.click();
+		option(card, 'Fast').click();
+		await timeout(0);
+		result.showCard(fastModel.metadata.name).querySelector<HTMLElement>('[aria-label="Unpin Model"]')!.click();
+
+		assert.deepStrictEqual({ pinned: result.pinnedModelIds, events: result.events }, {
+			pinned: [],
+			events: [modelChange(model, fastModel)],
+		});
+	});
 
 	test('tabbed Auto toggles report the current previous model while the popup stays open', () => {
 		const result = createPicker(true);

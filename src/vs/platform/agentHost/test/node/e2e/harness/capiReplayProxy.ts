@@ -25,12 +25,10 @@
  * (`/chat/completions`), Responses (`/responses`) and Anthropic Messages
  * (`/v1/messages`) SSE dialects without needing per-dialect adapters.
  *
- * Matching is **sequence-based per `(method, path)`**: the Nth request to a
- * given endpoint replays the Nth recorded response. In replay the agent's
- * behavior is driven entirely by the recorded responses, so the sequence of
- * calls it makes is reproduced exactly — making exact-body matching (which is
- * brittle against volatile fields like dates or request ids) unnecessary. The
- * normalized request body is still stored in the fixture for reviewability.
+ * Matching is **sequence-based per `(method, path)`** by default: the Nth
+ * request to a given endpoint replays the Nth recorded response. Tests whose
+ * parent and subagent can issue concurrent model requests may opt into matching
+ * the remaining responses by the normalized request projection instead.
  */
 
 import type * as http from 'http';
@@ -70,8 +68,9 @@ const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
 const PATH_SEPARATOR_PATTERN = '(?:\\\\\\\\|\\\\|/)';
-const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
+const GENERATED_VALUE_PLACEHOLDER_RE = /\$\{(?<kind>uuid|shell_output)_\d+\}/g;
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const SHELL_OUTPUT_PATH_PATTERN = '(?:[A-Za-z]:[\\\\/]|/|\\$\\{(?:homedir|workdir)\\}[\\\\/])[^"\\r\\n<>]*?[\\\\/]original-output-\\d+-[a-f0-9]{32}\\.txt';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
@@ -228,6 +227,8 @@ export interface ICapiReplayProxyOptions {
 	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
 	 */
 	readonly allowStaleRecordedRequest?: boolean;
+	/** Match concurrent model requests to remaining responses by their normalized request projection. */
+	readonly matchModelRequestsByProjection?: boolean;
 	/** Synthetic first model response used by deterministic provider-error recordings. */
 	readonly recordingModelResponse?: ICapiReplayResponse;
 }
@@ -279,9 +280,11 @@ export class CapiReplayProxy {
 	 * serves every test in the suite.
 	 */
 	private _allowStaleRecordedRequest: boolean;
+	private _matchModelRequestsByProjection: boolean;
 
 	constructor(private readonly _options: ICapiReplayProxyOptions) {
 		this._allowStaleRecordedRequest = _options.allowStaleRecordedRequest ?? false;
+		this._matchModelRequestsByProjection = _options.matchModelRequestsByProjection ?? false;
 		this._fixturePath = _options.fixturePath;
 		this._workingDirectory = _options.workDir;
 		const fixtureExists = existsSync(this._fixturePath);
@@ -359,7 +362,10 @@ export class CapiReplayProxy {
 	 * valid). Clears the previous fixture's replay buckets and cache-miss log.
 	 * Replay-only: recording keeps one fixture per proxy.
 	 */
-	resetForReplay(fixturePath: string, allowStaleRecordedRequest = false): void {
+	resetForReplay(
+		fixturePath: string,
+		options: Pick<ICapiReplayProxyOptions, 'allowStaleRecordedRequest' | 'matchModelRequestsByProjection'> = {},
+	): void {
 		if (!this._isReplaying) {
 			throw new Error('[capi-replay] resetForReplay is only valid in replay mode');
 		}
@@ -367,7 +373,8 @@ export class CapiReplayProxy {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${fixturePath}`);
 		}
 		this._fixturePath = fixturePath;
-		this._allowStaleRecordedRequest = allowStaleRecordedRequest;
+		this._allowStaleRecordedRequest = options.allowStaleRecordedRequest ?? false;
+		this._matchModelRequestsByProjection = options.matchModelRequestsByProjection ?? false;
 		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
 		this._observedModelRequestBodies.length = 0;
@@ -499,6 +506,12 @@ export class CapiReplayProxy {
 		let item: IReplayItem | undefined;
 		if (bucket) {
 			if (bucket.index < bucket.items.length) {
+				if (this._matchModelRequestsByProjection && MODEL_ENDPOINTS.has(path)) {
+					const matchingIndex = this._findMatchingTurnIndex(bucket, body);
+					if (matchingIndex !== undefined && matchingIndex !== bucket.index) {
+						[bucket.items[bucket.index], bucket.items[matchingIndex]] = [bucket.items[matchingIndex], bucket.items[bucket.index]];
+					}
+				}
 				item = bucket.items[bucket.index++];
 			} else if (!MODEL_ENDPOINTS.has(path)) {
 				// Idempotent endpoint called more often than recorded — re-serve
@@ -529,6 +542,28 @@ export class CapiReplayProxy {
 		delete headers['transfer-encoding'];
 		res.writeHead(item.response.status, headers);
 		res.end(this._expandReplayPlaceholders(item.response.body));
+	}
+
+	private _findMatchingTurnIndex(bucket: IReplayBucket, body: string): number | undefined {
+		const next = bucket.items[bucket.index];
+		if (next?.kind !== 'turn') {
+			return undefined;
+		}
+		const summarize = next.dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
+		const observed = summarize(this._normalizeReplayPlaceholderValues(this._normalize(body)));
+		if (!observed) {
+			return undefined;
+		}
+		const actual = projectModelRequest(observed);
+		for (let index = bucket.index; index < bucket.items.length; index++) {
+			const candidate = bucket.items[index];
+			if (candidate.kind === 'turn'
+				&& candidate.dialect === next.dialect
+				&& modelRequestsMatch(projectModelRequest(candidate.request), actual)) {
+				return index;
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -564,6 +599,7 @@ export class CapiReplayProxy {
 	private _normalizeReplayPlaceholderValues(text: string): string {
 		let result = text;
 		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, escapeJsonString(value), placeholder);
 			result = replaceAll(result, value, placeholder);
 		}
 		return result;
@@ -724,7 +760,8 @@ export class CapiReplayProxy {
 		const built = this._recorded.map(exchange => this._toFixtureExchange(exchange));
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
-		this._normalizeUuids(exchanges);
+		this._normalizeGeneratedValues(exchanges, new RegExp(SHELL_OUTPUT_PATH_PATTERN, 'gi'), 'shell_output');
+		this._normalizeGeneratedValues(exchanges, new RegExp(UUID_PATTERN, 'gi'), 'uuid');
 		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
@@ -820,27 +857,20 @@ export class CapiReplayProxy {
 		}
 	}
 
-	/**
-	 * Replace ephemeral UUIDs (shell ids, session-state ids, ...) that appear in
-	 * captured request/response content with stable ordinal placeholders
-	 * (`${uuid_0}`, `${uuid_1}`, ...). They change on every re-record, so
-	 * normalizing them keeps committed fixtures diff-clean. Distinct UUIDs get
-	 * distinct placeholders; repeats of the same UUID reuse its placeholder.
-	 */
-	private _normalizeUuids(exchanges: IFixtureExchange[]): void {
+	/** Replaces generated identifiers and paths with stable, rebindable ordinal placeholders. */
+	private _normalizeGeneratedValues(exchanges: IFixtureExchange[], expression: RegExp, prefix: string): void {
 		const idMap = new Map<string, string>();
-		const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-		const mapUuid = (uuid: string): string => {
-			let mapped = idMap.get(uuid);
+		const mapValue = (value: string): string => {
+			let mapped = idMap.get(value);
 			if (mapped === undefined) {
-				mapped = `\${uuid_${idMap.size}}`;
-				idMap.set(uuid, mapped);
+				mapped = `\${${prefix}_${idMap.size}}`;
+				idMap.set(value, mapped);
 			}
 			return mapped;
 		};
 		const walk = (value: unknown): unknown => {
 			if (typeof value === 'string') {
-				return value.replace(uuidRe, mapUuid);
+				return value.replace(expression, mapValue);
 			}
 			if (Array.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
@@ -1003,7 +1033,11 @@ export class CapiReplayProxy {
 	}
 
 	private _expandReplayPlaceholders(text: string): string {
-		let result = replaceAll(text, CAPI_PLACEHOLDER, this.url);
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
+		result = replaceAll(result, CAPI_PLACEHOLDER, this.url);
 		if (result.includes(COPIED_PLUGIN_DIR_PLACEHOLDER)) {
 			const directories = [...this._replayPluginDirectories];
 			if (directories.length !== 1) {
@@ -1043,9 +1077,6 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
 		}
-		for (const [placeholder, value] of this._replayPlaceholderValues) {
-			result = replaceAll(result, placeholder, value);
-		}
 		return result;
 	}
 }
@@ -1073,9 +1104,9 @@ function captureReplayPlaceholderValuesFromString(recorded: string, observed: st
 	const placeholders: string[] = [];
 	let pattern = '^';
 	let offset = 0;
-	for (const match of recorded.matchAll(UUID_PLACEHOLDER_RE)) {
+	for (const match of recorded.matchAll(GENERATED_VALUE_PLACEHOLDER_RE)) {
 		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
-		pattern += `(${UUID_PATTERN})`;
+		pattern += `(${match.groups?.kind === 'shell_output' ? SHELL_OUTPUT_PATH_PATTERN : UUID_PATTERN})`;
 		placeholders.push(match[0]);
 		offset = match.index + match[0].length;
 	}

@@ -147,7 +147,7 @@ export class SessionInputBanners extends Disposable {
 			let failed = 0;
 			let completed = 0;
 			let pending = 0;
-			if (!legacyCIDismissed && !(agentMerge?.enabled && agentMerge.actions.fixCI) && livePullRequest && !livePullRequest.isDraft && livePullRequest.state === GitHubPullRequestState.Open) {
+			if (!legacyCIDismissed && !(agentMerge?.enabled && agentMerge.actions.fixCI) && livePullRequest && livePullRequest.state === GitHubPullRequestState.Open) {
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
 				const ciModel = ciModelRef.object;
 				if (!ciModel.fixRequested.read(reader)) {
@@ -240,7 +240,7 @@ export class SessionInputBanners extends Disposable {
 				void prModel.refresh();
 				reader.store.add(prModel.startPolling());
 				const livePullRequest = prModel.pullRequest.read(reader);
-				if (!livePullRequest || livePullRequest.isDraft || livePullRequest.state !== GitHubPullRequestState.Open) {
+				if (!livePullRequest || livePullRequest.state !== GitHubPullRequestState.Open) {
 					continue;
 				}
 				if (agentMerge?.enabled && agentMerge.actions.fixCI) {

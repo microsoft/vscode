@@ -1400,6 +1400,23 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.strictEqual(config, undefined);
 	});
 
+	test('getModelConfiguration can omit derived defaults without exposing mutable stored preferences', () => {
+		const preferences = languageModelsService.getModelConfiguration('config-vendor/default/model-a', false);
+		const snapshot = { ...preferences };
+		if (preferences) {
+			preferences.temperature = 1;
+		}
+		assert.deepStrictEqual({
+			preferences: snapshot,
+			resolved: languageModelsService.getModelConfiguration('config-vendor/default/model-a'),
+			unknown: languageModelsService.getModelConfiguration('config-vendor/default/model-c', false),
+		}, {
+			preferences: { temperature: 0.7, reasoningEffort: 'high' },
+			resolved: { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 },
+			unknown: undefined,
+		});
+	});
+
 	test('sendChatRequest merges schema defaults with user config', async function () {
 		const cts = disposables.add(new CancellationTokenSource());
 		const request = await languageModelsService.sendChatRequest(

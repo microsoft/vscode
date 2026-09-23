@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
@@ -11,8 +11,8 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
+import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext, NewSessionCreationProviderIdContext } from '../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { BranchPicker } from './branchPicker.js';
 import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
@@ -22,6 +22,7 @@ import { SandboxPicker } from './sandboxPicker.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
@@ -33,12 +34,32 @@ const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(ContextKeyExpr.equals
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'sessions.sandbox.agentDefaultModel',
+			title: localize2('sandbox.agentDefaultModel', "Agent Default"),
+			precondition: ContextKeyExpr.false(),
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, ChatContextKeys.enabled, ContextKeyExpr.or(
+					SessionProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
+					NewSessionCreationProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
+				)),
+			}],
+		});
+	}
+	override run(): void { }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'sessions.defaultCopilot.branchPicker',
 			title: localize2('branchPicker', "Branch"),
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
-				group: 'navigation',
+				group: getNewSessionRepositoryConfigGroup(2, 'sessions.defaultCopilot.branchPicker'),
 				order: 2,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCLI, SessionHasGitRepositoryContext),
 			}],
@@ -55,7 +76,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.NewSessionRepositoryConfig,
-				group: 'navigation',
+				group: getNewSessionRepositoryConfigGroup(3, 'sessions.defaultCopilot.sandboxPicker'),
 				order: 3,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled),
 			}],
@@ -137,6 +158,10 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+		this._register(actionViewItemService.register(
+			Menus.NewSessionConfig, 'sessions.sandbox.agentDefaultModel',
+			action => new ActionViewItem(undefined, action, { icon: false, label: true }),
+		));
 		const modePickerModels = this._register(new ScopedModePickerModelCache(session =>
 			sessionsProvidersService.getProvider(session.providerId) instanceof CopilotChatSessionsProvider
 		));

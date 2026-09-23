@@ -106,7 +106,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					throw new CancellationError();
 				}
 
-				const vm = store.add(new MultiDiffEditorViewModel(model, this._instantiationService));
+				const vm = store.add(this._instantiationService.createInstance(MultiDiffEditorViewModel, model));
 				await raceTimeout(vm.waitForDiffOr1s(), 1000);
 				if (this._store.isDisposed) {
 					throw new CancellationError();
@@ -426,6 +426,10 @@ function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions
 	// Handle diff editor specially by merging in diffEditor configuration
 	if (isObject(configuration.diffEditor)) {
 		const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
+
+		if (diffEditorConfiguration.hideOriginalLineNumbers === null) {
+			delete diffEditorConfiguration.hideOriginalLineNumbers;
+		}
 
 		// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
 		diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;

@@ -19,7 +19,7 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentSdkSetupService, type AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { hasAnyModelTargetingSessionType } from '../sessionTypeAvailability.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 
 // #region State
@@ -160,19 +160,13 @@ export function agentSdkSetupNotificationId(agent: string): string {
 }
 
 /**
- * Whether a setup banner is currently being offered for the given session type.
- *
- * The pickers ask because the banner lives *inside* a session of the type it is
- * scoped to: a harness with no models yet is greyed out by the ordinary
- * availability rule, hiding the one thing telling the user how to fix that.
- * Matching the setup id specifically matters — an unscoped notification (a quota
- * warning, say) applies to every type and would un-grey all of them.
+ * Whether an agent advertised demand-driven setup for the given session type.
+ * Pickers use the capability itself rather than a currently visible banner:
+ * an already-authenticated account has no banner, but still needs selection to
+ * activate the agent and enumerate its models.
  */
-export function hasAgentSdkSetupNotification(chatInputNotificationService: IChatInputNotificationService, sessionType: string): boolean {
-	return chatInputNotificationService.getActiveNotification(notification =>
-		notification.id.startsWith(AGENT_SDK_SETUP_NOTIFICATION_ID_PREFIX)
-		&& isChatInputNotificationApplicableToSessionType(notification, sessionType)
-	) !== undefined;
+export function hasAgentSdkSetupForSessionType(setups: readonly IAgentSdkSetupInfo[], sessionType: string): boolean {
+	return setups.some(setup => agentSdkSetupSessionType(setup.agent) === sessionType);
 }
 
 /**

@@ -460,15 +460,19 @@ export class ToolsListWidget extends Disposable {
 		this._createHeader();
 		this._createSearchRow();
 
-		// Wrap the tree in a DomScrollableElement for an overlay scrollbar (not the native one).
-		this._treeContainer = $('.tools-list-tree');
-		this._treeContainer.classList.add('distributed-section-layout');
-		this._treeScrollable = this._register(new DomScrollableElement(this._treeContainer, {
+		// Keep the native scroll target separate because virtualization can make the content overflow visible.
+		const treeScrollContainer = $('.tools-list-scroll-container');
+		this._treeContainer = DOM.append(treeScrollContainer, $('.tools-list-tree.distributed-section-layout'));
+		const treeScrollable = this._register(new DomScrollableElement(treeScrollContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}));
-		const treeScrollableNode = this._treeScrollable.getDomNode();
+		this._treeScrollable = treeScrollable;
+		this._register(DOM.addDisposableListener(treeScrollContainer, DOM.EventType.SCROLL, () => {
+			treeScrollable.setScrollPosition({ scrollTop: treeScrollContainer.scrollTop });
+		}));
+		const treeScrollableNode = treeScrollable.getDomNode();
 		treeScrollableNode.classList.add('tools-list-tree-scrollable');
 		this.element.appendChild(treeScrollableNode);
 

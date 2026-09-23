@@ -8,12 +8,21 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IStat } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { findRelevantCopilotLogs, MAX_COPILOT_LOG_SCAN_FILE_SIZE } from '../../browser/chatDebug/agentHostLogSources.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
+import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { AgentHostLogSourceKind, enumerateAgentHostLogSources, findRelevantCopilotLogs, IAgentHostLogSourceServices, MAX_COPILOT_LOG_SCAN_FILE_SIZE } from '../../browser/chatDebug/agentHostLogSources.js';
+import { COPILOT_CLI_LOCAL_AH_SCHEME } from '../../browser/copilotCliEventsUri.js';
 
 class TestLogFileSystemProvider extends InMemoryFileSystemProvider {
 	readonly oversizedResources = new Set<string>();
@@ -101,5 +110,51 @@ suite('AgentHostLogSources', () => {
 		const logs = await findRelevantCopilotLogs(logsDir, 'session-1', fileService, new NullLogService());
 
 		assert.deepStrictEqual(logs.map(log => log.path), ['copilot-logs/oversized.log']);
+	});
+
+	test('enumerates matching historical AHP logs when logging is disabled', async () => {
+		const logId = 'local-client';
+		const matchingLoggers = [
+			disposables.add(new AhpJsonlLogger({ logsHome: logsDir, logId, connectionId: 'connection-1', transport: 'ipc' }, fileService, new NullLogService())),
+			disposables.add(new AhpJsonlLogger({ logsHome: logsDir, logId, connectionId: 'connection-2', transport: 'ipc' }, fileService, new NullLogService())),
+		];
+		const unrelatedLogger = disposables.add(new AhpJsonlLogger({ logsHome: logsDir, logId: 'another-client', connectionId: 'connection-3', transport: 'ipc' }, fileService, new NullLogService()));
+		for (const logger of [...matchingLoggers, unrelatedLogger]) {
+			logger.log({ jsonrpc: '2.0', method: 'test' }, 'c2s');
+			await logger.flush();
+		}
+
+		const services = new class extends mock<IAgentHostLogSourceServices>() {
+			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
+			override readonly agentHostService = new class extends mock<IAgentHostService>() {
+				override readonly clientId = logId;
+			}();
+			override readonly remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override readonly connections = [];
+			}();
+			override readonly outputService = new class extends mock<IOutputService>() {
+				override getChannelDescriptor(_id: string): undefined {
+					return undefined;
+				}
+			}();
+			override readonly fileService = fileService;
+			override readonly configurationService = new TestConfigurationService({ [AgentHostAhpJsonlLoggingSettingId]: false });
+			override readonly environmentService = new class extends mock<IEnvironmentService>() {
+				override logsHome = logsDir;
+			}();
+		}();
+
+		const sources = await enumerateAgentHostLogSources(
+			services,
+			URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/session-1' }),
+		);
+
+		assert.deepStrictEqual(
+			sources
+				.filter(source => source.kind === AgentHostLogSourceKind.WireLog)
+				.map(source => source.resource?.toString())
+				.sort(),
+			matchingLoggers.map(logger => logger.resource.toString()).sort(),
+		);
 	});
 });

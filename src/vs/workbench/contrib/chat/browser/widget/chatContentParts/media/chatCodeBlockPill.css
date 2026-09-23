@@ -54,6 +54,8 @@
 	}
 
 	.chat-codeblock-pill-widget {
+		display: inline-flex;
+		align-items: center;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 		border-radius: 4px;
 		text-wrap: nowrap;
@@ -89,11 +91,12 @@
 		}
 
 		.icon {
+			display: inline-flex;
+			align-items: center;
 			vertical-align: middle;
 			line-height: 1em;
 			overflow: hidden;
 			font-size: 90%;
-			top: 1px;
 		}
 
 		.icon-label {
@@ -114,7 +117,6 @@
 			background-position: center;
 			background-repeat: no-repeat;
 			font-size: 100% !important;
-			margin-bottom: 1px;
 		}
 
 		span.label-detail {

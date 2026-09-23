@@ -37,6 +37,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 	static readonly MIN_WIDTH = 220;
 	static readonly EDITOR_MIN_WIDTH = 300;
+	static readonly EDITOR_PREFERRED_WIDTH = 1000;
 	static readonly DEFAULT_WIDTH = 300;
 	static readonly COLLAPSE_WIDTH = 4;
 	static readonly NO_EDITOR_MIN_WIDTH = SESSIONS_LIST_MINIMUM_WIDTH;
@@ -45,6 +46,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 	private _sash: Sash | undefined;
 	private _sashStartWidth = 0;
 	private _sashCollapsed = false;
+	private _layoutState: { requestedWidth: number; editorWidth: number; auxiliaryBarWidth: number } | undefined;
 
 	constructor(
 		private readonly editorPartContainer: HTMLElement,
@@ -73,6 +75,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		}
 
 		if (!this.host.isEditorAreaVisible() || !this.host.isAuxiliaryBarVisible()) {
+			this._layoutState = undefined;
 			auxiliaryBarContainer.style.display = 'none';
 			this.host.setEditorContentRightInset(0);
 			if (this._sash) {
@@ -83,7 +86,10 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 		const editorRect = this.editorPartContainer.getBoundingClientRect();
 		const editorContentHidden = !this.host.isEditorVisible();
-		const auxWidth = editorContentHidden ? editorRect.width : DockedAuxiliaryBarController.getEffectiveWidth(this.host.getWidth(), editorRect.width);
+		const auxWidth = editorContentHidden ? editorRect.width : this._getLayoutWidth(this.host.getWidth(), editorRect.width);
+		if (editorContentHidden) {
+			this._layoutState = undefined;
+		}
 		const top = this._getTop();
 		const height = Math.max(0, editorRect.height - top);
 
@@ -109,6 +115,28 @@ export class DockedAuxiliaryBarController extends Disposable {
 		return Math.min(editorWidth, Math.max(DockedAuxiliaryBarController.MIN_WIDTH, Math.min(hostWidth, maxWidth)));
 	}
 
+	private _getLayoutWidth(requestedWidth: number, editorWidth: number): number {
+		const constrainedWidth = DockedAuxiliaryBarController.getEffectiveWidth(requestedWidth, editorWidth);
+		const previous = this._layoutState;
+		let auxiliaryBarWidth = constrainedWidth;
+
+		if (previous?.requestedWidth === requestedWidth) {
+			if (editorWidth > previous.editorWidth) {
+				const editorGrowth = editorWidth - previous.editorWidth;
+				const previousEditorContentWidth = previous.editorWidth - previous.auxiliaryBarWidth;
+				const editorGrowthBeforeAuxiliaryBar = Math.max(0, DockedAuxiliaryBarController.EDITOR_PREFERRED_WIDTH - previousEditorContentWidth);
+				auxiliaryBarWidth = Math.min(constrainedWidth, previous.auxiliaryBarWidth + Math.max(0, editorGrowth - editorGrowthBeforeAuxiliaryBar));
+			} else {
+				auxiliaryBarWidth = Math.min(previous.auxiliaryBarWidth, constrainedWidth);
+			}
+
+			auxiliaryBarWidth = Math.max(Math.min(editorWidth, DockedAuxiliaryBarController.MIN_WIDTH), auxiliaryBarWidth);
+		}
+
+		this._layoutState = { requestedWidth, editorWidth, auxiliaryBarWidth };
+		return auxiliaryBarWidth;
+	}
+
 	private _ensureSash(): void {
 		if (this._sash) {
 			return;
@@ -118,7 +146,9 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const layoutProvider: IVerticalSashLayoutProvider = {
 			getVerticalSashLeft: () => {
 				const width = editorPartContainer.clientWidth;
-				const auxWidth = this.host.isEditorVisible() ? DockedAuxiliaryBarController.getEffectiveWidth(this.host.getWidth(), width) : width;
+				const auxWidth = this.host.isEditorVisible()
+					? this._layoutState?.auxiliaryBarWidth ?? DockedAuxiliaryBarController.getEffectiveWidth(this.host.getWidth(), width)
+					: width;
 				return Math.max(0, width - auxWidth);
 			},
 			getVerticalSashTop: () => this._getTop(),
@@ -129,7 +159,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		this._sash = sash;
 
 		this._register(sash.onDidStart(() => {
-			this._sashStartWidth = this.host.getWidth();
+			this._sashStartWidth = this._layoutState?.auxiliaryBarWidth ?? this.host.getWidth();
 			this._sashCollapsed = false;
 		}));
 		this._register(sash.onDidChange((e: ISashEvent) => {

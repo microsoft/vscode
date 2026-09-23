@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IReader } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOnboardingScenario, OnboardingOutcome } from './onboardingScenario.js';
@@ -99,9 +100,12 @@ export interface IOnboardingScenarioService {
 	/** Whether the scenario has already been shown to the user. */
 	hasBeenShown(id: string): boolean;
 
-	/** Clear the "shown" state for a single scenario (developer/testing aid). */
+	/** Checks eligibility before a pre-tour nudge and records experiment exposure in both arms. A reader tracks assignment resolution. */
+	shouldShowNudge(id: string, reader?: IReader): boolean;
+
+	/** Clear persisted and in-memory "shown" state so a single scenario can be retried. */
 	reset(id: string): void;
 
-	/** Clear the "shown" state for all scenarios (developer/testing aid). */
+	/** Clear persisted "shown" state for all scenarios without resetting developer-mode replay guards. */
 	resetAll(): void;
 }

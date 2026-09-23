@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -20,7 +20,7 @@ import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/ag
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
@@ -119,7 +119,6 @@ suite('AgentHostAutomationService', () => {
 	}
 
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
-		await service.completeMigration();
 		await service.handleCreate(createAction(resource));
 	}
 
@@ -133,7 +132,7 @@ suite('AgentHostAutomationService', () => {
 		)).then(() => undefined);
 	}
 
-	test('logs creation once after persistence, excluding retries, failed writes and imported definitions', async () => {
+	test('logs creation once after persistence, excluding retries and failed writes', async () => {
 		const service = createService();
 		const action = {
 			...createAction(),
@@ -154,10 +153,6 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual(telemetry.events, []);
 		await service.handleCreate(action);
 		await service.handleCreate(action);
-		await service.handleCreate({
-			...createAction('ahp-automation:/imported'),
-			definition: { ...definition(), _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } },
-		});
 
 		assert.deepStrictEqual(telemetry.events, [{
 			name: 'automation.created',
@@ -225,7 +220,6 @@ suite('AgentHostAutomationService', () => {
 
 	test('preserves distinct complete automation resources across definition and run telemetry', async () => {
 		const service = createService();
-		await service.completeMigration();
 		const resources = [
 			'ahp-automation:/shared',
 			'ahp-automation://first/shared',
@@ -249,35 +243,6 @@ suite('AgentHostAutomationService', () => {
 				automationId: hashAutomationTelemetryId(resource),
 			}))
 		));
-	});
-
-	test('migration bookkeeping is silent but later user edits to imported definitions are recorded', async () => {
-		const service = createService();
-		const resource = 'ahp-automation:/imported';
-		await service.handleCreate({
-			...createAction(resource),
-			definition: {
-				...definition(),
-				_meta: {
-					[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true,
-					[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true,
-				},
-			},
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested, resource,
-			changes: { session: { provider: 'copilotcli' } },
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested, resource,
-			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } },
-		});
-		await service.completeMigration();
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: false } });
-
-		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, id: event.data.automationId, enabled: event.data.enabled })), [
-			{ name: 'automation.updated', id: hashAutomationTelemetryId('ahp-automation:/imported'), enabled: false },
-		]);
 	});
 
 	test('redacts unknown models and provider configuration while retaining safe model selections', async () => {
@@ -316,7 +281,6 @@ suite('AgentHostAutomationService', () => {
 			createSession: async () => release.p,
 			startSession: async () => { await started.complete(); },
 		});
-		await service.completeMigration();
 		await service.handleCreate({
 			...createAction(),
 			definition: { ...definition(), session: { provider: 'copilotcli', config: { mode: 'plan' } } },
@@ -362,7 +326,6 @@ suite('AgentHostAutomationService', () => {
 				await started.complete();
 			},
 		});
-		await service.completeMigration();
 		await service.handleCreate({ ...createAction(), definition: { ...definition(), session: {} } });
 		await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'business-run' });
 		await started.p;
@@ -412,26 +375,6 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual(telemetry.events.map(event => event.name), ['automation.created', 'automation.runCreated', 'automation.runCompleted']);
 	});
 
-	test('execution remains gated after migration persistence failure and retries safely', async () => {
-		const service = createService();
-		writeFailures = 1;
-
-		await assert.rejects(service.completeMigration(), /storage unavailable/);
-		assert.deepStrictEqual(service.capabilities, { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 });
-
-		await service.completeMigration();
-
-		assert.deepStrictEqual({
-			writeAttempts,
-			capabilities: service.capabilities,
-			catalog: stateManager.getAutomationCatalogState(),
-		}, {
-			writeAttempts: 3,
-			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
-			catalog: { entries: [], _meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } },
-		});
-	});
-
 	test('a future host automation storage version disables the capability without rewriting data', async () => {
 		storageService.set('automations', {
 			version: 2,
@@ -440,7 +383,7 @@ suite('AgentHostAutomationService', () => {
 		await storageService.whenIdle();
 		const service = createService();
 
-		await assert.rejects(service.completeMigration(), /storage is unavailable/);
+		await assert.rejects(service.handleCreate(createAction()), /storage is unavailable/);
 		assert.deepStrictEqual({
 			isAvailable: service.isAvailable,
 			capabilities: service.capabilities,
@@ -471,8 +414,7 @@ suite('AgentHostAutomationService', () => {
 		const service = createService();
 
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries.map(entry => entry.resource), [resource]);
-
-		await service.completeMigration([resource]);
+		assert.deepStrictEqual(await service.listTriggerDefinitions({ channel: ROOT_STATE_URI }), { items: [] });
 		const stored = storageService.get<{ version: number; catalog: { entries?: unknown[]; automations?: unknown[] } }>('automations');
 		assert.deepStrictEqual({
 			version: stored?.version,
@@ -482,6 +424,38 @@ suite('AgentHostAutomationService', () => {
 			version: 1,
 			automationCount: 1,
 			hasEntries: false,
+		});
+	});
+
+	test('obsolete migration flags cannot keep a restored host inactive', async () => {
+		const resource = 'ahp-automation:/restored';
+		const savedDefinition = { ...definition(), _meta: { 'vscode.legacyAutomationImportPending': true } };
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource,
+					definition: savedDefinition,
+					runs: [],
+					operations: [AutomationOperation.Update],
+					createdAt: '2026-01-01T00:00:00Z',
+					modifiedAt: '2026-01-01T00:00:00Z',
+				}],
+				_meta: { 'vscode.migrationCompleted': false },
+			},
+		});
+		await storageService.whenIdle();
+		const service = createService();
+		assert.deepStrictEqual({
+			capabilities: service.capabilities,
+			triggers: await service.listTriggerDefinitions({ channel: ROOT_STATE_URI }),
+			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
+			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
+		}, {
+			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
+			triggers: { items: [] },
+			definition: savedDefinition,
+			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 		});
 	});
 
@@ -538,13 +512,11 @@ suite('AgentHostAutomationService', () => {
 
 	test('failed catalogue persistence publishes nothing and a retry creates one entry', async () => {
 		const service = createService();
-		await service.completeMigration();
 		writeFailures = 1;
 
 		await assert.rejects(service.handleCreate(createAction()), /storage unavailable/);
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState(), {
 			entries: [],
-			_meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true },
 		});
 
 		await service.handleCreate(createAction());
@@ -556,36 +528,6 @@ suite('AgentHostAutomationService', () => {
 			resource: 'ahp-automation:/review-changes',
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 		}]);
-	});
-
-	test('partial migration cannot unblock execution', async () => {
-		const service = createService();
-		await service.handleCreate(createAction());
-
-		await assert.rejects(
-			service.completeMigration(['ahp-automation:/review-changes', 'ahp-automation:/missing']),
-			/1 expected automation resources are missing/,
-		);
-		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
-			automation: 'ahp-automation:/review-changes',
-			requestId: 'blocked-request',
-		}), /migration must complete/);
-
-		assert.deepStrictEqual({
-			capabilities: service.capabilities,
-			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
-		}, {
-			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
-			operations: [AutomationOperation.Update, AutomationOperation.Remove],
-		});
-
-		await service.completeMigration(['ahp-automation:/review-changes']);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-			AutomationOperation.Remove,
-			AutomationOperation.Run,
-		]);
 	});
 
 	test('feature disablement removes run permission and blocks execution in the host', async () => {
@@ -732,12 +674,17 @@ suite('AgentHostAutomationService', () => {
 			const messageModel = hasMessageModel ? { id: 'other-model', config: { thinkingLevel: 'high' } } : undefined;
 			const completed = new DeferredPromise<void>();
 			let createdModel: AutomationDefinition['session']['model'];
+			const readinessModels: AutomationDefinition['session']['model'][] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 				if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
 					void completed.complete();
 				}
 			}));
 			const service = createService({
+				isSessionTemplateAvailable: template => {
+					readinessModels.push(template.model);
+					return true;
+				},
 				createSession: async template => {
 					createdModel = template.model;
 					stateManager.createSession({
@@ -770,7 +717,6 @@ suite('AgentHostAutomationService', () => {
 			if (messageModel) {
 				automation.message.model = messageModel;
 			}
-			await service.completeMigration();
 			await service.handleCreate({ ...createAction(), definition: automation });
 			await service.runAutomation({
 				channel: 'ahp-automations://',
@@ -781,14 +727,55 @@ suite('AgentHostAutomationService', () => {
 
 			assert.deepStrictEqual({
 				createdModel,
+				readinessModelsMatch: readinessModels.length > 0 && readinessModels.every(checkedModel => checkedModel === (messageModel ?? model)),
 				recordedModel: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message.model,
 				savedModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
 			}, {
-				createdModel: model,
+				createdModel: messageModel ?? model,
+				readinessModelsMatch: true,
 				recordedModel: messageModel ?? model,
 				savedModel: model,
 			});
 		});
+	}
+
+	for (const scheduled of [false, true]) {
+		test(`uses a message-only model for ${scheduled ? 'scheduled' : 'manual'} execution readiness`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const model = { id: 'byok-model', config: { thinkingLevel: 'high' } };
+			const started = new DeferredPromise<void>();
+			let createdModel: AutomationDefinition['session']['model'];
+			let sentModel: AutomationDefinition['message']['model'];
+			const service = createService({
+				isSessionTemplateAvailable: template => template.model?.id === model.id,
+				createSession: async template => {
+					createdModel = template.model;
+					return URI.parse('mock:/byok-automation');
+				},
+				startSession: async (_session, message) => {
+					sentModel = message.model;
+					await started.complete();
+				},
+			});
+			const automation = definition();
+			automation.message.model = model;
+			if (scheduled) {
+				automation.triggers = [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }];
+			}
+			await service.handleCreate({ ...createAction(), definition: automation });
+			if (!scheduled) {
+				await service.runAutomation({
+					channel: 'ahp-automations://',
+					automation: 'ahp-automation:/review-changes',
+					requestId: 'message-model-request',
+				});
+			}
+			await started.p;
+			assert.deepStrictEqual({
+				createdModel,
+				sentModel,
+				savedSessionModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
+			}, { createdModel: model, sentModel: model, savedSessionModel: undefined });
+		}));
 	}
 
 	test('logs the saved run configuration despite an edit while the session is being created', async () => {
@@ -804,7 +791,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			startSession: async () => { await started.complete(); },
 		});
-		await service.completeMigration();
 		await service.handleCreate({
 			...createAction(),
 			definition: { ...definition(), session: { provider: 'copilotcli', model: { id: 'catalog-model' }, config: { mode: 'plan', autoApprove: 'assisted' } } },
@@ -948,6 +934,32 @@ suite('AgentHostAutomationService', () => {
 			createCalls: 0,
 			runs: [],
 		});
+	});
+
+	test('a cancelled pending run never executes when its provider later registers', async () => {
+		let available = false;
+		let createCalls = 0;
+		let startCalls = 0;
+		const service = createService({
+			isSessionTemplateAvailable: () => available,
+			createSession: async () => { createCalls++; return URI.parse('mock:/unexpected'); },
+			startSession: async () => { startCalls++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'cancel-before-provider',
+		});
+		await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+		available = true;
+		service.handleAgentsChanged();
+		await timeout(0);
+		assert.deepStrictEqual({
+			createCalls,
+			startCalls,
+			status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+		}, { createCalls: 0, startCalls: 0, status: AutomationRunStatus.Cancelled });
 	});
 
 	test('pending execution waits for provider registration', async () => {
@@ -1181,7 +1193,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs: [],
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
 		});
 		await storageService.whenIdle();
 
@@ -1236,13 +1247,92 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	for (const initiallyEnabled of [true, false]) {
+		test(`preserves catch-up work until authentication is ready with enablement ${initiallyEnabled}`, async () => {
+			const timestamp = new Date().toISOString();
+			const scheduledFor = new Date(Date.now() - 120_000).toISOString();
+			const resource = 'ahp-automation:/awaiting-auth';
+			storageService.set('automations', {
+				version: 1,
+				catalog: {
+					automations: [{
+						resource,
+						definition: {
+							...definition(),
+							triggers: [{
+								id: 'schedule', kind: AutomationTriggerKind.Schedule,
+								schedule: { expression: '* * * * *', timeZone: 'UTC' },
+								misfirePolicy: AutomationMisfirePolicy.RunOnce,
+							}],
+						},
+						runs: [], nextRunAt: scheduledFor,
+						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+						createdAt: timestamp, modifiedAt: timestamp,
+						_meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+					}]
+				},
+				runs: [],
+				manualRunRequests: [],
+			});
+			await storageService.whenIdle();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: initiallyEnabled },
+			});
+			const authenticated = observableValue('authenticated', false);
+			const started = new DeferredPromise<void>();
+			let createCalls = 0;
+			const service = createService({
+				isSessionTemplateAvailable: (_template, reader) => authenticated.read(reader),
+				createSession: async () => {
+					createCalls++;
+					const session = URI.parse('mock:/authenticated');
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '',
+						status: SessionStatus.Idle, createdAt: timestamp, modifiedAt: timestamp,
+					});
+					return session;
+				},
+				startSession: async () => { await started.complete(); },
+			});
+			const writesBeforeReadiness = writeAttempts;
+			await timeout(0);
+			assert.deepStrictEqual({
+				createCalls, writes: writeAttempts - writesBeforeReadiness,
+				nextRunAt: stateManager.getAutomationCatalogState()?.entries[0].nextRunAt,
+				runs: stateManager.getAutomationCatalogState()?.entries[0].runs,
+			}, { createCalls: 0, writes: 0, nextRunAt: scheduledFor, runs: [] });
+			authenticated.set(true, undefined);
+			if (!initiallyEnabled) {
+				await timeout(0);
+				assert.strictEqual(createCalls, 0);
+				stateManager.dispatchServerAction(ROOT_STATE_URI, {
+					type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+				});
+				await service.handleConfigurationChanged();
+			}
+			await started.p;
+			authenticated.set(false, undefined);
+			authenticated.set(true, undefined);
+			await timeout(0);
+			const automation = stateManager.getAutomationCatalogState()?.entries[0];
+			assert.deepStrictEqual({
+				createCalls, runCount: automation?.runs.length,
+				origin: automation?.runs[0].origin,
+				nextRunIsFuture: Date.parse(automation?.nextRunAt ?? '') > Date.now(),
+			}, {
+				createCalls: 1, runCount: 1,
+				origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'schedule', scheduledFor, catchUp: true },
+				nextRunIsFuture: true,
+			});
+		});
+	}
+
 	test('records an on-time scheduled run with schedule provenance', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const started = new DeferredPromise<void>();
 		const service = createService({
 			createSession: async () => URI.parse('copilotcli:/scheduled-session'),
 			startSession: async () => { await started.complete(); },
 		});
-		await service.completeMigration();
 		await service.handleCreate({
 			...createAction(),
 			definition: {
@@ -1301,7 +1391,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs: [],
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
 		});
 		await storageService.whenIdle();
 
@@ -1382,7 +1471,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs: [],
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
 		});
 		await storageService.whenIdle();
 
@@ -1453,7 +1541,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs,
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: '2026-01-01T00:00:00.000Z' },
 		});
 		await storageService.whenIdle();
 		const service = createService();
@@ -1479,230 +1566,5 @@ suite('AgentHostAutomationService', () => {
 			count: 51,
 			cursor: undefined,
 		});
-	});
-
-	test('a create staged as an import-pending row is never granted Run authority', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-
-		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
-			automation: 'ahp-automation:/pending-import',
-			requestId: 'pending-request',
-		}), /not available/i);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-		]);
-	});
-
-	test('clearing the import-pending flag restores Run and Remove authority', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested,
-			resource: 'ahp-automation:/pending-import',
-			changes: { _meta: {} },
-		});
-
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-			AutomationOperation.Remove,
-			AutomationOperation.Run,
-		]);
-	});
-
-	test('staging an existing Automation as import-pending removes Run and Remove authority', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/existing',
-			definition: definition(),
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested,
-			resource: 'ahp-automation:/existing',
-			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true } },
-		});
-
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-		]);
-	});
-
-	test('completeMigration withholds Run and Remove from pending imports', async () => {
-		const service = createService();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/clean-import',
-			definition: definition(),
-		});
-
-		await service.completeMigration();
-
-		const automations = stateManager.getAutomationCatalogState()?.entries ?? [];
-		const byResource = new Map(automations.map(automation => [automation.resource, automation.operations]));
-		assert.deepStrictEqual({
-			pending: byResource.get('ahp-automation:/pending-import'),
-			clean: byResource.get('ahp-automation:/clean-import'),
-		}, {
-			pending: [AutomationOperation.Update],
-			clean: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-		});
-	});
-
-	test('re-enabling automations still withholds Run from a pending import', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-		stateManager.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
-		});
-		await service.handleConfigurationChanged();
-		stateManager.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
-		});
-		await service.handleConfigurationChanged();
-
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-		]);
-	});
-
-	test('the scheduler skips a persisted pending row on restart', async () => {
-		const now = new Date();
-		const scheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
-		const scheduledDefinition: AutomationDefinition = {
-			...definition(),
-			triggers: [{
-				id: 'weekday-review',
-				kind: AutomationTriggerKind.Schedule,
-				schedule: { expression: '* * * * *', timeZone: 'UTC' },
-				misfirePolicy: AutomationMisfirePolicy.RunOnce,
-			}],
-			_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-		};
-		storageService.set('automations', {
-			catalog: {
-				automations: [{
-					resource: 'ahp-automation:/pending-scheduled',
-					definition: scheduledDefinition,
-					nextRunAt: scheduledFor,
-					runs: [],
-					// Post-fix persisted state: no Run because the row is
-					// still import-pending. The scheduler must respect this.
-					operations: [AutomationOperation.Update],
-					createdAt: now.toISOString(),
-					modifiedAt: now.toISOString(),
-					_meta: {
-						'vscode.scheduleCursors': { 'weekday-review': scheduledFor },
-						[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true,
-					},
-				}],
-			},
-			runs: [],
-			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
-		});
-		await storageService.whenIdle();
-
-		let createCalls = 0;
-		const service = createService({
-			createSession: async () => {
-				createCalls++;
-				return URI.parse('mock:/should-not-start');
-			},
-		});
-		await service.completeMigration();
-
-		const automation = stateManager.getAutomationCatalogState()?.entries[0];
-		assert.deepStrictEqual({
-			createCalls,
-			operations: automation?.operations,
-			runCount: automation?.runs.length,
-		}, {
-			createCalls: 0,
-			operations: [AutomationOperation.Update],
-			runCount: 0,
-		});
-	});
-
-	test('run recovery on restart skips a pending row even if a run was persisted', async () => {
-		const now = new Date();
-		const scheduledDefinition: AutomationDefinition = {
-			...definition(),
-			_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-		};
-		const pendingRun: AutomationRunState = {
-			resource: 'ahp-automation-run:/pending-run',
-			automation: 'ahp-automation:/pending-import',
-			origin: { kind: AutomationRunOriginKind.Manual },
-			lifecycle: { status: AutomationRunStatus.Pending, createdAt: now.toISOString() },
-			sessions: [],
-		};
-		storageService.set('automations', {
-			catalog: {
-				automations: [{
-					resource: 'ahp-automation:/pending-import',
-					definition: scheduledDefinition,
-					runs: [pendingRun],
-					// Post-fix persisted state should not include Run because
-					// the item is still pending. The recovery gate must respect
-					// that even though a Pending run is on disk.
-					operations: [AutomationOperation.Update],
-					createdAt: now.toISOString(),
-					modifiedAt: now.toISOString(),
-					_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-				}],
-			},
-			runs: [pendingRun],
-			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
-		});
-		await storageService.whenIdle();
-
-		let createCalls = 0;
-		const service = createService({
-			createSession: async () => {
-				createCalls++;
-				return URI.parse('mock:/should-not-start');
-			},
-		});
-		await service.completeMigration();
-
-		assert.strictEqual(createCalls, 0);
 	});
 });

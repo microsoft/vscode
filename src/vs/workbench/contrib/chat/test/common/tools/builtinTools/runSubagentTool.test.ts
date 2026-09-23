@@ -271,6 +271,7 @@ suite('RunSubagentTool', () => {
 				description: 'Test task',
 				agentName: 'CustomAgent',
 				prompt: 'Test prompt',
+				modelId: undefined,
 				modelName: undefined,
 			});
 		});
@@ -315,6 +316,7 @@ suite('RunSubagentTool', () => {
 				description: 'Test task',
 				agentName: 'NonExistentAgent',
 				prompt: 'Test prompt',
+				modelId: undefined,
 				modelName: undefined,
 			});
 		});
@@ -518,6 +520,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'SameCostAgent',
 				prompt: 'test',
+				modelId: 'same-cost-model-id',
 				modelName: 'Claude Sonnet',
 			});
 		});
@@ -549,6 +552,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'CheapAgent',
 				prompt: 'test',
+				modelId: 'cheap-model-id',
 				modelName: 'GPT-4o Mini',
 			});
 		});
@@ -581,6 +585,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'SubAgent',
 				prompt: 'test',
+				modelId: 'sub-model-id',
 				modelName: 'O3 Pro',
 			});
 		});
@@ -613,6 +618,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'CustomAgent',
 				prompt: 'test',
+				modelId: 'sub-model-id',
 				modelName: 'Custom Model',
 			});
 		});
@@ -636,6 +642,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: undefined,
 				prompt: 'test',
+				modelId: 'main-model-id',
 				modelName: 'GPT-4o',
 			});
 		});
@@ -660,6 +667,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'NoModelAgent',
 				prompt: 'test',
+				modelId: 'main-model-id',
 				modelName: 'GPT-4o',
 			});
 		});
@@ -684,9 +692,11 @@ suite('RunSubagentTool', () => {
 
 			assert.ok(result);
 			assert.deepStrictEqual({
+				modelId: result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelId : undefined,
 				modelName: result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined,
 				selectCalls,
 			}, {
+				modelId: 'copilot-auto-model-id',
 				modelName: 'Auto',
 				selectCalls: 1,
 			});
@@ -943,6 +953,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'main-byok-id',
 				modelName: 'Claude Sonnet BYOK',
 			});
 		});
@@ -978,6 +989,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'byok-fallback-id',
 				modelName: 'Ollama Llama',
 			});
 		});
@@ -1009,6 +1021,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'copilot-fallback-id',
 				modelName: 'Copilot Haiku',
 			});
 		});
@@ -1038,6 +1051,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'copilot-fallback-id',
 				modelName: 'Copilot Haiku',
 			});
 		});
@@ -1070,6 +1084,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'MyAgent',
 				prompt: 'test',
+				modelId: 'copilot-pinned-id',
 				modelName: 'Copilot Sonnet',
 			});
 		});
@@ -1147,6 +1162,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: undefined,
 				prompt: 'test',
+				modelId: 'explicit-model-id',
 				modelName: 'Claude Sonnet',
 			});
 		});
@@ -1181,6 +1197,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'MyAgent',
 				prompt: 'test',
+				modelId: 'explicit-model-id',
 				modelName: 'Claude Sonnet',
 			});
 		});

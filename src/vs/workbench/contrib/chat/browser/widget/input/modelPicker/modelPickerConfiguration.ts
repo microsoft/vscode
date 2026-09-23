@@ -14,7 +14,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 import { logModelConfigurationChange } from './modelPickerTelemetry.js';
 
 export interface IModelPickerConfigurationHost {
@@ -46,10 +46,7 @@ export class ModelPickerConfiguration {
 		const labelParts: string[] = [];
 		const ariaParts: string[] = [];
 		if (effortConfig && effortConfig.value !== undefined) {
-			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
-			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
-				? effortConfig.schema.enumItemLabels[enumIndex]
-				: String(effortConfig.value);
+			const effortLabel = getModelConfigValueLabel(effortConfig.schema, effortConfig.value);
 			labelParts.push(effortLabel);
 			// The group is generic, so producers name it: Copilot's Auto model uses it
 			// for "Optimize for" while regular models use it for thinking effort.

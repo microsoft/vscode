@@ -28,8 +28,8 @@ import { basename, dirname, isEqual } from '../../../../../base/common/resources
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
-import { getInstalledPluginContextMenuActions, isPluginPolicyBlocked } from '../agentPluginActions.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
+import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -692,6 +692,11 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 		case ContributionEnablementState.DisabledProfile:
 			return ContributionEnablementState.EnabledProfile;
 	}
+}
+
+export function setPluginEnablementAndReadEffective(model: IEnablementModel, key: string, state: ContributionEnablementState): ContributionEnablementState {
+	model.setEnabled(key, state);
+	return model.readEnabled(key);
 }
 
 //#endregion
@@ -1467,26 +1472,32 @@ export class PluginListWidget extends Disposable {
 		const toggle = disposables.add(new Switch({ ariaLabel: item.name, checked: isContributionEnabled(renderedState) }));
 		DOM.append(actions, toggle.domNode);
 		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
-		const update = (state: ContributionEnablementState, blocked: boolean) => {
+		const update = (state: ContributionEnablementState, policyEnablement: boolean | undefined) => {
 			renderedState = state;
 			const checked = isContributionEnabled(state);
+			const managed = policyEnablement !== undefined;
 			const workspaceScope = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
 			const toggleLabel = checked
 				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
 				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
-			toggle.disabled = blocked;
+			toggle.disabled = managed;
 			toggle.checked = checked;
 			toggle.setAriaLabel(
-				blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
-				blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel,
+				managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
+				managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel,
 			);
-			row.classList.toggle('disabled', !checked || blocked);
+			row.classList.toggle('disabled', !checked);
 		};
-		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), item.plugin.policyBlocked?.read(reader) === true)));
+		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), getPluginPolicyEnablement(item.plugin, reader))));
 		disposables.add(toggle.onChange(() => {
+			const policyEnablement = getPluginPolicyEnablement(item.plugin);
+			if (policyEnablement !== undefined) {
+				update(renderedState, policyEnablement);
+				return;
+			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			update(nextState, isPluginPolicyBlocked(item.plugin));
-			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
+			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
+			update(effectiveState, getPluginPolicyEnablement(item.plugin));
 			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 		}));
 
@@ -1724,29 +1735,34 @@ export class PluginListWidget extends Disposable {
 		const toggle = this.cardDisposables.add(new Switch({ ariaLabel: item.name }));
 		const switchElement = toggle.domNode;
 		DOM.append(parent, switchElement);
-		const update = (state: ContributionEnablementState, blocked: boolean) => {
+		const update = (state: ContributionEnablementState, policyEnablement: boolean | undefined) => {
 			renderedState = state;
 			const checked = isContributionEnabled(state);
+			const managed = policyEnablement !== undefined;
 			const workspaceScope = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
 			const toggleLabel = checked
 				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
 				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
-			const accessibleLabel = blocked ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
-			toggle.disabled = blocked;
+			const accessibleLabel = managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
+			toggle.disabled = managed;
 			toggle.checked = checked;
-			toggle.setAriaLabel(accessibleLabel, blocked ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
-			row.classList.toggle('disabled', !checked || blocked);
+			toggle.setAriaLabel(accessibleLabel, managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
+			row.classList.toggle('disabled', !checked);
 			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
 		};
 		this.cardDisposables.add(autorun(reader => {
 			const state = item.plugin.enablement.read(reader);
-			const blocked = item.plugin.policyBlocked?.read(reader) === true;
-			update(state, blocked);
+			update(state, getPluginPolicyEnablement(item.plugin, reader));
 		}));
 		this.cardDisposables.add(toggle.onChange(() => {
+			const policyEnablement = getPluginPolicyEnablement(item.plugin);
+			if (policyEnablement !== undefined) {
+				update(renderedState, policyEnablement);
+				return;
+			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			update(nextState, isPluginPolicyBlocked(item.plugin));
-			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
+			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
+			update(effectiveState, getPluginPolicyEnablement(item.plugin));
 			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 		}));
 		return switchElement;

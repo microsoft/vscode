@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
@@ -38,6 +38,7 @@ interface ICarouselToolItem {
 	readonly subagentTitle?: string;
 	readonly revealSubagent?: RevealSubagentCallback;
 	readonly revealSubagentLabel?: string;
+	readonly toolPartFactory: ToolInvocationPartFactory;
 	ownsToolPart: boolean;
 	toolPart?: ChatToolInvocationPart;
 }
@@ -170,6 +171,18 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.items[this.activeIndex]?.subAgentInvocationId;
 	}
 
+	get activeToolConfirmation(): IChatToolInvocation | undefined {
+		return this.items[this.activeIndex]?.tool;
+	}
+
+	acceptActiveConfirmation(): void {
+		this.items[this.activeIndex]?.toolPart?.acceptConfirmation();
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
+	}
+
 	setMaxHeight(maxHeight: number | undefined): void {
 		this.maxHeight = maxHeight;
 		this.updateContentExpansionState();
@@ -179,7 +192,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.toolCallIds.has(toolCallId);
 	}
 
-	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
+	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart, toolPartFactory: ToolInvocationPartFactory = this.toolPartFactory): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
 			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
 			if (existing && toolPart && !existing.toolPart) {
@@ -200,6 +213,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			subagentTitle,
 			revealSubagent,
 			revealSubagentLabel,
+			toolPartFactory,
 			ownsToolPart: !toolPart,
 			toolPart,
 		};
@@ -219,6 +233,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		if (this.items.length === 1) {
 			this.setActiveIndex(0);
+		}
+	}
+
+	removeToolInvocation(tool: IChatToolInvocation): void {
+		if (this.items.some(item => item.tool === tool)) {
+			this.removeItem(tool.toolCallId);
 		}
 	}
 
@@ -420,7 +440,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 
 		if (!item.toolPart) {
-			item.toolPart = this.toolPartFactory(item.tool);
+			item.toolPart = item.toolPartFactory(item.tool);
 			if (item.ownsToolPart) {
 				item.disposables.add(item.toolPart);
 			}

@@ -42,6 +42,7 @@ export interface CloudSessionData {
 	readonly title: string;
 	readonly state: AgentTaskState;
 	readonly createdAt: string;
+	readonly updatedAt?: string;
 	readonly completedAt?: string;
 	readonly pullArtifact?: PullArtifactRef;
 	readonly repo?: { readonly owner: string; readonly name: string; readonly host?: string };

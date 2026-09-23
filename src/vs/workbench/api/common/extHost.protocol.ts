@@ -84,7 +84,7 @@ import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescrip
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { RelatedInformationResult, RelatedInformationType } from '../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
-import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationConstraint, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationConstraint, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { IResolveAuthorityResult } from '../../services/extensions/common/extensionHostProxy.js';
@@ -193,12 +193,10 @@ export interface AuthenticationInteractiveOptions {
 	sessionToRecreate?: AuthenticationSession;
 }
 
-export interface AuthenticationGetSessionOptions {
+export interface AuthenticationGetSessionOptions extends Dto<IAuthenticationProviderSessionOptions> {
 	clearSessionPreference?: boolean;
 	createIfNone?: boolean | AuthenticationInteractiveOptions;
 	forceNewSession?: boolean | AuthenticationInteractiveOptions;
-	silent?: boolean;
-	account?: AuthenticationSessionAccount;
 }
 export interface IRegisterAuthenticationProviderDetails {
 	id: string;
@@ -3726,6 +3724,8 @@ export interface IAuthMetadataSource {
 }
 
 export interface MainThreadMcpShape {
+	/** Checks an MCP request destination against current policy, returning the denial reason if blocked. */
+	$checkMcpServerAllowed(id: number, url: string): Promise<string | undefined>;
 	$onDidChangeState(id: number, state: McpConnectionState): void;
 	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;

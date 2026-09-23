@@ -105,9 +105,9 @@ export function getAutoModeTierLabel(tier: string): string {
  */
 export function getAutoModeTierDescription(tier: string): string {
 	switch (tier) {
-		case 'efficiency': return l10n.t('Cheaper models for everyday tasks');
-		case 'balance': return l10n.t('Balances capability and cost');
-		case 'intelligence': return l10n.t('Most capable models, higher cost');
+		case 'efficiency': return l10n.t("Optimizes for cost and speed, using more capable models only when needed.");
+		case 'balance': return l10n.t("Balances cost/speed and capability based on task complexity.");
+		case 'intelligence': return l10n.t("Optimizes for capability, using faster models only when the task allows it.");
 		case 'fast': return l10n.t('Lowest latency models');
 		default: return tier;
 	}

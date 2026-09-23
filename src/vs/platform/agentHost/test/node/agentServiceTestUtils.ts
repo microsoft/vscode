@@ -14,16 +14,18 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { type IAgentCustomizationSettingsRegistration } from '../../common/agentCustomizationSettings.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
+import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
+import type { IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
@@ -146,6 +148,7 @@ export function createTestAgentService(
 	orchestratorDatabase?: IAgentHostDatabase,
 	sessionResidencyLimit?: number,
 	sessionReleaseRetryMs?: number,
+	catalogReconciliationOptions?: IAgentHostCatalogReconciliationOptions,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -170,6 +173,7 @@ export function createTestAgentService(
 		orchestratorDatabase,
 		sessionResidencyLimit,
 		sessionReleaseRetryMs,
+		catalogReconciliationOptions,
 	};
 	const foundation = createAgentServiceFoundation({
 		services,
@@ -190,12 +194,15 @@ export function createTestAgentService(
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 	services.set(IAgentHostSessionTitleController, foundationDisposables.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 		sessionDataService,
+		queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
+		persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
 		getGitHubCopilotToken: () => {
 			const resource = foundation.gitHubEndpointService.getCopilotResource();
 			return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
@@ -208,6 +215,7 @@ export function createTestAgentService(
 		octoKitService,
 		copilotApiService: effectiveCopilotApiService,
 		isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+		isDeferredTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 	services.set(IAgentHostLocalTurns, localTurns);

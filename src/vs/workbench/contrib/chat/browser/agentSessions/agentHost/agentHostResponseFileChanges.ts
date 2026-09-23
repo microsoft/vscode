@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { arrayEquals } from '../../../../../../base/common/equals.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,6 +14,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildDefaultChatUri,
 	ChangesetStatus,
@@ -23,13 +25,14 @@ import {
 	StateComponents,
 	ToolCallStatus,
 	ToolResultContentType,
+	type ActiveTurn,
 	type ChangesetFile,
 	type ChangesetState,
-	type ChatState,
+	type ComponentToState,
 	type ISessionFileDiff,
-	type ResponsePart,
 	type SessionState,
-	type ToolCallState
+	type ToolCallState,
+	type Turn
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -47,14 +50,28 @@ type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'host
 interface IResponseFileEdits {
 	readonly diffs: readonly IChatResponseFileEdit[];
 	readonly hasValidEdits: boolean;
-	readonly isHostNotice: boolean;
 }
 
-const EMPTY_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false, isHostNotice: false };
-const HOST_NOTICE_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false, isHostNotice: true };
+interface IChatTurnSource {
+	readonly turnsById: IObservable<ReadonlyMap<string, Turn>>;
+	readonly activeTurnId: IObservable<string | undefined>;
+	readonly activeTurn: IObservable<ActiveTurn | undefined>;
+}
 
-function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
-	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
+interface ISessionFileChangesSource {
+	readonly state: IObservable<SessionState | Error | undefined>;
+	readonly workspaceRoots: IObservable<readonly URI[]>;
+	readonly chatUris: IObservable<readonly string[]>;
+}
+
+interface ISharedSource<T> {
+	observe(): IObservable<T>;
+}
+
+const EMPTY_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false };
+
+function isHostNotice(turn: Turn | ActiveTurn | undefined): boolean {
+	return !!turn?.message?.origin && isHostNoticeTurn(turn);
 }
 
 function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
@@ -75,7 +92,11 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
 
 /** Maps one Agent Host changeset file into the diff shape used by chat editors. */
 export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string): IEditSessionEntryDiff | undefined {
-	const normalized = normalizeFileEdit(file.edit);
+	return changesetEditToEntryDiff(file.edit, connectionAuthority);
+}
+
+function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+	const normalized = normalizeFileEdit(edit);
 	if (!normalized) {
 		return undefined;
 	}
@@ -94,8 +115,8 @@ export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectio
 		modifiedSnapshotURI,
 		isCreated: normalized.kind === FileEditKind.Create,
 		isDeleted: normalized.kind === FileEditKind.Delete,
-		added: file.edit.diff?.added ?? 0,
-		removed: file.edit.diff?.removed ?? 0,
+		added: edit.diff?.added ?? 0,
+		removed: edit.diff?.removed ?? 0,
 		quitEarly: false,
 		identical: false,
 		isFinal: true,
@@ -103,28 +124,13 @@ export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectio
 	};
 }
 
-/**
- * Supplies the chat "Changed N files" summary for agent host responses from the
- * authoritative per-turn changeset the host computes server-side (the same
- * source backing the Agents-app Changes view), rather than from the chat
- * editing session.
- *
- * For each `(sessionResource, requestId)` it subscribes to the session's
- * per-turn changeset — `requestId` is the agent host turn id — and maps its
- * files into {@link IEditSessionEntryDiff} entries. Subscriptions are acquired
- * lazily inside the returned observable (so they exist only while a summary is
- * actually observing the diffs) and the per-request observables are memoized so
- * repeated lookups share one subscription.
- *
- * The per-request diffs are monotonic: a turn that has reported changes keeps
- * them, because every recompute, resubscribe and reconnect passes through a
- * window where the client can see no files and consumers hide themselves when
- * a turn reports nothing.
- */
+/** Supplies per-response changes from lazy host changesets, retaining displayed diffs across recomputes and reconnects. */
 export class AgentHostResponseFileChangesProvider extends Disposable implements IChatResponseFileChangesProvider {
 
 	private readonly _perRequest = new LRUCache<string, IObservable<readonly IEditSessionEntryDiff[]>>(REQUEST_CACHE_CAPACITY);
 	private readonly _perRequestFileEdits = new LRUCache<string, IObservable<readonly IChatResponseFileEdit[]>>(REQUEST_CACHE_CAPACITY);
+	private readonly _sessionSources = new LRUCache<string, ISharedSource<ISessionFileChangesSource>>(REQUEST_CACHE_CAPACITY);
+	private readonly _chatSources = new LRUCache<string, ISharedSource<IChatTurnSource>>(REQUEST_CACHE_CAPACITY);
 
 	constructor(
 		private readonly _connection: IAgentConnection,
@@ -162,7 +168,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
-			const fileEdits = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+			const source = this._getSessionSource(backendSession);
+			const turn = this._createTurnObservable(source, backendChat, requestId);
+			const fileEdits = this._createFileEditDiffsObservable(source, turn);
 			obs = derived(reader => fileEdits.read(reader).diffs);
 			this._perRequestFileEdits.set(key, obs);
 		}
@@ -170,14 +178,12 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	}
 
 	private _createDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
-		// Resolve the per-turn changeset URI, but only when the agent actually
-		// advertises a `turn` changeset in its catalogue. Agents that don't
-		// support per-turn changesets never produce a turn-changeset URI, so
-		// the summary stays empty (and self-hidden) for them.
-		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
+		const source = this._getSessionSource(backendSession);
+		const turn = this._createTurnObservable(source, backendChat, requestId);
+		const isHostNoticeObs = turn.map(isHostNotice);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
+			const sessionState = source.read(reader).state.read(reader);
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
@@ -188,15 +194,11 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return URI.parse(buildTurnChangesetUri(backendSession.toString(), requestId));
 		});
 
-		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);
-		const responseFileEditsObs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
-		// Migrated legacy Copilot CLI sessions have no per-turn checkpoints, so
-		// their turn changeset is always empty even when the session committed
-		// real work on its branch. Fall back to the session-wide branch changeset
-		// (the same source the Agents window shows) so those changes surface in
-		// the chat editor too. Strictly scoped to adopted sessions' latest turn,
-		// so native sessions and earlier turns are completely unaffected (#333642).
-		const branchFallbackObs = this._createBranchFallbackDiffsObservable(backendSession, requestId);
+		const changesetStateObs = this._subscribeChangeset(turnChangesetUriObs);
+		const changesetStatusObs = changesetStateObs.map(state => state instanceof Error ? undefined : state?.status);
+		const changesetDiffsObs = this._createChangesetDiffsObservable(changesetStateObs);
+		const responseFileEditsObs = this._createFileEditDiffsObservable(source, turn);
+		const branchFallbackObs = this._createBranchFallbackDiffsObservable(backendSession, source, requestId);
 
 		let lastSource: TurnDiffSource | undefined;
 		const select = (source: TurnDiffSource, diffs: readonly IEditSessionEntryDiff[], status?: ChangesetStatus): readonly IEditSessionEntryDiff[] => {
@@ -207,200 +209,227 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return diffs;
 		};
 
-		// Recomputes restart from `{ status: Computing, files: [] }`, so an empty
-		// changeset only means "this turn changed nothing" while `Ready` and
-		// before anything has been shown.
+		// A recompute can temporarily empty a changeset; only Ready can establish an initially empty result.
 		return derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const retained = lastValue ?? [];
-			const responseFileEdits = responseFileEditsObs.read(reader);
-			if (responseFileEdits.isHostNotice) {
+			if (isHostNoticeObs.read(reader)) {
 				return select('hostNotice', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES);
 			}
 
 			const turnUri = turnChangesetUriObs.read(reader);
-			const changesetState = turnUri ? changesetStateObs.read(reader).read(reader) : undefined;
-			const changeset = changesetState instanceof Error ? undefined : changesetState;
-			const changesetDiffs = changeset?.files
-				.map(file => agentHostChangesetFileToEntryDiff(file, this._connectionAuthority))
-				.filter(isDefined);
-			// A non-empty per-turn changeset is always authoritative (e.g. a turn
-			// added after migration, which does have checkpoints), so it takes
-			// precedence over the branch fallback.
-			if (changesetDiffs?.length) {
-				return select('changeset', changesetDiffs, changeset?.status);
+			const changesetStatus = turnUri ? changesetStatusObs.read(reader) : undefined;
+			const changesetDiffs = changesetDiffsObs.read(reader);
+			if (changesetDiffs.length) {
+				return select('changeset', changesetDiffs, changesetStatus);
 			}
 
-			// The per-turn sources produced nothing. For a migrated session's
-			// latest turn the session-wide branch changeset carries the committed
-			// work; `branchFallbackObs` is empty for every non-adopted case, so the
-			// remaining branches below stay byte-for-byte identical for native
-			// sessions.
 			const branchDiffs = branchFallbackObs.read(reader);
 			if (branchDiffs.length) {
-				return select('branchFallback', branchDiffs, changeset?.status);
+				return select('branchFallback', branchDiffs, changesetStatus);
 			}
 
 			if (!turnUri) {
 				return select('unsupported', retained);
 			}
-			if (changeset?.status === ChangesetStatus.Ready && retained.length === 0) {
-				return select('authoritativeEmpty', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset.status);
+			if (changesetStatus === ChangesetStatus.Ready && retained.length === 0) {
+				return select('authoritativeEmpty', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changesetStatus);
 			}
 
+			const responseFileEdits = responseFileEditsObs.read(reader);
 			return responseFileEdits.hasValidEdits
-				? select('response', responseFileEdits.diffs.length > 0 ? responseFileEdits.diffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset?.status)
-				: select('retained', retained, changeset?.status);
+				? select('response', responseFileEdits.diffs.length > 0 ? responseFileEdits.diffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changesetStatus)
+				: select('retained', retained, changesetStatus);
 		});
 	}
 
-	/**
-	 * The session-wide branch changeset, exposed as a per-turn fallback but only
-	 * for the specific turn recorded as an adopted legacy Copilot CLI session's
-	 * final migrated turn. That turn has no per-turn checkpoint, so without this
-	 * its committed-on-branch work never appears in the chat editor (#333642).
-	 * Every other case — native sessions, earlier turns, and any turn added after
-	 * adoption (which has its own real per-turn changeset) — yields an empty list,
-	 * so this never alters the changes shown for those turns.
-	 */
-	private _createBranchFallbackDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
-		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
-
+	/** Falls back to branch changes only for the recorded migration-boundary turn, which has no checkpoint (#333642). */
+	private _createBranchFallbackDiffsObservable(backendSession: URI, source: IObservable<ISessionFileChangesSource>, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		const branchChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
+			const sessionState = source.read(reader).state.read(reader);
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-			// Gate on the durable migration boundary rather than "latest turn": a
-			// post-adoption no-op turn is also an authoritatively-empty latest turn,
-			// and must show its own (empty) changes, not the historical aggregate.
 			if (readSessionEhcliLastMigratedTurn(sessionState._meta) !== requestId) {
 				return undefined;
 			}
 			return URI.parse(buildBranchChangesetUri(backendSession.toString()));
 		});
 
-		const branchChangesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, branchChangesetUriObs);
-
-		return derived(reader => {
-			if (!branchChangesetUriObs.read(reader)) {
-				return [];
-			}
-			const state = branchChangesetStateObs.read(reader).read(reader);
-			const changeset = state instanceof Error ? undefined : state;
-			return changeset?.files
-				.map(file => agentHostChangesetFileToEntryDiff(file, this._connectionAuthority))
-				.filter(isDefined) ?? [];
-		});
+		return this._createChangesetDiffsObservable(this._subscribeChangeset(branchChangesetUriObs));
 	}
 
-	private _createFileEditDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<IResponseFileEdits> {
-		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
-		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+	private _createChangesetDiffsObservable(state: IObservable<ChangesetState | Error | undefined>): IObservable<readonly IEditSessionEntryDiff[]> {
+		const files = state.map(changeset => changeset instanceof Error ? undefined : changeset?.files);
+		const edits = derivedOpts<readonly ISessionFileDiff[]>({ equalsFn: arrayEquals }, reader => files.read(reader)?.map(file => file.edit) ?? []);
+		const diffs = mapObservableArrayCached(this, edits, edit => changesetEditToEntryDiff(edit, this._connectionAuthority));
+		return derivedOpts({ equalsFn: arrayEquals }, reader => diffs.read(reader).filter(isDefined));
+	}
 
-		const chatUrisObs = derivedOpts<readonly URI[]>({ equalsFn: uriArrayEquals }, reader => {
-			if (backendChat) {
-				return [backendChat];
-			}
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error) {
-				return [defaultChatUri];
-			}
-
-			const uris = new Map<string, URI>();
-			uris.set(defaultChatUri.toString(), defaultChatUri);
-			for (const chat of sessionState.chats ?? []) {
-				const uri = URI.parse(chat.resource);
-				uris.set(uri.toString(), uri);
-			}
-			return [...uris.values()];
-		});
-
-		const chatStateObs = mapObservableArrayCached(this, chatUrisObs, chatUri => {
-			const obs = this._subscribe<ChatState>(StateComponents.Chat, constObservable(chatUri));
-			return derived(reader => obs.read(reader).read(reader));
-		}, chatUri => chatUri.toString());
-
-		return derived(reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			const workspaceRoots: URI[] = [];
-			if (sessionState && !(sessionState instanceof Error)) {
-				const roots = new Map<string, URI>();
-				for (const root of [sessionState.project?.uri, ...(sessionState.workingDirectories ?? [])]) {
-					if (root) {
-						const uri = URI.parse(root);
-						roots.set(uri.toString(), uri);
+	private _getSessionSource(backendSession: URI): IObservable<ISessionFileChangesSource> {
+		const key = backendSession.toString();
+		let source = this._sessionSources.get(key);
+		if (!source) {
+			source = this._createSharedSource(StateComponents.Session, backendSession, subscription => {
+				const state = observableFromEvent(this, subscription.onDidChange, () => subscription.value);
+				const workspaceRootUris = derivedOpts<readonly string[]>({ equalsFn: arrayEquals }, reader => {
+					const session = state.read(reader);
+					if (!session || session instanceof Error) {
+						return [];
 					}
+					return [...new Set([session.project?.uri, ...(session.workingDirectories ?? [])].filter((root): root is string => !!root))];
+				});
+				const workspaceRoots = workspaceRootUris.map(roots => roots.map(root => URI.parse(root)));
+				const chatUris = derivedOpts<readonly string[]>({ equalsFn: arrayEquals }, reader => {
+					const session = state.read(reader);
+					return [...new Set([
+						buildDefaultChatUri(key),
+						...(session && !(session instanceof Error) ? session.chats?.map(chat => chat.resource) ?? [] : []),
+					])];
+				});
+				return { state, workspaceRoots, chatUris };
+			});
+			this._sessionSources.set(key, source);
+		}
+		return source.observe();
+	}
+
+	private _getChatSource(chatUri: URI): IObservable<IChatTurnSource> {
+		const key = chatUri.toString();
+		let source = this._chatSources.get(key);
+		if (!source) {
+			source = this._createSharedSource(StateComponents.Chat, chatUri, (subscription, store) => {
+				const turns = observableValue<readonly Turn[] | undefined>(this, undefined);
+				const activeTurn = observableValue<ActiveTurn | undefined>(this, undefined);
+				const activeTurnId = observableValue<string | undefined>(this, undefined);
+				const update = () => {
+					const value = subscription.value;
+					const chat = value instanceof Error ? undefined : value;
+					transaction(tx => {
+						turns.set(chat?.turns, tx);
+						activeTurnId.set(chat?.activeTurn?.id, tx);
+						activeTurn.set(chat?.activeTurn, tx);
+					});
+				};
+				// Filter at the event boundary so streamed tokens cannot invalidate historical observers.
+				store.add(subscription.onDidChange(update));
+				update();
+				return {
+					turnsById: turns.map(turns => new Map(turns?.map(turn => [turn.id, turn]))),
+					activeTurn,
+					activeTurnId,
+				};
+			});
+			this._chatSources.set(key, source);
+		}
+		return source.observe();
+	}
+
+	/** Shares a lazy projection, retrying a failed subscription only when another request starts observing it. */
+	private _createSharedSource<T extends StateComponents.Session | StateComponents.Chat, S>(
+		component: T,
+		resource: URI,
+		createSource: (subscription: IAgentSubscription<ComponentToState[T]>, store: DisposableStore) => S,
+	): ISharedSource<S> {
+		const retry = observableSignal(this);
+		let currentSubscription: IAgentSubscription<ComponentToState[T]> | undefined;
+		const shared = derived(this, reader => {
+			retry.read(reader);
+			const ref = reader.store.add(this._connection.getSubscription(component, resource, SUBSCRIPTION_OWNER));
+			currentSubscription = ref.object;
+			reader.store.add(toDisposable(() => currentSubscription = undefined));
+			return createSource(ref.object, reader.store);
+		});
+		return {
+			observe: () => {
+				// This dependency-free boundary runs once per observation, not when the shared source changes.
+				const acquisition = derived(this, () => {
+					if (currentSubscription?.value instanceof Error) {
+						retry.trigger(undefined);
+					}
+					return shared;
+				});
+				return derived(reader => acquisition.read(reader).read(reader));
+			},
+		};
+	}
+
+	private _createTurnObservable(source: IObservable<ISessionFileChangesSource>, backendChat: URI | undefined, requestId: string): IObservable<Turn | ActiveTurn | undefined> {
+		const chats = backendChat
+			? constObservable([this._getChatSource(backendChat)])
+			: mapObservableArrayCached(this, derived(reader => source.read(reader).chatUris.read(reader)), uri => this._getChatSource(URI.parse(uri)));
+		return derived(reader => {
+			for (const chatSource of chats.read(reader)) {
+				const chat = chatSource.read(reader);
+				if (chat.activeTurnId.read(reader) === requestId) {
+					return chat.activeTurn.read(reader);
 				}
-				workspaceRoots.push(...roots.values());
-			}
-			for (const obs of chatStateObs.read(reader)) {
-				const chatState = obs.read(reader);
-				if (!chatState || chatState instanceof Error) {
-					continue;
-				}
-				const turn = chatState.activeTurn?.id === requestId
-					? chatState.activeTurn
-					: chatState.turns.find(turn => turn.id === requestId);
+				const turn = chat.turnsById.read(reader).get(requestId);
 				if (turn) {
-					if (turn.message?.origin && isHostNoticeTurn(turn)) {
-						return HOST_NOTICE_RESPONSE_FILE_EDITS;
-					}
-					return this._responsePartsToEntryDiffs(turn.responseParts, workspaceRoots);
+					return turn;
 				}
 			}
-			return EMPTY_RESPONSE_FILE_EDITS;
+			return undefined;
 		});
 	}
 
-	/**
-	 * Builds a two-level observable that owns a refcounted subscription to
-	 * `component` at the (observable) resource. The outer observable acquires
-	 * the subscription against the current resource and releases it when the
-	 * resource changes or no one observes; the inner observable tracks the
-	 * subscription's value.
-	 */
-	private _subscribe<T>(component: StateComponents.Session | StateComponents.Changeset | StateComponents.Chat, resourceObs: IObservable<URI | undefined>): IObservable<IObservable<T | Error | undefined>> {
+	private _createFileEditDiffsObservable(source: IObservable<ISessionFileChangesSource>, turn: IObservable<Turn | ActiveTurn | undefined>): IObservable<IResponseFileEdits> {
+		const responseParts = turn.map(turn => isHostNotice(turn) ? undefined : turn?.responseParts);
+		const fileEdits = derivedOpts<readonly ISessionFileDiff[]>({ equalsFn: arrayEquals }, reader => {
+			const edits: ISessionFileDiff[] = [];
+			for (const part of responseParts.read(reader) ?? []) {
+				if (part.kind === ResponsePartKind.ToolCall) {
+					edits.push(...getToolCallFileEdits(part.toolCall));
+				}
+			}
+			return edits;
+		});
 		return derived(reader => {
+			const edits = fileEdits.read(reader);
+			return edits.length > 0
+				? this._fileEditsToEntryDiffs(edits, source.read(reader).workspaceRoots.read(reader))
+				: EMPTY_RESPONSE_FILE_EDITS;
+		});
+	}
+
+	/** Acquires a refcounted subscription only while observed, releasing it when its resource changes or observers leave. */
+	private _subscribeChangeset(resourceObs: IObservable<URI | undefined>): IObservable<ChangesetState | Error | undefined> {
+		const subscription = derived(reader => {
 			const resource = resourceObs.read(reader);
 			if (!resource) {
 				return constObservable(undefined);
 			}
-			const subscriptionRef = reader.store.add(this._connection.getSubscription(component, resource, SUBSCRIPTION_OWNER));
-			return observableFromEvent(this, subscriptionRef.object.onDidChange, () => subscriptionRef.object.value as T | Error | undefined);
+			const subscriptionRef = reader.store.add(this._connection.getSubscription(StateComponents.Changeset, resource, SUBSCRIPTION_OWNER));
+			return observableFromEvent(this, subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
 		});
+		return derived(reader => subscription.read(reader).read(reader));
 	}
 
-	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[], workspaceRoots: readonly URI[]): IResponseFileEdits {
+	private _fileEditsToEntryDiffs(fileEdits: readonly ISessionFileDiff[], workspaceRoots: readonly URI[]): IResponseFileEdits {
 		const byUri = new Map<string, IChatResponseFileEdit>();
 		let hasValidEdits = false;
-		for (const responsePart of responseParts) {
-			if (responsePart.kind !== ResponsePartKind.ToolCall) {
+		for (const fileEdit of fileEdits) {
+			const diff = this._fileEditToEntryDiff(fileEdit, workspaceRoots);
+			if (!diff) {
 				continue;
 			}
-			for (const fileEdit of getToolCallFileEdits(responsePart.toolCall)) {
-				const diff = this._fileEditToEntryDiff(fileEdit, workspaceRoots);
-				if (!diff) {
-					continue;
+			hasValidEdits = true;
+			const key = getComparisonKey(diff.modifiedURI);
+			const existing = byUri.get(key);
+			if (existing) {
+				existing.added += diff.added;
+				existing.removed += diff.removed;
+				existing.modifiedURI = diff.modifiedURI;
+				existing.modifiedSnapshotURI = diff.modifiedSnapshotURI;
+				existing.isDeleted = diff.isDeleted;
+				// A file created and then deleted within the turn has no net diff to present.
+				if (existing.isCreated && existing.isDeleted) {
+					byUri.delete(key);
 				}
-				hasValidEdits = true;
-				const key = getComparisonKey(diff.modifiedURI);
-				const existing = byUri.get(key);
-				if (existing) {
-					existing.added += diff.added;
-					existing.removed += diff.removed;
-					existing.modifiedURI = diff.modifiedURI;
-					existing.modifiedSnapshotURI = diff.modifiedSnapshotURI;
-					existing.isDeleted = diff.isDeleted;
-					// A file created and then deleted within the turn has no net diff to present.
-					if (existing.isCreated && existing.isDeleted) {
-						byUri.delete(key);
-					}
-				} else {
-					byUri.set(key, diff);
-				}
+			} else {
+				byUri.set(key, diff);
 			}
 		}
-		return { diffs: [...byUri.values()], hasValidEdits, isHostNotice: false };
+		return { diffs: [...byUri.values()], hasValidEdits };
 	}
 
 	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff, workspaceRoots: readonly URI[]): IChatResponseFileEdit | undefined {

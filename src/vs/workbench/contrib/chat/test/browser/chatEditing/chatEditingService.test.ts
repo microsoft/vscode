@@ -48,6 +48,7 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
@@ -94,6 +95,7 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
+		collection.set(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() { });
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		const contextKeyService = store.add(new MockContextKeyService());
 		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));

@@ -8,6 +8,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
+export const CreatePullRequestFocusedContext = new RawContextKey<boolean>('sessions.createPullRequestFocused', false);
 
 /**
  * Command id that opens the session's multi-file diff (Changes) editor, revealing

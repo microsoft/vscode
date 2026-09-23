@@ -53,6 +53,22 @@ suite('Dialog', () => {
 		);
 	});
 
+	test('formats Copilot unstable versions', () => {
+		assert.deepStrictEqual(
+			getCopilotVersionLines('1.0.85-unstable.r35379093703.g3514c9a', '1.0.15-unstable.35393089353.gfc44743'),
+			{
+				details: [
+					'@github/copilot: 1.0.85.r35379093703.g3514c9a',
+					'@github/copilot-sdk: 1.0.15.35393089353.gfc44743'
+				],
+				detailsToCopy: [
+					'@github/copilot: 1.0.85.r35379093703.g3514c9a',
+					'@github/copilot-sdk: 1.0.15.35393089353.gfc44743'
+				]
+			}
+		);
+	});
+
 	test('preserves stable Copilot versions', () => {
 		assert.deepStrictEqual(
 			getCopilotVersionLines('1.0.84', '0.1.23'),

@@ -16,7 +16,7 @@ import { GitHubWorkflowRerunOptions } from '../../github/common/githubPullReques
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeSessionOverrides, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeSessionOverrides, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, readAgentMergeSessionState, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -31,6 +31,7 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
+import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
@@ -840,18 +841,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	private _getConfiguration(agentMerge: AgentMergeSessionState): AgentMergeConfiguration {
-		return resolveAgentMergeConfiguration(this._getRootConfiguration(), agentMerge.overrides);
-	}
-
-	private _getRootConfiguration(): AgentMergeConfiguration {
-		return {
-			addressReviews: this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.AddressReviews) ?? defaultAgentMergeConfiguration.addressReviews,
-			fixCI: this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.FixCI) ?? defaultAgentMergeConfiguration.fixCI,
-			resolveConflicts: this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.ResolveConflicts) ?? defaultAgentMergeConfiguration.resolveConflicts,
-			mergePullRequest: this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.MergePullRequest) ?? defaultAgentMergeConfiguration.mergePullRequest,
-			mergeMethod: this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.MergeMethod) ?? defaultAgentMergeConfiguration.mergeMethod,
-			replyAttribution: this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.ReplyAttribution) ?? defaultAgentMergeConfiguration.replyAttribution,
-		};
+		return getAgentMergeConfiguration(this._configurationService, agentMerge.overrides);
 	}
 
 	private _postEnabledNotice(session: string, agentMerge: AgentMergeSessionState): void {

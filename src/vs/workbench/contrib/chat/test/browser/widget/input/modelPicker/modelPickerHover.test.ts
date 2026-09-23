@@ -77,6 +77,31 @@ suite('ModelPickerHover', () => {
 		]);
 	});
 
+	test('HydraFusion presents like Auto: its detail as the badge and its description instead of a category', () => {
+		const model = createModel('hydrafusion', 'HydraFusion');
+		model.metadata = {
+			...model.metadata,
+			category: 'powerful',
+			detail: 'Research preview',
+			tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.',
+		} as ILanguageModelChatMetadata;
+		const hover = getModelHoverContent(model, true, undefined, NullOpenerService);
+		assert.ok(hover);
+		disposables.add(hover.disposable);
+
+		assert.deepStrictEqual({
+			category: hover.element.querySelector('.chat-model-hover-category')?.textContent,
+			badges: Array.from(hover.element.querySelectorAll('.chat-model-hover-price-badge'), element => element.textContent),
+			description: hover.element.querySelector('.chat-model-hover-description')?.textContent?.trim(),
+			context: hover.element.querySelector('.chat-model-hover-context') !== null,
+		}, {
+			category: undefined,
+			badges: ['Research preview'],
+			description: 'HydraFusion routes the first eligible turn and may use multiple models.',
+			context: false,
+		});
+	});
+
 	test('info text renders as its own banner alongside warnings', () => {
 		const model = createModel('gpt-4.1', 'GPT-4.1');
 		model.metadata = {

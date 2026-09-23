@@ -49,6 +49,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
+import { IExperimentalSettingsService } from '../common/experimentalSettings.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1354,6 +1356,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 	private readonly autoExperimentalSettings = new Set<string>();
 	private readonly pendingStartupExperimentalSettings = new Set<string>();
 	private readonly registeredExperimentalDefaults = new Map<string, IConfigurationDefaults>();
+	private readonly assignmentRequests = new Map<string, object>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private readonly throttler = this._register(new Throttler());
 
@@ -1362,7 +1365,8 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: WorkspaceService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IExperimentalSettingsService private readonly experimentalSettingsService: IExperimentalSettingsService
 	) {
 		super();
 
@@ -1392,11 +1396,14 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 	private async processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void> {
 		const removedDefaults: IConfigurationDefaults[] = [];
 		const addedDefaults: IConfigurationDefaults[] = [];
+		const assignmentUpdates: Promise<void>[] = [];
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
 			const schema = allProperties[property];
 			if (!schema?.experiment) {
+				this.assignmentRequests.delete(property);
+				this.experimentalSettingsService.setAssignment(property, false);
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (registeredDefault) {
 					this.registeredExperimentalDefaults.delete(property);
@@ -1409,6 +1416,8 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
 			if (defaultValueSource && defaultConfigurationsPreventingExperimentOverrides.some(configuration => isConfigurationDefaultSourceEquals(configuration.source, defaultValueSource) && configuration.overrides?.[property] !== undefined)) {
+				this.assignmentRequests.delete(property);
+				this.experimentalSettingsService.setAssignment(property, false);
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (registeredDefault) {
 					this.registeredExperimentalDefaults.delete(property);
@@ -1418,16 +1427,27 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				this.pendingStartupExperimentalSettings.delete(property);
 				continue;
 			}
-			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
+			const isAutoExperiment = schema.experiment.mode === 'auto';
+			if (this.processedExperimentalSettings.has(property) && (!autoRefetch || (!isAutoExperiment && !this.pendingStartupExperimentalSettings.has(property)))) {
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			const isAutoExperiment = schema.experiment.mode === 'auto';
 			if (isAutoExperiment) {
 				this.autoExperimentalSettings.add(property);
 			}
+			const request = {};
+			this.assignmentRequests.set(property, request);
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
+				const { value, hasAssignment } = await this.workbenchAssignmentService.getTreatmentWithAssignment(schema.experiment.name ?? `config.${property}`);
+				assignmentUpdates.push(hasAssignment.then(assigned => {
+					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && allProperties[property]?.experiment === schema.experiment) {
+						this.experimentalSettingsService.setAssignment(property, assigned);
+					}
+				}, error => {
+					if (!isCancellationError(error)) {
+						this.logService.error('ConfigurationService#processExperimentalSettings: assignment', property, error);
+					}
+				}));
 				// Latch a `startup` value once it first resolves; keep it pending until then so a
 				// later (sign-in gated) value can still be applied.
 				if (!isAutoExperiment) {
@@ -1453,7 +1473,15 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 					this.registeredExperimentalDefaults.delete(property);
 					removedDefaults.push(registeredDefault);
 				}
-			} catch (error) {/*ignore */ }
+			} catch (error) {
+				if (isCancellationError(error)) {
+					if (!isAutoExperiment && !this._store.isDisposed && this.assignmentRequests.get(property) === request) {
+						this.pendingStartupExperimentalSettings.add(property);
+					}
+				} else {
+					this.logService.error('ConfigurationService#processExperimentalSettings', property, error);
+				}
+			}
 		}
 		if (removedDefaults.length || addedDefaults.length) {
 			this.configurationRegistry.deltaConfiguration({
@@ -1461,6 +1489,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				addedDefaults: addedDefaults.length ? addedDefaults : undefined,
 			});
 		}
+		await Promise.all(assignmentUpdates);
 	}
 
 	private shouldOverride(value: unknown, schema: IConfigurationPropertySchema): boolean {

@@ -13,6 +13,7 @@ import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getProviderIconForIdentity } from './modelProviderIcons.js';
 import { isAutoModel } from './modelPickerPresentation.js';
+import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
 
 /** The built-in provider's models. */
 export const MODEL_PICKER_BUILT_IN_DESTINATION = 'builtIn';
@@ -64,6 +65,8 @@ export interface IModelPickerSections {
 	readonly other: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Curated models the user cannot select yet, shown alongside the recommended ones. */
 	readonly unavailable: readonly IModelPickerUnavailableEntry[];
+	/** Selectable speed pairs, shared with the model cards. */
+	readonly speedVariants: ReadonlyMap<string, IModelSpeedVariants>;
 }
 
 /**
@@ -104,18 +107,19 @@ export function getModelProviderLabel(
 
 /**
  * Splits models into one destination per provider: the built-in one first, then each
- * provider the user added, by name. Auto is left out because it has its own row, and
- * empty providers are dropped so the common case yields no tab bar.
+ * provider the user added, by name. Models with their own row, Auto by default, are left
+ * out, and empty providers are dropped so the common case yields no tab bar.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	languageModelsService: ILanguageModelsService,
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
+	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	for (const model of models) {
-		if (isAutoModel(model)) {
+		if (hasOwnRow(model)) {
 			continue;
 		}
 		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
@@ -130,9 +134,9 @@ export function buildModelPickerDestinations(
 	// The built-in destination stands even with nothing to list: a plan that only grants
 	// Auto still needs somewhere to show it, and its curated models still need to name
 	// the upgrade that would unlock them.
-	const hasAutoModel = models.some(isAutoModel);
+	const hasOwnRowModel = models.some(hasOwnRow);
 	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasAutoModel) {
+	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel) {
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
 			label: builtInLabel,
@@ -179,11 +183,13 @@ export function buildModelPickerDestinations(
 }
 
 export interface IModelPickerSectionsOptions {
+	/** The full destination catalogue, before collapsing speed variants. */
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
+	readonly preferredSpeedVariants?: ReadonlyMap<string, string>;
 	/** Whether the destination has a curated shortlist to lead with. Only the built-in provider curates one. */
 	readonly showSuggested: boolean;
 	/** Whether to name curated models the user cannot select yet. Off by default. */
@@ -201,12 +207,21 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 	// surfaced only as the update it needs.
 	const unavailable = buildUnavailableEntries(options);
 	const gated = new Set(unavailable.filter(entry => entry.needsUpdate).map(entry => entry.id));
-	const selectable = gated.size === 0
+	const available = gated.size === 0
 		? options.models
 		: options.models.filter(model => !gated.has(model.metadata.id) && !gated.has(model.identifier));
+	const speedVariants = buildSpeedVariants(available);
+	const selectable = collapseSpeedVariants(available, speedVariants, options.selectedModelId, options.preferredSpeedVariants);
 
-	const byIdentifier = new Map(selectable.map(model => [model.identifier, model]));
-	const byMetadataId = new Map(selectable.map(model => [model.metadata.id, model]));
+	const byIdentifier = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+	const byMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+	for (const model of selectable) {
+		const pair = speedVariants.get(model.identifier);
+		for (const variant of pair ? [pair.standard, pair.fast] : [model]) {
+			byIdentifier.set(variant.identifier, model);
+			byMetadataId.set(variant.metadata.id, model);
+		}
+	}
 	const placed = new Set<string>();
 	const take = (id: string | undefined): ILanguageModelChatMetadataAndIdentifier | undefined => {
 		const model = id ? byIdentifier.get(id) ?? byMetadataId.get(id) : undefined;
@@ -221,7 +236,7 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 
 	const suggested: ILanguageModelChatMetadataAndIdentifier[] = [];
 	if (options.showSuggested) {
-		for (const model of options.models) {
+		for (const model of selectable) {
 			if (!model.metadata.promo) {
 				continue;
 			}
@@ -266,6 +281,7 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 		suggested: suggested.sort(byPromoThenName),
 		other: rest,
 		unavailable,
+		speedVariants,
 	};
 }
 

@@ -88,7 +88,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override async renameChat() { }
-				override async deleteChat() { }
+				override async deleteChat() { return true; }
 			}());
 			// Tabs are drag sources that ask the owning provider for the referenced
 			// chat's backend resource. These fixtures mock a provider-less session,

@@ -754,7 +754,7 @@ export function convertAgentHostEventsToDebugEvents(
 				const durationInMillis = turnStart ? diffMillis(turnStart.timestamp, record.timestamp) : undefined;
 
 				currentAssistantMessageByAgent.set(agentKey, record.id);
-				modelTurnRefs.push({ index: events.length, id: record.id, turnId, outputTokens });
+				modelTurnRefs.push({ index: events.length, id: record.id, turnId, outputTokens, apiCallId: asString(record.data.apiCallId) });
 				events.push({
 					kind: 'modelTurn', id: record.id, sessionResource, created, parentEventId,
 					model, requestName: 'copilotcli', outputTokens, durationInMillis,
@@ -1106,6 +1106,18 @@ export function convertAgentHostEventsToDebugEvents(
 				});
 			}
 		}
+		if (usageRecords.some(record => record.schemaVersion === 2)) {
+			const totals = extractSessionUsageTotals(records) ?? fallbackUsageTotals;
+			const unpriced = modelTurnRefs.filter(ref => (events[ref.index] as IChatDebugModelTurnEvent).copilotUsageNanoAiu === undefined);
+			if (totals && unpriced.length > 0) {
+				const assigned = modelTurnRefs.reduce((sum, ref) => sum + ((events[ref.index] as IChatDebugModelTurnEvent).copilotUsageNanoAiu ?? 0), 0);
+				const costs = distributeEvenly(Math.max(0, totals.totalNanoAiu - assigned), unpriced.length);
+				for (let i = 0; i < unpriced.length; i++) {
+					const ref = unpriced[i];
+					events[ref.index] = { ...events[ref.index] as IChatDebugModelTurnEvent, copilotUsageNanoAiu: costs[i] > 0 ? costs[i] : undefined };
+				}
+			}
+		}
 	} else if (modelTurnRefs.length > 0) {
 		const totals = extractSessionUsageTotals(records) ?? fallbackUsageTotals;
 		if (totals) {
@@ -1290,6 +1302,7 @@ export function buildCustomizationDebugEvents(
 
 /** A model-turn debug event plus the context needed to back-fill its usage. */
 interface IModelTurnRef {
+	readonly apiCallId?: string;
 	readonly index: number;
 	readonly id: string;
 	readonly turnId?: string;
@@ -1314,6 +1327,40 @@ function applyPerTurnUsage(
 	modelTurnRefs: readonly IModelTurnRef[],
 	usageRecords: readonly IAgentHostUsageRecord[],
 ): IPerTurnUsageCoverage {
+	if (usageRecords.some(record => record.schemaVersion === 2)) {
+		const byCallId = new Map(usageRecords.filter(record => record.schemaVersion === 2 && record.apiCallId).map(record => [record.apiCallId!, record]));
+		const covered = new Set<number>();
+		let assignedInput = 0;
+		let assignedCache = 0;
+		let assignedAiu = 0;
+		const costByTurn = new Map<string, { index: number; cost: number }>();
+		for (let index = 0; index < modelTurnRefs.length; index++) {
+			const ref = modelTurnRefs[index];
+			const record = ref.apiCallId ? byCallId.get(ref.apiCallId) : undefined;
+			if (!record) {
+				continue;
+			}
+			byCallId.delete(ref.apiCallId!);
+			const turn = events[ref.index] as IChatDebugModelTurnEvent;
+			const totalTokens = record.inputTokens !== undefined ? record.inputTokens + (record.outputTokens ?? ref.outputTokens ?? 0) : undefined;
+			events[ref.index] = { ...turn, inputTokens: record.inputTokens, cachedTokens: record.cacheReadTokens, totalTokens };
+			const detail = resolved.get(ref.id);
+			if (detail?.kind === 'modelTurn') {
+				resolved.set(ref.id, { ...detail, inputTokens: record.inputTokens, cachedTokens: record.cacheReadTokens, totalTokens });
+			}
+			assignedInput += record.inputTokens ?? 0;
+			assignedCache += record.cacheReadTokens ?? 0;
+			if (record.turnId && !record.agentId && record.totalNanoAiu !== undefined) {
+				costByTurn.set(record.turnId, { index: ref.index, cost: Math.max(record.totalNanoAiu, costByTurn.get(record.turnId)?.cost ?? 0) });
+			}
+			covered.add(index);
+		}
+		for (const { index, cost } of costByTurn.values()) {
+			events[index] = { ...events[index] as IChatDebugModelTurnEvent, copilotUsageNanoAiu: cost };
+			assignedAiu += cost;
+		}
+		return { covered, assignedInput, assignedCache, assignedAiu };
+	}
 	const assign = (ref: typeof modelTurnRefs[number], inputTokens: number | undefined, cachedTokens: number | undefined, copilotUsageNanoAiu: number | undefined) => {
 		const turn = events[ref.index] as IChatDebugModelTurnEvent;
 		const totalTokens = inputTokens !== undefined ? inputTokens + (ref.outputTokens ?? 0) : undefined;

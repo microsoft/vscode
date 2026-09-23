@@ -236,6 +236,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				version: '',
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
+				maxContextWindowTokens: model.maxContextWindowTokens,
 				pricing: multiplier,
 				priceCategory: model.priceCategory,
 				inputCost: model.inputCost,
@@ -279,6 +280,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
 		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		maxContextWindowTokens: defaultModel?.maxContextWindowTokens,
 		isUserSelectable: true,
 		capabilities: {
 			imageInput: defaultModel?.supportsVision,

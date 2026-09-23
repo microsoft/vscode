@@ -21,6 +21,7 @@ export type FetchFunction = typeof globalThis.fetch;
 export interface CreatedPullRequest {
 	readonly url: string;
 	readonly number: number;
+	readonly title?: string;
 	readonly nodeId?: string;
 	readonly createdAt?: number;
 	readonly state?: 'open' | 'closed';
@@ -32,9 +33,22 @@ export interface CreatedPullRequest {
  */
 export type AutoMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
 
+export interface GitHubRepositoryMergeCapabilities {
+	readonly autoMergeAllowed: boolean;
+	readonly mergeMethods: readonly AutoMergeMethod[];
+}
+
+interface GitHubRepositoryMergeResponse {
+	readonly allow_auto_merge?: unknown;
+	readonly allow_merge_commit?: unknown;
+	readonly allow_squash_merge?: unknown;
+	readonly allow_rebase_merge?: unknown;
+}
+
 interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
+	readonly title?: unknown;
 	readonly node_id?: unknown;
 	readonly created_at?: unknown;
 	readonly state?: unknown;
@@ -44,6 +58,7 @@ interface GitHubPullRequestResponseItem {
 function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): CreatedPullRequest | undefined {
 	const html_url = item?.html_url;
 	const number = item?.number;
+	const title = item?.title;
 	const node_id = item?.node_id;
 	const created_at = item?.created_at;
 	const state = item?.state;
@@ -52,6 +67,7 @@ function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): 
 		? {
 			number,
 			url: html_url,
+			...(typeof title === 'string' ? { title } : {}),
 			nodeId: typeof node_id === 'string' ? node_id : undefined,
 			...(createdAt !== undefined && Number.isFinite(createdAt) ? { createdAt } : {}),
 			...(state === 'open' || state === 'closed' ? { state } : {}),
@@ -146,6 +162,9 @@ export interface IAgentHostOctoKitService {
 	/** Fetches the title and body of an issue or pull request. */
 	getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
 
+	/** Fetches the repository's auto-merge and merge-method settings. */
+	getRepositoryMergeCapabilities(owner: string, repo: string, token: string, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities>;
+
 	/**
 	 * Enables auto-merge on a pull request so GitHub merges it automatically
 	 * once all required reviews and status checks pass.
@@ -236,7 +255,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		}
 
 		const node_id = response.data?.node_id;
-		return { url: html_url, number, nodeId: typeof node_id === 'string' ? node_id : undefined };
+		return { url: html_url, number, title, nodeId: typeof node_id === 'string' ? node_id : undefined };
 	}
 
 	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner, allowedPullRequestUrls?: readonly string[]): Promise<CreatedPullRequest | undefined> {
@@ -320,6 +339,26 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void> {
 		await this._makeGraphQLRequest(ENABLE_AUTO_MERGE_MUTATION, { pullRequestId, mergeMethod }, token, signal);
+	}
+
+	async getRepositoryMergeCapabilities(owner: string, repo: string, token: string, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities> {
+		const response = await this._makeGHAPIRequest<GitHubRepositoryMergeResponse>(`repos/${owner}/${repo}`, 'GET', token, signal);
+		const data = response.data;
+		if (typeof data?.allow_auto_merge !== 'boolean' || typeof data.allow_merge_commit !== 'boolean'
+			|| typeof data.allow_squash_merge !== 'boolean' || typeof data.allow_rebase_merge !== 'boolean') {
+			throw new Error(`Failed to fetch repository merge capabilities for ${owner}/${repo}`);
+		}
+		const mergeMethods: AutoMergeMethod[] = [];
+		if (data.allow_merge_commit) {
+			mergeMethods.push('MERGE');
+		}
+		if (data.allow_squash_merge) {
+			mergeMethods.push('SQUASH');
+		}
+		if (data.allow_rebase_merge) {
+			mergeMethods.push('REBASE');
+		}
+		return { autoMergeAllowed: data.allow_auto_merge, mergeMethods };
 	}
 
 	private async _makeGHAPIRequest<T>(

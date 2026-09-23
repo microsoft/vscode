@@ -48,12 +48,14 @@ export function codexAccountRateLimitFromResponse(response: GetAccountRateLimits
 		}
 		return Math.abs(candidate.windowDurationMins - weeklyWindowMins) < Math.abs(best.windowDurationMins - weeklyWindowMins) ? candidate : best;
 	});
-	if (!Number.isFinite(window.usedPercent)) {
+	if (!Number.isFinite(window.usedPercent) || window.usedPercent < 0 || window.usedPercent > 100
+		|| (window.windowDurationMins !== null && (!Number.isFinite(window.windowDurationMins) || window.windowDurationMins <= 0))
+		|| (window.resetsAt !== null && (!Number.isFinite(window.resetsAt) || window.resetsAt <= 0))) {
 		return undefined;
 	}
 	return {
-		usedPercent: Math.min(100, Math.max(0, window.usedPercent)),
-		windowDurationMins: window.windowDurationMins !== null && window.windowDurationMins > 0 ? window.windowDurationMins : undefined,
-		resetsAt: window.resetsAt !== null && window.resetsAt > 0 ? window.resetsAt : undefined,
+		usedPercent: window.usedPercent,
+		windowDurationMins: window.windowDurationMins ?? undefined,
+		resetsAt: window.resetsAt ?? undefined,
 	};
 }

@@ -11,6 +11,10 @@ export const autoModeTiers = ['efficiency', 'balance', 'intelligence', 'fast'] a
 
 export type AutoModeTier = typeof autoModeTiers[number];
 
+export function isAutoModeTier(value: unknown): value is AutoModeTier {
+	return autoModeTiers.some(tier => tier === value);
+}
+
 /**
  * The tiers offered in the model picker. `fast` is excluded: it is the profile
  * inline chat falls back to when the user has not picked a tier, and is not

@@ -199,6 +199,7 @@ export class AutoClosingOpenCharTypeOperation {
 		}
 		let autoCloseConfig: EditorAutoClosingStrategy;
 		let shouldAutoCloseBefore: (ch: string) => boolean;
+		let shouldCheckBracketBalance = false;
 
 		const chIsQuote = isQuote(ch);
 		if (chIsQuote) {
@@ -212,6 +213,7 @@ export class AutoClosingOpenCharTypeOperation {
 			} else {
 				autoCloseConfig = config.autoClosingBrackets;
 				shouldAutoCloseBefore = config.shouldAutoCloseBefore.bracket;
+				shouldCheckBracketBalance = true;
 			}
 		}
 		if (autoCloseConfig === 'never') {
@@ -241,6 +243,16 @@ export class AutoClosingOpenCharTypeOperation {
 				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
 					return null;
 				}
+			}
+			if (
+				shouldCheckBracketBalance
+				// When 'always', always insert the closing bracket
+				&& autoCloseConfig !== 'always'
+				// Need to check character is not already typed so brackets are still imbalanced
+				&& !chIsAlreadyTyped
+				&& model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(lineNumber, beforeColumn), pair.open)
+			) {
+				return null;
 			}
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {

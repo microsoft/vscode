@@ -37,10 +37,13 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelDiscoveryOptions,
+	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { traceConnectionOperation } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	resolveGatewaySelection,
@@ -116,6 +119,10 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 		if (this._stagedAuthProviders.delete(address)) {
 			this._onDidStageTunnel.fire();
 		}
+	}
+
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
 	}
 
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -195,24 +202,29 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 	}
 
-	async listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	async listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			return [];
 		}
 
 		const silent = options?.silent ?? false;
-		const auth = await this._getToken(silent);
-		if (!auth) {
-			if (silent) {
-				this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
-			} else {
-				this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+		const auth = await traceConnectionOperation(options?.onDiagnostic, 'discovery.authentication', async () => {
+			const auth = options?.authProvider
+				? await this._getTokenForProvider(options.authProvider, silent)
+				: await this._getToken(silent);
+			if (!auth) {
+				if (silent) {
+					this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
+				} else {
+					this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+				}
+				throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 			}
-			return [];
-		}
+			return auth;
+		});
 
 		const additionalNames = this._configurationService.getValue<string[]>(TunnelAgentHostsSettingId) ?? [];
-		return this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined);
+		return traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', () => this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined));
 	}
 
 	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode {
@@ -241,6 +253,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		// Bind the narrowed connection before the closure: TypeScript does not
 		// carry the discriminant narrowing into the `find` callback below.
 		const connection = entry.connection;
+		const address = getEntryAddress(entry);
 		const cachedTunnel = this._storage.getCachedTunnels().find(cached => cached.tunnelId === connection.tunnelId);
 		const tunnel: ITunnelInfo = {
 			tunnelId: connection.tunnelId,
@@ -306,9 +319,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				() => new ReconnectingRelayTransport(
 					establish,
 					this._mainService,
-					() => ahpLoggingEnabled ? this._instantiationService.createInstance(
+					activeConnectionId => ahpLoggingEnabled ? this._instantiationService.createInstance(
 						AhpJsonlLogger,
-						{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
+						{ logsHome: this._environmentService.logsHome, logId: address, connectionId: activeConnectionId, transport: 'tunnel' },
 					) : undefined,
 					this._logService,
 					LOG_PREFIX,
@@ -471,8 +484,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	readonly canDeleteTunnels = true;
 
-	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
-		const auth = await this._getToken(false);
+	async deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		const auth = authProvider ? await this._getTokenForProvider(authProvider, false) : await this._getToken(false);
 		if (!auth) {
 			throw new Error('No authentication available');
 		}
@@ -607,6 +620,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

@@ -59,29 +59,25 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const folderUri = this.getFolderUriToOpen(sessionsService, sessionsProvidersService, remoteAgentHostService);
-		if (!folderUri) {
-			return nativeHostService.openWindow();
-		}
+		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService);
+	}
+}
 
-		const chatSessionToOpen = getChatSessionToOpenInEditor(sessionsService.activeSession.get());
-		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
+export async function openSessionInVSCode(
+	nativeHostService: INativeHostService,
+	session: IActiveSession | undefined,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): Promise<void> {
+	const folderUris = session?.activeChat.get().workspace.get()?.folders.map(folder =>
+		resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService)
+	);
+	if (!folderUris?.length) {
+		return nativeHostService.openWindow();
 	}
 
-	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
-			return undefined;
-		}
-
-		const workspace = activeSession.workspace.get();
-		const rawFolderUri = workspace?.folders[0]?.workingDirectory;
-		if (!rawFolderUri) {
-			return undefined;
-		}
-
-		return resolveRemoteFolderUri(rawFolderUri, activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
-	}
+	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
+	return nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen });
 }
 
 /**

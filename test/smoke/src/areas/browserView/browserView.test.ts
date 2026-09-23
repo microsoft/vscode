@@ -352,6 +352,8 @@ export function setup(logger: Logger): void {
 			assert.strictEqual(await browserPage.locator('#state-input').inputValue(), 'Preserved state');
 
 			await app.restart();
+			const mainLog = fs.readFileSync(path.join(app.logsPath, 'main.log'), 'utf8');
+			assert.doesNotMatch(mainLog, /Cannot read properties of undefined \(reading 'isDestroyed'\)/, 'Closing the native popup must not fail during disposal');
 			openPages.clear();
 			const restoredPage = await app.code.driver.waitForPage('/lifecycle', 30_000);
 			openPages.add(restoredPage);

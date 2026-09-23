@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -37,6 +37,7 @@ function createSession(hasGitRepository: ISettableObservable<boolean>): ISession
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(0),
@@ -134,6 +135,70 @@ suite('Session Context Keys', () => {
 			error: false,
 		});
 	});
+
+	test('publishes workspace keys from the active chat', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const sessionWorkspace = {
+			uri: URI.file('/session'),
+			label: 'session',
+			icon: Codicon.rootFolder,
+			folders: [{
+				root: URI.file('/session'),
+				workingDirectory: URI.file('/session'),
+				name: 'session',
+				description: undefined,
+				gitRepository: {
+					uri: URI.file('/session'),
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const activeChat = {
+			...stubChat,
+			workspace: constObservable({
+				uri: URI.file('/chat'),
+				label: 'chat',
+				icon: Codicon.rootFolder,
+				folders: [{
+					root: URI.file('/chat'),
+					workingDirectory: URI.file('/chat'),
+					name: 'chat',
+					description: undefined,
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: true,
+			}),
+		};
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({
+				sessionId: 'a',
+				workspace: constObservable(sessionWorkspace),
+				chats: constObservable([activeChat]),
+				mainChat: constObservable(activeChat),
+			}),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(activeChat),
+			visibleChatTabs: constObservable([activeChat]),
+			shouldShowChatTabs: constObservable(false),
+		});
+
+		setActiveSessionContextKeys(session, contextKeyService, undefined);
+
+		assert.deepStrictEqual({
+			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
+			isVirtualWorkspace: SessionWorkspaceIsVirtualContext.getValue(contextKeyService),
+			hasGitRepository: SessionHasGitRepositoryContext.getValue(contextKeyService),
+		}, {
+			hasWorkspace: true,
+			isVirtualWorkspace: true,
+			hasGitRepository: true,
+		});
+	});
 });
 
 suite('setSessionContextKeys - changes', () => {
@@ -211,7 +276,8 @@ suite('setSessionContextKeys - side chat', () => {
 	test('counts side chats as committed chats but still excludes tool-origin chats', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const mainChat = { ...stubChat, resource: URI.parse('test:///chat/main'), status: constObservable(SessionStatus.Completed) };
-		const sideChat = { ...stubChat, resource: URI.parse('test:///chat/side'), origin: { kind: ChatOriginKind.SideChat }, status: constObservable(SessionStatus.Completed) };
+		const peerChat = { ...stubChat, resource: URI.parse('test:///chat/peer'), status: constObservable(SessionStatus.Completed) };
+		const sideChat = { ...stubChat, resource: URI.parse('test:///chat/side'), origin: { kind: ChatOriginKind.SideChat, parentChat: mainChat.resource }, status: constObservable(SessionStatus.Completed) };
 		const toolChat = { ...stubChat, resource: URI.parse('test:///chat/tool'), origin: { kind: ChatOriginKind.Tool }, status: constObservable(SessionStatus.Completed) };
 
 		const withSideChat = upcastPartial<IActiveSession>({
@@ -224,7 +290,17 @@ suite('setSessionContextKeys - side chat', () => {
 		});
 		setActiveSessionContextKeys(withSideChat, contextKeyService, undefined);
 		const withSideChatCommittedChats = SessionHasMultipleCommittedChatsContext.getValue(contextKeyService);
-		const withSideChatHasSideChats = SessionHasSideChatsContext.getValue(contextKeyService);
+		const mainChatHasSideChats = SessionActiveChatHasSideChatsContext.getValue(contextKeyService);
+		const mainChatResource = SessionActiveChatResourceContext.getValue(contextKeyService);
+
+		const withUnrelatedActiveChat = upcastPartial<IActiveSession>({
+			...withSideChat,
+			chats: constObservable([mainChat, peerChat, sideChat]),
+			activeChat: constObservable(peerChat),
+		});
+		setActiveSessionContextKeys(withUnrelatedActiveChat, contextKeyService, undefined);
+		const peerChatHasSideChats = SessionActiveChatHasSideChatsContext.getValue(contextKeyService);
+		const peerChatResource = SessionActiveChatResourceContext.getValue(contextKeyService);
 
 		const withToolChat = upcastPartial<IActiveSession>({
 			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, toolChat]), mainChat: constObservable(mainChat) }),
@@ -237,12 +313,18 @@ suite('setSessionContextKeys - side chat', () => {
 		setActiveSessionContextKeys(withToolChat, contextKeyService, undefined);
 		assert.deepStrictEqual({
 			withSideChatCommittedChats,
-			withSideChatHasSideChats,
+			mainChatHasSideChats,
+			mainChatResource,
+			peerChatHasSideChats,
+			peerChatResource,
 			withToolChatCommittedChats: SessionHasMultipleCommittedChatsContext.getValue(contextKeyService),
-			withToolChatHasSideChats: SessionHasSideChatsContext.getValue(contextKeyService),
+			withToolChatHasSideChats: SessionActiveChatHasSideChatsContext.getValue(contextKeyService),
 		}, {
 			withSideChatCommittedChats: true,
-			withSideChatHasSideChats: true,
+			mainChatHasSideChats: true,
+			mainChatResource: mainChat.resource.toString(),
+			peerChatHasSideChats: false,
+			peerChatResource: peerChat.resource.toString(),
 			withToolChatCommittedChats: false,
 			withToolChatHasSideChats: false,
 		});

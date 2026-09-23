@@ -348,11 +348,25 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const configValues = convertedState.config || worktreeApplied
 			? { ...convertedState.config?.values, ...configPatch }
 			: undefined;
+		let project = worktreeApplied ? resolvedWorkspace.project : undefined;
+		let externalWorktreeMetadata: Readonly<Record<string, string>> | undefined;
+		if (!worktreeApplied && this._worktreeIsolation.supported) {
+			try {
+				const externalWorktree = await this._worktreeIsolation.resolveExternalWorktreeProject(authoritativeWorkingDirectory);
+				project = externalWorktree?.project;
+				externalWorktreeMetadata = externalWorktree?.metadata;
+			} catch (error) {
+				this._logService.warn(`[SessionWorkspaceConversionService] Failed to resolve external worktree project for ${session.toString()}: ${toErrorMessage(error)}`);
+			}
+		}
 		let persistenceError: unknown;
 		const persistTransition = !!transition && !!continuation && this._stateManager.getActiveTurnId(chat.toString()) === continuation.turnId;
 		const database = this._sessionDataService.openDatabase(session);
 		try {
-			const metadata = { [AH_META_WORKSPACELESS_DB_KEY]: 'false' };
+			const metadata = {
+				[AH_META_WORKSPACELESS_DB_KEY]: 'false',
+				...externalWorktreeMetadata,
+			};
 			if (configValues) {
 				Object.assign(metadata, { configValues: JSON.stringify(configValues) });
 			}
@@ -393,10 +407,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			throw new UnsafeProviderWorkingDirectoryError(`The session state changed while converted metadata was being persisted, so the provider was disposed and the session was quarantined${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`);
 		}
 
-		if (worktreeApplied && resolvedWorkspace.project) {
+		if (project) {
 			this._stateManager.setSessionProject(session.toString(), {
-				uri: resolvedWorkspace.project.uri.toString(),
-				displayName: resolvedWorkspace.project.displayName,
+				uri: project.uri.toString(),
+				displayName: project.displayName,
 			});
 		}
 		const workspaceMeta = worktreeApplied && resolvedWorkspace.branchName

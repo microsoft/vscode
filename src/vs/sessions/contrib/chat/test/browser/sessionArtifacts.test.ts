@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { autorun, constObservable, observableValue, type IReader } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,10 +16,12 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,6 +43,9 @@ suite('Session Artifacts', () => {
 
 	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo) {
 		const artifacts = observableValue('artifacts', entries);
+		const removed: string[] = [];
+		const errors: string[] = [];
+		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
 		const root = URI.file('/repo');
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', {
@@ -59,6 +64,7 @@ suite('Session Artifacts', () => {
 		});
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly artifacts = artifacts;
+			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
 			override readonly workspace = workspace;
 		}());
 		const configurationService = new TestConfigurationService();
@@ -66,6 +72,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
+			derived(reader => getSessionGitHubReferences(session.read(reader), reader)),
 			new class extends mock<IClipboardService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			configurationService,
@@ -73,12 +80,24 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeFormatters = Event.None;
 				override readonly getUriLabel = labelService.getUriLabel;
 			}(),
+			new class extends mock<INotificationService>() {
+				override error(error: string): void { errors.push(error); }
+			}(),
 			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
+					removed.push(artifactId);
+					if (removalError) {
+						throw removalError;
+					}
+					artifacts.set(artifacts.get().filter(artifact => artifact.id !== artifactId), undefined);
+				}
+			}(),
 			new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 		));
-		return { presentation, session, artifacts, workspace, gitHubInfo };
+		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, setRemovalError: (error: Error | undefined) => { removalError = error; } };
 	}
 
 	function visibleEntries(presentation: SessionArtifacts, reader?: IReader) {
@@ -156,7 +175,7 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('omits only recorded GitHub links already surfaced in pull request and issue pills', () => {
+	test('omits recorded GitHub links from every repository surfaced in pull request and issue pills', () => {
 		const { presentation } = createPresentation([
 			{ id: 'created-pr', kind: SessionArtifactKind.PullRequest, label: 'Created', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/REPO/pull/50/') },
 			{ id: 'referenced-pr', kind: SessionArtifactKind.PullRequest, label: 'Referenced', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/60') },
@@ -178,8 +197,8 @@ suite('Session Artifacts', () => {
 		});
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
-			artifacts: ['foreign-pr', 'gitlab-pr', 'foreign-issue', 'file'],
-			references: ['referenced-pr', 'foreign-pr-reference', 'referenced-issue'],
+			artifacts: ['gitlab-pr', 'file'],
+			references: [],
 		});
 	});
 
@@ -215,7 +234,7 @@ suite('Session Artifacts', () => {
 		}), entries.map(artifact => [artifact.id, [artifact.id]]));
 	});
 
-	test('updates pill deduplication as workspace, GitHub metadata and recorded entries hydrate', () => {
+	test('keeps GitHub entries out of generic pills before, during and after workspace hydration', () => {
 		const pullRequest = URI.parse('https://github.com/owner/repo/pull/50');
 		const reference = URI.parse('https://github.com/owner/repo/pull/60');
 		const issue = URI.parse('https://github.com/owner/repo/issues/7');
@@ -259,12 +278,12 @@ suite('Session Artifacts', () => {
 		const noSession = visible;
 
 		assert.deepStrictEqual({ withoutWorkspace, withoutGitHubInfo, hydrated, changedGitHubInfo, recordedFile, unmounted, noSession }, {
-			withoutWorkspace: { artifacts: ['pr', 'issue'], references: ['duplicate-reference', 'reference'] },
-			withoutGitHubInfo: { artifacts: ['pr', 'issue'], references: ['duplicate-reference', 'reference'] },
-			hydrated: { artifacts: [], references: ['reference'] },
-			changedGitHubInfo: { artifacts: ['pr', 'issue'], references: ['duplicate-reference'] },
-			recordedFile: { artifacts: ['pr', 'issue', 'file'], references: ['duplicate-reference'] },
-			unmounted: { artifacts: ['pr', 'issue', 'file'], references: ['duplicate-reference', 'reference'] },
+			withoutWorkspace: { artifacts: [], references: [] },
+			withoutGitHubInfo: { artifacts: [], references: [] },
+			hydrated: { artifacts: [], references: [] },
+			changedGitHubInfo: { artifacts: [], references: [] },
+			recordedFile: { artifacts: ['file'], references: [] },
+			unmounted: { artifacts: ['file'], references: [] },
 			noSession: { artifacts: [], references: [] },
 		});
 	});
@@ -294,6 +313,97 @@ suite('Session Artifacts', () => {
 				['Docs', []],
 			],
 			copied: [pullRequestLink.toString(true), issueLink.toString(true)],
+		});
+	});
+
+	test('removes references and durable artifacts by stable id, preserving duplicates', async () => {
+		const duplicateLink = URI.parse('https://example.com/docs');
+		const { presentation, artifacts, removed, errors, setRemovalError } = createPresentation([
+			{ id: 'artifact', kind: SessionArtifactKind.Website, label: 'Durable', isArtifact: true, link: duplicateLink },
+			{ id: 'reference-a', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
+			{ id: 'reference-b', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/1') },
+		]);
+		const read = () => ({
+			sections: presentation.referenceSections.get().map(section => [section.title, section.entries.map(entry => entry.id)]),
+			artifacts: presentation.sections.get().map(section => [section.title, section.entries.map(entry => entry.id)]),
+		});
+		const initial = read();
+		const first = presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'reference-a')!;
+		await first.promotedAction?.run();
+		const afterFirst = read();
+		setRemovalError(new Error('offline'));
+		await presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'reference-b')?.promotedAction?.run();
+		const afterFailure = read();
+		setRemovalError(undefined);
+		await presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'issue')?.promotedAction?.run();
+		const afterLastIssue = read();
+		// Removing the durable artifact only deletes its session record; since it
+		// was gated equally to references, this must succeed and empty its pill.
+		await presentation.sections.get().flatMap(section => section.entries).find(entry => entry.id === 'artifact')?.promotedAction?.run();
+		const afterArtifact = read();
+
+		assert.deepStrictEqual({
+			initial,
+			afterFirst,
+			afterFailure,
+			afterLastIssue,
+			afterArtifact,
+			removed,
+			errors,
+			persisted: artifacts.get().map(artifact => artifact.id),
+		}, {
+			initial: { sections: [['Issues', ['issue']], ['Websites', ['reference-a', 'reference-b']]], artifacts: [['Websites', ['artifact']]] },
+			afterFirst: { sections: [['Issues', ['issue']], ['Websites', ['reference-b']]], artifacts: [['Websites', ['artifact']]] },
+			afterFailure: { sections: [['Issues', ['issue']], ['Websites', ['reference-b']]], artifacts: [['Websites', ['artifact']]] },
+			afterLastIssue: { sections: [['Websites', ['reference-b']]], artifacts: [['Websites', ['artifact']]] },
+			// The durable artifacts pill has nothing left to show once its only entry is removed.
+			afterArtifact: { sections: [['Websites', ['reference-b']]], artifacts: [] },
+			removed: ['reference-a', 'reference-b', 'issue', 'artifact'],
+			errors: ['Could not remove Docs from this session: offline'],
+			persisted: ['reference-b'],
+		});
+	});
+
+	test('offers a remove action for every artifact and reference kind, gated purely on provider support', () => {
+		const link = (path: string) => URI.parse(`https://example.com/${path}`);
+		const entriesOf = (kind: SessionArtifactKind, isArtifact: boolean): ISessionArtifact => {
+			switch (kind) {
+				case SessionArtifactKind.PullRequest: return { id: `${kind}-${isArtifact}`, kind, label: 'PR', isArtifact, link: URI.parse('https://github.com/microsoft/vscode/pull/1') };
+				case SessionArtifactKind.Issue: return { id: `${kind}-${isArtifact}`, kind, label: 'Issue', isArtifact, link: URI.parse('https://github.com/microsoft/vscode/issues/1') };
+				case SessionArtifactKind.Commit: return { id: `${kind}-${isArtifact}`, kind, label: 'Commit', isArtifact, link: link('commit'), commitHash: 'abc123' };
+				case SessionArtifactKind.Website: return { id: `${kind}-${isArtifact}`, kind, label: 'Site', isArtifact, link: link('site') };
+				case SessionArtifactKind.File: return { id: `${kind}-${isArtifact}`, kind, label: 'File', isArtifact, uri: URI.file(`/repo/${isArtifact}.md`) };
+				case SessionArtifactKind.Resource: return { id: `${kind}-${isArtifact}`, kind, label: 'Resource', isArtifact, uri: link('resource') };
+			}
+		};
+		const kinds = [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue, SessionArtifactKind.Commit, SessionArtifactKind.Website, SessionArtifactKind.File, SessionArtifactKind.Resource];
+		const entries: ISessionArtifact[] = [];
+		for (const kind of kinds) {
+			entries.push(entriesOf(kind, true), entriesOf(kind, false));
+		}
+		// An image is a File artifact whose URI resolves to an image mime type.
+		entries.push({ id: 'image-true', kind: SessionArtifactKind.File, label: 'Image', isArtifact: true, uri: URI.file('/repo/true.png') });
+		entries.push({ id: 'image-false', kind: SessionArtifactKind.File, label: 'Image', isArtifact: false, uri: URI.file('/repo/false.png') });
+
+		const withoutSupport = buildSessionArtifactSections(entries, actions, labelService, true, new Set()).flatMap(section => section.entries);
+		const withSupport = buildSessionArtifactSections(entries, { ...actions, remove: async () => { } }, labelService, true, new Set()).flatMap(section => section.entries);
+
+		const byId = (rendered: readonly { readonly id: string; readonly promotedAction?: unknown }[]) =>
+			rendered.map(entry => [entry.id, !!entry.promotedAction]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+		// Expectations derive from the input entries, so a dropped or unrendered
+		// kind fails instead of silently agreeing with whatever was produced.
+		const expected = (removable: boolean) =>
+			entries.map(entry => [entry.id, removable]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+		assert.deepStrictEqual({
+			withoutSupport: byId(withoutSupport),
+			withSupport: byId(withSupport),
+		}, {
+			// No entry of any kind — artifact or reference — gets a remove action without provider support.
+			withoutSupport: expected(false),
+			// Every kind gets a remove action once the provider supports it, regardless of isArtifact.
+			withSupport: expected(true),
 		});
 	});
 

@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.modern-ui.monaco-workbench.floating-panels .part.statusbar {
+	padding-top: 0;
+	padding-bottom: var(--vscode-spacing-size40);
+}
+
 /*
  * Round the status bar item backgrounds to a control-sized pill. The interactive
  * hover/active background lives on the label (`a.statusbar-item-label`); custom

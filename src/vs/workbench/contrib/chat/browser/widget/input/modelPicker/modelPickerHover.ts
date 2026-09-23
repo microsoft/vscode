@@ -17,10 +17,10 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelContextWindowTotal, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
+import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
-import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
+import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT];
 
@@ -36,22 +36,25 @@ export function getModelHoverContent(
 	openerService: IOpenerService,
 ): IModelPickerHoverContent | undefined {
 	const isAuto = isAutoModel(model);
-	const promo = !isAuto && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
+	// HydraFusion routes across models like Auto, so it is presented the same way: its detail
+	// as the badge and its description in place of a single model's category and pricing.
+	const isRouter = isAuto || isHydraFusionModel(model);
+	const promo = !isRouter && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
 	const tags = dom.$('.chat-model-hover-title-tags');
-	const categoryLabel = !isAuto && !promo ? getCategoryLabel(model.metadata.category) : undefined;
+	const categoryLabel = !isRouter && !promo ? getCategoryLabel(model.metadata.category) : undefined;
 	if (categoryLabel) {
 		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
 	}
-	const priceCategoryLabel = !isAuto ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	const badgeLabel = isAuto ? model.metadata.detail : priceCategoryLabel;
+	const priceCategoryLabel = !isRouter ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
+	const badgeLabel = isRouter ? model.metadata.detail : priceCategoryLabel;
 	if (badgeLabel) {
 		const badge = dom.$('span.chat-model-hover-price-badge', undefined, badgeLabel);
-		if (!isAuto && isHighCostCategory(model.metadata.priceCategory)) {
+		if (!isRouter && isHighCostCategory(model.metadata.priceCategory)) {
 			badge.classList.add('high-cost');
 		}
 		tags.appendChild(badge);
@@ -85,7 +88,7 @@ export function getModelHoverContent(
 
 	let costInfoRendered = false;
 	let costTableRendered = false;
-	if (!isAuto && isUBB) {
+	if (!isRouter && isUBB) {
 		const metrics = getModelCostMetrics(model.metadata);
 
 		if (metrics.length > 0) {
@@ -135,7 +138,7 @@ export function getModelHoverContent(
 			appendCostSection(container, model.metadata.pricing);
 			costInfoRendered = true;
 		}
-	} else if (!isAuto && model.metadata.pricing) {
+	} else if (!isRouter && model.metadata.pricing) {
 		appendCostSection(container, model.metadata.pricing);
 		costInfoRendered = true;
 	}
@@ -146,8 +149,8 @@ export function getModelHoverContent(
 		container.appendChild(element);
 	}
 
-	if (!isAuto && !costTableRendered && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
-		const totalTokens = getModelContextWindowTotal(model.metadata);
+	const totalTokens = getModelContextWindowTotal(model.metadata);
+	if (!isRouter && !costTableRendered && totalTokens) {
 		const contextSection = dom.$('.chat-model-hover-context');
 		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, getMaxContextLabel()));
 		contextSection.appendChild(dom.$('.chat-model-hover-context-value', undefined, formatTokenCount(totalTokens)));

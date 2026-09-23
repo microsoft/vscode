@@ -30,10 +30,13 @@ export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('s
 export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSupportsFork', false, localize('sessionSupportsFork', "Whether the session view's session supports forking a chat from a turn into a new peer chat"));
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
-export const SessionHasSideChatsContext = new RawContextKey<boolean>('sessionHasSideChats', false, localize('sessionHasSideChats', "Whether the session has side chats, which are shown in the Side Chats dropdown"));
+export const SessionActiveChatResourceContext = new RawContextKey<string>('sessionActiveChatResource', '', localize('sessionActiveChatResource', "The resource of the chat represented by the session or chat header"));
+export const SessionActiveChatHasSideChatsContext = new RawContextKey<boolean>('sessionActiveChatHasSideChats', false, localize('sessionActiveChatHasSideChats', "Whether the chat represented by the session or chat header has side chats"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
-export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the session's active chat can be closed (hidden) from the tab strip, i.e. it is not the main chat. Includes read-only subagent chats. Used to scope the close-chat keybinding so it closes the tab instead of the session"));
+export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the active chat surface can be closed, either by hiding a non-main chat or by removing a side-by-side chat group"));
+export const SessionHeaderShowsChatContext = new RawContextKey<boolean>('sessionHeaderShowsChat', false, localize('sessionHeaderShowsChat', "Whether the session-style header represents one chat in a side-by-side chat group rather than the whole session"));
+export const SessionHeaderActiveChatIsPinnedContext = new RawContextKey<boolean>('sessionHeaderActiveChatIsPinned', false, localize('sessionHeaderActiveChatIsPinned', "Whether the chat represented by a side-by-side chat group header is pinned"));
 export const SessionFocusedChatIsRenameTargetContext = new RawContextKey<boolean>('sessionFocusedChatIsRenameTarget', false, localize('sessionFocusedChatIsRenameTarget', "Whether the focused chat group's visible chat is a non-main chat that should receive the chat-specific rename command instead of the session rename command"));
 export const SessionActiveChatIsDeletableContext = new RawContextKey<boolean>('sessionActiveChatIsDeletable', false, localize('sessionActiveChatIsDeletable', "Whether the session's active chat can be permanently deleted from the tab strip, i.e. it is a real, user-created non-main chat (not the main chat and not a tool-spawned subagent chat, which are transient children). Used to scope the delete-chat keybinding"));
 export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
@@ -109,6 +112,7 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 //#region < --- Experiments --- >
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
+export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Chat in This Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 
 //#endregion
 
@@ -120,6 +124,7 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 //#region < --- New Session Pickers --- >
 
+export const NewSessionCreationProviderIdContext = new RawContextKey<string>('newSessionCreationProviderId', '', localize('newSessionCreationProviderId', "The provider selected for new session creation before a draft exists"));
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
 export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is visible — it is hidden when at most one harness can serve the selected workspace"));
 export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('sessionIsolationPickerVisible', false, localize('sessionIsolationPickerVisible', "Whether the new-session view's isolation picker is visible — it is shown only when the isolation option is enabled and the workspace has a git repository"));

@@ -23,13 +23,16 @@ import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.j
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
 export const SESSIONS_APPLICATION_BADGE_DEFAULT = product.quality !== 'stable';
+export const SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING = 'sessions.applicationBadge';
+export const SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT = {
+	inputNeeded: true,
+	unread: false,
+	ciFailing: false,
+};
 
 /**
- * Renders the number of unarchived sessions that need the user's attention:
- * unread sessions no longer in progress, sessions waiting for input, and
- * non-in-progress sessions with failing CI on an open, non-draft pull request.
- * The badge appears on the application icon in the dock (macOS), the launcher
- * (Linux) or the taskbar (Windows).
+ * Renders the number of unarchived sessions matching the configured attention reasons
+ * on the dock (macOS), launcher (Linux), or taskbar (Windows) application icon.
  */
 export class SessionsApplicationBadge extends Disposable implements IWorkbenchContribution {
 
@@ -59,6 +62,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 		super();
 
 		this._enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, SESSIONS_APPLICATION_BADGE_DEFAULT, this._configurationService);
+		const badgeOptions = observableConfigValue(SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING, SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT, this._configurationService);
 		this._blockedSessions = this._register(instantiationService.createInstance(BlockedSessions));
 
 		this._sessions = observableFromEvent(this, this._sessionsManagementService.onDidChangeSessions, () => this._sessionsManagementService.getSessions());
@@ -70,15 +74,19 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 				return 0;
 			}
 
-			const blockedSessionIds = new Set(this._blockedSessions.blockedSessions.read(reader).map(session => session.sessionId));
+			const options = badgeOptions.read(reader);
+			const ciFailingSessionIds = options.ciFailing
+				? new Set(this._blockedSessions.failingCISessions.read(reader).map(session => session.sessionId))
+				: undefined;
 			let count = 0;
 			for (const session of this._sessions.read(reader)) {
 				if (session.isArchived.read(reader)) {
 					continue;
 				}
 
-				if (blockedSessionIds.has(session.sessionId)
-					|| (!session.isRead.read(reader) && session.status.read(reader) !== SessionStatus.InProgress)) {
+				if ((options.inputNeeded && session.status.read(reader) === SessionStatus.NeedsInput)
+					|| (options.unread && !session.isRead.read(reader) && session.status.read(reader) !== SessionStatus.InProgress)
+					|| ciFailingSessionIds?.has(session.sessionId)) {
 					count++;
 				}
 			}

@@ -20,9 +20,10 @@ import { APPLICATION_SCOPES, FOLDER_SCOPES, IWorkbenchConfigurationService, LOCA
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { AGENTS_WINDOW_SETTING_TAG, ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
+import { AGENTS_WINDOW_SETTING_TAG, ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, EXP_ASSIGNMENT_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
 import { SettingsTarget } from './preferencesWidgets.js';
 import { ITOCEntry, tocData } from './settingsLayout.js';
+import { IExperimentalSettingsService } from '../../../services/configuration/common/experimentalSettings.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -182,6 +183,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly configurationService: IWorkbenchConfigurationService,
 		private readonly isSessionsWindow: boolean,
+		private readonly experimentalSettingsService: IExperimentalSettingsService,
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -190,6 +192,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// Make sure description and valueType are initialized
 		this.initSettingDescription();
 		this.initSettingValueType();
+	}
+
+	get hasExPAssignment(): boolean {
+		return this.experimentalSettingsService.hasAssignment(this.setting.key);
 	}
 
 	get displayCategory(): string {
@@ -386,7 +392,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		this.value = displayValue;
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue || hasAgentsWindowOverride) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue || hasAgentsWindowOverride || this.hasExPAssignment) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -394,6 +400,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 
 			this.setting.tags?.forEach(tag => this.tags!.add(tag));
+			this.tags.delete(EXP_ASSIGNMENT_SETTING_TAG);
+			if (this.hasExPAssignment) {
+				this.tags.add(EXP_ASSIGNMENT_SETTING_TAG);
+			}
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
@@ -592,6 +602,7 @@ export class SettingsTreeModel implements IDisposable {
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IExperimentalSettingsService private readonly _experimentalSettingsService: IExperimentalSettingsService,
 	) {
 	}
 
@@ -708,7 +719,8 @@ export class SettingsTreeModel implements IDisposable {
 			this._productService,
 			this._userDataProfileService,
 			this._configurationService,
-			this._environmentService.isSessionsWindow);
+			this._environmentService.isSessionsWindow,
+			this._experimentalSettingsService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
@@ -1006,9 +1018,10 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.cachedUniqueSearchResults = new Map();
 		this.update({ id: 'searchResultModel', label: '' });

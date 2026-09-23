@@ -12,6 +12,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -26,6 +27,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -34,6 +36,7 @@ import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
+	readonly released: URI[] = [];
 	private readonly emitters = new Map<StateComponents, Emitter<unknown>>();
 
 	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChangesetState>) {
@@ -56,7 +59,7 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 				onWillApplyAction: Event.None,
 				onDidApplyAction: Event.None,
 			},
-			dispose: () => { },
+			dispose: () => { this.released.push(resource); },
 		};
 	}
 
@@ -66,12 +69,116 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 	}
 }
 
+class TestOpenerService extends mock<IOpenerService>() {
+	readonly opened: { readonly resource: URI; readonly options: Parameters<IOpenerService['open']>[1] }[] = [];
+
+	override async open(resource: URI | string, options?: Parameters<IOpenerService['open']>[1]): Promise<boolean> {
+		this.opened.push({
+			resource: typeof resource === 'string' ? URI.parse(resource) : resource,
+			options,
+		});
+		return true;
+	}
+}
+
 suite('AgentHostSessionInputPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const noProvisionalSessions = upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+		onDidChange: Event.None,
+		get: () => undefined,
+	});
+
+	test('Back to an untitled draft does not subscribe to its UI identity', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const connection = new StaticAgentConnection(new Map());
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: resource => ({
+				connection,
+				connectionAuthority: 'local',
+				backendSession: resource.with({ scheme: 'copilotcli' }),
+			}),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const sessionResource = URI.parse('agent-host-copilotcli:/migrated');
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: () => { },
+		});
+		const provisionalChanged = store.add(new Emitter<URI>());
+		let provisionalBackend: URI | undefined;
+		const provisionalSessions = upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+			onDidChange: provisionalChanged.event,
+			get: () => provisionalBackend,
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget, false, connectionsService, browserViewService, clipboardService,
+			configurationService, editorService, instantiationService, openerService, visibility,
+			provisionalSessions,
+		));
+		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
+		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
+		viewModelChanged.fire({ previousSessionResource: sessionResource, currentSessionResource: draft });
+
+		const requested = () => [...new Set(connection.requested.map(request => request.resource.toString()))];
+		const beforeProvisioning = requested();
+		const releasedOnBack = connection.released.some(resource => resource.toString() === 'copilotcli:/migrated');
+		provisionalBackend = URI.parse('copilotcli:/provisional');
+		provisionalChanged.fire(draft);
+		const afterProvisioning = requested();
+		provisionalBackend = URI.parse('copilotcli:/replacement');
+		provisionalChanged.fire(draft);
+		const afterReplacement = requested();
+		provisionalBackend = undefined;
+		provisionalChanged.fire(draft);
+		const releasedOnRetirement = connection.released.some(resource => resource.toString() === 'copilotcli:/replacement');
+		viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		viewModelChanged.fire({ previousSessionResource: draft, currentSessionResource: sessionResource });
+
+		assert.deepStrictEqual({
+			beforeProvisioning,
+			releasedOnBack,
+			afterProvisioning,
+			afterReplacement,
+			releasedOnRetirement,
+			lastSubscription: connection.requested.at(-1)?.resource.toString(),
+			invalidDraftSubscriptions: requested().filter(resource => resource.includes('untitled-')),
+		}, {
+			beforeProvisioning: ['copilotcli:/migrated'],
+			releasedOnBack: true,
+			afterProvisioning: ['copilotcli:/migrated', 'copilotcli:/provisional'],
+			afterReplacement: ['copilotcli:/migrated', 'copilotcli:/provisional', 'copilotcli:/replacement'],
+			releasedOnRetirement: true,
+			lastSubscription: 'copilotcli:/migrated',
+			invalidDraftSubscriptions: [],
+		});
+	});
 
 	test('partitions GitHub links, artifacts, and references without duplication', () => {
 		const entries: readonly ISessionArtifact[] = [
 			{ id: 'created-pr', type: SessionArtifactType.PullRequest, label: 'Created PR', link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true, isArtifact: true },
+			{ id: 'untitled-pr', type: SessionArtifactType.PullRequest, label: '', link: 'https://github.com/microsoft/vscode/pull/3', isGitHub: true, isArtifact: true },
 			{ id: 'duplicate-pr', type: SessionArtifactType.PullRequest, label: 'Existing PR', link: 'https://github.com/microsoft/vscode/pull/1/', isGitHub: true, isArtifact: false },
 			{ id: 'created-issue', type: SessionArtifactType.Issue, label: 'Created Issue', link: 'https://github.com/microsoft/vscode/issues/3', isGitHub: true, isArtifact: true },
 			{ id: 'issue-reference', type: SessionArtifactType.Issue, label: 'Related Issue', link: 'https://github.com/microsoft/vscode/issues/4', isGitHub: true, isArtifact: false },
@@ -89,15 +196,20 @@ suite('AgentHostSessionInputPills', () => {
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitles: [...metadata.pullRequestTitles],
 			issueUrls: metadata.issueUrls,
+			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
 			pullRequestUrls: [
+				'https://github.com/microsoft/vscode/pull/3',
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
+			pullRequestTitles: [['https://github.com/microsoft/vscode/pull/2', 'Created PR']],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
+			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
 			artifactIds: ['website'],
 			// Newest first: `resource` was recorded after `issue-reference`.
 			referenceIds: ['resource', 'issue-reference'],
@@ -120,7 +232,9 @@ suite('AgentHostSessionInputPills', () => {
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitles: [...metadata.pullRequestTitles],
 			issueUrls: metadata.issueUrls,
+			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -128,12 +242,152 @@ suite('AgentHostSessionInputPills', () => {
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
+			pullRequestTitles: [
+				['https://github.com/microsoft/vscode/pull/2', 'New PR'],
+				['https://github.com/microsoft/vscode/pull/1', 'Old PR'],
+			],
 			issueUrls: [
 				'https://github.com/microsoft/vscode/issues/2',
 				'https://github.com/microsoft/vscode/issues/1',
 			],
+			issueTitles: [
+				['https://github.com/microsoft/vscode/issues/2', 'New Issue'],
+				['https://github.com/microsoft/vscode/issues/1', 'Old Issue'],
+			],
 			artifactIds: ['new-website', 'old-website'],
 			referenceIds: ['new-reference', 'old-reference'],
+		});
+	});
+
+	test('renders recorded GitHub titles in editor and panel pills', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
+		const firstPullRequestUrl = 'https://github.com/microsoft/vscode/pull/335387';
+		const secondPullRequestUrl = 'https://github.com/microsoft/vscode/pull/332982';
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: buildDefaultChatUri(backendSession),
+				chats: [],
+				_meta: withSessionArtifacts(undefined, [
+					{
+						id: 'issue',
+						type: SessionArtifactType.Issue,
+						label: 'Agent Window issue pill discards the recorded issue title',
+						link: issueUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+					{
+						id: 'first-pr',
+						type: SessionArtifactType.PullRequest,
+						label: 'sessions: preserve recorded issue titles in pills',
+						link: firstPullRequestUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+					{
+						id: 'second-pr',
+						type: SessionArtifactType.PullRequest,
+						label: 'Chat: unify Agent Host status pills across chat surfaces',
+						link: secondPullRequestUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+				]),
+			} as unknown as SessionState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		let dropdownLabels: readonly string[] = [];
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items) => {
+				dropdownLabels = items.map(item => item.label ?? '');
+			},
+			hide: () => { },
+			updateItems: () => { },
+			focusItemById: () => { },
+		}));
+		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+		] as const);
+		const openerService = new TestOpenerService();
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+		));
+
+		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
+		const [pullRequestButton, issueButton] = buttons;
+		pullRequestButton?.click();
+		issueButton?.click();
+		assert.deepStrictEqual({
+			pullRequests: {
+				label: pullRequestButton?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: pullRequestButton?.getAttribute('aria-label'),
+				dropdownLabels,
+			},
+			issue: {
+				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: issueButton?.getAttribute('aria-label'),
+				ariaDescription: issueButton?.getAttribute('aria-description'),
+			},
+			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
+		}, {
+			pullRequests: {
+				label: '2 Pull Requests',
+				ariaLabel: 'Show 2 pull requests',
+				dropdownLabels: [
+					'Pull Requests',
+					'Pull Request #332982: Chat: unify Agent Host status pills across chat surfaces',
+					'Pull Request #335387: sessions: preserve recorded issue titles in pills',
+				],
+			},
+			issue: {
+				label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
+				ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
+				ariaDescription: issueUrl,
+			},
+			opened: [{
+				resource: issueUrl,
+				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
+			}],
 		});
 	});
 
@@ -256,6 +510,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -355,6 +610,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const button = row?.querySelector('.chat-pill-button');
@@ -479,12 +735,12 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		const filterActions = createSessionPullRequestPillData(constObservable([]), visibility.pullRequests).getContextMenuActions();
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
-			accessor.get(IOpenerService),
 		] as const);
+		const openerService = new TestOpenerService();
 
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -497,6 +753,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -528,12 +785,14 @@ suite('AgentHostSessionInputPills', () => {
 			iconColor: singleIcon?.style.color,
 			hasChevron: singleButton?.querySelector('.chat-pill-chevron') !== null,
 		};
+		singleButton?.click();
 		await filterActions[1].run();
 
 		assert.deepStrictEqual({
 			multiple,
 			filteredLabel,
 			single,
+			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
 			filteredOnly: persistentContent.querySelector('.chat-dropdown-pill-button'),
 			canConfigure: persistentContent.querySelector('.chat-pills-row')?.classList.contains('empty'),
 		}, {
@@ -552,6 +811,10 @@ suite('AgentHostSessionInputPills', () => {
 				iconColor: 'var(--vscode-charts-purple)',
 				hasChevron: false,
 			},
+			opened: [{
+				resource: 'https://github.com/microsoft/vscode/pull/1',
+				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
+			}],
 			filteredOnly: null,
 			canConfigure: true,
 		});
@@ -628,6 +891,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 
 		assert.deepStrictEqual({
@@ -707,6 +971,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;

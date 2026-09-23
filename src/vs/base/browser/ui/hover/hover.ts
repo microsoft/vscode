@@ -436,6 +436,8 @@ export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManag
 
 export interface IManagedHoverTooltipHTMLElement {
 	element: (token: CancellationToken) => HTMLElement | Promise<HTMLElement>;
+	/** Whether the returned element owns spacing from the hover boundary. */
+	contentOwnsPadding?: boolean;
 }
 
 export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedHoverTooltipHTMLElement {
@@ -446,7 +448,7 @@ export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedH
 export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
-export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {
+export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'additionalClasses' | 'linkHandler' | 'trapFocus'> {
 	appearance?: Pick<IHoverAppearanceOptions, 'showHoverHint'>;
 	position?: Pick<IHoverPositionOptions, 'anchorAlignment'>;
 }

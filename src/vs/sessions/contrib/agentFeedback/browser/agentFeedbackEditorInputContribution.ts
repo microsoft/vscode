@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentFeedbackEditorInput.css';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -15,8 +18,10 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { addStandardDisposableListener, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { isIOS } from '../../../../base/common/platform.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
@@ -29,13 +34,18 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { FeedbackInputWidget } from './feedbackInputWidget.js';
+import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from './feedbackInputWidget.js';
+import { ICodeReviewService, IPRReviewCommentTarget } from '../../codeReview/browser/codeReviewService.js';
+import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
 const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
+export const AGENTS_WINDOW_PR_COMMENTS_SETTING = 'chat.experimental.agentsWindowPRComments';
 
 /**
  * The inline "Add Feedback" input shown in the editor when the user selects a
@@ -139,6 +149,22 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 		this._core.updateActionEnabled();
 	}
 
+	get isBusy(): boolean {
+		return this._core.isBusy;
+	}
+
+	setBusy(busy: boolean, statusLabel?: string): void {
+		this._core.setBusy(busy, statusLabel);
+	}
+
+	setActionLabels(primaryLabel: string, secondaryLabel: string): void {
+		this._core.setActionLabels(primaryLabel, secondaryLabel);
+	}
+
+	setAdditionalActions(actions: readonly IFeedbackInputWidgetAdditionalAction[]): void {
+		this._core.setAdditionalActions(actions);
+	}
+
 	private _computeContentWidth(): number {
 		// The widget sticks to the editor's content left edge, so the space it
 		// has available is the content area width (to the right of the line
@@ -161,6 +187,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _anchorPosition: Position | undefined;
 	private _preferBelow = true;
 	private _hoverLineNumber: number | undefined;
+	private _selectedPRCommentTarget: IPRReviewCommentTarget | undefined;
+	private _selectingCommentTarget = false;
 	private readonly _hoverDecorations: IEditorDecorationsCollection;
 	private readonly _hasAgentFeedbackSessionContext: IContextKey<boolean>;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
@@ -171,6 +199,10 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -204,7 +236,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				e.event.stopPropagation();
 				const lineNumber = e.target.position?.lineNumber;
 				if (lineNumber !== undefined) {
-					this._selectLine(lineNumber);
+					void this._selectLine(lineNumber, { x: e.event.posx, y: e.event.posy });
 				}
 				return;
 			}
@@ -227,7 +259,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			}
 			// Defer so focus has settled to the new target
 			getWindow(this._editor.getDomNode()!).setTimeout(() => {
-				if (!this._visible) {
+				if (this._store.isDisposed || !this._visible) {
 					return;
 				}
 				if (this._isWidgetTarget(getWindow(this._editor.getDomNode()!).document.activeElement)) {
@@ -262,8 +294,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _ensureWidget(): AgentFeedbackInputWidget {
 		if (!this._widget) {
 			this._widget = this._instantiationService.createInstance(AgentFeedbackInputWidget, this._editor);
-			this._store.add(this._widget.onDidTriggerAdd(() => this._addFeedback()));
-			this._store.add(this._widget.onDidTriggerAddAndSubmit(() => this._addFeedbackAndSubmit()));
+			this._store.add(this._widget.onDidTriggerAdd(() => void this._addFeedback()));
+			this._store.add(this._widget.onDidTriggerAddAndSubmit(() => void this._addFeedbackAndSubmit()));
 			this._editor.addOverlayWidget(this._widget);
 		}
 		return this._widget;
@@ -343,6 +375,9 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 
 	private _onSelectionChanged(): void {
+		if (this._selectingCommentTarget) {
+			return;
+		}
 		if (this._suppressSelectionChangeOnce) {
 			this._suppressSelectionChangeOnce = false;
 			return;
@@ -364,6 +399,9 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._autoHide();
 			return;
 		}
+		if (this._visible && this._pinnedRange?.equalsRange(selection)) {
+			return;
+		}
 
 		const model = this._editor.getModel();
 		if (!model) {
@@ -378,12 +416,25 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._sessionResource = sessionResource;
+		this._selectedPRCommentTarget = undefined;
 		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
 		const anchorPosition = preferBelow ? selection.getEndPosition() : selection.getStartPosition();
-		this._show(Range.lift(selection), anchorPosition, preferBelow);
+		this._show(
+			Range.lift(selection),
+			anchorPosition,
+			preferBelow,
+			false,
+			this._getPRCommentPullRequests(sessionResource, model.uri),
+		);
 	}
 
-	private _show(range: Range, anchorPosition: Position, preferBelow: boolean, focusInput = false): void {
+	private _show(
+		range: Range,
+		anchorPosition: Position,
+		preferBelow: boolean,
+		focusInput = false,
+		prCommentPullRequests: readonly IGitHubPullRequestRef[] = [],
+	): void {
 		const widget = this._ensureWidget();
 		this._clearHoverGlyph();
 
@@ -395,7 +446,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._pinnedRange = range;
 		this._anchorPosition = anchorPosition;
 		this._preferBelow = preferBelow;
-		widget.setPlaceholder(this._getPlaceholder());
+		widget.setPlaceholder(this._selectedPRCommentTarget
+			? localize('agentFeedback.addPRComment', "Add PR Comment")
+			: this._getPlaceholder());
+		widget.setActionLabels(
+			this._selectedPRCommentTarget ? localize('agentFeedback.addPRCommentAction', "Add PR Comment") : localize('agentFeedback.addAction', "Add"),
+			this._selectedPRCommentTarget ? localize('agentFeedback.addPRCommentAction', "Add PR Comment") : localize('agentFeedback.addAndSubmit', "Add and Submit"),
+		);
+		this._setInputPRCommentActions(widget, prCommentPullRequests);
 		widget.clearInput();
 		widget.show();
 		this._updatePosition();
@@ -420,6 +478,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._visible = false;
 		this._pinnedRange = undefined;
 		this._anchorPosition = undefined;
+		this._selectedPRCommentTarget = undefined;
 		this._widgetListeners.clear();
 
 		if (this._widget) {
@@ -433,46 +492,56 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		return !!this._widget && this._widget.inputElement.value.trim().length > 0;
 	}
 
+	private _getPRCommentPullRequests(sessionResource: URI, resource: URI): readonly IGitHubPullRequestRef[] {
+		if (this._configurationService.getValue<boolean>(AGENTS_WINDOW_PR_COMMENTS_SETTING) !== true) {
+			return [];
+		}
+		return this._codeReviewService.getPRReviewCommentPullRequests(sessionResource, resource);
+	}
+
+	private _setInputPRCommentActions(widget: AgentFeedbackInputWidget, pullRequests: readonly IGitHubPullRequestRef[]): void {
+		const actions = pullRequests.map(pullRequest => {
+			return {
+				id: `agentFeedback.input.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+				label: pullRequests.length === 1
+					? localize('agentFeedback.addPRCommentAction', "Add PR Comment")
+					: localize('agentFeedback.addPRCommentActionWithPR', "Add PR Comment ({0}/{1}#{2})", pullRequest.owner, pullRequest.repo, pullRequest.number),
+				run: async () => {
+					await this._addFeedback(pullRequest);
+				},
+			};
+		});
+		widget.setAdditionalActions(actions);
+	}
+
 	showAtCurrentLine(focusInput = true): void {
 		const position = this._editor.getPosition();
 		if (!position) {
 			return;
 		}
-		this._showAtLine(position.lineNumber, focusInput);
+		void this._selectLine(position.lineNumber, this._getLineAnchor(position.lineNumber), focusInput);
 	}
 
-	private _showAtLine(lineNumber: number, focusInput: boolean): void {
+	private _getLineAnchor(lineNumber: number): IAnchor {
+		const editorRect = this._editor.getDomNode()?.getBoundingClientRect();
+		const visiblePosition = this._editor.getScrolledVisiblePosition(new Position(lineNumber, 1));
+		if (!editorRect || !visiblePosition) {
+			return { x: 0, y: 0 };
+		}
+		return {
+			x: editorRect.left + this._editor.getLayoutInfo().contentLeft,
+			y: editorRect.top + visiblePosition.top + visiblePosition.height,
+		};
+	}
+
+	/** Choose the comment target before selecting the line and opening its input. */
+	private async _selectLine(lineNumber: number, anchor: IAnchor, focusInput = true): Promise<void> {
 		if (this._visible && this._hasInputText()) {
 			this.focusInput();
 			return;
 		}
-
-		const model = this._editor.getModel();
-		if (!model || lineNumber < 1 || lineNumber > model.getLineCount()) {
-			this._autoHide();
-			return;
-		}
-
-		const sessionResource = this._getSessionForModel();
-		if (!sessionResource) {
-			this._autoHide();
-			return;
-		}
-
-		this._sessionResource = sessionResource;
-		this._show(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), new Position(lineNumber, 1), true, focusInput);
-	}
-
-	/**
-	 * Select the whole line as a result of clicking the gutter glyph. Selecting
-	 * the line triggers the selection-change handler which opens the feedback
-	 * input automatically, so we don't open it directly here. Empty lines are
-	 * ignored as there is nothing to give feedback on.
-	 */
-	private _selectLine(lineNumber: number): void {
-		if (this._visible && this._hasInputText()) {
-			this.focusInput();
-			return;
+		if (this._visible) {
+			this._hide();
 		}
 
 		const model = this._editor.getModel();
@@ -484,17 +553,90 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		// Set the selection before focusing: the selection change while the
-		// editor is unfocused is ignored, then focusing re-evaluates the
-		// selection and opens the input for the freshly selected line.
-		this._editor.setSelection(new Selection(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
-		this._editor.focus();
+		const sessionResource = this._getSessionForModel();
+		if (!sessionResource) {
+			return;
+		}
 
-		// Focusing the editor synchronously opens the input via the
-		// selection-change handler, so move focus into it now that it is
-		// visible. This lets the user type feedback immediately after clicking
-		// the gutter glyph without having to click the input first.
-		this.focusInput();
+		this._selectingCommentTarget = true;
+		try {
+			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const pullRequests = this._getPRCommentPullRequests(sessionResource, model.uri);
+			const pullRequest = await this._pickCommentTarget(pullRequests, anchor);
+			if (pullRequest === undefined || !isEqual(this._editor.getModel()?.uri, model.uri)) {
+				return;
+			}
+
+			let target: IPRReviewCommentTarget | undefined;
+			if (pullRequest) {
+				target = await this._resolvePRCommentTarget(sessionResource, model, range, pullRequest);
+				if (!target) {
+					return;
+				}
+			}
+
+			this._selectedPRCommentTarget = target;
+			this._editor.setSelection(new Selection(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
+			this._editor.focus();
+			this._show(range, new Position(lineNumber, 1), true, focusInput);
+		} finally {
+			this._selectingCommentTarget = false;
+		}
+	}
+
+	private _pickCommentTarget(pullRequests: readonly IGitHubPullRequestRef[], anchor: IAnchor): Promise<IGitHubPullRequestRef | null | undefined> {
+		if (pullRequests.length === 0) {
+			return Promise.resolve(null);
+		}
+
+		return new Promise(resolve => {
+			const actions = [
+				toAction({
+					id: 'agentFeedback.commentTarget.agentFeedback',
+					label: localize('agentFeedback.commentTarget', "Agent Feedback"),
+					run: () => resolve(null),
+				}),
+				...pullRequests.map(pullRequest => toAction({
+					id: `agentFeedback.commentTarget.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+					label: pullRequests.length === 1
+						? localize('agentFeedback.prCommentTarget', "Pull Request Comment")
+						: localize('agentFeedback.prCommentTargetWithPR', "Pull Request ({0}/{1}#{2}) Comment", pullRequest.owner, pullRequest.repo, pullRequest.number),
+					run: () => resolve(pullRequest),
+				})),
+			];
+			this._contextMenuService.showContextMenu({
+				domForShadowRoot: this._editor.getOption(EditorOption.useShadowDOM) && !isIOS ? this._editor.getDomNode() ?? undefined : undefined,
+				useWindowContainerForShadowRoot: this._editor.getOption(EditorOption.useShadowDOM) && !isIOS && this._editor.getOption(EditorOption.fixedOverflowWidgets),
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				getMenuClassName: () => 'agent-feedback-comment-target-menu',
+				autoSelectFirstItem: true,
+				onHide: didCancel => {
+					if (didCancel) {
+						resolve(undefined);
+					}
+				},
+			});
+		});
+	}
+
+	private async _resolvePRCommentTarget(
+		sessionResource: URI,
+		model: ITextModel,
+		range: Range,
+		pullRequest: IGitHubPullRequestRef,
+	): Promise<IPRReviewCommentTarget | undefined> {
+		let target: IPRReviewCommentTarget | undefined;
+		try {
+			[target] = await this._codeReviewService.getPRReviewCommentTargets(sessionResource, model.uri, range, model.getValue(), pullRequest);
+		} catch (error) {
+			this._notificationService.error(localize('agentFeedback.loadPRCommentTargetsFailed', "Failed to load pull request comment targets: {0}", getErrorMessage(error)));
+			return undefined;
+		}
+		if (!target) {
+			this._notificationService.warn(localize('agentFeedback.prCommentUnavailableForLine', "A pull request comment cannot be added to this line."));
+		}
+		return target;
 	}
 
 	private _getSessionForModel(): URI | undefined {
@@ -600,14 +742,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			if (e.keyCode === KeyCode.Enter && e.altKey) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._addFeedbackAndSubmit();
+				void this._addFeedbackAndSubmit();
 				return;
 			}
 
 			if (e.keyCode === KeyCode.Enter) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._addFeedback();
+				void this._addFeedback();
 				return;
 			}
 		}));
@@ -628,7 +770,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'blur', () => {
 			const win = getWindow(widget.inputElement);
 			win.setTimeout(() => {
-				if (!this._visible) {
+				if (this._store.isDisposed || !this._visible) {
 					return;
 				}
 				if (this._editor.hasWidgetFocus()) {
@@ -651,12 +793,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._editor.focus();
 	}
 
-	private _addFeedback(): boolean {
-		if (!this._widget) {
+	private async _addFeedback(pullRequest?: IGitHubPullRequestRef): Promise<boolean> {
+		const widget = this._widget;
+		if (!widget || widget.isBusy) {
 			return false;
 		}
 
-		const text = this._widget.inputElement.value.trim();
+		const text = widget.inputElement.value.trim();
 		if (!text) {
 			return false;
 		}
@@ -667,12 +810,39 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
+		const addPRComment = this._selectedPRCommentTarget !== undefined || pullRequest !== undefined;
+		if (addPRComment) {
+			widget.setBusy(true, localize('agentFeedback.addingPRComment', "Adding pull request comment"));
+			try {
+				const target = this._selectedPRCommentTarget
+					?? (pullRequest ? await this._resolvePRCommentTarget(this._sessionResource, model, range, pullRequest) : undefined);
+				if (!target) {
+					return false;
+				}
+				await this._codeReviewService.createPRReviewComment(target, text);
+			} catch (error) {
+				this._notificationService.error(localize('agentFeedback.addPRCommentFailed', "Failed to add pull request comment: {0}", getErrorMessage(error)));
+				return false;
+			} finally {
+				if (!this._store.isDisposed) {
+					widget.setBusy(false);
+				}
+			}
+		} else {
+			this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
+		}
+		if (this._store.isDisposed) {
+			return false;
+		}
 		this._hideAndRefocusEditor();
 		return true;
 	}
 
-	private _addFeedbackAndSubmit(): void {
+	private async _addFeedbackAndSubmit(): Promise<void> {
+		if (this._selectedPRCommentTarget) {
+			await this._addFeedback();
+			return;
+		}
 		if (!this._widget) {
 			return;
 		}
@@ -769,6 +939,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 
 	override dispose(): void {
+		this._hide();
 		if (this._widget) {
 			this._editor.removeOverlayWidget(this._widget);
 			this._widget.dispose();

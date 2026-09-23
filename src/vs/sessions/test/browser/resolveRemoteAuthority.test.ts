@@ -141,7 +141,28 @@ suite('resolveRemoteAuthority', () => {
 		assert.strictEqual(result, 'tunnel+myTunnelId.usw2');
 	});
 
-	function assertDevContainerAuthority(hostPath: string): void {
+	test('returns a WSL authority and folder URI using the distribution, not the host label', () => {
+		const providersService = makeProvidersService('wsl:Ubuntu-24.04');
+		const remoteService = makeRemoteAgentHostService([{
+			name: 'My Linux Host',
+			connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu-24.04', distro: 'Ubuntu-24.04' },
+		}]);
+		const folderUri = resolveRemoteFolderUri(
+			URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'wsl__Ubuntu-24.04', path: '/home/test/project' }),
+			'agenthost-wsl',
+			providersService,
+			remoteService,
+		);
+		assert.deepStrictEqual({
+			authority: resolveRemoteAuthority('agenthost-wsl', providersService, remoteService),
+			folderUri: { scheme: folderUri.scheme, authority: folderUri.authority, path: folderUri.path },
+		}, {
+			authority: 'wsl+Ubuntu-24.04',
+			folderUri: { scheme: 'vscode-remote', authority: 'wsl+Ubuntu-24.04', path: '/home/test/project' },
+		});
+	});
+
+	function assertDevContainerAuthority(hostPath: string, hostAuthority?: string, expectedHostPath = hostPath, expectedHostAuthority = hostAuthority): void {
 		const address = 'devcontainer:container-id';
 		const providersService = makeProvidersService(address);
 		const remoteAgentHostService = makeRemoteAgentHostService([{
@@ -150,6 +171,7 @@ suite('resolveRemoteAuthority', () => {
 				type: RemoteAgentHostEntryType.DevContainer,
 				address,
 				hostPath,
+				hostAuthority,
 			},
 		}]);
 		const authority = resolveRemoteAuthority('agenthost-devcontainer', providersService, remoteAgentHostService);
@@ -162,18 +184,18 @@ suite('resolveRemoteAuthority', () => {
 
 		assert.deepStrictEqual({
 			authority,
-			decodedHostPath: authority ? decodeHex(authority.slice('dev-container+'.length)).toString() : undefined,
+			decodedHostPath: authority ? decodeHex(authority.slice('dev-container+'.length).split('@')[0]).toString() : undefined,
 			folderUri: {
 				scheme: folderUri.scheme,
 				authority: folderUri.authority,
 				path: folderUri.path,
 			},
 		}, {
-			authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}`,
-			decodedHostPath: hostPath,
+			authority: `dev-container+${encodeHex(VSBuffer.fromString(expectedHostPath))}${expectedHostAuthority ? `@${expectedHostAuthority}` : ''}`,
+			decodedHostPath: expectedHostPath,
 			folderUri: {
 				scheme: 'vscode-remote',
-				authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}`,
+				authority: `dev-container+${encodeHex(VSBuffer.fromString(expectedHostPath))}${expectedHostAuthority ? `@${expectedHostAuthority}` : ''}`,
 				path: '/workspaces/project',
 			},
 		});
@@ -189,6 +211,22 @@ suite('resolveRemoteAuthority', () => {
 
 	test('returns a Dev Containers authority for a Windows WSL UNC source folder', () => {
 		assertDevContainerAuthority('\\\\wsl.localhost\\Ubuntu\\home\\test\\project');
+	});
+
+	test('preserves the SSH parent authority when opening a remote Dev Container', () => {
+		assertDevContainerAuthority('/home/test/project', 'ssh-remote+server');
+	});
+
+	test('preserves the Tunnel parent authority when opening a remote Dev Container', () => {
+		assertDevContainerAuthority('/home/test/project', 'tunnel+server.region');
+	});
+
+	test('encodes a WSL source as a UNC path without a parent authority', () => {
+		assertDevContainerAuthority('/home/test/My Project', 'wsl+Ubuntu-24.04', '\\\\wsl.localhost\\Ubuntu-24.04\\home\\test\\My Project', '');
+	});
+
+	test('keeps mounted Windows folders scoped to their WSL distribution', () => {
+		assertDevContainerAuthority('/mnt/c/Users/test/project', 'wsl+Fedora', '\\\\wsl.localhost\\Fedora\\mnt\\c\\Users\\test\\project', '');
 	});
 
 	test('returns undefined for WebSocket connections', () => {

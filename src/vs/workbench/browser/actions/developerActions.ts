@@ -1007,19 +1007,22 @@ class PolicyDiagnosticsAction extends Action2 {
 			summary.effectiveManagedSettings = `${effectiveKeyCount} ${effectiveKeyCount === 1 ? 'key' : 'keys'}`;
 			summary.managedSettingsIssues = `${parseErrors.length} ${parseErrors.length === 1 ? 'issue' : 'issues'}`;
 
+			const resolutions = [...pick.resolutions.entries()].filter(([key]) => key !== 'telemetry').sort(([first], [second]) => first.localeCompare(second));
+			const suppressedTelemetry = [...pick.suppressedTelemetry.entries()].filter(([key]) => key !== 'telemetry').sort(([first], [second]) => first.localeCompare(second));
+			const telemetrySource = [...pick.resolutions.entries()].find(([key]) => key === 'telemetry' || key.startsWith('telemetry.'))?.[1].source;
 			content += markdownTable(
 				['Property', 'Value'],
 				[
 					['Active sources (precedence order)', activeSources],
-					['Supplied keys', String(pick.resolutions.size)],
+					['Supplied keys', String(resolutions.length + suppressedTelemetry.length)],
+					[localize('telemetryBlockSource', "Selected telemetry block"), managedSettingsSourceShortLabel(telemetrySource ?? 'none')],
 					['Effective VS Code policy keys', String(effectiveKeyCount)]
 				]
 			);
-			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one. For sandbox.enabled, any managed true wins regardless of channel precedence, matching the runtime sandbox floor.*\n\n';
+			content += `*${localize('managedSettingsPrecedence', "Precedence is native MDM, then server, then file. Most settings resolve per key, filling gaps from lower channels. Telemetry selects one whole block: omitted leaves never inherit from weaker blocks. Empty or unknown-only server/file objects still select a block; native MDM exposes only declared flat keys. The internal telemetry presence marker is not a policy setting. For sandbox.enabled, any managed true wins regardless of channel precedence, matching the runtime sandbox floor.")}*\n\n`;
 
 			content += '### Effective Resolution\n\n';
-			if (pick.resolutions.size > 0) {
-				const resolutions = [...pick.resolutions.entries()].sort(([first], [second]) => first.localeCompare(second));
+			if (resolutions.length > 0) {
 				content += markdownTable(
 					['Key', 'Effective Value', 'Winning Source'],
 					resolutions.map(([key, resolution]) => [
@@ -1040,7 +1043,20 @@ class PolicyDiagnosticsAction extends Action2 {
 					markdownTable(['Key', 'Source', 'Value', 'Status'], contributionRows)
 				);
 			} else {
-				content += '*No managed-settings keys are supplied by any channel.*\n\n';
+				content += `*${localize('noSelectedManagedSettingsKeys', "The selected sources supply no managed-settings leaves.")}*\n\n`;
+			}
+			if (suppressedTelemetry.length > 0) {
+				content += markdownDetails(
+					localize('excludedTelemetryContributions', "Telemetry contributions excluded by the selected block"),
+					markdownTable(
+						['Key', 'Source', 'Status'],
+						suppressedTelemetry.flatMap(([key, contributions]) => contributions.map(contribution => [
+							key,
+							managedSettingsSourceShortLabel(contribution.channel),
+							localize('excludedTelemetryStatus', "Excluded by higher-priority telemetry block (value omitted)"),
+						]))
+					)
+				);
 			}
 			content += markdownDetails('Merged normalized bag', markdownJsonBlock(pick.values));
 			content += markdownDetails('Effective VS Code policy bag', markdownJsonBlock(effective));

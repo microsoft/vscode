@@ -1047,6 +1047,9 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				? result.actions.map(action => ({ channel: action.channel, type: action.action.type }))
 				: result.type, [
 				{ channel: sessionUri, type: ActionType.SessionTitleChanged },
+				// Renaming a single-chat session also retitles its default chat, so the
+				// session channel carries the resulting chat update too.
+				{ channel: sessionUri, type: ActionType.SessionChatUpdated },
 				{ channel: chatUri, type: ActionType.ChatDraftChanged },
 			]);
 		} finally {

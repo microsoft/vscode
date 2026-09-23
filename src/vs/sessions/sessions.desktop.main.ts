@@ -19,8 +19,11 @@ import './sessions.common.main.js';
 
 //#region --- workbench (sessions desktop main)
 
+import { registerOpenAgentsWindowCommand } from './contrib/openAgentsWindow/electron-browser/openAgentsWindowCommand.js';
 import './electron-browser/sessions.main.js';
 import '../workbench/electron-browser/desktop.contribution.js';
+
+registerOpenAgentsWindowCommand();
 
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
@@ -99,7 +102,6 @@ import '../workbench/services/browserView/electron-browser/playwrightWorkbenchSe
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
 import '../workbench/services/localTranscription/electron-browser/localTranscriptionService.js';
-import './contrib/automations/electron-browser/automationStorageService.js';
 
 import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -225,6 +227,7 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 //#region --- sessions contributions
 
 import './electron-browser/sessions.desktop.contribution.js';
+import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';

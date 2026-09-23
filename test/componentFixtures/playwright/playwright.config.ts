@@ -11,6 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
 	testDir: './tests',
+	fullyParallel: true,
 	timeout: 30_000,
 	retries: 0,
 	use: {

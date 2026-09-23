@@ -9,7 +9,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
-import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,22 +17,23 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
-import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { parseGitHubPullRequestUrl } from '../../github/common/utils.js';
+import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
 
@@ -63,9 +64,16 @@ export interface ISessionArtifactActions {
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
 	copy(text: string): void;
+	/**
+	 * Deletes the session's record of an artifact or reference by its stable id.
+	 * Never mutates or deletes the underlying file, resource, PR, issue or other
+	 * external target — only the session's own bookkeeping entry.
+	 */
+	remove?(id: string, label: string): Promise<void>;
 }
 
 export interface ISessionArtifactImage {
+	readonly artifact: ISessionArtifact;
 	readonly uri: URI;
 	readonly mimeType: string;
 }
@@ -139,16 +147,26 @@ function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string
 	return !!key && browserKeys.has(key);
 }
 
-function isShownInGitHub(artifact: ISessionArtifact, surfacedLinks: ReadonlySet<string>): boolean {
-	if (artifact.isGitHub !== true || !artifact.link || surfacedLinks.size === 0) {
-		return false;
+/**
+ * Attaches a remove action to an entry, when the surface supports it. Applies
+ * equally to durable artifacts and mere references — both are removable by
+ * their stable id, since removal only ever deletes the session's own record,
+ * never the underlying file, resource, PR, issue or other external target.
+ */
+function withRemoveAction(artifact: ISessionArtifact, entry: IChatPillEntry, actions: ISessionArtifactActions): IChatPillEntry {
+	const remove = actions.remove;
+	if (!remove) {
+		return entry;
 	}
-	const link = artifact.link.toString(true);
-	// URI serialization lowercases hosts, but PR promotion only accepts the canonical host spelling.
-	const isGitHubLink = artifact.kind === SessionArtifactKind.PullRequest
-		? artifact.link.authority === 'github.com' && !!parseGitHubPullRequestUrl(link)
-		: artifact.kind === SessionArtifactKind.Issue && !!parseGitHubIssueUrl(link);
-	return isGitHubLink && surfacedLinks.has(linkKey(link));
+	return {
+		...entry,
+		promotedAction: toAction({
+			id: `sessions.artifacts.remove.${artifact.id}`,
+			label: localize('sessionArtifacts.removeArtifact', "Remove {0} from Session", artifact.label),
+			class: ThemeIcon.asClassName(Codicon.close),
+			run: () => remove(artifact.id, artifact.label),
+		}),
+	};
 }
 
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>): IChatPillEntry | undefined {
@@ -158,7 +176,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		}
 		const uri = artifact.uri;
 		const label = basename(uri);
-		return { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label), open: () => actions.openResource(uri) };
+		return withRemoveAction(artifact, { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label), open: () => actions.openResource(uri) }, actions);
 	}
 
 	const icon = artifactIcons.get(artifact.kind) ?? Codicon.archive;
@@ -175,7 +193,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				run: () => actions.copy(artifact.commitHash!),
 			})]
 			: [];
-		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) };
+		return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) }, actions);
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
@@ -183,7 +201,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			return undefined;
 		}
 		const uri = artifact.uri;
-		return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label), open: () => actions.openResource(uri) };
+		return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label), open: () => actions.openResource(uri) }, actions);
 	}
 
 	if (!artifact.link) {
@@ -201,7 +219,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			run: () => actions.copy(link.toString(true)),
 		})]
 		: [];
-	return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) };
+	return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) }, actions);
 }
 
 /**
@@ -229,14 +247,14 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		}
 		const imageMimeType = artifact.uri ? getImageMimeType(artifact.uri) : undefined;
 		if (artifact.kind === SessionArtifactKind.File && artifact.uri && imageMimeType) {
-			if (!seen.has(artifactValueKey(artifact))) {
+			if (!artifact.isArtifact || !seen.has(artifactValueKey(artifact))) {
 				seen.add(artifactValueKey(artifact));
-				images.push({ uri: artifact.uri, mimeType: imageMimeType });
+				images.push({ artifact, uri: artifact.uri, mimeType: imageMimeType });
 			}
 			continue;
 		}
 		const entry = toEntry(artifact, actions, labelService);
-		if (!entry || seen.has(artifactValueKey(artifact))) {
+		if (!entry || (artifact.isArtifact && seen.has(artifactValueKey(artifact)))) {
 			continue;
 		}
 		seen.add(artifactValueKey(artifact));
@@ -250,10 +268,10 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		if (kind === SessionArtifactKind.File && images.length) {
 			sections.push({
 				title: localize('sessionArtifacts.images', "Images"),
-				entries: images.map(({ uri }, index) => {
+				entries: images.map(({ artifact, uri }, index) => {
 					const label = basename(uri);
-					return {
-						id: uri.toString(),
+					return withRemoveAction(artifact, {
+						id: artifact.id,
 						label,
 						resource: uri,
 						...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
@@ -263,7 +281,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 								open: () => actions.openImages(images, index),
 							}
 							: { open: () => actions.openResource(uri) }),
-					};
+					}, actions);
 				}),
 			});
 		}
@@ -287,11 +305,14 @@ export class SessionArtifacts extends Disposable {
 		session: IObservable<IActiveSession | undefined>,
 		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
+		private readonly _gitHubReferences: IObservable<ISessionGitHubReferences>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -306,14 +327,14 @@ export class SessionArtifacts extends Disposable {
 				return [];
 			}
 			locationFormatting.read(reader);
-			const gitHubInfo = current.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			const surfacedLinks = new Set([
-				...getGitHubPullRequestRefs(gitHubInfo),
-				...(gitHubInfo?.issues ?? []),
-			].map(ref => linkKey(ref.uri.toString())));
+			const gitHubReferences = this._gitHubReferences.read(reader);
+			const surfacedIds = new Set([
+				...gitHubReferences.pullRequests,
+				...gitHubReferences.issues,
+			].map(ref => ref.recordedReferenceId));
 			return buildSessionArtifactSections(
-				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !isShownInGitHub(artifact, surfacedLinks)),
-				this._actions(),
+				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !surfacedIds.has(artifact.id)),
+				this._actions(current, reader),
 				this._labelService,
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
@@ -324,7 +345,7 @@ export class SessionArtifacts extends Disposable {
 		this.referenceSections = sectionsFor(false);
 	}
 
-	private _actions(): ISessionArtifactActions {
+	private _actions(session: IActiveSession, reader: IReader): ISessionArtifactActions {
 		return {
 			// Contributed openers make a link behave the same here as in the response
 			// markdown it came from, so a localhost page lands in the integrated
@@ -354,6 +375,16 @@ export class SessionArtifacts extends Disposable {
 				void this._commandService.executeCommand(OPEN_IMAGE_CAROUSEL_COMMAND_ID, { collection, startIndex });
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
+			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {
+				remove: async (id: string, label: string) => {
+					try {
+						await this._sessionsManagementService.removeSessionArtifact(session, id);
+						status(localize('sessionArtifacts.artifactRemoved', "{0} removed from session.", label));
+					} catch (error) {
+						this._notificationService.error(localize('sessionArtifacts.removeArtifactFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
+					}
+				},
+			} : {}),
 		};
 	}
 }

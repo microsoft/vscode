@@ -20,6 +20,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -215,6 +216,7 @@ suite('Agent Host service registrations', () => {
 			IAgentHostClientConnectionService,
 			IByokLmBridgeRegistry,
 			IAgentHostGitService,
+			IAgentHostOTelService,
 		]));
 	});
 

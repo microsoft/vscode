@@ -6,8 +6,9 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
-- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the setting-gated default-model guidance for subagents (`chat.copilot.subagentModelGuidance.enabled`).
+- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -78,6 +79,8 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 ```
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
+
+This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/`o3`/`o4` families, and the `openai` family alias; it has no setting. GPT and `openai` matching follows Copilot Chat's `isOpenAIModel` family conventions, case-insensitively. Agent Host has a model ID rather than endpoint-provider metadata; a custom model ID can use the existing `family` override to route through a known OpenAI family. The experiment is isolated to the branch and tracked in [microsoft/vscode-internalbacklog#9579](https://github.com/microsoft/vscode-internalbacklog/issues/9579). It discourages automatic post-edit rereads and full-diff reviews, but preserves targeted reads for failed checks, ambiguous tool output, or correctness uncertainty, required validation, and explicitly requested broader reviews. It does not change delegation or non-OpenAI models. Guidance is resolved on session create/resume; existing in-flight sessions keep their launch-time prompt.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 

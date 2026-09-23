@@ -342,10 +342,17 @@ export class SessionRemoteConnection extends Disposable {
 				&& attempt.statusBefore.reason === SessionRemoteConnectionFailureReason.HostNotRunning);
 		// Include externally started connects; reconnecting keeps its delayed countdown banner.
 		if (progressMessage || autoConnectPending || status?.kind === 'connecting') {
+			const showConnectionLog = provider && isAgentHostProvider(provider) ? provider.showConnectionLog : undefined;
 			return {
 				title: labels.connectingTitle,
 				description: labels.connectingDescription,
 				progress: progressMessage ?? labels.connecting,
+				detail: showConnectionLog
+					? {
+						label: localize('sessionRemoteHost.showLog', "Show Log"),
+						run: () => showConnectionLog().catch(onUnexpectedError),
+					}
+					: undefined,
 				autoConnect: startedFromStoppedHost ? autoConnect : undefined,
 			};
 		}

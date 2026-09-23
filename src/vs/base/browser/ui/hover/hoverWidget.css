@@ -137,9 +137,13 @@
 	text-overflow: ellipsis;
 }
 
+.monaco-hover .hover-row.status-bar .actions .action-container .action {
+	display: inline-flex;
+	align-items: center;
+}
+
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
-	vertical-align: middle;
 	font-size: inherit;
 }
 

@@ -14,12 +14,13 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ToggleTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ChatQuotaResumeState, ChatStatusBarEntry, computeQuotaResumeState } from '../../browser/chatStatus/chatStatusEntry.js';
 import { IChatStatusItemService } from '../../browser/chatStatus/chatStatusItemService.js';
 import { UpdateTitleBarChatInProgressContext, UpdateTitleBarContext, UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
+import { CHAT_SETUP_ACTION_ID } from '../../browser/actions/chatActions.js';
 
 type Quotas = IChatEntitlementService['quotas'];
 
@@ -181,6 +182,19 @@ suite('ChatStatusBarEntry', () => {
 	function flushTimers(): Promise<void> {
 		return new Promise<void>(resolve => setTimeout(resolve, 0));
 	}
+
+	test('toggles the dashboard while preserving the sign-in command', () => {
+		const signedIn = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: available } });
+		const signedOut = createEntry({ entitlement: ChatEntitlement.Unknown });
+
+		assert.deepStrictEqual({
+			signedIn: signedIn.statusbar.current?.command,
+			signedOut: signedOut.statusbar.current?.command,
+		}, {
+			signedIn: ToggleTooltipCommand,
+			signedOut: CHAT_SETUP_ACTION_ID,
+		});
+	});
 
 	test('renders the blocked quota state and persists it', () => {
 		const { statusbar, storageService } = createEntry({ entitlement: ChatEntitlement.Free, quotas: { premiumChat: exhausted } });

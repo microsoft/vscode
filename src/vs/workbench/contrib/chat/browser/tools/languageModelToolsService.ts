@@ -29,7 +29,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent, LanguageModelToolTelemetryClassification, LanguageModelToolTelemetryData } from '../../../../../platform/telemetry/common/languageModelToolTelemetry.js';
+import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent, LanguageModelToolTelemetryData } from '../../../../../platform/telemetry/common/languageModelToolTelemetry.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -835,7 +835,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			confirmationNotNeededReason = allowedConfirmationNotNeededReasons.has(raw) ? raw : 'other';
 		}
 		const terminalData = dto.toolSpecificData?.kind === 'terminal' ? dto.toolSpecificData : undefined;
-		this._telemetryService.publicLog2<ToolApprovalEvent, ToolApprovalClassification>(
+		this._telemetryService.publicLog2<ToolApprovalEvent, LanguageModelToolApprovalClassification>(
 			'chat.toolApproval',
 			{
 				confirmKind: confirmKindNames[reason.type],
@@ -1935,17 +1935,4 @@ type ToolApprovalEvent = LanguageModelToolTelemetryData & {
 	confirmationNotNeededReason: string | undefined;
 	sandboxWrapped: boolean | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
-};
-
-type ToolApprovalClassification = LanguageModelToolTelemetryClassification & {
-	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, lmServicePerTool, confirmationNotNeeded, denied, skipped). Anything other than userAction implies auto-approval. "denied" and "skipped" mean the tool did not run; otherwise it ran (note: a custom Deny button click resolves as userAction since the tool still runs and the chosen label is passed to it; see customButtonKind to distinguish).' };
-	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request turn that this tool approval is associated with, if available.' };
-	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
-	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
-	customButtonKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the user clicked a custom button on the confirmation widget, whether the button represents approve or deny semantics. Undefined when no custom button was clicked.' };
-	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation. Limited to a known allowlist (e.g. auto-approve-all, inlineChat); set to "other" for any other reason; undefined when no reason was supplied.' };
-	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox. Undefined for non-terminal tools.' };
-	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation. Undefined for non-terminal tools.' };
-	owner: 'chrmarti';
-	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval).';
 };

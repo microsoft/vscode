@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
@@ -33,6 +33,10 @@ export function resolveRemoteAuthority(
 		return undefined;
 	}
 
+	return resolveRemoteAgentHostEntryAuthority(entry);
+}
+
+export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntry): string | undefined {
 	switch (entry.connection.type) {
 		case RemoteAgentHostEntryType.SSH:
 			if (entry.connection.sshConfigHost) {
@@ -41,8 +45,17 @@ export function resolveRemoteAuthority(
 			return `ssh-remote+${sshAuthorityString(entry.connection)}`;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `tunnel+${entry.connection.label ?? `${entry.connection.tunnelId}.${entry.connection.clusterId}`}`;
-		case RemoteAgentHostEntryType.DevContainer:
-			return `dev-container+${encodeHex(VSBuffer.fromString(entry.connection.hostPath))}`;
+		case RemoteAgentHostEntryType.WSL:
+			return `wsl+${entry.connection.distro}`;
+		case RemoteAgentHostEntryType.DevContainer: {
+			let { hostPath, hostAuthority } = entry.connection;
+			if (hostAuthority?.startsWith('wsl+')) {
+				// Dev Containers identifies WSL through a UNC host path, not an @wsl parent authority.
+				hostPath = `\\\\wsl.localhost\\${hostAuthority.slice('wsl+'.length)}${hostPath.replace(/\//g, '\\')}`;
+				hostAuthority = undefined;
+			}
+			return `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}${hostAuthority ? `@${hostAuthority}` : ''}`;
+		}
 		default:
 			return undefined;
 	}

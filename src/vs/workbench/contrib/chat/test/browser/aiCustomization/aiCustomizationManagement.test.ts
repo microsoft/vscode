@@ -38,6 +38,10 @@ suite('aiCustomizationManagement', () => {
 				getSessionResourceForHarness,
 			),
 			resolveAICustomizationManagementOpenEditorTarget(undefined, undefined, fallbackSessionResource, getSessionResourceForHarness),
+			resolveAICustomizationManagementOpenEditorTarget({
+				sessionResource: titleSessionResource,
+				migration: true,
+			}, 'agent-host-claude', fallbackSessionResource, getSessionResourceForHarness),
 		].map(result => ({
 			section: result.section,
 			revealUri: result.revealUri?.toString(),
@@ -51,6 +55,7 @@ suite('aiCustomizationManagement', () => {
 			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session', migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles },
 			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session', migration: undefined, migrationCategory: undefined },
 			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session', migration: undefined, migrationCategory: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', migration: true, migrationCategory: undefined },
 		]);
 	});
 });

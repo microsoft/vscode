@@ -1,0 +1,642 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-working-logo {
+	display: inline-block;
+	position: relative;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	flex-shrink: 0;
+	vertical-align: middle;
+	pointer-events: none;
+	contain: layout style;
+	perspective: 160px;
+}
+
+.chat-working-logo.chat-working-logo-compact {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-working-logo > .chat-working-logo-face {
+	position: absolute;
+	inset: 0;
+	transform: none;
+	opacity: 1;
+}
+
+.chat-working-logo-face > svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+.chat-working-logo-active > .chat-working-logo-face {
+	animation-duration: inherit;
+	animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1);
+	animation-iteration-count: infinite;
+	will-change: transform, opacity;
+}
+
+.chat-working-logo-fold.chat-working-logo-active {
+	> .chat-working-logo-ascending {
+		transform-origin: 78% 15%;
+		animation-name: chat-logo-fold-ascending;
+	}
+
+	> .chat-working-logo-descending {
+		transform-origin: 78% 85%;
+		animation-name: chat-logo-fold-descending;
+	}
+
+	> .chat-working-logo-spine {
+		transform-origin: 85% 50%;
+		animation-name: chat-logo-fold-spine;
+	}
+}
+
+@keyframes chat-logo-fold-ascending {
+	0%, 50%, 86%, 100% { transform: rotateY(0deg) rotateZ(0deg); }
+	66% { transform: rotateY(-52deg) rotateZ(-6deg); }
+	77% { transform: rotateY(4deg) rotateZ(1deg); }
+}
+
+@keyframes chat-logo-fold-descending {
+	0%, 54%, 90%, 100% { transform: rotateY(0deg) rotateZ(0deg); }
+	70% { transform: rotateY(52deg) rotateZ(6deg); }
+	81% { transform: rotateY(-4deg) rotateZ(-1deg); }
+}
+
+@keyframes chat-logo-fold-spine {
+	0%, 55%, 88%, 100% { transform: scaleX(1); }
+	70% { transform: scaleX(0.9); }
+}
+
+.chat-working-logo-weave.chat-working-logo-active {
+	> .chat-working-logo-face { animation-timing-function: ease-in-out; }
+	> .chat-working-logo-ascending { animation-name: chat-logo-weave-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-weave-descending; }
+	> .chat-working-logo-spine {
+		animation-name: chat-logo-weave-spine;
+	}
+}
+
+@keyframes chat-logo-weave-ascending {
+	0%, 80%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+	17.5%, 57.5% { transform: translate(-12%, 9%) rotate(-8deg); opacity: 0.75; }
+}
+
+@keyframes chat-logo-weave-descending {
+	0%, 17.5%, 80%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+	35%, 57.5% { transform: translate(-12%, -9%) rotate(8deg); opacity: 0.75; }
+}
+
+@keyframes chat-logo-weave-spine {
+	0%, 35%, 80%, 100% { transform: translateX(0); }
+	52.5%, 57.5% { transform: translateX(12%); }
+}
+
+.chat-working-logo-weave-v.chat-working-logo-active {
+	> .chat-working-logo-face { animation-timing-function: ease-in-out; }
+	> .chat-working-logo-ascending { animation-name: chat-logo-weave-v-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-weave-v-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-weave-spine; }
+}
+
+@keyframes chat-logo-weave-v-ascending {
+	0%, 80%, 100% { transform: translate(0, 0) scaleX(1); opacity: 1; }
+	17.5%, 57.5% { transform: translate(20%, 16%) scaleX(0.5); opacity: 0.75; }
+}
+
+@keyframes chat-logo-weave-v-descending {
+	0%, 17.5%, 80%, 100% { transform: translate(0, 0) scaleX(1); opacity: 1; }
+	35%, 57.5% { transform: translate(-16%, -8%) scaleX(0.5); opacity: 0.75; }
+}
+
+.chat-working-logo-draw.chat-working-logo-active {
+	> .chat-working-logo-face {
+		animation-timing-function: linear;
+		will-change: clip-path;
+	}
+	> .chat-working-logo-descending { animation-name: chat-logo-draw-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-draw-spine; }
+	> .chat-working-logo-ascending { animation-name: chat-logo-draw-ascending; }
+}
+
+@keyframes chat-logo-draw-descending {
+	0% { clip-path: inset(0 100% 0 0); }
+	13.333333%, 60% { clip-path: inset(0); }
+	73.333333%, 100% { clip-path: inset(0 0 0 100%); }
+}
+
+@keyframes chat-logo-draw-spine {
+	0%, 13.333333% { clip-path: inset(100% 0 0 0); }
+	26.666667%, 73.333333% { clip-path: inset(0); }
+	86.666667%, 100% { clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes chat-logo-draw-ascending {
+	0%, 26.666667% { clip-path: inset(0 0 0 100%); }
+	40%, 86.666667% { clip-path: inset(0); }
+	100% { clip-path: inset(0 100% 0 0); }
+}
+
+.chat-working-logo-relay.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-relay-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-relay-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-relay-spine; }
+}
+
+@keyframes chat-logo-relay-ascending {
+	0%, 10%, 30%, 100% { transform: translate(0, 0); opacity: 1; }
+	20% { transform: translate(-7%, 5%); opacity: 0.68; }
+}
+
+@keyframes chat-logo-relay-descending {
+	0%, 33%, 53%, 100% { transform: translate(0, 0); opacity: 1; }
+	43% { transform: translate(-7%, -5%); opacity: 0.68; }
+}
+
+@keyframes chat-logo-relay-spine {
+	0%, 56%, 76%, 100% { transform: translateX(0); opacity: 1; }
+	66% { transform: translateX(7%); opacity: 0.68; }
+}
+
+.chat-working-logo-stack.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-stack-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-stack-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-stack-spine; }
+}
+
+@keyframes chat-logo-stack-ascending {
+	0%, 46%, 89%, 100% { transform: translate(0, 0) scaleX(1) rotate(0deg); }
+	63%, 68% { transform: translate(-6%, -12%) scaleX(0.75) rotate(39deg); }
+}
+
+@keyframes chat-logo-stack-descending {
+	0%, 50%, 93%, 100% { transform: translate(0, 0) scaleX(1) rotate(0deg); }
+	67%, 72% { transform: translate(-6%, 12%) scaleX(0.75) rotate(-39deg); }
+}
+
+@keyframes chat-logo-stack-spine {
+	0%, 48%, 91%, 100% { transform: translateY(0) rotate(0deg) scaleY(1); }
+	65%, 70% { transform: translateY(-34%) rotate(90deg) scaleY(0.7); }
+}
+
+.chat-working-logo-orbit.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-orbit-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-orbit-descending; }
+	> .chat-working-logo-spine {
+		animation-name: chat-logo-orbit-spine;
+	}
+}
+
+@keyframes chat-logo-orbit-ascending {
+	0%, 44%, 90%, 100% { transform: translate(0, 0) rotate(0deg); }
+	60% { transform: translate(-12%, -9%) rotate(-18deg); }
+	72% { transform: translate(-3%, -11%) rotate(-4deg); }
+}
+
+@keyframes chat-logo-orbit-descending {
+	0%, 44%, 90%, 100% { transform: translate(0, 0) rotate(0deg); }
+	60% { transform: translate(-8%, 12%) rotate(18deg); }
+	72% { transform: translate(-4%, 4%) rotate(4deg); }
+}
+
+@keyframes chat-logo-orbit-spine {
+	0%, 44%, 90%, 100% { transform: translate(0, 0) rotate(0deg); }
+	60% { transform: translate(10%, 3%) rotate(6deg); }
+	72% { transform: translate(4%, 10%) rotate(-8deg); }
+}
+
+.chat-working-logo-shutter.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-shutter-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-shutter-descending; }
+	> .chat-working-logo-spine {
+		animation-name: chat-logo-shutter-spine;
+	}
+}
+
+@keyframes chat-logo-shutter-ascending {
+	0%, 42%, 96%, 100% { transform: rotateX(0deg) scaleX(1); opacity: 1; }
+	59% { transform: rotateX(65deg) scaleX(0.34); opacity: 0.6; }
+	76%, 83% { transform: rotateX(0deg) scaleX(0.34); opacity: 1; }
+}
+
+@keyframes chat-logo-shutter-descending {
+	0%, 49%, 96%, 100% { transform: rotateX(0deg) scaleX(1); opacity: 1; }
+	66% { transform: rotateX(-65deg) scaleX(0.34); opacity: 0.6; }
+	83% { transform: rotateX(0deg) scaleX(0.34); opacity: 1; }
+}
+
+@keyframes chat-logo-shutter-spine {
+	0%, 56%, 90%, 100% { transform: rotateY(0deg); }
+	73% { transform: rotateY(65deg); }
+}
+
+.chat-working-logo-aperture.chat-working-logo-active {
+	> .chat-working-logo-face { transform-origin: 90% 50%; }
+	> .chat-working-logo-ascending { animation-name: chat-logo-aperture-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-aperture-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-aperture-spine; }
+}
+
+@keyframes chat-logo-aperture-ascending {
+	0%, 18%, 80%, 100% { transform: translateX(0) rotateY(0deg); opacity: 1; }
+	32%, 48% { transform: translateX(-4%) rotateY(72deg); opacity: 0.65; }
+}
+
+@keyframes chat-logo-aperture-descending {
+	0%, 24%, 86%, 100% { transform: translateX(0) rotateY(0deg); opacity: 1; }
+	38%, 54% { transform: translateX(-4%) rotateY(72deg); opacity: 0.65; }
+}
+
+@keyframes chat-logo-aperture-spine {
+	0%, 26%, 82%, 100% { transform: translateX(0) scaleX(1); }
+	40%, 56% { transform: translateX(10%) scaleX(0.76); }
+}
+
+.chat-working-logo-accordion.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-accordion-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-accordion-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-accordion-spine; }
+}
+
+@keyframes chat-logo-accordion-ascending {
+	0%, 18%, 78%, 100% { transform: translateY(0) scaleY(1); opacity: 1; }
+	32%, 50% { transform: translateY(-5%) scaleY(0.3); opacity: 0.85; }
+}
+
+@keyframes chat-logo-accordion-descending {
+	0%, 24%, 78%, 100% { transform: translateY(0) scaleY(1); opacity: 1; }
+	38%, 50% { transform: translateY(5%) scaleY(0.3); opacity: 0.85; }
+}
+
+@keyframes chat-logo-accordion-spine {
+	0%, 30%, 78%, 100% { transform: translateX(0) scaleY(1); }
+	44%, 50% { transform: translateX(8%) scaleY(0.55); }
+}
+
+.chat-working-logo-dial.chat-working-logo-active > .chat-working-logo-face {
+	animation-name: chat-logo-dial;
+	animation-timing-function: ease-in-out;
+}
+
+@keyframes chat-logo-dial {
+	0%, 16% { transform: rotate(0deg); }
+	28%, 32% { transform: rotate(120deg); }
+	44%, 48% { transform: rotate(240deg); }
+	60%, 100% { transform: rotate(360deg); }
+}
+
+.chat-working-logo-magnet.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-magnet-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-magnet-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-magnet-spine; }
+}
+
+@keyframes chat-logo-magnet-ascending {
+	0%, 18%, 66%, 100% { transform: translate(0, 0) rotate(0deg); }
+	32%, 52% { transform: translate(-24%, -12%) rotate(-10deg); }
+}
+
+@keyframes chat-logo-magnet-descending {
+	0%, 22%, 66%, 100% { transform: translate(0, 0) rotate(0deg); }
+	36%, 52% { transform: translate(-24%, 12%) rotate(10deg); }
+}
+
+@keyframes chat-logo-magnet-spine {
+	0%, 26%, 66%, 100% { transform: translateX(0); }
+	40%, 52% { transform: translateX(24%); }
+}
+
+.chat-working-logo-trace.chat-working-logo-active {
+	> .chat-working-logo-face { transform-origin: 100% 50%; }
+	> .chat-working-logo-ascending { animation-name: chat-logo-trace-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-trace-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-trace-spine; }
+}
+
+@keyframes chat-logo-trace-ascending {
+	0%, 18%, 38%, 100% { transform: scaleX(1); opacity: 1; }
+	26% { transform: scaleX(0.08); opacity: 0.25; }
+}
+
+@keyframes chat-logo-trace-descending {
+	0%, 18%, 52%, 100% { transform: scaleX(1); opacity: 1; }
+	26%, 40% { transform: scaleX(0.08); opacity: 0.25; }
+}
+
+@keyframes chat-logo-trace-spine {
+	0%, 52%, 76%, 100% { transform: translateX(0) scaleX(1); }
+	60%, 64% { transform: translateX(8%) scaleX(0.85); }
+}
+
+.chat-working-logo-pendulum.chat-working-logo-active > .chat-working-logo-face {
+	animation-name: chat-logo-pendulum;
+	animation-timing-function: ease-in-out;
+}
+
+@keyframes chat-logo-pendulum {
+	0%, 18%, 78%, 100% { transform: translateX(0) rotate(0deg); }
+	34% { transform: translateX(-6%) rotate(-14deg); }
+	54% { transform: translateX(6%) rotate(12deg); }
+}
+
+.chat-working-logo-prism.chat-working-logo-active > .chat-working-logo-face {
+	animation-name: chat-logo-prism;
+	animation-timing-function: ease-in-out;
+}
+
+@keyframes chat-logo-prism {
+	0%, 18%, 78%, 100% { transform: rotateY(0deg) rotateX(0deg); }
+	34% { transform: rotateY(38deg) rotateX(-10deg); }
+	54% { transform: rotateY(-24deg) rotateX(8deg); }
+}
+
+.chat-working-logo-ladder.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-ladder-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-ladder-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-ladder-spine; }
+}
+
+@keyframes chat-logo-ladder-ascending {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+	30%, 72% { transform: translate(-10%, 0) scale(0.6) rotate(0deg); }
+	46%, 56% { transform: translate(-10%, -18%) scale(0.6) rotate(39deg); }
+}
+
+@keyframes chat-logo-ladder-descending {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+	30%, 72% { transform: translate(-10%, 0) scale(0.6) rotate(0deg); }
+	46%, 56% { transform: translate(-10%, 2%) scale(0.6) rotate(-39deg); }
+}
+
+@keyframes chat-logo-ladder-spine {
+	0%, 30%, 72%, 100% { transform: translate(0, 0) rotate(0deg) scaleY(1); }
+	46%, 56% { transform: translate(0, 20%) rotate(90deg) scaleY(0.78); }
+}
+
+.chat-working-logo-carousel.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-carousel-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-carousel-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-carousel-spine; }
+}
+
+@keyframes chat-logo-carousel-ascending {
+	0%, 18% { transform: translate(0, 0) scale(1) rotate(0deg); }
+	30% { transform: translate(-10%, 0) scale(0.62) rotate(0deg); }
+	46% { transform: translate(-12%, 26%) scale(0.62) rotate(180deg); }
+	62% { transform: translate(-10%, 0) scale(0.62) rotate(360deg); }
+	76%, 100% { transform: translate(0, 0) scale(1) rotate(360deg); }
+}
+
+@keyframes chat-logo-carousel-descending {
+	0%, 18% { transform: translate(0, 0) scale(1) rotate(0deg); }
+	30% { transform: translate(-10%, 0) scale(0.62) rotate(0deg); }
+	46% { transform: translate(-12%, -26%) scale(0.62) rotate(-180deg); }
+	62% { transform: translate(-10%, 0) scale(0.62) rotate(-360deg); }
+	76%, 100% { transform: translate(0, 0) scale(1) rotate(-360deg); }
+}
+
+@keyframes chat-logo-carousel-spine {
+	0%, 18%, 76%, 100% { transform: translate(0, 0); }
+	30%, 62% { transform: translate(18%, 0); }
+	46% { transform: translate(18%, 10%); }
+}
+
+.chat-working-logo-piston.chat-working-logo-active {
+	> .chat-working-logo-ascending {
+		transform-origin: 0% 50%;
+		animation-name: chat-logo-piston-ascending;
+	}
+	> .chat-working-logo-descending {
+		transform-origin: 0% 50%;
+		animation-name: chat-logo-piston-descending;
+	}
+	> .chat-working-logo-spine { animation-name: chat-logo-piston-spine; }
+}
+
+@keyframes chat-logo-piston-ascending {
+	0%, 18%, 84%, 100% { transform: translate(0, 0) scaleX(1); }
+	30% { transform: translate(0, -6%) scaleX(0.58); }
+	42% { transform: translate(-4%, -10%) scaleX(0.58); }
+	54% { transform: translate(0, 6%) scaleX(0.58); }
+	68% { transform: translate(0, 0) scaleX(0.58); }
+}
+
+@keyframes chat-logo-piston-descending {
+	0%, 18%, 84%, 100% { transform: translate(0, 0) scaleX(1); }
+	30% { transform: translate(0, 6%) scaleX(0.58); }
+	42% { transform: translate(-4%, 10%) scaleX(0.58); }
+	54% { transform: translate(0, -6%) scaleX(0.58); }
+	68% { transform: translate(0, 0) scaleX(0.58); }
+}
+
+@keyframes chat-logo-piston-spine {
+	0%, 30%, 68%, 100% { transform: translateX(0); }
+	42% { transform: translateX(-26%); }
+	54% { transform: translateX(12%); }
+}
+
+.chat-working-logo-bridge.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-bridge-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-bridge-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-bridge-spine; }
+}
+
+@keyframes chat-logo-bridge-ascending {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scale(1); }
+	30%, 72% { transform: translate(-10%, 0) scale(0.5); }
+	46%, 56% { transform: translate(-18%, 0) scale(0.5); }
+}
+
+@keyframes chat-logo-bridge-descending {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scale(1); }
+	30%, 72% { transform: translate(-10%, 0) scale(0.5); }
+	46%, 56% { transform: translate(22%, -14%) scale(0.5); }
+}
+
+@keyframes chat-logo-bridge-spine {
+	0%, 30%, 72%, 100% { transform: translate(0, 0) rotate(0deg) scaleY(1); }
+	46%, 56% { transform: translate(8%, -18%) rotate(90deg) scaleY(0.78); }
+}
+
+.chat-working-logo-fan.chat-working-logo-active {
+	> .chat-working-logo-ascending {
+		transform-origin: 90% 50%;
+		animation-name: chat-logo-fan-ascending;
+	}
+	> .chat-working-logo-descending {
+		transform-origin: 90% 50%;
+		animation-name: chat-logo-fan-descending;
+	}
+	> .chat-working-logo-spine { animation-name: chat-logo-fan-spine; }
+}
+
+@keyframes chat-logo-fan-ascending {
+	0%, 18%, 84%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+	32%, 52% { transform: translate(-14%, -8%) rotate(-24deg) scale(0.78); }
+}
+
+@keyframes chat-logo-fan-descending {
+	0%, 24%, 84%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+	38%, 52% { transform: translate(-14%, 8%) rotate(24deg) scale(0.78); }
+}
+
+@keyframes chat-logo-fan-spine {
+	0%, 30%, 84%, 100% { transform: translateX(0) scaleY(1); }
+	44%, 52% { transform: translateX(16%) scaleY(1.08); }
+}
+
+.chat-working-logo-comb.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-comb-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-comb-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-comb-spine; }
+}
+
+@keyframes chat-logo-comb-ascending {
+	0%, 18%, 86%, 100% { transform: translateX(0) scale(1) rotate(0deg); }
+	30%, 72% { transform: translateX(-10%) scale(0.5) rotate(0deg); }
+	46%, 56% { transform: translateX(-28%) scale(0.5) rotate(126deg); }
+}
+
+@keyframes chat-logo-comb-descending {
+	0%, 18%, 86%, 100% { transform: translateX(0) scale(1) rotate(0deg); }
+	30%, 72% { transform: translateX(-10%) scale(0.5) rotate(0deg); }
+	46%, 56% { transform: translateX(-2%) scale(0.5) rotate(54deg); }
+}
+
+@keyframes chat-logo-comb-spine {
+	0%, 30%, 72%, 100% { transform: translateX(0) scaleY(1); }
+	46%, 56% { transform: translateX(-6%) scaleY(0.68); }
+}
+
+.chat-working-logo-braid.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-braid-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-braid-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-braid-spine; }
+}
+
+@keyframes chat-logo-braid-ascending {
+	0%, 18%, 86%, 100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+	30%, 72% { transform: translate3d(-10%, 0, 0) scale(0.62) rotate(0deg); }
+	44% { transform: translate3d(-10%, -22%, 10px) scale(0.62) rotate(-12deg); }
+	58% { transform: translate3d(-10%, 22%, -10px) scale(0.62) rotate(12deg); }
+}
+
+@keyframes chat-logo-braid-descending {
+	0%, 18%, 86%, 100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+	30%, 72% { transform: translate3d(-10%, 0, 0) scale(0.62) rotate(0deg); }
+	44% { transform: translate3d(-10%, 22%, -10px) scale(0.62) rotate(12deg); }
+	58% { transform: translate3d(-10%, -22%, 10px) scale(0.62) rotate(-12deg); }
+}
+
+@keyframes chat-logo-braid-spine {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scaleY(1); }
+	30%, 72% { transform: translate(14%, 0) scaleY(0.86); }
+	44% { transform: translate(18%, -10%) scaleY(0.86); }
+	58% { transform: translate(10%, 10%) scaleY(0.86); }
+}
+
+.chat-working-logo-sling.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-sling-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-sling-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-sling-spine; }
+}
+
+@keyframes chat-logo-sling-ascending {
+	0%, 18%, 90%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+	30%, 78% { transform: translate(-12%, 0) scale(0.62) rotate(0deg); }
+	40% { transform: translate(-20%, -20%) scale(0.62) rotate(-38deg); }
+	54% { transform: translate(-30%, 14%) scale(0.62) rotate(-82deg); }
+	68% { transform: translate(-8%, 24%) scale(0.62) rotate(-30deg); }
+}
+
+@keyframes chat-logo-sling-descending {
+	0%, 18%, 90%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+	30%, 78% { transform: translate(-12%, 0) scale(0.62) rotate(0deg); }
+	40% { transform: translate(-20%, 20%) scale(0.62) rotate(38deg); }
+	54% { transform: translate(-8%, -24%) scale(0.62) rotate(82deg); }
+	68% { transform: translate(-28%, -4%) scale(0.62) rotate(30deg); }
+}
+
+@keyframes chat-logo-sling-spine {
+	0%, 18%, 90%, 100% { transform: translate(0, 0); }
+	30%, 78% { transform: translate(12%, 0); }
+	40% { transform: translate(14%, 12%); }
+	54% { transform: translate(20%, -12%); }
+	68% { transform: translate(8%, -8%); }
+}
+
+.chat-working-logo-folio.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-folio-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-folio-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-folio-spine; }
+}
+
+@keyframes chat-logo-folio-ascending {
+	0%, 18%, 88%, 100% { transform: scaleX(1) rotateX(0deg); }
+	30%, 78% { transform: scaleX(0.55) rotateX(0deg); }
+	42%, 64% { transform: scaleX(0.55) rotateX(78deg); }
+}
+
+@keyframes chat-logo-folio-descending {
+	0%, 18%, 88%, 100% { transform: scaleX(1) rotateX(0deg); }
+	30%, 78% { transform: scaleX(0.55) rotateX(0deg); }
+	52%, 64% { transform: scaleX(0.55) rotateX(-78deg); }
+}
+
+@keyframes chat-logo-folio-spine {
+	0%, 30%, 78%, 100% { transform: translateX(0) rotateX(0deg); }
+	62%, 64% { transform: translateX(12%) rotateX(78deg); }
+}
+
+.chat-working-logo-helix.chat-working-logo-active {
+	> .chat-working-logo-ascending { animation-name: chat-logo-helix-ascending; }
+	> .chat-working-logo-descending { animation-name: chat-logo-helix-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-helix-spine; }
+}
+
+@keyframes chat-logo-helix-ascending {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scale(1) rotateY(0deg); }
+	30%, 72% { transform: translate(-10%, 0) scale(0.6) rotateY(0deg); }
+	44% { transform: translate(-10%, -20%) scale(0.6) rotateY(65deg); }
+	58% { transform: translate(-10%, 20%) scale(0.6) rotateY(-65deg); }
+}
+
+@keyframes chat-logo-helix-descending {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scale(1) rotateY(0deg); }
+	30%, 72% { transform: translate(-10%, 0) scale(0.6) rotateY(0deg); }
+	44% { transform: translate(-10%, 20%) scale(0.6) rotateY(-65deg); }
+	58% { transform: translate(-10%, -20%) scale(0.6) rotateY(65deg); }
+}
+
+@keyframes chat-logo-helix-spine {
+	0%, 18%, 86%, 100% { transform: translate(0, 0) scaleY(1); }
+	30%, 72% { transform: translate(12%, 0) scaleY(0.7); }
+	44% { transform: translate(12%, -10%) scaleY(0.85); }
+	58% { transform: translate(18%, 10%) scaleY(0.7); }
+}
+
+.chat-working-logo.chat-working-logo-static > .chat-working-logo-face,
+.monaco-reduce-motion .chat-working-logo.chat-working-logo-active > .chat-working-logo-face {
+	animation: none;
+	transform: none;
+	clip-path: none;
+	opacity: 1;
+	will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-working-logo.chat-working-logo-active:not(.monaco-enable-motion *) > .chat-working-logo-face {
+		animation: none;
+		transform: none;
+		clip-path: none;
+		opacity: 1;
+		will-change: auto;
+	}
+}

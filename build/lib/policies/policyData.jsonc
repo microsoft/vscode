@@ -217,7 +217,7 @@
                 }
             },
             "type": "boolean",
-            "default": false,
+            "default": true,
             "included": true
         },
         {
@@ -251,6 +251,24 @@
             "included": true,
             "referencedSettings": [
                 "github.copilot.chat.otel.captureContent"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.captureIdentity",
+            "name": "CopilotOtelCaptureIdentity",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.140",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.captureIdentity.policy",
+                    "value": "Controls whether Copilot OpenTelemetry captures the authenticated account name, operating system username, and machine hostname. Independent of content capture."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.captureIdentity"
             ]
         },
         {

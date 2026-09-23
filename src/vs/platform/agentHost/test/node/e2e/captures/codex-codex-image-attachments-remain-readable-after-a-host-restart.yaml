@@ -1,0 +1,37 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: An image is attached. Reply exactly "IMAGE_READY".
+            - type: text
+              text: '<image name=[Image #1] path="${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/test-image.png">'
+            - type: text
+              text: </image>
+    response:
+      content: IMAGE_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: An image is attached. Reply exactly "IMAGE_READY".
+            - type: text
+              text: '<image name=[Image #1] path="${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/test-image.png">'
+            - type: text
+              text: </image>
+        - role: assistant
+          content: IMAGE_READY
+        - role: user
+          content: Reply exactly "FOLLOWUP_DONE".
+    response:
+      content: FOLLOWUP_DONE
+      stopReason: end_turn

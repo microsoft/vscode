@@ -8,6 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { deepClone } from '../../../../base/common/objects.js';
+import { AutoTierSourceConfigKey } from '../../../../platform/agentHost/common/autoModeTiers.js';
 import { extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { createModelConfigurationActions, ILanguageModelsService, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -34,8 +35,11 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		const defaults = extractSchemaDefaults(metadata?.configurationSchema);
 		let preferences = this.preferences.get(modelId);
 		if (!preferences) {
-			const globalConfiguration = this.languageModelsService.getModelConfiguration(modelId);
-			preferences = resolveModelConfiguration(undefined, defaults, globalConfiguration);
+			const auto = metadata?.id === 'auto' && !!metadata.configurationSchema?.properties?.tier;
+			const globalConfiguration = this.languageModelsService.getModelConfiguration(modelId, !auto);
+			preferences = auto
+				? { ...globalConfiguration, [AutoTierSourceConfigKey]: globalConfiguration?.tier !== undefined ? 'preference' : 'default' }
+				: resolveModelConfiguration(undefined, defaults, globalConfiguration);
 			if (metadata?.configurationSchema || Object.keys(preferences).length > 0) {
 				this.preferences.set(modelId, deepClone(preferences));
 			}
@@ -43,6 +47,9 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		const effective = metadata
 			? resolveModelConfiguration(filterConfigurationToSchema(preferences, metadata.configurationSchema), defaults, undefined)
 			: { ...preferences };
+		if (metadata?.id === 'auto' && metadata.configurationSchema?.properties?.tier) {
+			effective[AutoTierSourceConfigKey] = preferences[AutoTierSourceConfigKey] ?? (preferences.tier !== undefined ? 'explicit' : 'default');
+		}
 		return Object.keys(effective).length > 0 ? effective : undefined;
 	}
 
@@ -51,7 +58,11 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 			throw new Error('Automation model configuration must contain only JSON primitive values.');
 		}
 		this.getModelConfiguration(modelId);
-		this.preferences.set(modelId, deepClone({ ...this.preferences.get(modelId), ...values }));
+		this.preferences.set(modelId, deepClone({
+			...this.preferences.get(modelId), ...values,
+			...(Object.hasOwn(values, 'tier') && this.languageModelsService.lookupLanguageModel(modelId)?.id === 'auto'
+				? { [AutoTierSourceConfigKey]: 'explicit' } : {}),
+		}));
 		this._onDidChange.fire(modelId);
 		// Only an explicit picker change updates the defaults shared with ordinary New Session.
 		await this.languageModelsService.setModelConfiguration(modelId, values);
@@ -78,7 +89,7 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 	}
 
 	getModelConfigurationForRequest(modelId: string | undefined): IAutomationSessionTemplate['modelConfiguration'] {
-		const effective = modelId && this.preferences.has(modelId)
+		const effective = modelId && (this.preferences.has(modelId) || this.languageModelsService.lookupLanguageModel(modelId)?.id === 'auto')
 			? this.getModelConfiguration(modelId) ?? {}
 			: undefined;
 		if (effective !== undefined && !isAutomationModelConfiguration(effective)) {

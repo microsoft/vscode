@@ -114,6 +114,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 
 		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmation.set(true);
+		this.primaryAction = () => confirmWidget.runPrimaryAction();
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();

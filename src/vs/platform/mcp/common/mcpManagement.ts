@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IIterativePager } from '../../../base/common/paging.js';
+import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -105,6 +106,23 @@ export interface SseTransport {
 
 export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
 
+export type RemoteTransport = (StreamableHttpTransport | SseTransport) & {
+	readonly variables?: Record<string, IMcpServerInput>;
+};
+
+/** Rewrites declared placeholders to fixed values or VS Code inputs without reinterpreting replacement text. */
+export function replaceMcpServerVariableReferences(value: string, variables: Readonly<Record<string, IMcpServerInput>> = {}): string {
+	const variableIds = Object.keys(variables);
+	if (!variableIds.length) {
+		return value;
+	}
+	const references = new RegExp(variableIds.map(id => escapeRegExpCharacters(`{${id}}`)).join('|'), 'g');
+	return value.replace(references, reference => {
+		const variableId = reference.slice(1, -1);
+		return variables[variableId].value ?? `\${input:${variableId}}`;
+	});
+}
+
 export interface IMcpServerPackage {
 	readonly registryType: RegistryType;
 	readonly identifier: string;
@@ -120,7 +138,7 @@ export interface IMcpServerPackage {
 
 export interface IGalleryMcpServerConfiguration {
 	readonly packages?: readonly IMcpServerPackage[];
-	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
+	readonly remotes?: readonly RemoteTransport[];
 }
 
 export const enum GalleryMcpServerStatus {
@@ -265,12 +283,15 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
+	/** Checks a server definition before resolution, deferring rules for variable-dependent URL/command fields. */
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 
+	/** Checks a definition identity before resolution; access and name restrictions are never deferred. */
+	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString;
+
 	/**
-	 * Checks whether an MCP server identified by name / remote URL / local command is permitted by
-	 * the `chat.mcp.allowedServers` allowlist (in addition to the `chat.mcp.access` gate). Used by
-	 * the runtime enforcement path, which does not have a gallery/local/installable representation.
+	 * Checks access and allow/deny rules against a resolved runtime identity without deferring URL rules.
+	 * Runtime callers must use this after resolving a server definition.
 	 */
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }

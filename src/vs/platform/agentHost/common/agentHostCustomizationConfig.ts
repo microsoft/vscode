@@ -28,8 +28,6 @@ export const enum AgentHostConfigKey {
 	 * feature is dark (today's always-proxy behavior).
 	 */
 	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
-	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
-	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
 	/**
 	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
 	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
@@ -41,10 +39,6 @@ export const enum AgentHostConfigKey {
 	 */
 	GithubEnterpriseUri = 'githubEnterpriseUri',
 }
-
-export const SESSION_CUSTOMIZATION_DISCOVERY_MODES = ['scan', 'discover'] as const;
-export type SessionCustomizationDiscoveryMode = typeof SESSION_CUSTOMIZATION_DISCOVERY_MODES[number];
-export const DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE: SessionCustomizationDiscoveryMode = 'discover';
 
 /**
  * Persisted on-disk shape for a host-configured plugin. Kept stable across
@@ -95,13 +89,6 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
 		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
 		default: false,
-	}),
-	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
-		type: 'string',
-		enum: [...SESSION_CUSTOMIZATION_DISCOVERY_MODES],
-		title: localize('agentHost.config.sessionCustomizationDiscoveryMode.title', "Session Customization Discovery Mode"),
-		description: localize('agentHost.config.sessionCustomizationDiscoveryMode.description', "Controls whether session-scoped customizations are populated from local file scanning or from Copilot SDK discovery."),
-		default: DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE,
 	}),
 	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
 		type: 'string',

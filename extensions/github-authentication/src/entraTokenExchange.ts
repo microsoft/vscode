@@ -59,8 +59,8 @@ export class EntraTokenExchangeError extends Error {
  */
 export interface IEntraExchangedToken {
 	readonly token: string;
-	/** How long the token lasts, in seconds, exactly as GitHub reported it. */
-	readonly expiresIn: number;
+	/** How many milliseconds pass before the token expires. */
+	readonly expiresAfter: number;
 	/** The GitHub account the Microsoft identity mapped onto. */
 	readonly account: IGitHubUserInfo;
 }
@@ -95,8 +95,8 @@ export interface IEntraRenewal {
 /** A GitHub token minted to replace one a session no longer has. */
 export interface IEntraRenewedToken {
 	readonly token: string;
-	/** How long the token lasts, in seconds, exactly as GitHub reported it. */
-	readonly expiresIn: number;
+	/** How many milliseconds pass before the token expires. */
+	readonly expiresAfter: number;
 	/**
 	 * The GitHub account the token belongs to, checked rather than assumed. A renewal that resolved
 	 * a different account than the one asked for is refused, so this is always that account.
@@ -144,7 +144,7 @@ interface IExchangeEndpoint {
 /** What one exchange came back with, before anyone decides what to do with it. */
 interface IExchangedToken {
 	readonly token: string;
-	readonly expiresIn: number;
+	readonly expiresAfter: number;
 	/** The scopes GitHub said it granted, when it said anything at all. */
 	readonly grantedScopes: string[] | undefined;
 }
@@ -216,7 +216,7 @@ export class EntraTokenExchange {
 			const verified = await this.verifyAccount(granted.token, account.id);
 			await this.linkAccounts(microsoft.account.label, verified);
 
-			return { token: granted.token, expiresIn: granted.expiresIn, account: verified };
+			return { token: granted.token, expiresAfter: granted.expiresAfter, account: verified };
 		}
 	}
 
@@ -248,7 +248,7 @@ export class EntraTokenExchange {
 		const account = await this.verifyAccount(renewed.token, gitHubAccountId);
 		return {
 			token: renewed.token,
-			expiresIn: renewed.expiresIn,
+			expiresAfter: renewed.expiresAfter,
 			account,
 			// A caller that named its scopes gets those back, so the session it builds is labelled
 			// with what it asked for and is findable by the same lookup that asked for it. Only a
@@ -474,7 +474,7 @@ export class EntraTokenExchange {
 
 		return {
 			token: access_token,
-			expiresIn: expires_in,
+			expiresAfter: expires_in * 1000,
 			grantedScopes
 		};
 	}

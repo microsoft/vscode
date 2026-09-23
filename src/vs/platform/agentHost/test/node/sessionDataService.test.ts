@@ -81,6 +81,26 @@ suite('SessionDataService', () => {
 		await service.deleteSessionData(session);
 	});
 
+	test('tryOpenDatabase returns undefined only for a missing database and propagates stat errors', async () => {
+		const session = AgentSession.uri('copilot', 'probe-test');
+		assert.strictEqual(await service.tryOpenDatabase(session), undefined);
+
+		const failingScheme = 'failing-session-data';
+		const failingFileService = disposables.add(new FileService(new NullLogService()));
+		class FailingStatProvider extends InMemoryFileSystemProvider {
+			override async stat(resource: URI) {
+				if (resource.path.endsWith('/session.db')) {
+					throw new Error('stat failed');
+				}
+				return super.stat(resource);
+			}
+		}
+		disposables.add(failingFileService.registerProvider(failingScheme, disposables.add(new FailingStatProvider())));
+		const failingService = new SessionDataService(URI.from({ scheme: failingScheme, path: '/userData' }), failingFileService, new NullLogService());
+
+		await assert.rejects(failingService.tryOpenDatabase(session), /stat failed/);
+	});
+
 	test('cleanupOrphanedData deletes orphans but keeps known sessions', async () => {
 		const baseDir = URI.joinPath(basePath, 'agentSessionData');
 		await fileService.createFolder(URI.joinPath(baseDir, 'keep-1'));
@@ -186,5 +206,41 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		assert.notStrictEqual(ref2.object, db1);
 
 		await ref2.object.close();
+	});
+
+	test('storageAccessCounts counts real opens and existence probes, not reference acquisitions', async () => {
+		const session = AgentSession.uri('copilot', 'access-counts');
+		const other = AgentSession.uri('copilot', 'access-counts-other');
+		const baseline = service.storageAccessCounts;
+
+		const ref1 = service.openDatabase(session);
+		// A second reference to the same session is served from the live
+		// collection, so it must not count as another open.
+		const ref2 = service.openDatabase(session);
+		const afterSharedRefs = service.storageAccessCounts;
+
+		// A missing database still costs an existence probe.
+		const missing = await service.tryOpenDatabase(other);
+		const afterMissingProbe = service.storageAccessCounts;
+
+		ref1.dispose();
+		ref2.dispose();
+		await ref1.object.close();
+
+		assert.deepStrictEqual({
+			baseline,
+			opensAfterSharedRefs: afterSharedRefs.opens - baseline.opens,
+			statsAfterSharedRefs: afterSharedRefs.stats - baseline.stats,
+			missingProbeResolved: missing,
+			opensAfterMissingProbe: afterMissingProbe.opens - afterSharedRefs.opens,
+			statsAfterMissingProbe: afterMissingProbe.stats - afterSharedRefs.stats,
+		}, {
+			baseline: { opens: 0, stats: 0 },
+			opensAfterSharedRefs: 1,
+			statsAfterSharedRefs: 0,
+			missingProbeResolved: undefined,
+			opensAfterMissingProbe: 0,
+			statsAfterMissingProbe: 1,
+		});
 	});
 });

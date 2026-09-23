@@ -11,10 +11,12 @@
 // to reach an agent host over one transport; it does not define a new kind of agent host.
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
+import { SessionStatus } from './state/sessionState.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -117,6 +119,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly repoName?: string;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
+	/** Last reported activity; this does not establish environment availability or session flags. */
+	readonly status?: SessionStatus;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */
@@ -226,14 +230,15 @@ export interface ICloudSandboxConnectionRequest {
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
 
-/**
- * Client for the Mission Control APIs a cloud sandbox session depends on: connection credentials,
- * the environment and task records, and the persisted history. Every call is served by Mission
- * Control rather than the sandbox, which is what keeps {@link getSessionHistory} readable after the
- * environment is gone.
- */
+/** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
+
+	/** Account identity after authentication changes, or undefined when signed out. */
+	readonly onDidChangeAccount: Event<string | undefined>;
+
+	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
+	getAccountKey(): Promise<string | undefined>;
 
 	/**
 	 * Mint a fresh client Web PubSub connection token for a new logical connection. May resolve to a
@@ -254,8 +259,8 @@ export interface ICloudSandboxApiService {
 	 */
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 
-	/** Enumerate the caller's sandbox-backed cloud sessions, enough to seed session entries. */
-	listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult>;
+	/** Enumerate sandbox sessions, optionally returning changes since the last successful scan. */
+	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;
 
 	/**
 	 * Provision a new sandbox task and its bound session. Mission Control starts no run, so the
@@ -270,16 +275,14 @@ export interface ICloudSandboxApiService {
 	getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined>;
 }
 
-/**
- * Outcome of a discovery pass. Only a `complete` result describes the full set of sandbox sessions,
- * so only it may be reconciled against — a `partial` result is missing entries that still exist, and
- * treating it as authoritative would tear down live sessions.
- */
+/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
 export type ICloudSandboxDiscoveryResult =
 	/** Every task was scanned and resolved; absent sessions really are gone. */
 	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
-	/** Some tasks could not be resolved. Seed what was found, but do not remove anything. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** Changes only; sessions absent from this result must be retained. */
+	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
+	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
+	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 

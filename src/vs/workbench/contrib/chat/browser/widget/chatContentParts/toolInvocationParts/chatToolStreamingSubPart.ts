@@ -90,7 +90,8 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 				true,
 				this.getProgressIcon(),
 				toolInvocation,
-				shimmer
+				shimmer,
+				undefined,
 			));
 
 			dom.reset(container, part.domNode);

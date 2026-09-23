@@ -6,6 +6,17 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 - [`../AI_CUSTOMIZATIONS.md`](../AI_CUSTOMIZATIONS.md)
 
+## LOCAL EXPERIMENT OVERRIDES
+
+Production behavior reads the `sessions.list.rearrage` treatment directly from the assignment service. For local testing only, use the assignment service's standard developer override in the user `settings.json`:
+
+- Treatment: `"experiments.override.sessions.list.rearrage": true`
+- Control: `"experiments.override.sessions.list.rearrage": false`
+
+The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
+
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+
 ## SCENARIOS
 
 ### Scenario 1: Empty state — no session, no customizations
@@ -205,3 +216,44 @@ This tests the transition from the empty state to having an active workspace sel
 - Hook events are derived from `COPILOT_CLI_HOOK_TYPE_MAP` — adding new events to the schema auto-includes them in the skeleton
 - Only `"bash"` is used (not `"command"`) to match the Copilot CLI schema
 - The `"version": 1` field is required by the CLI for format detection
+
+---
+
+### Scenario 6: Unified migration checklist
+
+#### Preconditions
+
+- An active agent-host session with one workspace folder
+- Prompt, user-data, and MCP migration settings enabled
+- Migratable prompts in both profile and workspace, profile agents/instructions, and a supported workspace MCP server
+
+#### Actions and expected results
+
+1. Open **Migrations**. There is one sidebar entry, not separate entries for individual migration types.
+2. Check the profile and workspace groups. Prompts to skills appears first with a high-risk label; User Data and MCP Servers appear only where eligible candidates exist.
+3. Select **Review** for profile prompts, then workspace prompts. Each opens the existing prompt migration page with only the selected location's files. User Data and MCP Servers likewise reuse their existing pages.
+4. Cancel or return without migrating. No files change and all candidates remain on the checklist.
+5. Skip the workspace. Its rows are hidden and its items are excluded from the sidebar count, but **Include Workspace** remains reachable. Including it restores the rows without changing files.
+6. Change profile destinations. The picker offers only profile file destinations; workspace destinations stay unchanged. MCP destinations remain fixed at the workspace root `.mcp.json`.
+7. Complete a migration, then return to Migrations. Expand its activity entry and verify the source and actual destination paths. Only successful writes appear, including when another item fails.
+8. Close and reopen the editor and restart VS Code. Activity remains local to the profile and initiating workspace. Switching workspaces does not show another workspace's activity.
+9. Dismiss an activity entry. Its record disappears; migrated files remain untouched.
+10. Navigate with Tab and Shift+Tab, expand activity with Enter or Space, and open Accessibility Help and Accessible View. Focus returns to the invoking control on dismissal.
+11. Verify dark, light, high-contrast, and narrow layouts. No Chat Participants, agent verification, issue creation, or optional multi-root controls are present.
+
+### Scenario 7: New-chat migration notice
+
+#### Preconditions
+
+- The migration settings and candidates from Scenario 6
+- The new-chat view with an agent-host session type selected
+
+#### Actions and expected results
+
+1. Select a workspace with pending migrations. A muted, compact banner below the composer summarizes the workspace and profile candidates from the migration overview. Its faint border, subtle background, and secondary text leave the chat input as the primary visual focus.
+2. Show and dismiss the notice. The input and its controls remain in exactly the same centered position, including at narrow widths.
+3. Activate **Review Migrations** with the keyboard. The customizations modal opens directly to **Migrations** for the selected workspace, even if an older chat was previously focused.
+4. Dismiss the notice, restart, and return to that workspace. It stays dismissed. Select another workspace with candidates; its notice remains available.
+5. Complete all migrations, then return to new chat. The notice disappears. Profile-only migrations also show in a workspace without local candidates or in a workspace-less quick chat.
+6. Disable the migration settings or AI features. No notice appears and disabled migration categories are not scanned for the notice.
+7. Verify light, dark, high-contrast, and keyboard focus states. Dismissal returns focus to the input.

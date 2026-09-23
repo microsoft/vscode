@@ -23,6 +23,7 @@ import { AgentHostAllowSignedOutWhenUsableContribution } from './agentHostAllowS
 import { AgentHostByokLmHandler } from './agentHostByokLmHandler.js';
 import { AgentHostContribution } from './agentHostChatContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from './agentHostCopilotCliSettingsContribution.js';
+import { AgentHostExistingSessionHarnessPickerEnablement } from './agentHostExistingSessionHarnessPickerEnablement.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { AgentHostSessionListContribution } from './agentHostSessionListContribution.js';
 import { AgentHostSdkSetupNotificationContribution } from './agentHostSdkSetupNotification.js';
@@ -46,6 +47,7 @@ class AgentHostLegacyMigrationGateContribution extends Disposable implements IWo
 }
 
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostExistingSessionHarnessPickerEnablement.ID, AgentHostExistingSessionHarnessPickerEnablement, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentHostLegacyMigrationGateContribution.ID, AgentHostLegacyMigrationGateContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(CopilotConfigSlashSubmitHandlerContribution.ID, CopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSessionListContribution.ID, AgentHostSessionListContribution, WorkbenchPhase.AfterRestored);

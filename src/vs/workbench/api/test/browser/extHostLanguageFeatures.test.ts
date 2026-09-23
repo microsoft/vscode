@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { setUnexpectedErrorHandler, errorHandler } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -151,6 +153,44 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
+		disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
+			provideDocumentDropEdits: () => []
+		}));
+		await rpcProtocol.sync();
+		const provider = languageFeaturesService.documentDropEditProvider.all(model)[0];
+		assert.strictEqual(await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None), undefined);
+	});
+
+	for (const declinedRequests of [0, 2]) {
+		test(`DocumentDropEdits releases cache IDs after ${declinedRequests} declined requests`, async () => {
+			let requests = 0;
+			disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
+				provideDocumentDropEdits: () => ++requests <= declinedRequests ? undefined : new types.DocumentDropEdit('inserted text')
+			}));
+			await rpcProtocol.sync();
+			const provider = languageFeaturesService.documentDropEditProvider.all(model)[0];
+			const release = sinon.spy(extHost, '$releaseDocumentOnDropEdits');
+			try {
+				for (let i = 0; i < declinedRequests; i++) {
+					assert.strictEqual(await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None), undefined);
+				}
+				const first = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
+				assert.ok(first);
+				disposables.add(first);
+				const second = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
+				assert.ok(second);
+				disposables.add(second);
+				second.dispose();
+				first.dispose();
+				await rpcProtocol.sync();
+				assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
+			} finally {
+				release.restore();
+			}
+		});
+	}
 
 	// --- outline
 

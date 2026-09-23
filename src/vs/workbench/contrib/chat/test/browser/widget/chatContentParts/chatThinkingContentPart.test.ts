@@ -23,6 +23,7 @@ import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMess
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
@@ -1348,6 +1349,54 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 		});
 
+		for (const expanded of [false, true]) {
+			test(`transfers retained tool ownership between rebuilt groups (expanded=${expanded})`, () => {
+				const createGroup = () => disposables.add(instantiationService.createInstance(
+					ChatThinkingContentPart, createThinkingPart('**Working**'), createMockRenderContext(), mockMarkdownRenderer, false,
+				));
+				const first = createGroup();
+				const second = createGroup();
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Checking work' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'tool-call', undefined, {},
+				);
+				let disposeCount = 0;
+				let renderCount = 0;
+				const toolPart = disposables.add(toDisposable(() => disposeCount++));
+				const toolNode = $('div', undefined, 'Tool result');
+				const render = () => {
+					renderCount++;
+					return { domNode: toolNode, disposable: toolPart };
+				};
+				first.appendItem(render, tool.toolId, tool, undefined, undefined, toolPart);
+				if (expanded) {
+					first.expandContent();
+				}
+
+				const detachedPart = first.detachToolPart(tool.toolCallId);
+				second.appendItem(render, tool.toolId, tool, undefined, undefined, detachedPart);
+				first.dispose();
+				const disposedWithFirstGroup = disposeCount;
+				if (expanded) {
+					second.expandContent();
+				}
+				second.dispose();
+
+				assert.deepStrictEqual({
+					detachedOriginal: detachedPart === toolPart,
+					disposedWithFirstGroup,
+					disposedWithSecondGroup: disposeCount,
+					renderCount,
+				}, {
+					detachedOriginal: true,
+					disposedWithFirstGroup: 0,
+					disposedWithSecondGroup: 1,
+					renderCount: expanded ? 2 : 0,
+				});
+			});
+		}
+
 		test('appendItem should use lazy rendering when collapsed', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
@@ -2092,24 +2141,47 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(result, true, 'Should accept tool invocations as same content');
 		});
 
-		test('should return false when a tool becomes a parent subagent', () => {
-			const content = createThinkingPart('**Working**', 'id-1');
-			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
-			const toolInvocation = {
-				kind: 'toolInvocation' as const,
-				toolSpecificData: { kind: 'subagent' },
-				subAgentInvocationId: undefined,
-			} as unknown as IChatRendererContent;
+		for (const isComplete of [false, true]) {
+			for (const serialized of [false, true]) {
+				test(`should replace thinking when a tool becomes a parent subagent (complete=${isComplete}, serialized=${serialized})`, () => {
+					const content = createThinkingPart('**Working**', 'id-1');
+					const context = createMockRenderContext(isComplete);
+					const part = store.add(instantiationService.createInstance(
+						ChatThinkingContentPart,
+						content,
+						context,
+						mockMarkdownRenderer,
+						false
+					));
+					const invocation = new ChatToolInvocation(
+						{ toolSpecificData: { kind: 'subagent' } },
+						{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+						'launch', undefined, { mode: 'background' },
+					);
 
-			assert.strictEqual(part.hasSameContent(toolInvocation, [], context.element), false);
-		});
+					assert.strictEqual(part.hasSameContent(serialized ? invocation.toJSON() : invocation, [], context.element), false);
+				});
+			}
+
+			test(`should preserve thinking for ordinary and nested tools (complete=${isComplete})`, () => {
+				const context = createMockRenderContext(isComplete);
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					createThinkingPart('**Working**', 'id-1'),
+					context,
+					mockMarkdownRenderer,
+					false
+				));
+				const toolData = { id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
+				const ordinary = new ChatToolInvocation(undefined, toolData, 'ordinary', undefined, {});
+				const nested = new ChatToolInvocation({ toolSpecificData: { kind: 'subagent' } }, toolData, 'nested', 'parent', {});
+
+				assert.deepStrictEqual(
+					[ordinary, ordinary.toJSON(), nested, nested.toJSON()].map(invocation => part.hasSameContent(invocation, [], context.element)),
+					[true, true, true, true],
+				);
+			});
+		}
 
 		test('should return true for markdown content', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
@@ -2786,7 +2858,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2843,7 +2915,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter1.event
+				{ onDidChangeDiff: diffEmitter1.event, diffData: undefined }
 			);
 
 			part.appendItem(
@@ -2851,7 +2923,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-2',
 				undefined,
 				undefined,
-				diffEmitter2.event
+				{ onDidChangeDiff: diffEmitter2.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2887,7 +2959,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2921,7 +2993,7 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter.event
+				{ onDidChangeDiff: diffEmitter.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();
@@ -2953,7 +3025,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
 		});
 
-		test('opens each file from its first original to its last modified snapshot', () => {
+		test('opens consecutive edits of a file as one interval and unrelated edits separately', () => {
 			let opened: unknown;
 			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 				override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -2975,14 +3047,19 @@ suite('ChatThinkingContentPart', () => {
 			const firstAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
 			const utilEdit = store.add(new Emitter<IChatContentPartDiffData>());
 			const lastAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
-			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, firstAppEdit.event);
-			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, utilEdit.event);
-			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, lastAppEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, { onDidChangeDiff: firstAppEdit.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, { onDidChangeDiff: utilEdit.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, { onDidChangeDiff: lastAppEdit.event, diffData: undefined });
 			part.finalizeTitleIfDefault();
 
-			lastAppEdit.fire(createDiffData(4, 1, 'app.ts', 'last'));
+			// The later app.ts edit starts from the snapshot the earlier one produced, so they chain even
+			// though they arrive out of order; util.ts has a single interval.
+			const chained = (added: number, removed: number, before: string, after: string): IChatContentPartDiffData => ({
+				added, removed, resources: [{ resource: URI.file('/workspace/app.ts'), originalURI: URI.file(`/snapshots/${before}/app.ts`), modifiedURI: URI.file(`/snapshots/${after}/app.ts`) }],
+			});
+			lastAppEdit.fire(chained(4, 1, 'b', 'c'));
 			utilEdit.fire(createDiffData(2, 3, 'util.ts', 'only'));
-			firstAppEdit.fire(createDiffData(5, 0, 'app.ts', 'first'));
+			firstAppEdit.fire(chained(5, 0, 'a', 'b'));
 
 			part.domNode.querySelector<HTMLElement>('.chat-thinking-title-diff')?.click();
 
@@ -2997,8 +3074,8 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				label: 'Section File Changes',
 				resources: [{
-					original: 'file:///snapshots/first/before/app.ts',
-					modified: 'file:///snapshots/last/after/app.ts',
+					original: 'file:///snapshots/a/app.ts',
+					modified: 'file:///snapshots/c/app.ts',
 					goToFileResource: 'file:///workspace/app.ts',
 				}, {
 					original: 'file:///snapshots/only/before/util.ts',
@@ -3032,14 +3109,14 @@ suite('ChatThinkingContentPart', () => {
 				'edit-part-1',
 				undefined,
 				undefined,
-				diffEmitter1.event
+				{ onDidChangeDiff: diffEmitter1.event, diffData: undefined }
 			);
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill-2') }),
 				'edit-part-2',
 				undefined,
 				undefined,
-				diffEmitter2.event
+				{ onDidChangeDiff: diffEmitter2.event, diffData: undefined }
 			);
 
 			part.finalizeTitleIfDefault();

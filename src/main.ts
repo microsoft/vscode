@@ -35,7 +35,9 @@ const portable = configurePortable(product);
 
 const args = parseCLIArgs();
 // Configure static command line arguments
+perf.mark('code/willConfigureCommandlineSwitches');
 const argvConfig = configureCommandlineSwitchesSync(args);
+perf.mark('code/didConfigureCommandlineSwitches');
 // Enable sandbox globally unless
 // 1) disabled via command line using either
 //    `--no-sandbox` or `--disable-chromium-sandbox` argument.
@@ -54,6 +56,7 @@ if (args['sandbox'] &&
 }
 
 // Set userData path before app 'ready' event
+perf.mark('code/willGetUserDataPath');
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 if (process.platform === 'win32') {
 	const userDataUNCHost = getUNCHost(userDataPath);
@@ -62,6 +65,17 @@ if (process.platform === 'win32') {
 	}
 }
 app.setPath('userData', userDataPath);
+perf.mark('code/didGetUserDataPath');
+
+if (process.platform === 'linux') {
+	const snapName = process.env['SNAP_INSTANCE_NAME'];
+	const installedDesktopName = product.linuxDesktopName && `/usr/share/applications/${product.linuxDesktopName}.desktop`;
+	if (snapName) {
+		app.setDesktopName(`${snapName}_${product.applicationName}.desktop`);
+	} else if (installedDesktopName && fs.existsSync(installedDesktopName)) {
+		app.setDesktopName(`${product.linuxDesktopName}.desktop`);
+	}
+}
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
@@ -93,6 +107,7 @@ if (portable.isPortable) {
 }
 
 // Register custom schemes with privileges
+perf.mark('code/willRegisterSchemesAsPrivileged');
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
@@ -111,9 +126,12 @@ protocol.registerSchemesAsPrivileged([
 		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
 	}
 ]);
+perf.mark('code/didRegisterSchemesAsPrivileged');
 
 // Global app listeners
+perf.mark('code/willRegisterListeners');
 registerListeners();
+perf.mark('code/didRegisterListeners');
 
 /**
  * We can resolve the NLS configuration early if it is defined
@@ -126,13 +144,17 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 // The API might return an empty array on Linux, such as when
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
+// Note: this forces Chromium's locale init and costs ~90ms; deferring it past `app.ready` only relocates that cost.
+perf.mark('code/willGetPreferredSystemLanguages');
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
+perf.mark('code/didGetPreferredSystemLanguages');
 const userLocale = getUserDefinedLocale(argvConfig);
 if (userLocale) {
 	nlsConfigurationPromise = resolveNLSConfiguration({
 		userLocale,
 		osLocale,
 		commit: product.commit,
+		nlsMetadataHash: product.nlsMetadataHash,
 		userDataPath,
 		nlsMetadataPath: import.meta.dirname
 	});
@@ -152,7 +174,9 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 }
 
 // Load our code once ready
+perf.mark('code/willWaitForAppReady');
 app.once('ready', function () {
+	perf.mark('code/didWaitForAppReady');
 	if (args['trace']) {
 		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
 		if (args['trace-memory-infra']) {
@@ -213,9 +237,13 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Bootstrap ESM
+	perf.mark('code/willBootstrapESM');
 	await bootstrapESM();
+	perf.mark('code/didBootstrapESM');
 
 	// Load Main
+	// Note: `out/main.js` is already compiled here, so this only executes the electron-main module graph.
+	perf.mark('code/willRunMainBundle');
 	await import('./vs/code/electron-main/main.js');
 	perf.mark('code/didRunMainBundle');
 }
@@ -681,43 +709,49 @@ function processZhLocale(appLocale: string): string {
  * Resolve the NLS configuration
  */
 async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
+	perf.mark('code/willResolveNlsConfiguration');
+	try {
 
-	// First, we need to test a user defined locale.
-	// If it fails we try the app locale.
-	// If that fails we fall back to English.
+		// First, we need to test a user defined locale.
+		// If it fails we try the app locale.
+		// If that fails we fall back to English.
 
-	const nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (nlsConfiguration) {
-		return nlsConfiguration;
-	}
+		const nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
+		if (nlsConfiguration) {
+			return nlsConfiguration;
+		}
 
-	// Try to use the app locale which is only valid
-	// after the app ready event has been fired.
+		// Try to use the app locale which is only valid
+		// after the app ready event has been fired.
 
-	let userLocale = app.getLocale();
-	if (!userLocale) {
-		return {
-			userLocale: 'en',
+		let userLocale = app.getLocale();
+		if (!userLocale) {
+			return {
+				userLocale: 'en',
+				osLocale,
+				resolvedLanguage: 'en',
+				defaultMessagesFile: path.join(import.meta.dirname, 'nls.messages.json'),
+
+				// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
+				locale: 'en',
+				availableLanguages: {}
+			};
+		}
+
+		// See above the comment about the loader and case sensitiveness
+		userLocale = processZhLocale(userLocale.toLowerCase());
+
+		return await resolveNLSConfiguration({
+			userLocale,
 			osLocale,
-			resolvedLanguage: 'en',
-			defaultMessagesFile: path.join(import.meta.dirname, 'nls.messages.json'),
-
-			// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
-			locale: 'en',
-			availableLanguages: {}
-		};
+			commit: product.commit,
+			nlsMetadataHash: product.nlsMetadataHash,
+			userDataPath,
+			nlsMetadataPath: import.meta.dirname
+		});
+	} finally {
+		perf.mark('code/didResolveNlsConfiguration');
 	}
-
-	// See above the comment about the loader and case sensitiveness
-	userLocale = processZhLocale(userLocale.toLowerCase());
-
-	return resolveNLSConfiguration({
-		userLocale,
-		osLocale,
-		commit: product.commit,
-		userDataPath,
-		nlsMetadataPath: import.meta.dirname
-	});
 }
 
 /**

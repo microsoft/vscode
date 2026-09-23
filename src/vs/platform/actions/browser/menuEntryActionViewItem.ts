@@ -210,15 +210,23 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		event.preventDefault();
 		event.stopPropagation();
 
-		if (this._options?.onClickAnimation && this.element && !this._accessibilityService.isMotionReduced()) {
-			const icon = this._menuItemAction.item.icon;
-			triggerClickAnimation(this.element, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
-		}
-
+		const commandAction = this._commandAction;
+		let actionError: Error | undefined;
+		const actionRunnerListener = this.actionRunner.onDidRun(event => {
+			if (event.action === commandAction) {
+				actionError = event.error;
+			}
+		});
 		try {
-			await this.actionRunner.run(this._commandAction, this._context);
+			await this.actionRunner.run(commandAction, this._context);
+			if (!actionError && this._options?.onClickAnimation && this.element && !this._accessibilityService.isMotionReduced()) {
+				const icon = this._menuItemAction.item.icon;
+				triggerClickAnimation(this.element, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+			}
 		} catch (err) {
 			this._notificationService.error(err);
+		} finally {
+			actionRunnerListener.dispose();
 		}
 	}
 

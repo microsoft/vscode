@@ -231,15 +231,26 @@ suite('GlobalKeybindingsMainService', () => {
 		assert.strictEqual(shortcut.isRegistered('Control+Cmd+A'), false);
 	});
 
-	test('closing a window keeps accelerators still owned by another window', () => {
+	test('closing a window routes accelerators to a surviving owner', () => {
 		const { service, windows, shortcut } = createService();
 		const window1 = windows.addWindow(1);
-		windows.addWindow(2);
+		const window2 = windows.addWindow(2);
 		service.updateKeybindings(1, [binding('Control+Cmd+A', 'a')]);
 		service.updateKeybindings(2, [binding('Control+Cmd+A', 'a')]);
 
 		windows.destroyWindow(window1);
-		assert.ok(shortcut.isRegistered('Control+Cmd+A'));
+		shortcut.trigger('Control+Cmd+A');
+
+		assert.deepStrictEqual({
+			isRegistered: shortcut.isRegistered('Control+Cmd+A'),
+			sent: window2.sent,
+		}, {
+			isRegistered: true,
+			sent: [{
+				channel: 'vscode:runAction',
+				args: [{ id: 'a', from: 'systemWideKeybinding', args: undefined }]
+			}],
+		});
 	});
 
 	test('shutdown unregisters all owned accelerators', () => {

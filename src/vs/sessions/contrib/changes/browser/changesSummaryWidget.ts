@@ -5,9 +5,8 @@
 
 import './media/changesSummaryWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable } from '../../../../base/common/observable.js';
 import { ISessionChangesSummary } from '../../../services/sessions/common/session.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,34 +21,7 @@ export class ChangesSummaryWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		const summaryRawObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {
-			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
-			if (isLoading) {
-				return lastValue;
-			}
-
-			const entries = changesViewService.activeSessionChangesObs.read(reader);
-			if (entries.length === 0) {
-				return undefined;
-			}
-
-			let additions = 0, deletions = 0;
-			for (const entry of entries) {
-				additions += entry.insertions;
-				deletions += entry.deletions;
-			}
-
-			return {
-				additions,
-				deletions,
-				files: entries.length,
-			} satisfies ISessionChangesSummary;
-		});
-
-		this._summaryObs = derivedOpts<ISessionChangesSummary | undefined>({
-			equalsFn: structuralEquals
-		}, reader => summaryRawObs.read(reader));
+		this._summaryObs = changesViewService.activeSessionChangesSummaryObs;
 	}
 
 	render(container: HTMLElement) {

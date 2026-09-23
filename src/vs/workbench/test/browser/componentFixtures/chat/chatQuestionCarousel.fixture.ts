@@ -5,12 +5,14 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -55,6 +57,9 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.definePartialInstance(ITerminalChatService, {
 				getTerminalInstanceByExecutionId: () => undefined,

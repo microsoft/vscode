@@ -800,7 +800,7 @@ suite('ChatStatusDashboard', () => {
 		// Hover: shows credit fractions
 		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
 		const chatValue = quotaPercentages[0].querySelector('.quota-value');
-		assert.ok(chatValue?.textContent?.includes('/'));
+		assert.strictEqual(chatValue?.textContent, '400 / 2,000');
 
 		// Mouse leave: reverts to percentage
 		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
@@ -841,7 +841,7 @@ suite('ChatStatusDashboard', () => {
 		// Focus: shows credit fractions
 		quotaPercentages[0].dispatchEvent(new FocusEvent('focus', { bubbles: true }));
 		const chatValue = quotaPercentages[0].querySelector('.quota-value');
-		assert.ok(chatValue?.textContent?.includes('/'));
+		assert.strictEqual(chatValue?.textContent, '400 / 2,000');
 
 		// Blur: reverts to percentage
 		quotaPercentages[0].dispatchEvent(new FocusEvent('blur', { bubbles: true }));

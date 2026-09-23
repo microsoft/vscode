@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../base/common/map.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -16,6 +17,7 @@ import { IRemoteAgentHostService } from '../../../../../platform/agentHost/commo
 import { ActionType, NotificationType, type ActionEnvelope, type ChatUsageAction, type INotification, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { isDefaultChatUri, parseChatUri, readUsageInfoMeta, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { agentModelCallMetaKey, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 
 /**
  * Directory (under the client's user data home) that holds the per-session
@@ -23,6 +25,7 @@ import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
  * folders and never written into the CLI's `~/.copilot` tree.
  */
 const USAGE_DIR = 'agentHostUsage';
+const MAX_USAGE_BYTES = 2 * 1024 * 1024;
 
 /**
  * One captured Copilot `ChatUsage` action, i.e. the usage report for a single
@@ -31,9 +34,12 @@ const USAGE_DIR = 'agentHostUsage';
  * last request's input/cache per turn, and `events.jsonl` only records
  * `outputTokens` until `session.shutdown`).
  */
-export interface IAgentHostUsageRecord {
+export interface IAgentHostUsageRecord extends Partial<Omit<IAgentModelCallDiagnostics, 'schemaVersion'>> {
+	readonly schemaVersion?: 2;
+	readonly kind?: 'modelCall';
+	readonly correlation?: 'exact' | 'unresolved';
 	/** Turn the model call belongs to. */
-	readonly turnId: string;
+	readonly turnId?: string;
 	/** Model that served the call, if reported. */
 	readonly model?: string;
 	/** Input tokens for this single call. */
@@ -66,20 +72,30 @@ function sanitizeSessionId(rawSessionId: string): string {
 export async function readAgentHostUsageRecords(fileService: IFileService, uri: URI): Promise<IAgentHostUsageRecord[]> {
 	let text: string;
 	try {
-		const content = await fileService.readFile(uri);
+		const content = await fileService.readFile(uri, { limits: { size: MAX_USAGE_BYTES } });
 		text = content.value.toString();
 	} catch {
 		return [];
 	}
 	const records: IAgentHostUsageRecord[] = [];
-	for (const line of text.split('\n')) {
+	for (const line of text.split('\n').slice(-2049)) {
 		const trimmed = line.trim();
 		if (!trimmed) {
 			continue;
 		}
 		try {
 			const parsed = JSON.parse(trimmed);
-			if (parsed && typeof parsed.turnId === 'string' && typeof parsed.ts === 'string') {
+			if (parsed?.schemaVersion === 2) {
+				const modelCall = readAgentModelCallDiagnostics({ _meta: { [agentModelCallMetaKey]: { ...parsed, schemaVersion: 1 } } });
+				if (modelCall && typeof parsed.ts === 'string' && parsed.ts.length <= 64) {
+					records.push({
+						...modelCall, schemaVersion: 2, kind: 'modelCall', correlation: modelCall.turnId ? 'exact' : 'unresolved', ts: parsed.ts,
+						totalNanoAiu: typeof parsed.totalNanoAiu === 'number' && Number.isFinite(parsed.totalNanoAiu) && parsed.totalNanoAiu >= 0 ? parsed.totalNanoAiu : undefined,
+					});
+				}
+				continue;
+			}
+			if (parsed && parsed.schemaVersion === undefined && typeof parsed.turnId === 'string' && typeof parsed.ts === 'string') {
 				records.push(parsed as IAgentHostUsageRecord);
 			}
 		} catch {
@@ -282,6 +298,9 @@ abstract class AgentHostActionRecorder extends Disposable {
  */
 export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 
+	private readonly _seenCalls = new LRUCache<string, true>(4096);
+	private readonly _retention = new LRUCache<string, { count: number; size: number }>(128);
+
 	protected _sidecarUri(rawSessionId: string): URI {
 		return buildAgentHostUsageUri(this._baseDir, rawSessionId);
 	}
@@ -298,6 +317,7 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		}
 		const usage = (action as ChatUsageAction).usage;
 		const meta = readUsageInfoMeta(usage);
+		const modelCall = readAgentModelCallDiagnostics(usage);
 		// Skip the async re-emit (same tokens, enriched with context attribution).
 		if (meta.contextAttribution) {
 			return;
@@ -313,13 +333,21 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		if (!rawId) {
 			return;
 		}
+		if (modelCall) {
+			const key = `${modelCall.sdkSessionId}\0${modelCall.apiCallId ?? modelCall.eventId}`;
+			if (this._seenCalls.has(key)) {
+				return;
+			}
+			this._seenCalls.set(key, true);
+		}
 		const record: IAgentHostUsageRecord = {
-			turnId: (action as ChatUsageAction).turnId,
+			turnId: modelCall ? modelCall.turnId : (action as ChatUsageAction).turnId,
 			model: usage.model,
 			inputTokens: usage.inputTokens,
 			outputTokens: usage.outputTokens,
 			cacheReadTokens: usage.cacheReadTokens,
 			totalNanoAiu: meta.copilotUsage?.totalNanoAiu,
+			...(modelCall ? { ...modelCall, schemaVersion: 2, kind: 'modelCall', correlation: modelCall.turnId ? 'exact' : 'unresolved' } as const : {}),
 			ts: new Date().toISOString(),
 		};
 		this._append(rawId, record);
@@ -335,7 +363,29 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 	private _append(rawId: string, record: IAgentHostUsageRecord): void {
 		const uri = this._sidecarUri(rawId);
 		const line = JSON.stringify(record) + '\n';
-		void this.queued(rawId, () => this._fileService.writeFile(uri, VSBuffer.fromString(line), { append: true }));
+		void this.queued(rawId, async () => {
+			const retained = this._retention.get(rawId);
+			const buffer = VSBuffer.fromString(line);
+			if (!retained || retained.count >= 2048 || retained.size + buffer.byteLength > MAX_USAGE_BYTES) {
+				let lines: string[] = [];
+				try {
+					const existing = await this._fileService.readFile(uri, { limits: { size: MAX_USAGE_BYTES } });
+					lines = existing.value.toString().split('\n').filter(Boolean).slice(-1023);
+				} catch {
+					// Missing or oversized legacy files start a new bounded diagnostic window.
+				}
+				let compacted = VSBuffer.fromString([...lines, line.trimEnd()].join('\n') + '\n');
+				while (compacted.byteLength > MAX_USAGE_BYTES && lines.length > 0) {
+					lines = lines.slice(Math.ceil(lines.length / 2));
+					compacted = VSBuffer.fromString([...lines, line.trimEnd()].join('\n') + '\n');
+				}
+				await this._fileService.writeFile(uri, compacted);
+				this._retention.set(rawId, { count: lines.length + 1, size: compacted.byteLength });
+			} else {
+				await this._fileService.writeFile(uri, buffer, { append: true });
+				this._retention.set(rawId, { count: retained.count + 1, size: retained.size + buffer.byteLength });
+			}
+		});
 	}
 }
 

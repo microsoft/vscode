@@ -16,7 +16,14 @@ import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigPropertyS
 export interface IAutoRowOptions {
 	readonly autoModel: ILanguageModelChatMetadataAndIdentifier;
 	readonly configurationAccess: IModelConfigurationAccess;
+	/** Accessible name of the switch. Defaults to describing Auto. */
+	readonly toggleAriaLabel?: string;
 	readonly isEnabled: () => boolean;
+	/**
+	 * Advances whenever the owner selects a model by any means. A tier activation that
+	 * would enable the row is dropped if another selection landed while it was saving.
+	 */
+	readonly selectionVersion?: () => number;
 	readonly onToggle: (enabled: boolean) => void;
 	/** Reports a successfully saved tier change, excluding activation of the current value. */
 	readonly onDidChangeConfiguration?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void;
@@ -43,7 +50,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 		dom.append(main, dom.$('.chat-model-picker-auto-label', undefined, _options.autoModel.metadata.name));
 
 		this._toggle = this.add(new Switch({
-			ariaLabel: localize('chat.modelPicker.autoToggle', "Choose a model automatically"),
+			ariaLabel: _options.toggleAriaLabel ?? localize('chat.modelPicker.autoToggle', "Choose a model automatically"),
 			checked: _options.isEnabled(),
 		}));
 		main.appendChild(this._toggle.domNode);
@@ -70,6 +77,10 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this.render();
 	}
 
+	focus(): void {
+		this._toggle.domNode.focus();
+	}
+
 	/** Re-reads the selection and tier so the row matches the current state. */
 	render(): void {
 		if (this.isDisposed) {
@@ -84,9 +95,10 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this._toggle.checked = enabled;
 
 		const tier = getModelConfigProperty(this._options.autoModel, this._options.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
-		const values = tier?.schema.enum ?? [];
+		const internalDefault = tier?.value === 'fast';
+		const values = internalDefault ? [] : tier?.schema.enum ?? [];
 		const selectedIndex = Math.max(0, values.indexOf(tier?.value));
-		if (tier?.schema !== this._tierSchema) {
+		if (tier?.schema !== this._tierSchema || internalDefault) {
 			dom.clearNode(this._tierContainer);
 			this._renderDisposables.clear();
 			this._tierControl = undefined;
@@ -106,7 +118,8 @@ export class ModelPickerAutoRow extends DisposableStore {
 			}));
 			this._renderDisposables.add(control.onDidActivate(index => {
 				const toggleVersion = this._toggleVersion;
-				this._tierChanges.queue(() => this._activateTier(tier.key, values[index], toggleVersion)).catch(onUnexpectedError);
+				const selectionVersion = this._options.selectionVersion?.();
+				this._tierChanges.queue(() => this._activateTier(tier.key, values[index], toggleVersion, selectionVersion)).catch(onUnexpectedError);
 			}));
 			this._tierContainer.appendChild(control.domNode);
 			this._tierControl = control;
@@ -118,7 +131,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 			}
 		}
 
-		const tierDescription = tier?.schema.enumDescriptions?.[selectedIndex];
+		const tierDescription = internalDefault ? undefined : tier?.schema.enumDescriptions?.[selectedIndex];
 		// Auto's own detail stays put; the tier description joins it rather than replacing it.
 		const detail = this._options.autoModel.metadata.detail;
 		const parts = [detail, tierDescription].filter(part => !!part);
@@ -135,7 +148,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this._options.onToggle(enabled);
 	}
 
-	private async _activateTier(key: string, value: unknown, toggleVersion: number): Promise<void> {
+	private async _activateTier(key: string, value: unknown, toggleVersion: number, selectionVersion: number | undefined): Promise<void> {
 		if (this.isDisposed) {
 			return;
 		}
@@ -150,7 +163,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 				return;
 			}
 			focusedTier = this._getFocusedTier();
-			if (toggleVersion === this._toggleVersion && !this._options.isEnabled()) {
+			if (toggleVersion === this._toggleVersion && selectionVersion === this._options.selectionVersion?.() && !this._options.isEnabled()) {
 				this._toggleAuto(true);
 			}
 		} finally {

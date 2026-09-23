@@ -338,21 +338,6 @@ async function main() {
 		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
 	}
 
-	// Temporary: patch @github/copilot-sdk session.js to fix ESM import
-	// (missing .js extension on vscode-jsonrpc/node). Fixed upstream in v0.1.32.
-	// TODO: Remove once @github/copilot-sdk is updated to >=0.1.32
-	for (const dir of ['', 'remote']) {
-		const sessionFile = path.join(root, dir, 'node_modules', '@github', 'copilot-sdk', 'dist', 'session.js');
-		if (fs.existsSync(sessionFile)) {
-			const content = fs.readFileSync(sessionFile, 'utf8');
-			const patched = content.replace(/from "vscode-jsonrpc\/node"/g, 'from "vscode-jsonrpc/node.js"');
-			if (content !== patched) {
-				fs.writeFileSync(sessionFile, patched);
-				log(dir || '.', 'Patched @github/copilot-sdk session.js (vscode-jsonrpc ESM import fix)');
-			}
-		}
-	}
-
 	// foundry-local-sdk (on-device chat dictation) resolves its prebuilt N-API
 	// addon and native core libraries from fixed, package-relative paths. We do
 	// not ship that native payload (its addon requires a newer glibc than our

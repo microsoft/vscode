@@ -39,6 +39,10 @@ import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessi
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
+import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -163,6 +167,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _isRendering = false;
 	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
 	private _isQuickChat = false;
+	private _activeSessionTitle: string | undefined;
+	private _activeChatTitle: string | undefined;
 	private readonly _sessionTitle: string | undefined;
 
 	/** The currently open blocked-sessions dropdown, if any. */
@@ -191,6 +197,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(undefined, action, options);
 
@@ -205,11 +212,20 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when the active session's title, workspace, or quick-chat kind changes
+		const chatTabsMode = observableConfigValue(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, configurationService);
+
+		// Re-render when the active session's title, presentation, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
 			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
+			const showSessionTitle = !!sessionData && chatTabsMode.read(reader) === SessionsChatTabsMode.Single;
+			this._activeSessionTitle = showSessionTitle
+				? sessionData?.title.read(reader) || getUntitledSessionTitle(this._isQuickChat)
+				: undefined;
+			this._activeChatTitle = showSessionTitle
+				? sessionData?.activeChat.read(reader).title.read(reader) || getUntitledSessionTitle(true)
+				: undefined;
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -298,7 +314,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._workspaceInfo?.label ?? ''}|${this._isQuickChat}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._getCommandCenterTitle() ?? ''}|${this._isQuickChat}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -354,8 +370,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
-		container.setAttribute('aria-label', this._sessionTitle
-			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", this._sessionTitle)
+		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
+		const accessibleTitle = sessionTitle && contextTitle
+			? localize('agentSessionsSessionWithContextAccessible', "{0}, {1}", sessionTitle, contextTitle)
+			: sessionTitle ?? contextTitle;
+		container.setAttribute('aria-label', accessibleTitle
+			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", accessibleTitle)
 			: localize('agentSessionsShowSessions', "Show Sessions"));
 
 		const workspaceInfo = this._workspaceInfo;
@@ -366,27 +386,34 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Center group: workspace icon and name
 		const centerGroup = $('div.agent-sessions-titlebar-center');
 
-		if (workspaceInfo) {
-			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
-			centerGroup.appendChild(workspaceIconEl);
+		if (sessionTitle) {
+			const sessionTitleEl = $('div.agent-sessions-titlebar-session');
+			sessionTitleEl.textContent = sessionTitle;
+			centerGroup.appendChild(sessionTitleEl);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(sessionTitleEl, { content: sessionTitle }));
+		}
+
+		if (sessionTitle && contextTitle) {
+			const separatorEl = $('span.agent-sessions-titlebar-separator', { 'aria-hidden': 'true' });
+			separatorEl.textContent = '·';
+			centerGroup.appendChild(separatorEl);
+		}
+
+		if (contextTitle) {
+			const workspaceGroup = $('div.agent-sessions-titlebar-workspace-group');
+			if (workspaceInfo) {
+				const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
+				workspaceGroup.appendChild(workspaceIconEl);
+			} else if (this._isQuickChat) {
+				const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
+				workspaceGroup.appendChild(workspaceIconEl);
+			}
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = this._sessionTitle ?? workspaceInfo.label;
-			centerGroup.appendChild(workspaceEl);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceEl.textContent }));
-		} else if (this._isQuickChat) {
-			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
-			centerGroup.appendChild(workspaceIconEl);
-
-			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = this._sessionTitle ?? localize('noWorkspace', "No workspace");
-			centerGroup.appendChild(workspaceEl);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceEl.textContent }));
-		} else if (this._sessionTitle) {
-			const titleElement = $('div.agent-sessions-titlebar-workspace');
-			titleElement.textContent = this._sessionTitle;
-			centerGroup.appendChild(titleElement);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(titleElement, { content: this._sessionTitle }));
+			workspaceEl.textContent = contextTitle;
+			workspaceGroup.appendChild(workspaceEl);
+			centerGroup.appendChild(workspaceGroup);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: contextTitle }));
 		}
 
 		sessionPill.appendChild(centerGroup);
@@ -412,6 +439,23 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				this._showSessionsPicker();
 			}
 		}));
+	}
+
+	private _getCommandCenterTitle(): string | undefined {
+		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
+		if (sessionTitle && contextTitle) {
+			return localize('agentSessionsSessionWithContext', "{0} · {1}", sessionTitle, contextTitle);
+		}
+		return sessionTitle ?? contextTitle;
+	}
+
+	private _getCommandCenterTitles(): { sessionTitle: string | undefined; contextTitle: string | undefined } {
+		const contextTitle = this._sessionTitle ?? this._workspaceInfo?.label ?? (this._isQuickChat ? localize('noWorkspace', "No workspace") : undefined);
+		const sessionTitle = this._activeSessionTitle === this._activeChatTitle ? undefined : this._activeSessionTitle;
+		if (!sessionTitle || sessionTitle === contextTitle) {
+			return { sessionTitle: undefined, contextTitle: sessionTitle ?? contextTitle };
+		}
+		return { sessionTitle, contextTitle };
 	}
 
 	/**

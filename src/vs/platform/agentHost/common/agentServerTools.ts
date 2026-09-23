@@ -17,6 +17,8 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	readonly enabledForEphemeralSessions?: boolean;
 	/** Only the owning session's default chat may discover or execute this tool. */
 	readonly mainChatOnly?: boolean;
+	/** Defers the tool behind discovery when supported; `false` keeps it eager. Omit to preserve provider defaults. */
+	readonly deferLoading?: boolean;
 }
 
 /**
@@ -39,7 +41,7 @@ export interface IAgentServerToolHost {
 	readonly definitions: readonly IAgentServerToolDefinition[];
 	/** Server tools eligible for the given session, honoring ephemeral eligibility. */
 	getDefinitionsForSession(sessionUri: URI, chatUri?: URI): readonly IAgentServerToolDefinition[];
-	/** Names of every server tool across the contributed groups. */
+	/** Routable server-tool names, including materialized tools retained by sessions after root settings change. */
 	readonly toolNames: readonly string[];
 	/** Advertises all server tools on the session's `serverTools`. */
 	advertise(sessionUri: URI): void;

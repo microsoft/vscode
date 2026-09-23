@@ -22,7 +22,7 @@ import {
 import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
-import { matchesUrlPattern } from './utils/urlMatch';
+import { getSchemaRequestUrl, matchesUrlPattern } from './utils/urlMatch';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -226,6 +226,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
+	const schemaRequestAliases = new Map<string, { readonly requestUrl: string }>();
 	let schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
 	let trustedDomains = workspace.getConfiguration().get<Record<string, boolean>>(SettingIds.trustedDomains, {});
 
@@ -239,8 +240,19 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	toDispose.push(commands.registerCommand(CommandIds.clearCacheCommandId, async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
+			// Preserve aliases recorded by requests that finish while the cache is being cleared.
+			const aliasesToClear = new Map(schemaRequestAliases);
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
-			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
+			const schemaIds = new Set(cachedSchemas);
+			for (const [schemaId, alias] of schemaRequestAliases) {
+				if (schemaIds.has(alias.requestUrl)) {
+					schemaIds.add(schemaId);
+				}
+				if (aliasesToClear.get(schemaId) === alias) {
+					schemaRequestAliases.delete(schemaId);
+				}
+			}
+			await client.sendNotification(SchemaContentChangeNotification.type, [...schemaIds]);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
@@ -419,10 +431,16 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			if (!workspace.isTrusted) {
 				throw new ResponseError(SchemaRequestServiceErrors.UntrustedWorkspaceError, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
 			}
-			if (!await isTrusted(uri)) {
-				throw new ResponseError(SchemaRequestServiceErrors.UntrustedSchemaError, l10n.t('Location {0} is untrusted', uriString));
+			let requestUrl: URL;
+			try {
+				requestUrl = getSchemaRequestUrl(uri);
+			} catch (e) {
+				throw new ResponseError(SchemaRequestServiceErrors.HTTPError, e.toString(), e);
 			}
-			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
+			if (!await isTrusted(requestUrl)) {
+				throw new ResponseError(SchemaRequestServiceErrors.UntrustedSchemaError, l10n.t('Location {0} is untrusted', requestUrl.href));
+			}
+			if (runtime.telemetry && requestUrl.host === 'schema.management.azure.com') {
 				/* __GDPR__
 					"json.schema" : {
 						"owner": "aeschli",
@@ -430,10 +448,14 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 						"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The azure schema URL that was requested." }
 					}
 				*/
-				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriString });
+				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: requestUrl.href });
 			}
 			try {
-				return await runtime.schemaRequests.getContent(uriString);
+				const content = await runtime.schemaRequests.getContent(requestUrl.href);
+				if (runtime.schemaRequests.clearCache && requestUrl.href !== uriPath) {
+					schemaRequestAliases.set(uriPath, { requestUrl: requestUrl.href });
+				}
+				return content;
 			} catch (e) {
 				throw new ResponseError(SchemaRequestServiceErrors.HTTPError, e.toString(), e);
 			}
@@ -689,20 +711,23 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		return schemaAssociationsCache;
 	}
 
-	async function isTrusted(uri: Uri): Promise<boolean> {
-		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-			return true;
-		}
-		const uriString = uri.toString(true);
-
+	async function isTrusted(url: URL): Promise<boolean> {
 		// Check against trustedDomains setting
-		if (matchesUrlPattern(uri, trustedDomains)) {
+		if (matchesUrlPattern(url, trustedDomains)) {
 			return true;
 		}
+
+		const matchesSchemaUri = (uri: string): boolean => {
+			try {
+				return getSchemaRequestUrl(Uri.parse(uri)).href === url.href;
+			} catch {
+				return false;
+			}
+		};
 
 		const knownAssociations = await getSchemaAssociations(false);
 		for (const association of knownAssociations) {
-			if (association.uri === uriString) {
+			if (matchesSchemaUri(association.uri)) {
 				return true;
 			}
 		}
@@ -710,7 +735,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		if (settingsCache.json && settingsCache.json.schemas) {
 			for (const schemaSetting of settingsCache.json.schemas) {
 				const schemaUri = schemaSetting.url;
-				if (schemaUri === uriString) {
+				if (schemaUri && matchesSchemaUri(schemaUri)) {
 					return true;
 				}
 			}
@@ -996,4 +1021,3 @@ export namespace ErrorCodes {
 export function isSchemaResolveError(d: Diagnostic) {
 	return typeof d.code === 'number' && d.code >= ErrorCodes.SchemaResolveError;
 }
-

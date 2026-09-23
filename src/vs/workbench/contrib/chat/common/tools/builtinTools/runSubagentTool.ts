@@ -420,6 +420,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Store result in toolSpecificData for serialization
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.result = resultText;
+				invocation.toolSpecificData.modelId = modeModelId;
 				invocation.toolSpecificData.modelName = resolvedModelName;
 			}
 
@@ -663,6 +664,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				description: args.description,
 				agentName: subagent?.name ?? requestedAgentName ?? currentModeInstructions?.name,
 				prompt: args.prompt,
+				modelId: resolved.modeModelId,
 				modelName: resolved.resolvedModelName,
 			},
 		};

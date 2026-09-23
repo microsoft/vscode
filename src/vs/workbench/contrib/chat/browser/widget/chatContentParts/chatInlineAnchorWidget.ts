@@ -72,6 +72,8 @@ type InlineAnchorWidgetMetadata = {
 
 export interface IRenderFileWidgetsOptions {
 	readonly openResource?: (resource: URI, editorOptions: ITextEditorOptions) => Promise<boolean>;
+	/** When provided, only render links carrying one of these metadata types. */
+	readonly linkTypes?: readonly string[];
 
 	/**
 	 * Wraps opening the resource so that callers can observe which editors a click on the
@@ -84,48 +86,55 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
-		// Empty link text -> render file widget
-		// Also support metadata format: [linkText](file:///...uri?vscodeLinkType=...)
-		const linkText = a.textContent?.trim();
-		let shouldRenderWidget = false;
-		let metadata: InlineAnchorWidgetMetadata | undefined;
-
-		const href = a.getAttribute('data-href');
-		let uri: URI | undefined;
-		if (href) {
-			try {
-				uri = URI.parse(href);
-			} catch {
-				// Invalid URI, skip rendering widget
-			}
-		}
-
-		if (!linkText) {
-			shouldRenderWidget = true;
-		} else if (uri) {
-			// Check for vscodeLinkType in query parameters
-			const searchParams = new URLSearchParams(uri.query);
-			const vscodeLinkType = searchParams.get('vscodeLinkType');
-			if (vscodeLinkType) {
-				metadata = {
-					vscodeLinkType,
-					linkText
-				};
-				shouldRenderWidget = true;
-
-				// Strip vscodeLinkType from the URI once we've extracted the metadata for better compatibility with different FS
-				searchParams.delete('vscodeLinkType');
-				const remainingQuery = searchParams.toString();
-				uri = uri.with({ query: remainingQuery });
-			}
-		}
-
-		if (shouldRenderWidget && uri?.scheme) {
-			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata, options);
-			disposables.add(chatMarkdownAnchorService.register(widget));
-			disposables.add(widget);
-		}
+		renderFileAnchor(a, instantiationService, chatMarkdownAnchorService, disposables, options);
 	});
+}
+
+/** Returns whether the anchor is handled by a file widget, including an already-rendered widget. */
+export function renderFileAnchor(anchor: HTMLAnchorElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions): boolean {
+	if (anchor.classList.contains(InlineAnchorWidget.className)) {
+		return true;
+	}
+
+	const href = anchor.getAttribute('data-href');
+	if (!href || (options?.linkTypes && !href.includes('?'))) {
+		return false;
+	}
+
+	let uri: URI;
+	try {
+		uri = URI.parse(href);
+	} catch {
+		return false;
+	}
+	if (!uri.scheme) {
+		return false;
+	}
+
+	const linkText = anchor.textContent?.trim();
+	let metadata: InlineAnchorWidgetMetadata | undefined;
+	if (linkText && uri.query) {
+		const searchParams = new URLSearchParams(uri.query);
+		const vscodeLinkType = searchParams.get('vscodeLinkType');
+		if (vscodeLinkType) {
+			metadata = { vscodeLinkType, linkText };
+
+			// Presentation metadata must not reach the filesystem provider.
+			searchParams.delete('vscodeLinkType');
+			uri = uri.with({ query: searchParams.toString() });
+		}
+	}
+
+	if (options?.linkTypes && (!metadata || !options.linkTypes.includes(metadata.vscodeLinkType))) {
+		return false;
+	}
+	if (linkText && !metadata) {
+		return false;
+	}
+
+	const widget = disposables.add(instantiationService.createInstance(InlineAnchorWidget, anchor, { kind: 'inlineReference', inlineReference: uri }, metadata, options));
+	disposables.add(chatMarkdownAnchorService.register(widget));
+	return true;
 }
 
 export class InlineAnchorWidget extends Disposable {
@@ -166,6 +175,7 @@ export class InlineAnchorWidget extends Disposable {
 				: { uri: inlineReference.inlineReference };
 
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
+		element.classList.toggle('chat-markdown-preview-link', metadata?.vscodeLinkType === 'markdown-preview');
 
 		let iconText: Array<string | HTMLElement>;
 		let iconClasses: string[];
@@ -305,7 +315,9 @@ export class InlineAnchorWidget extends Disposable {
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 
-			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
+			const editorOverride = this.metadata?.vscodeLinkType === 'markdown-preview'
+				? 'vscode.markdown.preview.editor'
+				: getEditorOverrideForChatResource(location.uri, this.configurationService);
 			const editorOptions: ITextEditorOptions = {
 				override: editorOverride,
 				selection: location.range,
@@ -341,6 +353,15 @@ export class InlineAnchorWidget extends Disposable {
 				this.chatPetService.unlockAchievement(ChatPetAchievementIds.ChatReferenceOpened);
 			}
 		}));
+
+		if (this.metadata?.vscodeLinkType === 'markdown-preview') {
+			this._register(dom.addStandardDisposableListener(element, 'keydown', event => {
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					dom.EventHelper.stop(event, true);
+					element.click();
+				}
+			}));
+		}
 	}
 
 	getHTMLElement(): HTMLElement {

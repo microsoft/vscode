@@ -29,6 +29,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { URI } from '../../../../base/common/uri.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
 import { BannerFocused } from '../../../common/contextkeys.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 // Banner Part
 
@@ -56,6 +58,8 @@ export class BannerPart extends Part implements IBannerService {
 	//#endregion
 
 	private item: IBannerItem | undefined;
+	private readonly items = new Map<string, IBannerItem>();
+	private readonly itemDisposables = this._register(new DisposableStore());
 	private visible = false;
 
 	private actionBar: ActionBar | undefined;
@@ -69,6 +73,7 @@ export class BannerPart extends Part implements IBannerService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
 	}
@@ -92,18 +97,12 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	private close(item: IBannerItem): void {
-		// Hide banner
-		this.setVisibility(false);
-
-		// Remove from document
-		clearNode(this.element);
+		this.hide(item.id);
 
 		// Remember choice
 		if (typeof item.onClose === 'function') {
 			item.onClose();
 		}
-
-		this.item = undefined;
 	}
 
 	private focusActionLink(): void {
@@ -138,7 +137,7 @@ export class BannerPart extends Part implements IBannerService {
 			return element;
 		}
 
-		return this.markdownRendererService.render(message).element;
+		return this.itemDisposables.add(this.markdownRendererService.render(message)).element;
 	}
 
 	private setVisibility(visible: boolean): void {
@@ -171,26 +170,47 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	hide(id: string): void {
-		if (this.item?.id !== id) {
-			return;
-		}
-
-		this.setVisibility(false);
+		this.items.delete(id);
+		this.renderActiveItem();
 	}
 
 	show(item: IBannerItem): void {
-		if (item.id === this.item?.id) {
-			this.setVisibility(true);
+		this.items.delete(item.id);
+		this.items.set(item.id, item);
+		this.renderActiveItem();
+	}
+
+	private renderActiveItem(): void {
+		let item: IBannerItem | undefined;
+		for (const candidate of this.items.values()) {
+			if (!item || (candidate.priority ?? 0) >= (item.priority ?? 0)) {
+				item = candidate;
+			}
+		}
+		if (item === this.item) {
 			return;
 		}
 
-		// Clear previous item
+		const hadFocus = this.element.contains(this.element.ownerDocument.activeElement);
+		this.itemDisposables.clear();
 		clearNode(this.element);
+		this.item = item;
+		this.actionBar = undefined;
+		this.messageActionsContainer = undefined;
+		this.focusedActionIndex = -1;
+		if (!item) {
+			this.element.removeAttribute('aria-label');
+			this.setVisibility(false);
+			return;
+		}
+		this.element.classList.toggle('neutral', !!item.neutral);
 
 		// Banner aria label
 		const ariaLabel = this.getAriaLabel(item);
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
+		} else {
+			this.element.removeAttribute('aria-label');
 		}
 
 		// Icon
@@ -211,25 +231,31 @@ export class BannerPart extends Part implements IBannerService {
 		const messageContainer = append(this.element, $('div.message-container'));
 		messageContainer.setAttribute('aria-hidden', 'true');
 		messageContainer.appendChild(this.getBannerMessage(item.message));
+		if (ariaLabel) {
+			this.itemDisposables.add(this.hoverService.setupDelayedHover(messageContainer, { content: ariaLabel }));
+		}
 
 		// Message Actions
 		this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 		if (item.actions) {
 			for (const action of item.actions) {
-				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
+				this.itemDisposables.add(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
 			}
 		}
 
 		// Action
 		const actionBarContainer = append(this.element, $('div.action-container'));
-		this.actionBar = this._register(new ActionBar(actionBarContainer));
+		this.actionBar = this.itemDisposables.add(new ActionBar(actionBarContainer));
 		const label = item.closeLabel ?? localize('closeBanner', "Close Banner");
-		const closeAction = this._register(new Action('banner.close', label, ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
+		const activeItem = item;
+		const closeAction = this.itemDisposables.add(new Action('banner.close', label, ThemeIcon.asClassName(widgetClose), true, () => this.close(activeItem)));
 		this.actionBar.push(closeAction, { icon: true, label: false });
 		this.actionBar.setFocusable(false);
 
 		this.setVisibility(true);
-		this.item = item;
+		if (hadFocus) {
+			this.focus();
+		}
 	}
 
 	toJSON(): object {

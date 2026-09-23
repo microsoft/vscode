@@ -66,6 +66,7 @@ export class MobileTitlebarPart extends Disposable {
 
 	private readonly sessionTitleElement: HTMLElement;
 	private readonly actionsContainer: HTMLElement;
+	private readonly centerToolbar: MenuWorkbenchToolBar;
 
 	private readonly _onDidClickHamburger = this._register(new Emitter<void>());
 	readonly onDidClickHamburger: Event<void> = this._onDidClickHamburger.event;
@@ -256,6 +257,7 @@ export class MobileTitlebarPart extends Disposable {
 			telemetrySource: 'mobileTitlebar.center',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
+		this.centerToolbar = toolbar;
 
 		// Switch between title and toolbar based on whether a new (empty)
 		// chat session is active AND whether the toolbar has anything to
@@ -286,6 +288,14 @@ export class MobileTitlebarPart extends Disposable {
 			}
 		}));
 		this._register(toolbar.onDidChangeMenuItems(() => updateCenterMode()));
+	}
+
+	focus(): void {
+		if (this.element.classList.contains('show-actions')) {
+			this.centerToolbar.focus();
+		} else {
+			this.sessionTitleElement.focus();
+		}
 	}
 
 	/**

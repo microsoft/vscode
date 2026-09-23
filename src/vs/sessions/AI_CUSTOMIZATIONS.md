@@ -52,7 +52,8 @@ Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses
 
 ### `ICustomizationMigrationService`
 
-This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage. MCP migrations report known servers' binary harness compatibility, discovery and policy-coverage state, and eligible source-to-target candidates using the current Agent Host delivery projection. MCP execution revalidates candidates and ordered session working-directory roots before guarded writes and returns structured per-server results. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage. MCP migrations report known servers' binary harness compatibility, discovery and policy-coverage state, eligible source-to-target candidates, and excluded workspace servers with localized details explaining why they cannot be migrated. MCP execution revalidates candidates and ordered session working-directory roots before guarded writes and returns structured per-server results. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
+Harness-specific MCP migration planning and execution are supplied by the active harness descriptor so the shared service does not depend on a provider implementation.
 
 ### `IHarnessDescriptor`
 
@@ -64,8 +65,12 @@ A descriptor may define:
 - per-section creation behavior;
 - hidden or renamed item types;
 - MCP collection exclusions that do not hide host-published servers;
+- an optional, session-scoped MCP compatibility provider;
+- an optional MCP migration provider;
 - required agent availability;
 - external items, enablement, and plugin actions.
+
+Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 

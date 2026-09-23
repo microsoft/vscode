@@ -5,20 +5,24 @@
 
 import * as os from 'os';
 import * as vscode from 'vscode';
-import { ConfigKey } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { DEFAULT_OTLP_ENDPOINT } from '../../../platform/otel/common/otelConfig';
+import { IOTelConfigResolver } from '../../../platform/otel/common/otelConfigResolution';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IOTelSqliteStore, type OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
+import { IOTelPolicyRestartRecord, OTelStaleConfigMonitor } from '../common/otelStaleConfigMonitor';
+import { OTEL_SETTINGS_SECTION } from './otelConfigResolver';
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const STATUS_ACTIVE_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY = 'github.copilot.otel.enabledExplicitly';
 const CHAT_STATUS_ITEM_ID = 'copilot.otelStatus';
+const POLICY_RESTART_RECORD_KEY = 'github.copilot.otel.latePolicyRestart';
 const DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 
 /**
@@ -34,6 +38,7 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
+		@IOTelConfigResolver private readonly _otelConfigResolver: IOTelConfigResolver,
 	) {
 		super();
 		if (this._otelService.config.enabled) {
@@ -57,8 +62,7 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			this._logService.info('[OTel] Flush complete');
 		}));
 
-		// Prompt for reload when OTel settings change — these are read once at
-		// activation and the OTel SDK cannot be reconfigured at runtime.
+		// Recover policy arriving after service construction; user changes remain opt-in.
 		this._watchForReloadRequiredChanges();
 
 		// Export the agent-traces.db file.
@@ -114,41 +118,59 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 	}
 
 	private _watchForReloadRequiredChanges(): void {
-		const reloadSettings = [
-			ConfigKey.Advanced.OTelEnabled,
-			ConfigKey.Advanced.OTelExporterType,
-			ConfigKey.Advanced.OTelOtlpEndpoint,
-			ConfigKey.Advanced.OTelCaptureContent,
-			ConfigKey.Advanced.OTelOutfile,
-			ConfigKey.Advanced.OTelDbSpanExporter,
-		];
-
-		// Snapshot initial values to avoid prompting when the setting hasn't actually changed
-		const initialValues = new Map(reloadSettings.map(s => [s.fullyQualifiedId, vscode.workspace.getConfiguration().get(s.fullyQualifiedId)]));
-
-		this._register(vscode.workspace.onDidChangeConfiguration(async e => {
-			const currentConfig = vscode.workspace.getConfiguration();
-			const changedSettings = reloadSettings.filter(s =>
-				e.affectsConfiguration(s.fullyQualifiedId) &&
-				currentConfig.get(s.fullyQualifiedId) !== initialValues.get(s.fullyQualifiedId)
-			);
-			if (changedSettings.length === 0) {
-				return;
+		const state = this._extensionContext.workspaceState;
+		const monitor = new OTelStaleConfigMonitor(this._otelConfigResolver, {
+			getRestartRecord: () => state.get<IOTelPolicyRestartRecord>(POLICY_RESTART_RECORD_KEY),
+			setRestartRecord: async record => state.update(POLICY_RESTART_RECORD_KEY, record),
+			// Unlike ordinary messages, progress notifications close when their host is disposed.
+			restartExtensionHost: async () => vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: vscode.l10n.t("Restarting extensions in this window to apply your organization's Copilot telemetry settings. Active sessions may ask you to confirm."),
+				cancellable: false,
+			}, async () => {
+				await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+				// Successful restart destroys this host. This one-off grace period is only
+				// for deciding when a still-running host should show the reload fallback.
+				await timeout(15_000);
+			}),
+			warnPolicyNotApplied: () => {
+				void this._promptReload(vscode.l10n.t("Your organization's Copilot telemetry policy could not be applied automatically. Reload the window to apply it."), true);
+			},
+			promptReload: current => {
+				const endpoint = current.config.otlpEndpoint;
+				const endpointChanged = current.config.enabled && endpoint !== this._otelConfigResolver.activeResolution.config.otlpEndpoint;
+				void this._promptReload(endpointChanged
+					? vscode.l10n.t("Copilot OTel endpoint will change to {0} after reload.", String(endpoint))
+					: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."), false);
+			},
+			notifyPolicyRestarted: () => {
+				this._logService.info('[OTel] Extensions were restarted to apply enterprise telemetry policy.');
+			},
+		}, this._logService);
+		// One startup check and configuration-event checks; no polling.
+		const scheduler = this._register(new RunOnceScheduler(() => {
+			monitor.check().catch(error => this._logService.error(error, '[OTel] Failed to check for stale telemetry configuration'));
+		}, 500));
+		this._register(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OTEL_SETTINGS_SECTION)) {
+				scheduler.schedule();
 			}
-			const endpointSetting = ConfigKey.Advanced.OTelOtlpEndpoint;
-			const endpointChanged = changedSettings.some(s => s.fullyQualifiedId === endpointSetting.fullyQualifiedId);
+		}));
+		scheduler.schedule();
+	}
+
+	private async _promptReload(message: string, warning: boolean): Promise<void> {
+		try {
 			const reloadWindowLabel = vscode.l10n.t("Reload Window");
-			const message = endpointChanged
-				? vscode.l10n.t("Copilot OTel endpoint will change to {0} after reload.", String(currentConfig.get(endpointSetting.fullyQualifiedId)))
-				: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect.");
-			const selection = await vscode.window.showInformationMessage(
-				message,
-				reloadWindowLabel,
-			);
+			const selection = warning
+				? await vscode.window.showWarningMessage(message, reloadWindowLabel)
+				: await vscode.window.showInformationMessage(message, reloadWindowLabel);
 			if (selection === reloadWindowLabel) {
 				await vscode.commands.executeCommand('workbench.action.reloadWindow');
 			}
-		}));
+		} catch (error) {
+			this._logService.error(error, '[OTel] Failed to prompt for a window reload');
+		}
 	}
 
 	/**

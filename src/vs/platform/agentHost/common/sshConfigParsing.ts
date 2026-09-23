@@ -34,19 +34,15 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 	return hosts;
 }
 
-/**
- * Split a space-separated `ssh -G` path list, honoring double quotes so paths
- * containing spaces survive. `ssh -G` emits `userknownhostsfile` and
- * `globalknownhostsfile` as one line holding several paths.
- */
-function parseSSHPathList(value: string): string[] {
-	const paths: string[] = [];
-	const pattern = /"([^"]*)"|(\S+)/g;
+/** Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
+export function tokenizeSSHPathList(value: string): { path: string; start: number; end: number; quoted: boolean }[] {
+	const paths: { path: string; start: number; end: number; quoted: boolean }[] = [];
+	const pattern = /"(?<quoted>[^"]*)"|(?<unquoted>\S+)/g;
 	let match: RegExpExecArray | null;
 	while ((match = pattern.exec(value)) !== null) {
-		const path = match[1] ?? match[2];
+		const path = match.groups?.quoted ?? match.groups?.unquoted;
 		if (path) {
-			paths.push(path);
+			paths.push({ path, start: match.index, end: pattern.lastIndex, quoted: match.groups?.quoted !== undefined });
 		}
 	}
 	return paths;
@@ -85,9 +81,10 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		port: parseInt(map.get('port') ?? '22', 10),
 		identityFile: identityFiles,
 		identityAgent: map.get('identityagent') || undefined,
+		...(map.get('proxycommand') && map.get('proxycommand')?.toLowerCase() !== 'none' ? { proxyCommand: map.get('proxycommand') } : {}),
 		forwardAgent: map.get('forwardagent') === 'yes',
-		userKnownHostsFiles: parseSSHPathList(map.get('userknownhostsfile') ?? ''),
-		globalKnownHostsFiles: parseSSHPathList(map.get('globalknownhostsfile') ?? ''),
+		userKnownHostsFiles: tokenizeSSHPathList(map.get('userknownhostsfile') ?? '').map(token => token.path),
+		globalKnownHostsFiles: tokenizeSSHPathList(map.get('globalknownhostsfile') ?? '').map(token => token.path),
 		strictHostKeyChecking: strictHostKeyChecking && isSSHStrictHostKeyChecking(strictHostKeyChecking)
 			? strictHostKeyChecking
 			: undefined,

@@ -10,7 +10,7 @@ import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape 
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { getAuthenticationSessionRequestKey, IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -46,6 +46,12 @@ interface ProviderWithMetadata {
  */
 export function reviveAccountIcon<T extends { readonly icon?: vscode.Uri | UriComponents }>(account: T): T & { readonly icon?: vscode.Uri } {
 	return { ...account, icon: URI.revive(account.icon) };
+}
+
+function getInteractiveOptionsForRequestKey(options: boolean | vscode.AuthenticationGetSessionPresentationOptions | undefined) {
+	return typeof options === 'object'
+		? { detail: options.detail, learnMore: options.learnMore?.toString() }
+		: options;
 }
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
@@ -96,39 +102,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
-		// TODO: pull this out into a utility function somewhere
-		const optionsStr = keys
-			.map(key => {
-				switch (key) {
-					case 'account':
-						return `${key}:${options.account?.id}`;
-					case 'createIfNone':
-					case 'forceNewSession': {
-						const value = typeof options[key] === 'boolean'
-							? `${options[key]}`
-							: `'${options[key]?.detail}/${options[key]?.learnMore?.toString()}'`;
-						return `${key}:${value}`;
-					}
-					case 'authorizationServer':
-						return `${key}:${options.authorizationServer?.toString(true)}`;
-					default:
-						return `${key}:${!!options[key]}`;
-				}
-			})
-			.sort()
-			.join(', ');
-
-		let singlerKey: string;
-		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {
-			const challenge = scopesOrRequest as vscode.AuthenticationWwwAuthenticateRequest;
-			const challengeStr = challenge.wwwAuthenticate;
-			const scopesStr = challenge.fallbackScopes ? [...challenge.fallbackScopes].sort().join(' ') : '';
-			singlerKey = `${extensionId} ${providerId} challenge:${challengeStr} ${scopesStr} ${optionsStr}`;
-		} else {
-			const sortedScopes = [...scopesOrRequest].sort().join(' ');
-			singlerKey = `${extensionId} ${providerId} ${sortedScopes} ${optionsStr}`;
-		}
+		const singlerKey = JSON.stringify([extensionId, providerId, getAuthenticationSessionRequestKey(scopesOrRequest, {
+			...options,
+			account: options.account && { id: options.account.id, label: options.account.label },
+			authorizationServer: URI.revive(options.authorizationServer),
+			createIfNone: getInteractiveOptionsForRequestKey(options.createIfNone),
+			forceNewSession: getInteractiveOptionsForRequestKey(options.forceNewSession)
+		})]);
 
 		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
 			await this._proxy.$ensureProvider(providerId);

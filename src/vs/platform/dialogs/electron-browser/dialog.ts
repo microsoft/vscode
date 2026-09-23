@@ -11,7 +11,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { process } from '../../../base/parts/sandbox/electron-browser/globals.js';
 
 function formatCopilotVersion(version: string | undefined): string {
-	return version?.replace('-canary', '').replace(/\.unsigned$/, '') || 'Unknown';
+	return version?.replace(/-(?:canary|unstable)(?=\.|$)/, '').replace(/\.unsigned$/, '') || 'Unknown';
 }
 
 export function createNativeAboutDialogDetails(productService: IProductService, osProps: IOSProperties): { title: string; details: string; detailsToCopy: string } {

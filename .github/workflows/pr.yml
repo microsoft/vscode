@@ -43,6 +43,10 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
+      - name: Install Electron headers
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/npm/preinstall.ts
+
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
@@ -298,7 +302,9 @@ jobs:
 
       - name: Validate telemetry events
         working-directory: extensions/copilot
-        run: npx --package=@vscode/telemetry-extractor@1.20.4 --yes vscode-telemetry-extractor -s . > /dev/null
+        run: |
+          version=$(node -p "require('../../package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)
