@@ -17,6 +17,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { buildTerminalOutputDbUri } from '../../../../../../../platform/agentHost/common/sessionDbUri.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -394,6 +395,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			terminalCommandOutput: {
 				text: options.fallback ?? 'Saved to: /artifact/terminal-output.txt',
 				truncated: options.truncated ?? !!terminal,
+				fullOutputResource: terminal ? buildTerminalOutputDbUri(sessionResource.toString(), toolCallId) : undefined,
 				...(options.hasPreview === false ? {} : { fullOutputPreview: options.preview ?? 'preview output' }),
 			},
 		};
@@ -546,6 +548,30 @@ suite('ChatTerminalToolProgressPart full output', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const mode of ['thinking', 'simple', 'plain'] as const) {
+		test(`opens full output from the inline preview link in ${mode} mode`, async () => {
+			const harness = await createTerminalFullOutputHarness(store);
+			const { part } = harness.createPart({ mode, preview: 'Open Full Output\r\npreview output' });
+			await harness.expand(part, mode);
+			const link = part.domNode.querySelector<HTMLAnchorElement>('.chat-terminal-output-truncation .monaco-link');
+			assert.ok(link);
+			link.click();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				linkText: link.textContent,
+				keyboardReachable: link.tabIndex,
+				opens: harness.openedEditors.length,
+				resource: harness.openedEditors[0]?.resource?.toString(),
+				preview: snapshotText(harness.raw(part)),
+			}, {
+				linkText: 'Open Full Output',
+				keyboardReachable: 0,
+				opens: 1,
+				resource: harness.probes[0]?.toString(),
+				preview: 'Open Full Output\npreview output',
+			});
+		});
+
 		test(`does not open full output from broad preview clicks in ${mode} mode`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
 			const entry = harness.createPart({ mode });
@@ -566,11 +592,13 @@ suite('ChatTerminalToolProgressPart full output', () => {
 
 		assert.deepStrictEqual({
 			action: part.fullOutputAction,
+			inlineLink: part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link'),
 			rendered: snapshotText(harness.raw(part)),
 			accessible: part.getCommandAndOutputAsText(),
 			probes: harness.probes.length,
 		}, {
 			action: undefined,
+			inlineLink: null,
 			rendered: 'Saved to: /artifact/output.txt',
 			accessible: 'Command: printf output\nSaved to: /artifact/output.txt\nOutput truncated.',
 			probes: 1,
@@ -601,9 +629,11 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				action: !!part.fullOutputAction,
+				inlineLink: !!part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link'),
 				rendered: snapshotText(harness.raw(part)),
 			}, {
 				action: !oversized,
+				inlineLink: !oversized,
 				rendered: oversized ? 'Saved to: /artifact/output.txt' : 'preview',
 			});
 		});
@@ -659,7 +689,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		}
 	});
 
-	test('renders a noninteractive truncation message and a header action in every rendering mode', async () => {
+	test('renders an inline preview link and a header action in every rendering mode', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
 
 		for (const mode of ['thinking', 'simple', 'plain'] as const) {
@@ -670,7 +700,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			assert.strictEqual(part.domNode.querySelector('.chat-terminal-thinking-collapsible > .chat-used-context-label .chat-terminal-show-link'), null);
 			const text = snapshotText(harness.raw(part));
 			assert.strictEqual(text, 'preview output');
-			assert.strictEqual(part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent, 'Output truncated.');
+			assert.strictEqual(part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent, 'Output truncated. Open Full Output');
 			assert.strictEqual(part.domNode.querySelector('.chat-terminal-full-output-footer'), null);
 
 			await harness.collapse(part, mode);
@@ -688,6 +718,28 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		}
 
 		assert.strictEqual(harness.openedEditors.length, 0);
+	});
+
+	test('inline output link supports keyboard activation and stops handling clicks after disposal', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+		const link = part.domNode.querySelector<HTMLAnchorElement>('.chat-terminal-output-truncation .monaco-link');
+		assert.ok(link);
+		for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+			await timeout(0);
+		}
+		const opensBeforeDisposal = harness.openedEditors.length;
+		part.dispose();
+		const click = new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true });
+		click.preventDefault();
+		link.dispatchEvent(click);
+		await timeout(0);
+		assert.deepStrictEqual({ opensBeforeDisposal, opensAfterDisposal: harness.openedEditors.length }, {
+			opensBeforeDisposal: 2,
+			opensAfterDisposal: 2,
+		});
 	});
 
 	test('keeps an empty preview actionable without claiming the command produced no output', async () => {
@@ -746,7 +798,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				opens: harness.openedEditors.length,
 			}, {
 				rendered: 'preview output',
-				truncation: 'Output truncated.',
+				truncation: 'Output truncated. Open Full Output',
 				accessible: `Command: printf output\npreview output\n${message}`,
 				opens: 0,
 			});
@@ -795,7 +847,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			}, {
 				editorLabel: terminalOutputLabel('terminal-tool-call'),
 				rendered: 'preview output',
-				truncation: 'Output truncated.',
+				truncation: 'Output truncated. Open Full Output',
 			});
 		});
 	}
@@ -902,7 +954,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 		const completeOutput = `complete output\n${'x'.repeat(4096)}\nend`;
 		const fixture = createTerminalOutputTestFixture(store, sessionResource, entry.invocation, authority, async resource => {
-			assert.strictEqual(resource.toString(), terminalResource.toString());
+			assert.strictEqual(resource.toString(), buildTerminalOutputDbUri(sessionResource.toString(), 'provider-backed-tool').toString());
 			return completeOutput;
 		}, { size: VSBuffer.fromString(completeOutput).byteLength });
 		let openedText: string | undefined;
@@ -942,7 +994,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			editorLabels: [terminalOutputLabel('provider-backed-tool')],
 			fallback: 'Saved to: /artifact/terminal-output.txt',
 			preview: 'preview only',
-			reads: [terminalResource.toString()],
+			reads: [buildTerminalOutputDbUri(sessionResource.toString(), 'provider-backed-tool').toString()],
 		});
 	});
 });
@@ -1386,7 +1438,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		}, {
 			footer: null,
 			totalHeight: true,
-			truncation: 'Output truncated.',
+			truncation: 'Output truncated. Open Full Output',
 		});
 	});
 

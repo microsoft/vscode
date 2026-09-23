@@ -67,6 +67,7 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { FileOperationResult, getLargeFileConfirmationLimit, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
+import { Link } from '../../../../../../../platform/opener/browser/link.js';
 
 /**
  * Minimum number of rows to display in the terminal output view.
@@ -421,6 +422,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const hasRetainedOutputCandidate = terminalUri
 			&& this._terminalData.isPty === false
 			&& this._terminalData.terminalCommandOutput?.truncated === true
+			&& this._terminalData.terminalCommandOutput.fullOutputResource !== undefined
 			&& IChatToolInvocation.isComplete(toolInvocation);
 		const runId = (hash(toolInvocation.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
 		const outputName = `terminal-output-${runId}.txt`;
@@ -1414,6 +1416,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 	private readonly _truncationElement: HTMLElement;
+	private readonly _fullOutputLink = this._register(new MutableDisposable<Link>());
 	private _lastRenderedLineCount: number | undefined;
 	private readonly _outputRelayout = this._register(new MutableDisposable());
 
@@ -1651,7 +1654,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 	private async _updateTerminalContent(): Promise<void> {
 		this.updateAriaLabel();
-		this._setTruncationMessage(false);
+		this._setTruncationMessage(this._getTerminalCommandOutput()?.truncated === true);
 		const outputSource = this._getOutputSource();
 		if (outputSource) {
 			this._disposeLiveMirror();
@@ -1771,7 +1774,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
-		this._setTruncationMessage(snapshot.truncated === true);
+		this._setTruncationMessage(snapshot.truncated === true || this._canOpenFullOutput());
 		if (this._snapshotMirror) {
 			this._snapshotMirror.setOutput(snapshot);
 			await this._layoutMirrorWidth(this._snapshotMirror);
@@ -1802,6 +1805,19 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _setTruncationMessage(visible: boolean): void {
+		if (visible && this._canOpenFullOutput()) {
+			if (!this._fullOutputLink.value) {
+				this._truncationElement.textContent = localize('chatTerminalOutputTruncated', 'Output truncated.');
+				this._truncationElement.append(' ');
+				this._fullOutputLink.value = this._instantiationService.createInstance(Link, this._truncationElement, {
+					label: localize('chatTerminalFullOutputLink', "Open Full Output"),
+					href: '#',
+					title: localize('openTerminalFullOutputReadonly', "Open Full Output (Read-Only)"),
+				}, { opener: () => this._openFullOutput() });
+			}
+			return;
+		}
+		this._fullOutputLink.clear();
 		this._truncationElement.textContent = visible ? localize('chatTerminalOutputTruncated', 'Output truncated.') : '';
 	}
 
@@ -1912,7 +1928,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		const rowHeight = this._computeRowHeightPx();
-		const padding = this._getOutputPadding();
+		const padding = this._getOutputPadding() + this._truncationElement.offsetHeight;
 		// The container carries a CSS max-height with overflow: hidden; keep the row cap
 		// under it so the CSS limit can never slice a row that the height math allowed.
 		let maxRows = MAX_OUTPUT_ROWS;

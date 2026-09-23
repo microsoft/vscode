@@ -7,6 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { buildTerminalOutputDbUri } from '../../../../../../platform/agentHost/common/sessionDbUri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -21,11 +22,12 @@ suite('Terminal full output - adapter to resource', () => {
 	const sessionResource = URI.parse('copilot:/full-output-session');
 	const artifactB = URI.file('/shared/artifact-b.txt');
 	const terminalResource = URI.parse('agenthost-terminal:/command-a');
+	const outputResource = buildTerminalOutputDbUri(sessionResource.toString(), 'command-a');
 	const fullText = `BEGIN\n${'x'.repeat(4096)}\nMIDDLE\n${'y'.repeat(4096)}\nEND`;
 
 	for (const authority of ['local', 'remote-host']) {
 		for (const restored of [false, true]) {
-			test(`${authority} ${restored ? 'restored' : 'live'} output resolves and reads the terminal URI, never prose artifact B`, async () => {
+			test(`${authority} ${restored ? 'restored' : 'live'} output reads its database resource, never prose artifact B`, async () => {
 				const completed: ToolCallCompletedState = {
 					status: ToolCallStatus.Completed,
 					toolCallId: 'command-a',
@@ -37,6 +39,7 @@ suite('Terminal full output - adapter to resource', () => {
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 					success: true,
 					content: [
+						{ type: ToolResultContentType.Resource, uri: outputResource.toString(), contentType: 'text/plain' },
 						{ type: ToolResultContentType.Text, text: `Saved to: ${artifactB.path}` },
 						{
 							type: ToolResultContentType.Terminal,
@@ -87,8 +90,8 @@ suite('Terminal full output - adapter to resource', () => {
 					beforeOpen: 0,
 					text: fullText,
 					readonly: true,
-					resolves: [terminalResource.toString()],
-					reads: [terminalResource.toString(), terminalResource.toString()],
+					resolves: [outputResource.toString()],
+					reads: [outputResource.toString(), outputResource.toString()],
 				});
 				assert.match(fixture.resource.path.split('/').at(-1) ?? '', /^terminal-output-command-a\.txt$/);
 			});

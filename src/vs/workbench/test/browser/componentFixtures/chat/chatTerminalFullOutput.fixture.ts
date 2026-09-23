@@ -12,6 +12,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { buildTerminalOutputDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -164,6 +165,7 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 		terminalCommandOutput: {
 			text: options.hasFullOutput ? 'Saved to: /artifact/terminal-output.txt' : options.preview.replace(/\r?\n/g, '\r\n'),
 			truncated: options.hasFullOutput,
+			fullOutputResource: options.hasFullOutput ? buildTerminalOutputDbUri('copilot:/fixture', 'fixture-terminal-tool-call') : undefined,
 			...(options.hasFullOutput ? { fullOutputPreview: options.preview.replace(/\r?\n/g, '\r\n') } : {}),
 		},
 	};

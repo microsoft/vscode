@@ -35,7 +35,6 @@ interface INonPtyShellStream {
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
-	retained: boolean;
 }
 
 /**
@@ -116,7 +115,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 
 		this._register(toDisposable(() => {
 			for (const stream of this._streams.values()) {
-				if (stream.created && !stream.retained) {
+				if (stream.created) {
 					this._terminalManager.disposeTerminal(stream.uri);
 				}
 			}
@@ -138,7 +137,6 @@ export class NonPtyShellTerminalStreams extends Disposable {
 				lastSnapshot: '',
 				sourceTruncated: false,
 				finalized: false,
-				retained: false,
 				created: false,
 			});
 		}
@@ -228,16 +226,6 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			}
 		}
 		this._finalize(stream, result.exitCode);
-		const claim = buildNonPtyShellTerminalClaim(this._sessionUri, this._chatUri, toolCallId);
-		if (shellExit?.outputFilePath) {
-			this._terminalManager.retainTerminalState(stream.uri, {
-				title: stream.title,
-				claim,
-				exitCode: result.exitCode,
-				artifact: URI.file(shellExit.outputFilePath),
-			});
-			stream.retained = true;
-		}
 		return {
 			uri: stream.uri,
 			result,
@@ -255,7 +243,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			return;
 		}
 		this._streams.delete(toolCallId);
-		if (stream.created && !stream.retained) {
+		if (stream.created) {
 			this._terminalManager.disposeTerminal(stream.uri);
 		}
 	}

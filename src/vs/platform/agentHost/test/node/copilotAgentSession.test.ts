@@ -43,6 +43,7 @@ import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { buildTerminalOutputDbUri } from '../../common/sessionDbUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
@@ -2506,9 +2507,38 @@ suite('CopilotAgentSession', () => {
 			await session.getMessages();
 
 			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-replay-output';
-			assert.strictEqual(terminalManager.retainedTerminalStates.get(terminalUri), undefined);
+			assert.strictEqual(terminalManager.getTerminalState(terminalUri), undefined);
 		});
 	}
+
+	test('restores saved output even when SDK history omits structured shell completion', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('stored-turn');
+		await database.storeTerminalOutput('stored-turn', 'saved-tool', VSBuffer.fromString('complete output').buffer);
+		const { session, terminalManager } = await createAgentSession(disposables, {
+			resume: true,
+			sessionDatabase: database,
+			configureMockSession: mock => {
+				mock.messages = [
+					{ type: 'user.message', data: { interactionId: 'message-1', content: 'run it' } },
+					{ type: 'assistant.message', data: { messageId: 'message-2', content: '', toolRequests: [{ toolCallId: 'saved-tool', name: 'bash' }] } },
+					{ type: 'tool.execution_start', data: { toolCallId: 'saved-tool', toolName: 'bash', arguments: { command: 'build' } } },
+					{ type: 'tool.execution_complete', data: { toolCallId: 'saved-tool', success: true, result: { content: 'Saved output was temporary' } } },
+				] as SessionEvent[];
+			},
+		});
+		const tool = (await session.getMessages()).flatMap(turn => turn.responseParts).find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(tool?.kind === ResponsePartKind.ToolCall && tool.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual({
+			terminal: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal),
+			resource: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Resource),
+			liveChannels: terminalManager.outputTerminalsCreated,
+		}, {
+			terminal: { type: ToolResultContentType.Terminal, title: 'Run Shell Command', isPty: false, resource: buildNonPtyShellTerminalUri(session.ownerSessionUri, 'saved-tool'), result: { truncated: true, preview: '' } },
+			resource: { type: ToolResultContentType.Resource, uri: buildTerminalOutputDbUri(session.resourceUri.toString(), 'saved-tool').toString(), contentType: 'text/plain', sizeHint: 15 },
+			liveChannels: [],
+		});
+	});
 
 	test('describes an interrupted restored request without exposing Agent Host terminology', async () => {
 		const { session } = await createAgentSession(disposables, {
@@ -9630,14 +9660,14 @@ Use the attached image as context.
 					};
 				}),
 				disposed: terminalManager.disposedTerminals,
-				retained: [...terminalManager.retainedTerminalStates.keys()],
+				live: terminalUris.map(uri => terminalManager.getTerminalState(uri)),
 			}, {
 				terminalResults: terminalUris.map((resource, i) => ({
 					resource,
 					preview: `output ${i + 1}\n`,
 				})),
 				disposed: terminalUris,
-				retained: [],
+				live: terminalUris.map(() => undefined),
 			});
 
 			session.dispose();
@@ -9782,10 +9812,10 @@ Use the attached image as context.
 			assert.deepStrictEqual(terminalManager.outputTerminalsFinalized, [{ uri: terminalUri, exitCode: 0 }]);
 			assert.deepStrictEqual({
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri),
+				live: terminalManager.getTerminalState(terminalUri),
 			}, {
 				disposed: [terminalUri],
-				retained: undefined,
+				live: undefined,
 			});
 
 			// shell_exit completion data lands on the streamed terminal block.
@@ -9803,7 +9833,13 @@ Use the attached image as context.
 		});
 
 		test('truncated shell output streams through marker, rolling-tail, and completion transitions', async () => {
-			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			const database = new TestSessionDatabase();
+			const output = VSBuffer.fromString('complete output beyond the preview');
+			await database.createTurn('turn-truncated-stream');
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables, {
+				sessionDatabase: database,
+				fileContents: { '/tmp/artifact-a.txt': output.toString() },
+			});
 			session.resetTurnState('turn-truncated-stream');
 
 			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-rewrite';
@@ -9857,7 +9893,7 @@ Use the attached image as context.
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
 				result: terminalResult?.result,
-				retainedArtifact: terminalManager.retainedTerminalStates.get(terminalUri)?.artifact?.toString(),
+				storedOutput: await database.readTerminalOutput('tc-rewrite'),
 			}, {
 				data: [
 					{ uri: terminalUri, data: 'line 1\nline 498\nline 499\n' },
@@ -9867,16 +9903,16 @@ Use the attached image as context.
 				],
 				resets: [],
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
-				disposed: [],
+				disposed: [terminalUri],
 				result: {
 					exitCode: 0,
 					preview: 'line 1\nline 2\n',
 					truncated: true,
 				},
-				retainedArtifact: URI.file('/tmp/artifact-a.txt').toString(),
+				storedOutput: output.buffer,
 			});
 			await session.destroySession();
-			assert.strictEqual(terminalManager.retainedTerminalStates.size, 0);
+			assert.deepStrictEqual(await database.readTerminalOutput('tc-rewrite'), output.buffer);
 		});
 
 		test('truncated shell output without an artifact disposes its exited terminal resource', async () => {
@@ -9903,14 +9939,86 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri),
+				live: terminalManager.getTerminalState(terminalUri),
 			}, {
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
 				disposed: [terminalUri],
-				retained: undefined,
+				live: undefined,
 			});
 			session.dispose();
 			assert.deepStrictEqual(terminalManager.disposedTerminals, [terminalUri]);
+		});
+
+		test('persists output before publishing completion and before disconnecting the SDK', async () => {
+			const storing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const database = new class extends TestSessionDatabase {
+				override async storeTerminalOutput(turnId: string, toolCallId: string, output: Uint8Array): Promise<void> {
+					storing.complete();
+					await release.p;
+					await super.storeTerminalOutput(turnId, toolCallId, output);
+				}
+			}();
+			await database.createTurn('persist-output');
+			const { session, mockSession, signals, terminalManager } = await createAgentSession(disposables, {
+				sessionDatabase: database,
+				fileContents: { '/output.txt': 'complete \u03bb output' },
+			});
+			session.resetTurnState('persist-output');
+			mockSession.fire('tool.execution_start', { toolCallId: 'persisted', toolName: 'bash', arguments: { command: 'build' } });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'persisted', success: true,
+				result: { content: 'Saved to: /output.txt', contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputPreview: 'preview', outputTruncated: true, outputFilePath: '/output.txt' }] },
+			});
+			await storing.p;
+			const disconnecting = session.destroySession();
+			await timeout(0);
+			const before = {
+				completed: getActions(signals).some(action => action.type === ActionType.ChatToolCallComplete),
+				disposed: terminalManager.disposedTerminals.length,
+				disconnected: mockSession.disconnectCalls,
+			};
+			release.complete();
+			await disconnecting;
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+			const stored = await database.readTerminalOutput('persisted');
+			assert.ok(stored);
+			assert.deepStrictEqual({
+				before,
+				stored: VSBuffer.wrap(stored).toString(),
+				reference: completed?.type === ActionType.ChatToolCallComplete && completed.result.content?.some(content => content.type === ToolResultContentType.Resource),
+				disposed: terminalManager.disposedTerminals.length,
+				disconnected: mockSession.disconnectCalls,
+			}, {
+				before: { completed: false, disposed: 0, disconnected: 0 },
+				stored: 'complete \u03bb output',
+				reference: true,
+				disposed: 1,
+				disconnected: 1,
+			});
+		});
+
+		test('a failed artifact capture preserves completion fallback and retires the channel without a resource reference', async () => {
+			const database = new TestSessionDatabase();
+			const { session, mockSession, signals, terminalManager, waitForSignal } = await createAgentSession(disposables, {
+				sessionDatabase: database,
+				fileReadErrors: ['/missing-output.txt'],
+			});
+			session.resetTurnState('failed-output');
+			mockSession.fire('tool.execution_start', { toolCallId: 'failed-output', toolName: 'bash', arguments: { command: 'build' } });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'failed-output', success: true,
+				result: { content: 'Saved to: /missing-output.txt', contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputPreview: 'preview', outputTruncated: true, outputFilePath: '/missing-output.txt' }] },
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+			assert.ok(completed?.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual({
+				text: completed.result.content?.find(content => content.type === ToolResultContentType.Text)?.text,
+				resource: completed.result.content?.some(content => content.type === ToolResultContentType.Resource),
+				size: await database.getTerminalOutputSize('failed-output'),
+				disposed: terminalManager.disposedTerminals.length,
+			}, { text: 'Saved to: /missing-output.txt', resource: false, size: undefined, disposed: 1 });
 		});
 
 		test('zero-partial shell completion creates, seeds, and finalizes the output channel', async () => {
@@ -9937,13 +10045,13 @@ Use the attached image as context.
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri),
+				live: terminalManager.getTerminalState(terminalUri),
 			}, {
 				created: [terminalUri],
 				data: [{ uri: terminalUri, data: 'ok\n' }],
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
 				disposed: [terminalUri],
-				retained: undefined,
+				live: undefined,
 			});
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.ok(completed.result.content?.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri));
@@ -9970,11 +10078,11 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri),
+				live: terminalManager.getTerminalState(terminalUri),
 			}, {
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
 				disposed: [terminalUri],
-				retained: undefined,
+				live: undefined,
 			});
 		});
 
@@ -10055,11 +10163,11 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				finalized: terminalManager.outputTerminalsFinalized,
 				disposed: terminalManager.disposedTerminals,
-				retained: terminalManager.retainedTerminalStates.get(terminalUri),
+				live: terminalManager.getTerminalState(terminalUri),
 			}, {
 				finalized: [{ uri: terminalUri, exitCode: 127 }],
 				disposed: [terminalUri],
-				retained: undefined,
+				live: undefined,
 			});
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.ok(completed.result.content?.some(content =>

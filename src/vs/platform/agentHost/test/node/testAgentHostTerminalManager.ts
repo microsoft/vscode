@@ -6,10 +6,9 @@
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
-import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalClaim, type TerminalInfo, type TerminalState } from '../../common/state/protocol/state.js';
-import type { IAgentHostTerminalManager, ICommandFinishedEvent, IRetainedTerminalState } from '../../node/agentHostTerminalManager.js';
+import { TerminalLifecycleStatus, type TerminalClaim, type TerminalInfo, type TerminalState } from '../../common/state/protocol/state.js';
+import type { IAgentHostTerminalManager, ICommandFinishedEvent } from '../../node/agentHostTerminalManager.js';
 
 /**
  * Controllable fake {@link IAgentHostTerminalManager} for tests. `createTerminal`
@@ -30,7 +29,6 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	readonly outputTerminalData: { uri: string; data: string }[] = [];
 	readonly outputTerminalResets: string[] = [];
 	readonly outputTerminalsFinalized: { uri: string; exitCode: number | undefined }[] = [];
-	readonly retainedTerminalStates = new Map<string, IRetainedTerminalState>();
 	private readonly _outputTerminalStates = new Map<string, TerminalState>();
 
 	/** Resolves once a command-finished listener is registered (i.e. a command is running). */
@@ -64,24 +62,9 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	disposeTerminal(uri: string): void {
 		this.disposedTerminals.push(uri);
 		this._outputTerminalStates.delete(uri);
-		this.retainedTerminalStates.delete(uri);
 	}
 	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(uri: string): TerminalState | undefined { return this._outputTerminalStates.get(uri); }
-	async resolveRetainedTerminalState(): Promise<TerminalState | undefined> { return undefined; }
-	async statRetainedTerminalOutput(): Promise<undefined> { return undefined; }
-	async readRetainedTerminalOutput(): Promise<undefined> { return undefined; }
-	retainTerminalState(uri: string, state: IRetainedTerminalState): void {
-		this.retainedTerminalStates.set(uri, state);
-		this._outputTerminalStates.delete(uri);
-	}
-	removeRetainedTerminalsForOwner(owner: URI): void {
-		for (const [uri, retained] of this.retainedTerminalStates) {
-			if (retained.claim.kind === TerminalClaimKind.Session && (retained.claim.session === owner.toString() || retained.claim.chat === owner.toString())) {
-				this.retainedTerminalStates.delete(uri);
-			}
-		}
-	}
 	async getDefaultShell(): Promise<string> { return this.defaultShell; }
 	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void {
 		this.outputTerminalsCreated.push({ uri, title: options.title, claim: options.claim });

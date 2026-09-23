@@ -50,6 +50,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDe
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { buildTerminalOutputDbUri } from '../../common/sessionDbUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
@@ -2706,6 +2707,31 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('resourceRead', () => {
+
+		test('reads terminal output from the exact session or peer database without restoring a live terminal', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const owner = AgentSession.uri('copilotcli', 'output-session');
+			const peer = URI.parse(buildChatUri(owner, 'peer'));
+			const results = [];
+			for (const [scope, text] of [[owner, 'root \u03bb output'], [peer, 'peer output']] as const) {
+				const database = sessionData.database(scope);
+				await database.createTurn('turn');
+				await database.storeTerminalOutput('turn', 'same-tool', VSBuffer.fromString(text).buffer);
+				const resource = buildTerminalOutputDbUri(scope.toString(), 'same-tool');
+				const stat = await localService.resourceResolve({ channel: ROOT_STATE_URI, uri: resource.toString() });
+				const output = await localService.resourceRead(resource, ContentEncoding.Base64);
+				results.push({ size: stat.size, output: output.data });
+			}
+			assert.deepStrictEqual(results, [
+				{ size: VSBuffer.fromString('root \u03bb output').byteLength, output: encodeBase64(VSBuffer.fromString('root \u03bb output')) },
+				{ size: VSBuffer.fromString('peer output').byteLength, output: encodeBase64(VSBuffer.fromString('peer output')) },
+			]);
+			const missing = buildTerminalOutputDbUri(AgentSession.uri('copilotcli', 'missing').toString(), 'same-tool');
+			await assert.rejects(() => localService.resourceRead(missing), error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+			await assert.rejects(() => localService.resourceResolve({ channel: ROOT_STATE_URI, uri: missing.toString() }), error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+			assert.deepStrictEqual(sessionData.databaseIds(), [owner.toString(), peer.toString()]);
+		});
 
 		test('returns binary resources as Base64 when requested', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/logs.zip' });

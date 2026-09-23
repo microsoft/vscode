@@ -17,7 +17,7 @@ import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHost
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, ContentEncoding, type CompletionsResult, type ResourceReadResult, type ResourceResolveResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { McpServerStatus, TerminalLifecycleStatus } from '../../../../common/state/protocol/state.js';
+import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
@@ -504,7 +504,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 
 	test('shell full output is readable through its historical terminal resource', async function () {
 		this.timeout(180_000);
-		const { sessionUri } = await createWorkspaceSession('shell-full-output');
+		const { sessionUri, workspace } = await createWorkspaceSession('shell-full-output');
 		const turnId = 'turn-shell-full-output';
 		const command = `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\\n' + 'x'.repeat(131072) + '\\nFULL_OUTPUT_MIDDLE\\n' + 'y'.repeat(131072) + '\\nFULL_OUTPUT_END\\n')"`;
 		const expected = `FULL_OUTPUT_BEGIN\n${'x'.repeat(131072)}\nFULL_OUTPUT_MIDDLE\n${'y'.repeat(131072)}\nFULL_OUTPUT_END\n`;
@@ -518,43 +518,41 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			.find(action => action.toolCallId === shellStart.toolCallId);
 		const terminalContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal);
 		assert.ok(terminalContent);
-		const metadata = await context.client.call<ResourceResolveResult>('resourceResolve', { channel: ROOT_STATE_URI, uri: terminalContent.resource });
-		const output = await context.client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: terminalContent.resource, encoding: ContentEncoding.Utf8 });
+		const outputContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Resource);
+		assert.ok(outputContent);
+		const metadata = await context.client.call<ResourceResolveResult>('resourceResolve', { channel: ROOT_STATE_URI, uri: outputContent.uri });
+		const output = await context.client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: outputContent.uri, encoding: ContentEncoding.Utf8 });
 		assert.deepStrictEqual({ size: metadata.size, output: output.data }, { size: Buffer.byteLength(expected), output: expected });
-		const firstSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
-		const firstState = firstSubscription.snapshot?.state as TerminalState;
-		context.client.notify('unsubscribe', { channel: terminalContent.resource });
-		const chatUri = buildDefaultChatUri(sessionUri);
-		context.client.notify('unsubscribe', { channel: chatUri });
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
 		const snapshot = await fetchSessionWithChat(context.client, sessionUri);
-		const restoredCall = snapshot.turns.find(turn => turn.id === turnId)?.responseParts
+		const restoredCall = snapshot.turns.flatMap(turn => turn.responseParts)
 			.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === shellStart?.toolCallId);
 		const restoredTerminal = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
 			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)
 			: undefined;
 		assert.ok(restoredTerminal);
-		const restoredSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: restoredTerminal.resource });
-		const restoredState = restoredSubscription.snapshot?.state as TerminalState;
-		context.client.notify('unsubscribe', { channel: restoredTerminal.resource });
-		const terminalText = (state: TerminalState) => state.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		const restoredOutput = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
+			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Resource)
+			: undefined;
+		await context.restartServer();
+		await initialize('full-output-restored', workspace);
+		const coldOutput = await context.client.call<ResourceReadResult>('resourceRead', { channel: ROOT_STATE_URI, uri: outputContent.uri, encoding: ContentEncoding.Utf8 });
 		assert.deepStrictEqual({
 			exitCode: terminalContent.result?.exitCode,
 			truncated: terminalContent.result?.truncated,
 			firstResource: terminalContent.resource,
 			restoredResource: restoredTerminal.resource,
-			firstLifecycle: firstState.lifecycle,
-			restoredLifecycle: restoredState.lifecycle,
-			firstOutput: terminalText(firstState),
-			restoredOutput: terminalText(restoredState),
+			outputResource: restoredOutput?.uri,
+			firstOutput: output.data,
+			coldOutput: coldOutput.data,
 		}, {
 			exitCode: 0,
 			truncated: true,
 			firstResource: terminalContent.resource,
 			restoredResource: terminalContent.resource,
-			firstLifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
-			restoredLifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
+			outputResource: outputContent.uri,
 			firstOutput: expected,
-			restoredOutput: expected,
+			coldOutput: expected,
 		});
 	});
 

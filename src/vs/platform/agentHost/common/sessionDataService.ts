@@ -8,12 +8,15 @@ import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
+import { getLargeFileConfirmationLimit } from '../../files/common/files.js';
 import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
 /** Filename of the per-session SQLite database. */
 export const SESSION_DB_FILENAME = 'session.db';
+
+export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
@@ -342,6 +345,23 @@ export interface ISessionDatabase extends IDisposable {
 	 * Returns `undefined` if no edit exists for the given key.
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
+
+	/**
+	 * Store terminal output for a tool invocation within an existing turn.
+	 * Replaces any output already stored for the same tool call.
+	 */
+	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void>;
+
+	/**
+	 * Return the stored terminal output size in bytes without loading its content.
+	 */
+	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;
+
+	/**
+	 * Read terminal output for a tool invocation.
+	 * Returns `undefined` if no output exists for the given tool call.
+	 */
+	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
 
 	// ---- Session metadata ------------------------------------------------
 

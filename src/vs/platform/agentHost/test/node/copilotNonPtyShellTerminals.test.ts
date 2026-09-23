@@ -47,15 +47,14 @@ suite('NonPtyShellTerminalStreams', () => {
 					deepStrictEqual({
 						live: manager.getTerminalState(completion.uri),
 						lateOutput: streams.append(toolCallId, 'late output'),
-						retained: manager.retainedTerminalStates.size,
-					}, { live: undefined, lateOutput: undefined, retained: 0 });
+					}, { live: undefined, lateOutput: undefined });
 				}
 				streams.dispose();
 				deepStrictEqual(manager.disposedTerminals, disposed);
 			});
 		}
 
-		test('keeps only an artifact descriptor after retiring a spilled command', () => {
+		test('retires the live channel even when a command spills output', () => {
 			streams.track('spilled', 'shell');
 			streams.append('spilled', 'partial output');
 			const artifact = URI.file('/tmp/copilot-output.txt');
@@ -69,9 +68,8 @@ suite('NonPtyShellTerminalStreams', () => {
 			streams.dispose();
 			deepStrictEqual({
 				live: manager.getTerminalState(completion.uri),
-				artifact: manager.retainedTerminalStates.get(completion.uri)?.artifact.toString(),
 				disposed: manager.disposedTerminals,
-			}, { live: undefined, artifact: artifact.toString(), disposed: [] });
+			}, { live: undefined, disposed: [completion.uri] });
 		});
 	});
 
@@ -101,7 +99,6 @@ suite('NonPtyShellTerminalStreams', () => {
 			deepStrictEqual(manager.outputTerminalResets, []);
 			strictEqual(channelContent(), 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n');
 			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri: completion.uri, exitCode: 0 }]);
-			strictEqual(manager.retainedTerminalStates.has(completion.uri), false);
 			streams.retire('call-2');
 			strictEqual(manager.getTerminalState(completion.uri), undefined);
 		});

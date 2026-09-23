@@ -8,6 +8,32 @@ import { URI } from '../../../base/common/uri.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
+export function buildTerminalOutputDbUri(sessionUri: string, toolCallId: string): URI {
+	return URI.from({
+		scheme: SESSION_DB_SCHEME,
+		path: '/terminal-output',
+		query: JSON.stringify({ sessionUri, toolCallId, part: 'terminalOutput' }),
+	});
+}
+
+export function parseTerminalOutputDbUri(uri: URI): { sessionUri: string; toolCallId: string } | undefined {
+	if (uri.scheme !== SESSION_DB_SCHEME || uri.path !== '/terminal-output' || !uri.query) {
+		return undefined;
+	}
+	try {
+		const value: { part?: string; sessionUri?: string; toolCallId?: string } | null = JSON.parse(uri.query);
+		if (typeof value === 'object' && value !== null
+			&& value.part === 'terminalOutput'
+			&& isNonEmptyString(value.sessionUri)
+			&& isNonEmptyString(value.toolCallId)) {
+			return { sessionUri: value.sessionUri, toolCallId: value.toolCallId };
+		}
+	} catch {
+		// Not a database-backed terminal output URI.
+	}
+	return undefined;
+}
+
 /**
  * Builds a `session-db:` URI referencing a file-edit content blob in the
  * session database. The path is the edited file's path so resource labels

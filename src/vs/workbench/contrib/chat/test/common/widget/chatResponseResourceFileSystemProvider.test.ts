@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { buildTerminalOutputDbUri } from '../../../../../../platform/agentHost/common/sessionDbUri.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -45,6 +46,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 	suite('terminal full output', () => {
 		const store = testDisposables;
 		const terminalResource = URI.parse('agenthost-terminal://shell/session/command-a');
+		const outputResource = buildTerminalOutputDbUri(sessionResource.toString(), 'command-a');
 		const completeOutput = `BEGIN\r\n${'x'.repeat(4096)}\nMIDDLE \u03bb\n${'y'.repeat(4096)}\r\nEND`;
 
 		function createInvocation(terminal = terminalResource): IChatToolInvocationSerialized {
@@ -65,7 +67,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 					commandLine: { original: 'build' },
 					isPty: false,
 					terminalCommandUri: terminal,
-					terminalCommandOutput: { text: 'preview', truncated: true },
+					terminalCommandOutput: { text: 'preview', truncated: true, fullOutputResource: outputResource },
 				},
 			};
 		}
@@ -89,8 +91,8 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 					statSize: VSBuffer.fromString(completeOutput).byteLength,
 					readsBeforeOpen: 0,
 					actual: completeOutput,
-					resolves: [terminalResource.toString()],
-					reads: [terminalResource.toString()],
+					resolves: [outputResource.toString()],
+					reads: [outputResource.toString()],
 					readonly: true,
 				});
 			});
@@ -272,7 +274,7 @@ suite('ChatResponseResourceFileSystemProvider', () => {
 			const content = VSBuffer.wrap(await fixture.provider.readFile(resource)).toString();
 			const forged = ChatResponseResource.createTerminalOutputUri(sessionResource, invocation.toolCallId, URI.parse('agenthost-terminal://shell/session/unrelated'), 'unrelated.txt');
 			await assert.rejects(() => fixture.provider.readFile(forged), { code: FileSystemProviderErrorCode.FileNotFound });
-			assert.deepStrictEqual({ content, reads: fixture.reads.map(uri => uri.toString()) }, { content: completeOutput, reads: [updated.toString()] });
+			assert.deepStrictEqual({ content, reads: fixture.reads.map(uri => uri.toString()) }, { content: completeOutput, reads: [outputResource.toString()] });
 		});
 
 		test('rejects a terminal resource after its terminal identity is removed', async () => {

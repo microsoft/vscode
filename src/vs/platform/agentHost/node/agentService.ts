@@ -47,7 +47,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentCh
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
+import { ISessionDbUriFields, parseSessionDbUri, parseTerminalOutputDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
@@ -675,9 +675,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._changesetCoordinator = collaborators.changesetCoordinator;
 		this._completions = collaborators.completions;
 		this._terminalManager = collaborators.terminalManager;
-		this._register(this._sessionDataService.onWillDeleteSessionData(event => {
-			this._terminalManager.removeRetainedTerminalsForOwner(event.session);
-		}));
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
@@ -5666,10 +5663,6 @@ export class AgentService extends Disposable implements IAgentService {
 				telemetry.setServedFromMemory(true);
 				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
 			}
-			const retainedTerminalState = await this._terminalManager.resolveRetainedTerminalState(resourceStr);
-			if (retainedTerminalState) {
-				return { resource: resourceStr, state: retainedTerminalState, fromSeq: this._stateManager.serverSeq };
-			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
 			telemetry.setServedFromMemory(!!snapshot);
@@ -8203,13 +8196,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resourceRead(uri: URI, encoding: ContentEncoding = ContentEncoding.Utf8): Promise<ResourceReadResult> {
-		const retainedOutput = await this._terminalManager.readRetainedTerminalOutput(uri.toString());
-		if (retainedOutput) {
-			return {
-				data: encoding === ContentEncoding.Base64 ? encodeBase64(retainedOutput) : retainedOutput.toString(),
-				encoding,
-				contentType: 'text/plain',
-			};
+		const terminalOutput = parseTerminalOutputDbUri(uri);
+		if (terminalOutput) {
+			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(terminalOutput.sessionUri));
+			try {
+				const output = await ref?.object.readTerminalOutput(terminalOutput.toolCallId);
+				if (!output) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, `Terminal output not found: ${uri}`);
+				}
+				const bytes = VSBuffer.wrap(output);
+				return { data: encoding === ContentEncoding.Base64 ? encodeBase64(bytes) : bytes.toString(), encoding, contentType: 'text/plain' };
+			} finally {
+				ref?.dispose();
+			}
 		}
 		const editAttributionRequest = parseEditAttributionResource(uri);
 		if (editAttributionRequest?.kind === 'prepare') {
@@ -8503,9 +8502,18 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
-		const retainedOutput = await this._terminalManager.statRetainedTerminalOutput(uri.toString());
-		if (retainedOutput) {
-			return { uri: uri.toString(), type: ResourceType.File, size: retainedOutput.size };
+		const terminalOutput = parseTerminalOutputDbUri(uri);
+		if (terminalOutput) {
+			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(terminalOutput.sessionUri));
+			try {
+				const size = await ref?.object.getTerminalOutputSize(terminalOutput.toolCallId);
+				if (size === undefined) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, `Terminal output not found: ${uri}`);
+				}
+				return { uri: uri.toString(), type: ResourceType.File, size };
+			} finally {
+				ref?.dispose();
+			}
 		}
 		try {
 			const stat = await this._fileService.stat(uri);

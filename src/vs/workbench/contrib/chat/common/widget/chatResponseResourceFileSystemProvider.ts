@@ -21,6 +21,7 @@ import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { parseTerminalOutputDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
 import { ContentEncoding, ResourceType } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -226,11 +227,11 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		const terminalOutput = await this.resolveTerminalOutput(resource);
 		if (terminalOutput) {
 			try {
-				const result = await terminalOutput.connection.resourceResolve({ channel: ROOT_STATE_URI, uri: terminalOutput.terminal.toString() });
+				const result = await terminalOutput.connection.resourceResolve({ channel: ROOT_STATE_URI, uri: terminalOutput.outputResource.toString() });
 				const resolvedUri = typeof result.uri === 'string' ? URI.parse(result.uri) : URI.revive(result.uri);
 				if (result.type !== ResourceType.File
 					|| !resolvedUri
-					|| !isEqual(resolvedUri, terminalOutput.terminal)
+					|| !isEqual(resolvedUri, terminalOutput.outputResource)
 					|| typeof result.size !== 'number'
 					|| !Number.isFinite(result.size)
 					|| result.size < 0) {
@@ -321,7 +322,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			return undefined;
 		}
 		try {
-			const result = await resolved.connection.resourceRead(resolved.terminal, ContentEncoding.Utf8);
+			const result = await resolved.connection.resourceRead(resolved.outputResource, ContentEncoding.Utf8);
 			return result.encoding === ContentEncoding.Base64
 				? decodeBase64(result.data).buffer
 				: VSBuffer.fromString(result.data).buffer;
@@ -330,7 +331,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		}
 	}
 
-	private async resolveTerminalOutput(uri: URI): Promise<{ readonly connection: IAgentConnection; readonly terminal: URI } | undefined> {
+	private async resolveTerminalOutput(uri: URI): Promise<{ readonly connection: IAgentConnection; readonly outputResource: URI } | undefined> {
 		const parsed = ChatResponseResource.parseTerminalOutputUri(uri);
 		if (!parsed) {
 			return undefined;
@@ -339,11 +340,14 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		const data = result.toolSpecificData;
 		const terminalData = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data) : undefined;
 		const terminal = URI.revive(terminalData?.terminalCommandUri);
+		const outputResource = URI.revive(terminalData?.terminalCommandOutput?.fullOutputResource);
 		const name = uri.path.split('/').at(-1);
 		if (terminalData?.isPty !== false
 			|| terminalData.terminalCommandOutput?.truncated !== true
 			|| !IChatToolInvocation.isComplete(result)
 			|| !terminal
+			|| !outputResource
+			|| parseTerminalOutputDbUri(outputResource)?.toolCallId !== parsed.toolCallId
 			|| !isEqual(terminal, parsed.terminal)
 			|| !isEqual(uri, ChatResponseResource.createTerminalOutputUri(parsed.sessionResource, parsed.toolCallId, terminal, name))) {
 			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
@@ -352,7 +356,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		if (!resolved) {
 			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
 		}
-		return { connection: resolved.connection, terminal };
+		return { connection: resolved.connection, outputResource };
 	}
 
 	private mapTerminalResourceError(error: unknown): unknown {

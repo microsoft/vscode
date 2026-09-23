@@ -7,7 +7,7 @@ import assert from 'assert';
 import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildSessionDbUri, canonicalizeSessionDbUri, parseSessionDbUri } from '../../common/sessionDbUri.js';
+import { buildSessionDbUri, buildTerminalOutputDbUri, canonicalizeSessionDbUri, parseSessionDbUri, parseTerminalOutputDbUri } from '../../common/sessionDbUri.js';
 
 const hex = (value: string) => encodeHex(VSBuffer.fromString(value)).toString();
 
@@ -22,6 +22,23 @@ function legacyUri(sessionUri: string, toolCallId: string, filePath: string, par
 suite('buildSessionDbUri / parseSessionDbUri', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('terminal output addresses round-trip exact session and tool identities without filesystem paths', () => {
+		const session = 'ahp-chat://peer/Y29waWxvdGNsaTovc2Vzc2lvbg';
+		const toolCallId = 'call/with & reserved?#characters';
+		const uri = buildTerminalOutputDbUri(session, toolCallId);
+		assert.deepStrictEqual({
+			fields: parseTerminalOutputDbUri(URI.parse(uri.toString())),
+			fileEdit: parseSessionDbUri(uri.toString()),
+			foreign: parseTerminalOutputDbUri(URI.file('/terminal-output')),
+			invalid: parseTerminalOutputDbUri(uri.with({ query: '{"part":"terminalOutput"}' })),
+		}, {
+			fields: { sessionUri: session, toolCallId },
+			fileEdit: undefined,
+			foreign: undefined,
+			invalid: undefined,
+		});
+	});
 
 	test('round-trips a simple URI', () => {
 		const uri = buildSessionDbUri('copilot:/abc-123', 'tc-1', '/workspace/file.ts', 'before');

@@ -57,7 +57,8 @@ import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConf
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
+import { buildTerminalOutputDbUri } from '../../common/sessionDbUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -75,8 +76,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
-import { buildNonPtyShellTerminalClaim, NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
-import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { buildNonPtyShellTerminalUri, NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
@@ -939,6 +939,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 	/** Session database reference. */
 	private readonly _databaseRef: IReference<ISessionDatabase>;
+	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
 	 * when the session is idle (no active turn). Replaces the former set of
@@ -1276,7 +1277,6 @@ export class CopilotAgentSession extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
-		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -2551,6 +2551,7 @@ export class CopilotAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 		wrapper.setBeforeDisconnect(async () => {
+			await Promise.allSettled(this._pendingOutputCaptures);
 			try {
 				await this._awaitControlPlaneRpc('rpc.eventLog.releaseInterest', wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }));
 			} catch (error) {
@@ -3607,22 +3608,12 @@ export class CopilotAgentSession extends Disposable {
 				},
 			} : {}),
 		});
-		this._retainMappedShellOutputs(events, result);
+		await this._restoreStoredShellOutputs(result);
 		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
 		return result;
 	}
 
-	private _retainMappedShellOutputs(events: readonly SessionEvent[], mapped: IMappedSessionEvents): void {
-		const artifacts = new Map<string, string>();
-		for (const event of events) {
-			if (event.type !== 'tool.execution_complete') {
-				continue;
-			}
-			const shellExit = event.data.result?.contents?.find(content => content.type === 'shell_exit' && !!content.outputFilePath);
-			if (shellExit?.type === 'shell_exit' && shellExit.outputFilePath) {
-				artifacts.set(event.data.toolCallId, shellExit.outputFilePath);
-			}
-		}
+	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents): Promise<void> {
 		const turns = [
 			...mapped.turns,
 			...Array.from(mapped.subagentTurnsByToolCallId.values()).flat(),
@@ -3632,20 +3623,30 @@ export class CopilotAgentSession extends Disposable {
 				if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed) {
 					continue;
 				}
-				const path = artifacts.get(part.toolCall.toolCallId);
-				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
-				if (!terminal || terminal.isPty !== false || !path) {
+				if (!isShellTool(part.toolCall.toolName)) {
 					continue;
 				}
-				const retained = {
-					title: terminal.title,
-					claim: buildNonPtyShellTerminalClaim(this._ownerSessionUri, this._chatChannelUri, part.toolCall.toolCallId),
-					exitCode: terminal.result?.exitCode,
-				};
-				this._terminalManager.retainTerminalState(terminal.resource, {
-					...retained,
-					artifact: URI.file(path),
-				});
+				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
+				if (terminal && terminal.isPty !== false) {
+					continue;
+				}
+				const size = await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId);
+				if (size !== undefined) {
+					const terminalContent: ToolResultTerminalContent = {
+						type: ToolResultContentType.Terminal,
+						title: part.toolCall.displayName,
+						isPty: false,
+						result: { truncated: true, preview: '' },
+						...terminal,
+						resource: buildNonPtyShellTerminalUri(this._ownerSessionUri, part.toolCall.toolCallId),
+					};
+					part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent, {
+						type: ToolResultContentType.Resource,
+						uri: buildTerminalOutputDbUri(this._storageUri.toString(), part.toolCall.toolCallId).toString(),
+						contentType: 'text/plain',
+						sizeHint: size,
+					}];
+				}
 			}
 		}
 	}
@@ -3746,7 +3747,6 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
 		await this._wrapper.disconnect();
-		this._terminalManager.removeRetainedTerminalsForOwner(this._chatChannelUri);
 		await this._disposeShellInitScript();
 	}
 
@@ -5767,7 +5767,7 @@ export class CopilotAgentSession extends Disposable {
 						});
 					} else if (completion.result) {
 						const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
-						content[terminalIndex] = { ...terminalBlock, result: completion.result };
+						content[terminalIndex] = { ...terminalBlock, resource: completion.uri, result: completion.result };
 					}
 				}
 			}
@@ -5797,11 +5797,31 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			};
-			if (filePaths.length === 0) {
+			const outputFilePath = isShellCommandTool && !ptyTerminalUri ? shellExit?.outputFilePath : undefined;
+			if (filePaths.length === 0 && !outputFilePath) {
 				complete();
 				return;
 			}
+			const outputDatabase = outputFilePath ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
 			const completion = (async () => {
+				if (outputFilePath && outputDatabase) {
+					try {
+						const output = await this._fileService.readFile(URI.file(outputFilePath), { limits: { size: MAX_TERMINAL_OUTPUT_BYTES } }, abortToken);
+						if (isCurrent()) {
+							await outputDatabase.object.storeTerminalOutput(turnId, e.data.toolCallId, output.value.buffer);
+							content.push({
+								type: ToolResultContentType.Resource,
+								uri: buildTerminalOutputDbUri(this._storageUri.toString(), e.data.toolCallId).toString(),
+								contentType: 'text/plain',
+								sizeHint: output.value.byteLength,
+							});
+						}
+					} catch (error) {
+						this._logService.warn(`[Copilot:${sessionId}] Failed to persist shell output for ${e.data.toolCallId}`, error);
+					} finally {
+						outputDatabase.dispose();
+					}
+				}
 				for (const filePath of filePaths) {
 					if (!isCurrent()) {
 						return;
@@ -5818,7 +5838,15 @@ export class CopilotAgentSession extends Disposable {
 				if (isCurrent()) {
 					complete();
 				}
-			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err));
+			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(() => {
+				if (retireNonPtyShellTracking) {
+					this._nonPtyShellTerminals.retire(e.data.toolCallId);
+				}
+			});
+			if (outputFilePath) {
+				this._pendingOutputCaptures.add(completion);
+				void completion.finally(() => this._pendingOutputCaptures.delete(completion));
+			}
 			turn?.trackToolCompletion(completion);
 		};
 		this._register(wrapper.onToolComplete(e => {

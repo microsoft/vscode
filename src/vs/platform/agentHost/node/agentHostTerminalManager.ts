@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { dirname, parse as pathParse } from '../../../base/common/path.js';
@@ -15,7 +14,6 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { FileType, getLargeFileConfirmationLimit, IStat } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
@@ -23,7 +21,6 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../commo
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
-import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -33,7 +30,6 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 import { Osc633Event, Osc633EventType, Osc633ParseSegment, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
-const MAX_RETAINED_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 const HEADLESS_TERMINAL_SCROLLBACK = 0;
 const DSR_CURSOR_POSITION_QUERY = '\x1b[6n';
 const DEC_DSR_CURSOR_POSITION_QUERY = '\x1b[?6n';
@@ -83,13 +79,6 @@ export interface ISendTextOptions {
 export interface IFormatTerminalTextOptions {
 	shouldExecute: boolean;
 	forceBracketedPasteMode?: boolean;
-}
-
-export interface IRetainedTerminalState {
-	readonly title: string;
-	readonly claim: TerminalClaim;
-	readonly exitCode?: number;
-	readonly artifact: URI;
 }
 
 // Return immediately when no partial query is buffered and this chunk contains no escape character.
@@ -145,11 +134,6 @@ export interface IAgentHostTerminalManager {
 	disposeTerminal(uri: string): void;
 	getTerminalInfos(): TerminalInfo[];
 	getTerminalState(uri: string): TerminalState | undefined;
-	resolveRetainedTerminalState(uri: string): Promise<TerminalState | undefined>;
-	statRetainedTerminalOutput(uri: string): Promise<IStat | undefined>;
-	readRetainedTerminalOutput(uri: string, maxBytes?: number): Promise<VSBuffer | undefined>;
-	retainTerminalState(uri: string, state: IRetainedTerminalState): void;
-	removeRetainedTerminalsForOwner(owner: URI): void;
 	getDefaultShell(): Promise<string>;
 	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void;
 	appendOutputTerminalData(uri: string, data: string): void;
@@ -212,13 +196,6 @@ interface IOutputTerminal {
 	lifecycle: TerminalState['lifecycle'];
 }
 
-interface IRetainedTerminal {
-	readonly title: string;
-	readonly claim: TerminalClaim;
-	readonly lifecycle: TerminalState['lifecycle'];
-	readonly artifact: URI;
-}
-
 /**
  * Manages terminal processes for the agent host. Each terminal is backed by
  * a node-pty instance and identified by a protocol URI.
@@ -232,7 +209,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	private readonly _terminals = new Map<string, IManagedTerminal>();
 	private readonly _outputTerminals = new Map<string, IOutputTerminal>();
-	private readonly _retainedTerminals = new Map<string, IRetainedTerminal>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -306,116 +282,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			supportsCommandDetection: terminal.commandTracker?.detectionAvailableEmitted,
 			isPty: true,
 		};
-	}
-
-	async resolveRetainedTerminalState(uri: string): Promise<TerminalState | undefined> {
-		const retained = this._retainedTerminals.get(uri);
-		if (!retained) {
-			return undefined;
-		}
-		const output = await this.readRetainedTerminalOutput(uri);
-		if (!output) {
-			return undefined;
-		}
-		return {
-			title: retained.title,
-			content: [{ type: 'unclassified', value: output.toString() }],
-			lifecycle: { ...retained.lifecycle },
-			claim: { ...retained.claim },
-			isPty: false,
-		};
-	}
-
-	private async _openRetainedTerminalOutput(uri: string): Promise<fs.promises.FileHandle | undefined> {
-		const retained = this._retainedTerminals.get(uri);
-		if (!retained) {
-			return undefined;
-		}
-		try {
-			return await fs.promises.open(retained.artifact.fsPath, 'r');
-		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
-			if (code === 'ENOENT') {
-				this._retainedTerminals.delete(uri);
-				throw new ProtocolError(AhpErrorCodes.NotFound, `Retained terminal output not found: ${uri}`);
-			}
-			if (code === 'EACCES' || code === 'EPERM') {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Cannot read retained terminal output: ${uri}`);
-			}
-			throw error;
-		}
-	}
-
-	async statRetainedTerminalOutput(uri: string): Promise<IStat | undefined> {
-		const handle = await this._openRetainedTerminalOutput(uri);
-		if (!handle) {
-			return undefined;
-		}
-		try {
-			const stat = await handle.stat();
-			if (!stat.isFile()) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `Retained terminal output is not a file: ${uri}`);
-			}
-			return { type: FileType.File, ctime: stat.ctimeMs, mtime: stat.mtimeMs, size: stat.size };
-		} finally {
-			await handle.close();
-		}
-	}
-
-	async readRetainedTerminalOutput(uri: string, maxBytes = MAX_RETAINED_OUTPUT_BYTES): Promise<VSBuffer | undefined> {
-		const handle = await this._openRetainedTerminalOutput(uri);
-		if (!handle) {
-			return undefined;
-		}
-		try {
-			const limit = Math.min(maxBytes, MAX_RETAINED_OUTPUT_BYTES);
-			const stat = await handle.stat();
-			if (!stat.isFile()) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `Retained terminal output is not a file: ${uri}`);
-			}
-			const tooLarge = () => new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Retained terminal output exceeds the ${limit}-byte read limit: ${uri}`);
-			if (stat.size > limit) {
-				throw tooLarge();
-			}
-			const chunks: VSBuffer[] = [];
-			const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, limit + 1));
-			let total = 0;
-			while (true) {
-				const { bytesRead } = await handle.read(buffer, 0, Math.min(buffer.length, limit - total + 1), null);
-				if (!bytesRead) {
-					break;
-				}
-				total += bytesRead;
-				if (total > limit) {
-					throw tooLarge();
-				}
-				chunks.push(VSBuffer.wrap(Buffer.from(buffer.subarray(0, bytesRead))));
-			}
-			return VSBuffer.concat(chunks, total);
-		} finally {
-			await handle.close();
-		}
-	}
-
-	retainTerminalState(uri: string, state: IRetainedTerminalState): void {
-		this._retainedTerminals.set(uri, {
-			title: state.title,
-			claim: { ...state.claim },
-			lifecycle: state.exitCode === undefined
-				? { status: TerminalLifecycleStatus.Exited }
-				: { status: TerminalLifecycleStatus.Exited, exitCode: state.exitCode },
-			artifact: state.artifact,
-		});
-		this._outputTerminals.delete(uri);
-	}
-
-	removeRetainedTerminalsForOwner(owner: URI): void {
-		const key = owner.toString();
-		for (const [uri, terminal] of this._retainedTerminals) {
-			if (terminal.claim.kind === TerminalClaimKind.Session && (terminal.claim.session === key || terminal.claim.chat === key)) {
-				this._retainedTerminals.delete(uri);
-			}
-		}
 	}
 
 	/**
@@ -1025,7 +891,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Dispose a terminal: kill the process and remove it. */
 	disposeTerminal(uri: string): void {
-		this._retainedTerminals.delete(uri);
 		if (this._outputTerminals.delete(uri)) {
 			return;
 		}
@@ -1097,7 +962,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 		this._terminals.clear();
 		this._outputTerminals.clear();
-		this._retainedTerminals.clear();
 		super.dispose();
 	}
 }

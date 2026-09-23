@@ -743,6 +743,8 @@ export interface IChatTerminalToolInvocationData {
 		lineCount?: number;
 		/** Preview to show after retained full output availability is confirmed. */
 		fullOutputPreview?: string;
+		/** Database-backed content resource supplied by the owning agent host. */
+		fullOutputResource?: UriComponents;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {
