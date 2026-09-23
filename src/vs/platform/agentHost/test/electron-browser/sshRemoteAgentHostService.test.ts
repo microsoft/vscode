@@ -1515,6 +1515,66 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0, stored: 1 });
 	});
 
+	test('StrictHostKeyChecking accept-new refuses a new algorithm for a known host', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			keyType: 'ssh-rsa',
+			fingerprint: 'SHA256:impostorkey',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => `${k.keyType} ${k.fingerprint}`),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				stored: [`ssh-ed25519 ${FINGERPRINT}`],
+			});
+	});
+
+	test('StrictHostKeyChecking accept-new refuses another algorithm known only through known_hosts', async () => {
+		await fireAndWait(makeHostKeyRequest({
+			knownHostsMatch: 'other-key-type',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				stored: 0,
+			});
+	});
+
+	test('StrictHostKeyChecking accept-new prompts for a certificate-authority host', async () => {
+		confirmResult = false;
+		await fireAndWait(makeHostKeyRequest({
+			knownHostsMatch: 'ca-only',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 1,
+				stored: 0,
+			});
+	});
+
 	test('a prompt for a connection that dies is dismissed, and a late answer grants nothing', async () => {
 		// The dialog is opened with a cancellation token so it tears itself
 		// down when the connection drops, rather than stranding the user with
@@ -1610,11 +1670,8 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		// announcement must not overwrite the real stored key. Mirrors
 		// OpenSSH, which only accepts additional host keys when the key that
 		// authenticated the host was already trusted.
-		//
-		// Uses an *unknown* key (a different algorithm), since a key that
-		// contradicts the stored one is now refused outright by the test above.
-		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 		await fireAndWait(makeHostKeyRequest({ keyType: 'ssh-rsa', fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 
 		mainService.fireHostKeysAnnouncement({
 			connectionKey: 'ssh:remote.example',

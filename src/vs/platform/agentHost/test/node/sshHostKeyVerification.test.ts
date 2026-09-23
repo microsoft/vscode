@@ -272,6 +272,14 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 		assert.strictEqual(requests[0]?.knownHostsMatch, 'mismatch');
 	});
 
+	test('reports when known_hosts holds only another key type', async () => {
+		const service = createService();
+		const other = makeKeyBlob('ssh-rsa', Buffer.alloc(32, 0xbb));
+		service.knownHostsContents = `test.example.com ssh-rsa ${other.toString('base64')}`;
+		const { requests } = await connectAnswering(service, false);
+		assert.strictEqual(requests[0]?.knownHostsMatch, 'other-key-type');
+	});
+
 	test('forwards userInitiated so background reconnects can be declined', async () => {
 		const service = createService();
 		const { requests } = await connectAnswering(service, false, makeConfig({ userInitiated: false }));

@@ -371,7 +371,7 @@ export type ISSHEndpointSelection =
  * `KnownHostsMatch` in `../node/sshKnownHosts.js`, redeclared here because
  * this common-layer module cannot import from `node`.
  */
-export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 'unknown';
+export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'other-key-type' | 'revoked' | 'ca-only' | 'unknown';
 
 /**
  * Error name for a connect attempt refused because the server's host key was
