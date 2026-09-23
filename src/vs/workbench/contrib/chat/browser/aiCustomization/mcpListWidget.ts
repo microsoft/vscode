@@ -520,7 +520,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			return;
 		}
 
-		const statusElement = DOM.append(templateData.actions, $('.mcp-server-status'));
+		const statusElement = DOM.append(templateData.actions, $('.mcp-server-status.mcp-server-state-icon'));
 		statusElement.classList.add(presentation.className, ...ThemeIcon.asClassNameArray(presentation.icon));
 		statusElement.setAttribute('aria-hidden', 'true');
 		templateData.actionDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusElement, presentation.label));

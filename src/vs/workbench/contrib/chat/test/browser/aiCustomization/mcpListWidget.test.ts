@@ -1384,7 +1384,7 @@ suite('mcpListWidget', () => {
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
 				setFocusedIndex: (index: number) => renderer.setFocusedRowKey(index === 0 && templateData.currentElement ? getMcpRowKey(templateData.currentElement) : undefined),
-				actionNode: () => templateData.actions.firstElementChild,
+				actionNode: () => templateData.actions.querySelector('.test-management-action, .plugin-card-icon-button'),
 			};
 		}
 
@@ -1834,7 +1834,7 @@ suite('mcpListWidget', () => {
 			disposables.add(sessions.store);
 			sessions.render(entry);
 			assert.deepStrictEqual({ local: ctx.read(), sameButton: ctx.actionNode() === button, sessions: sessions.read() }, {
-				local: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
+				local: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
 				sameButton: true,
 				sessions: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native' },
 			});
@@ -1871,7 +1871,7 @@ suite('mcpListWidget', () => {
 		});
 
 		for (const kind of ['server-item', 'builtin-item', 'plugin-item'] as const) {
-			test(`${kind} keeps native error details out of the list`, () => {
+			test(`${kind} shows native errors and restores the ordinary description after recovery`, () => {
 				const ctx = createRenderer(erroring(), false);
 				disposables.add(ctx.store);
 				const native = nativeServer();
@@ -1887,8 +1887,8 @@ suite('mcpListWidget', () => {
 				native.connectionState.set({ state: McpConnectionState.Kind.Running }, undefined);
 				native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
 				assert.deepStrictEqual({ before, empty, disabled, recovered: ctx.read() }, {
-					before: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
-					empty: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
+					before: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
+					empty: { text: 'Ordinary description', error: false, display: 'none', hover: 'Ordinary description', ariaLabel: 'Native, Error' },
 					disabled: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Disabled' },
 					recovered: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: kind === 'server-item' ? 'Native, Running' : 'Native' },
 				});
@@ -1896,7 +1896,7 @@ suite('mcpListWidget', () => {
 		}
 
 		for (const kind of ['server-item', 'builtin-item', 'session-server-item'] as const) {
-			test(`${kind} updates current session status without rendering error details`, () => {
+			test(`${kind} updates current session error details and restores the ordinary description`, () => {
 				const ctx = createRenderer(erroring());
 				disposables.add(ctx.store);
 				const native = nativeServer();
@@ -1930,8 +1930,8 @@ suite('mcpListWidget', () => {
 				const description = kind === 'session-server-item' ? '' : 'Ordinary description';
 				const ordinary = { text: description, error: false, display: description ? '' : 'none', hover: description };
 				assert.deepStrictEqual({ error, updated, disabled, recovered, removed, recycled, afterOldUpdate: ctx.read() }, {
-					error: { ...ordinary, ariaLabel: `${name}, Error` },
-					updated: { ...ordinary, ariaLabel: `${name}, Error`, sameAction: true },
+					error: { ...ordinary, display: 'none', ariaLabel: `${name}, Error` },
+					updated: { ...ordinary, display: 'none', ariaLabel: `${name}, Error`, sameAction: true },
 					disabled: { ...ordinary, ariaLabel: `${name}, Disabled` },
 					recovered: { ...ordinary, ariaLabel: `${name}, Running` },
 					removed: { ...ordinary, ariaLabel: name },
@@ -2115,13 +2115,13 @@ suite('mcpListWidget', () => {
 			ctx.setServers([createAgentHostServer({ status: McpServerStatus.Starting, state: { kind: McpServerStatus.Starting } })]);
 			ctx.notifyUnchanged();
 			assert.deepStrictEqual({
-				status: ctx.templateData.statusBadge.textContent,
 				startingSpinner: ctx.templateData.actions.querySelector('.mcp-server-status.codicon-loading') !== null,
+				statusBadges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
 				signInButtonAttached: signInButton.parentElement !== null,
 				visibleSignInButtons: ctx.templateData.actions.querySelectorAll('.mcp-server-sign-in').length,
 			}, {
-				status: 'Starting',
 				startingSpinner: true,
+				statusBadges: 0,
 				signInButtonAttached: false,
 				visibleSignInButtons: 0,
 			});
@@ -2131,13 +2131,13 @@ suite('mcpListWidget', () => {
 			await Promise.resolve();
 
 			assert.deepStrictEqual({
-				status: ctx.templateData.statusBadge.textContent,
+				startingSpinner: ctx.templateData.actions.querySelector('.mcp-server-status.codicon-loading') !== null,
 				signInButtonAttached: signInButton.parentElement !== null,
 				signInButtonText: signInButton.textContent,
 				signInButtonBusy: signInButton.getAttribute('aria-busy'),
 				visibleSignInButtons: ctx.templateData.actions.querySelectorAll('.mcp-server-sign-in').length,
 			}, {
-				status: 'Starting',
+				startingSpinner: true,
 				signInButtonAttached: false,
 				signInButtonText: 'Signing In...',
 				signInButtonBusy: 'true',
@@ -2147,11 +2147,13 @@ suite('mcpListWidget', () => {
 			ctx.setServers([createAgentHostServer({ status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready } })]);
 			ctx.notifyUnchanged();
 			assert.deepStrictEqual({
-				status: ctx.templateData.statusBadge.textContent,
+				statusIcons: ctx.templateData.actions.querySelectorAll('.mcp-server-status').length,
+				statusBadges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
 				signInButtonAttached: signInButton.parentElement !== null,
 				visibleSignInButtons: ctx.templateData.actions.querySelectorAll('.mcp-server-sign-in').length,
 			}, {
-				status: 'Running',
+				statusIcons: 0,
+				statusBadges: 0,
 				signInButtonAttached: false,
 				visibleSignInButtons: 0,
 			});
