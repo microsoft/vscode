@@ -202,6 +202,39 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.inbox-notifications-detail-thread {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-detail-turn {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-small);
+	border: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.inbox-notifications-detail-turn.user {
+	background-color: transparent;
+	border-style: dashed;
+}
+
+.inbox-notifications-detail-turn-role {
+	font-size: var(--vscode-fontSize-label2);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-detail-turn-text {
+	white-space: pre-wrap;
+	color: var(--vscode-editor-foreground);
+}
+
 .inbox-notifications-toolbar {
 	display: flex;
 	align-items: center;

@@ -645,6 +645,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
 			}));
 		}
+		this.renderNeedsInputPart(card, item, this.renderedListDisposables);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 
 		return card;
@@ -725,7 +726,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const inputPartHost = host.appendChild($('.interactive-input-part'));
 		const widgetContainer = inputPartHost.appendChild($('.chat-question-carousel-widget-container'));
 		widgetContainer.appendChild(carouselWidget.domNode);
-		store.add(carouselWidget.onDidChangeHeight(() => this.detailScrollableElement.scanDomNode()));
+		store.add(carouselWidget.onDidChangeHeight(() => this.scrollableElement.scanDomNode()));
 	}
 
 	private async submitConfirmationPart(
@@ -1369,7 +1370,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const body = this.detailContentElement.appendChild($('.inbox-notifications-detail-body'));
 		if (item.needsInputPart) {
-			this.renderNeedsInputPart(body, item, this.detailDisposables);
+			this.renderConversationThread(body, item);
 		} else if (item.kind === InboxNotificationKind.Completed) {
 			this.renderCompletedEvidence(body, item);
 		} else {
@@ -1494,16 +1495,54 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	private getLatestResponseText(item: IInboxNotificationItem): string | undefined {
+	private renderConversationThread(body: HTMLElement, item: IInboxNotificationItem): void {
+		const chatModel = this.getSessionChatModel(item);
+		const thread = body.appendChild($('.inbox-notifications-detail-thread'));
+		let rendered = 0;
+		for (const request of chatModel?.getRequests() ?? []) {
+			const userText = request.message.text.trim();
+			if (userText) {
+				const turn = thread.appendChild($('.inbox-notifications-detail-turn.user'));
+				turn.appendChild($('.inbox-notifications-detail-turn-role', undefined, localize('inboxNotifications.detail.thread.you', "You")));
+				turn.appendChild($('.inbox-notifications-detail-turn-text', undefined, userText));
+				rendered++;
+			}
+			const response = request.response;
+			const agentText = response && !response.isCanceled ? this.getResponseText(response) : undefined;
+			if (agentText) {
+				const turn = thread.appendChild($('.inbox-notifications-detail-turn.agent'));
+				turn.appendChild($('.inbox-notifications-detail-turn-role', undefined, localize('inboxNotifications.detail.thread.agent', "Agent")));
+				turn.appendChild($('.inbox-notifications-detail-turn-text', undefined, agentText));
+				rendered++;
+			}
+		}
+		if (rendered === 0) {
+			thread.appendChild($('.inbox-notifications-detail-placeholder', undefined, localize('inboxNotifications.detail.thread.empty', "No conversation yet.")));
+		}
+	}
+
+	private getSessionChatModel(item: IInboxNotificationItem) {
 		if (!item.sessionResource) {
 			return undefined;
 		}
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
 		const chatResource = session?.mainChat.get().resource;
-		if (!chatResource) {
-			return undefined;
+		return chatResource ? this.chatService.getSession(chatResource) : undefined;
+	}
+
+	private getResponseText(response: IChatResponseModel): string | undefined {
+		const parts: string[] = [];
+		for (const part of response.response.value) {
+			if (part.kind === 'markdownContent') {
+				parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
+			}
 		}
-		const chatModel = this.chatService.getSession(chatResource);
+		const text = parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+		return text || undefined;
+	}
+
+	private getLatestResponseText(item: IInboxNotificationItem): string | undefined {
+		const chatModel = this.getSessionChatModel(item);
 		if (!chatModel) {
 			return undefined;
 		}
@@ -1512,13 +1551,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			if (!response || response.isCanceled) {
 				continue;
 			}
-			const parts: string[] = [];
-			for (const part of response.response.value) {
-				if (part.kind === 'markdownContent') {
-					parts.push(renderAsPlaintext(part.content, { useLinkFormatter: true }));
-				}
-			}
-			const text = parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+			const text = this.getResponseText(response);
 			if (text) {
 				return text.length > 4000 ? `${text.slice(0, 4000).trimEnd()}…` : text;
 			}
