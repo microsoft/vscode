@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -355,6 +356,120 @@ suite('Agent Merge workflow reruns', () => {
 	}
 });
 
+suite('Agent Merge evaluation authorization', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scope of ['session', 'global'] as const) {
+		for (const phase of ['pull request attachment', 'credentials', 'subscription', 'repair baseline'] as const) {
+			test(`rechecks ${scope} configuration after ${phase}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = disposables.add(new RerunTestHarness(false));
+				try {
+					const started = new DeferredPromise<void>();
+					const finish = new DeferredPromise<void>();
+					const pause = async () => {
+						if (!started.isSettled) {
+							started.complete();
+							await finish.p;
+						}
+					};
+					switch (phase) {
+						case 'pull request attachment':
+							h.gitStateService.attachSessionGitHubPullRequest = pause;
+							break;
+						case 'credentials': {
+							const getCredential = h.gitHubService.credentials.getCredential;
+							h.gitHubService.credentials.getCredential = async signal => {
+								await pause();
+								return getCredential(signal);
+							};
+							break;
+						}
+						case 'subscription': {
+							const subscribe = h.gitHubService.pullRequests.subscribePullRequest;
+							h.gitHubService.pullRequests.subscribePullRequest = (ref, interest) => {
+								const subscription = subscribe(ref, interest);
+								subscription.refresh = pause;
+								return subscription;
+							};
+							break;
+						}
+						case 'repair baseline':
+							h.gitService.getRepositoryRoot = async () => URI.file('/repo');
+							h.gitService.revParse = async () => {
+								await pause();
+								return 'commit';
+							};
+							break;
+					}
+					const setFixCI = (fixCI: boolean) => scope === 'session'
+						? h.controller.setEnabled(h.session, true, { fixCI })
+						: h.configurationService.updateRootConfig({ [AgentMergeConfigKey.FixCI]: fixCI });
+					h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+					await started.p;
+					await setFixCI(false);
+					await finish.complete();
+					await timeout(1);
+					const whileDisabled = { prompts: h.prompts.length, state: h.controllerState() };
+					await setFixCI(true);
+					await timeout(1);
+
+					assert.deepStrictEqual({
+						whileDisabled,
+						actions: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.actions),
+						authorized: h.controller.getTurnContext(h.session)?.configuration.fixCI,
+						errors: h.errors,
+					}, {
+						whileDisabled: { prompts: 0, state: { enabled: true, totalPromptCount: undefined, repeatedPromptCount: undefined } },
+						actions: [['fixCI']],
+						authorized: true,
+						errors: [],
+					});
+				} finally {
+					h.dispose();
+				}
+			}));
+		}
+	}
+
+	test('does not overwrite updated options while checking whether a repair changed the commit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = disposables.add(new RerunTestHarness(false));
+		try {
+			await h.controller.setEnabled(h.session, true, { mergePullRequest: 'ifUnchanged' });
+			const agentMerge = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session));
+			h.configurationService.updateSessionConfig(h.session, {
+				[SessionConfigKey.AgentMergeController]: { target: agentMerge?.target, repairBaseCommit: 'original' },
+			});
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<string>();
+			h.gitService.getRepositoryRoot = async () => URI.file('/repo');
+			h.gitService.revParse = () => {
+				started.complete();
+				return finish.p;
+			};
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await started.p;
+			await h.controller.setEnabled(h.session, true, { fixCI: false, mergePullRequest: 'always' });
+			await finish.complete('changed');
+			await timeout(1);
+
+			const current = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session));
+			assert.deepStrictEqual({
+				overrides: current?.overrides,
+				baseline: current?.repairBaseCommit,
+				prompts: h.prompts,
+				errors: h.errors,
+			}, {
+				overrides: { fixCI: false, mergePullRequest: 'always' },
+				baseline: 'original',
+				prompts: [],
+				errors: [],
+			});
+		} finally {
+			h.dispose();
+		}
+	}));
+});
+
 class RerunTestHarness extends Disposable {
 	readonly session = 'copilot:/agent-merge-rerun';
 	readonly errors: string[] = [];
@@ -372,8 +487,19 @@ class RerunTestHarness extends Disposable {
 	readonly prompts: string[] = [];
 	readonly controller: AgentMergeController;
 	readonly tools: AgentMergeTools;
+	readonly gitHubService: IGitHubService;
+	readonly gitStateService: IAgentHostGitStateService = new class extends mock<IAgentHostGitStateService>() {
+		override readonly onDidRefreshSessionGitState = Event.None;
+		override readonly onDidChangeSessionGitHubState = Event.None;
+		override async refreshSessionGitState(): Promise<void> { }
+		override async attachSessionGitHubPullRequest(): Promise<void> { }
+	}();
+	readonly gitService: IAgentHostGitService = new class extends mock<IAgentHostGitService>() {
+		override async getCurrentBranchName(): Promise<string | undefined> { return 'feature'; }
+		override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
+	}();
 
-	constructor() {
+	constructor(ready = true) {
 		super();
 		this.configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 		this.stateManager.createSession({
@@ -401,7 +527,7 @@ class RerunTestHarness extends Disposable {
 		));
 		const snapshot = this.snapshot;
 		const mutations = this.mutations;
-		const gitHubService = new class extends mock<IGitHubService>() {
+		this.gitHubService = new class extends mock<IGitHubService>() {
 			override readonly mutations = mutations;
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
 				override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
@@ -440,22 +566,19 @@ class RerunTestHarness extends Disposable {
 			},
 			this.stateManager,
 			this.configurationService,
-			new class extends mock<IAgentHostGitStateService>() {
-				override readonly onDidRefreshSessionGitState = Event.None;
-				override readonly onDidChangeSessionGitHubState = Event.None;
-				override async refreshSessionGitState(): Promise<void> { }
-				override async attachSessionGitHubPullRequest(): Promise<void> { }
-			}(),
-			new class extends mock<IAgentHostGitService>() { }(),
-			gitHubService,
+			this.gitStateService,
+			this.gitService,
+			this.gitHubService,
 			this._register(new AgentHostGitHubEndpointService(this.configurationService, this.logService)),
 			new class extends mock<IAgentHostProviderService>() {
 				override getProviderForSession(): undefined { return undefined; }
 			}(),
 			this.logService,
 		));
-		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), (session, enabled, overrides) => this.controller.setEnabled(session, enabled, overrides), gitHubService, this.logService, this.configurationService));
-		this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
+		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), (session, enabled, overrides) => this.controller.setEnabled(session, enabled, overrides), this.gitHubService, this.logService, this.configurationService));
+		if (ready) {
+			this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
+		}
 	}
 
 	async completeTurn(): Promise<void> {

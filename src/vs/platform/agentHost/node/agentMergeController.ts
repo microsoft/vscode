@@ -77,12 +77,7 @@ class AgentMergeRuntime extends Disposable {
 	readonly backstopScheduler: RunOnceScheduler;
 	readonly deferredWorkflowReruns = new Map<string, IDeferredWorkflowRerun>();
 	ref: PullRequestRef | undefined;
-	/**
-	 * Whether this runtime already tried to recompute git state that reported
-	 * no usable branch. Caps that repair at one git call per runtime so a
-	 * checkout that can never report a branch does not spawn one on every
-	 * backstop.
-	 */
+	/** Whether a successful lookup already confirmed that the checkout has no usable branch. */
 	didRefreshForMissingBranch = false;
 	/** The unchanged indeterminate cause being timed out, if any. */
 	indeterminate: { readonly cause: string; readonly since: number; observedAt: number } | undefined;
@@ -207,7 +202,7 @@ export class AgentMergeController extends Disposable {
 				throw new Error('Cannot enable Agent Merge without a working directory.');
 			}
 			const directory = URI.parse(workingDirectory);
-			const branchName = await this._gitService.getCurrentBranchName?.(directory);
+			const branchName = await this._gitService.getCurrentBranchName?.(directory, { throwOnError: true });
 			const updated = this._getSessionEnablementState(session, enabled);
 			const updatedDirectory = updated.state.workingDirectories?.[0];
 			if (!isEqual(directory, updatedDirectory ? URI.parse(updatedDirectory) : undefined)
@@ -484,20 +479,21 @@ export class AgentMergeController extends Disposable {
 
 	private async _evaluate(session: string): Promise<void> {
 		const runtime = this._runtimes.get(session);
-		let state = this._stateManager.getSessionState(session);
-		let agentMerge = readAgentMergeSessionState(state?.config?.values);
+		const state = this._stateManager.getSessionState(session);
+		const agentMerge = readAgentMergeSessionState(state?.config?.values);
 		if (!runtime || !state || !agentMerge?.enabled || this._stateManager.hasActiveTurn(session)) {
 			return;
 		}
-		const branchName = await this._resolveCurrentBranch(session, runtime, state, agentMerge.target?.branchName);
-		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.hasActiveTurn(session)) {
+		const configuration = this._getConfiguration(agentMerge);
+		const branch = await this._resolveCurrentBranch(session, runtime, state, agentMerge.target?.branchName);
+		if (!this._isCurrentEvaluation(session, runtime, state, configuration)) {
 			return;
 		}
-		state = this._stateManager.getSessionState(session);
-		agentMerge = readAgentMergeSessionState(state?.config?.values);
-		if (!state || !agentMerge?.enabled) {
+		if (!branch) {
+			runtime.backstopScheduler.schedule();
 			return;
 		}
+		const { branchName } = branch;
 		if (!branchName) {
 			if (agentMerge.target) {
 				this._disable(session, agentMerge, agentMergeDisableReasons.branchUnavailable(agentMerge.target.branchName));
@@ -519,19 +515,27 @@ export class AgentMergeController extends Disposable {
 		}
 
 		await this._gitStateService.attachSessionGitHubPullRequest(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
-		if (!this._isCurrentRuntime(session, runtime)) {
+		if (!this._isCurrentEvaluation(session, runtime, state, configuration)) {
 			return;
 		}
-		const refreshedState = this._stateManager.getSessionState(session);
-		const refreshedBranch = readSessionGitState(refreshedState?._meta)?.branchName;
+		const refreshed = await this._readCurrentBranch(session, state);
+		if (!this._isCurrentEvaluation(session, runtime, state, configuration)) {
+			return;
+		}
+		if (!refreshed) {
+			runtime.backstopScheduler.schedule();
+			return;
+		}
+		const refreshedBranch = refreshed.branchName;
 		if (refreshedBranch !== target.branchName) {
 			this._disable(session, agentMerge, refreshedBranch
 				? agentMergeDisableReasons.branchChanged(target.branchName, refreshedBranch)
 				: agentMergeDisableReasons.branchUnavailable(target.branchName));
 			return;
 		}
+		const refreshedState = this._stateManager.getSessionState(session);
 		const gitHubState = readSessionFolderGitHubState(refreshedState);
-		const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
+		const pullRequestUrl = gitHubState?.pullRequestBranchName === target.branchName ? getSessionRelatedPullRequestUrls(gitHubState)[0] : undefined;
 		if (!target.pullRequestUrl) {
 			if (!pullRequestUrl) {
 				this._logService.trace(`[AgentMergeController] Waiting for a pull request on the captured branch: session=${session}`);
@@ -554,7 +558,7 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const ref = await this._resolveRef(parsed, runtime.abortController.signal);
-		if (!this._isCurrentRuntime(session, runtime)) {
+		if (!this._isCurrentEvaluation(session, runtime, state, configuration)) {
 			return;
 		}
 		if (!ref) {
@@ -562,11 +566,9 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const subscription = await this._ensureSubscription(session, runtime, ref);
-		if (!subscription || !this._isCurrentRuntime(session, runtime)) {
+		if (!subscription || !this._isCurrentEvaluation(session, runtime, state, configuration)) {
 			return;
 		}
-		const snapshot = subscription.resource.snapshot.get();
-		const configuration = this._getConfiguration(agentMerge);
 		// Backstop only: `_completeTurn` normally decides this the moment a
 		// repair turn ends. This catches a host restart that lost the in-flight
 		// turn, since the baseline commit is persisted with the session.
@@ -575,9 +577,10 @@ export class AgentMergeController extends Disposable {
 			// this pass must not go on to merge under the old one.
 			return;
 		}
-		if (!this._isCurrentRuntime(session, runtime)) {
+		if (!this._isCurrentEvaluation(session, runtime, state, configuration)) {
 			return;
 		}
+		const snapshot = subscription.resource.snapshot.get();
 		const deferredCheckIds = this._pruneDeferredWorkflowReruns(session, runtime, snapshot);
 		const gate = evaluateAgentMerge(snapshot, configuration, target.commentWatermark, deferredCheckIds);
 		this._logGateResult(session, gate);
@@ -660,11 +663,10 @@ export class AgentMergeController extends Disposable {
 						return deferred;
 					},
 				};
-				if (!this._isCurrentRuntime(session, runtime)
+				if (!this._isCurrentEvaluation(session, runtime, state, configuration)
 					|| !this._isTargetStillCurrent(session, target)
-					|| this._stateManager.hasActiveTurn(session)
 					|| !this._options.startTurn(session, turnId, buildAgentMergePrompt(gate.actions, gate.context))) {
-					this._logService.debug(`[AgentMergeController] Repair turn was not claimed because the session became busy, retargeted, or stopped: session=${session}`);
+					this._logService.debug(`[AgentMergeController] Repair turn was not claimed because the session became busy, changed, or stopped: session=${session}`);
 					runtime.backstopScheduler.schedule();
 					return;
 				}
@@ -811,27 +813,44 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/** Refreshes before capturing or rejecting a target, or once to recover a missing branch. */
-	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>, targetBranchName: string | undefined): Promise<string | undefined> {
+	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: ISessionWithDefaultChat, targetBranchName: string | undefined): Promise<{ readonly branchName: string | undefined } | undefined> {
 		const gitState = readSessionGitState(state._meta);
 		if (gitState?.branchName && gitState.branchName === targetBranchName) {
-			return gitState.branchName;
+			return { branchName: gitState.branchName };
 		}
 		if (!targetBranchName && !gitState?.branchName && (runtime.didRefreshForMissingBranch || !needsSessionGitStateRefresh(gitState))) {
-			return undefined;
+			return { branchName: undefined };
 		}
-		runtime.didRefreshForMissingBranch = true;
 		this._logService.debug(`[AgentMergeController] Refreshing git state before resolving the branch: session=${session}, hasTarget=${targetBranchName !== undefined}`);
 		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
 		if (!this._isCurrentRuntime(session, runtime)) {
 			return undefined;
 		}
-		const refreshed = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.branchName;
-		if (refreshed) {
-			this._logService.info(`[AgentMergeController] Resolved the session branch after refreshing git state: session=${session}, branch=${refreshed}`);
-		} else {
-			this._logService.warn(`[AgentMergeController] Session still reports no branch after refreshing git state: session=${session}`);
+		const branch = await this._readCurrentBranch(session, state);
+		if (branch && !branch.branchName) {
+			runtime.didRefreshForMissingBranch = true;
 		}
-		return refreshed;
+		return branch;
+	}
+
+	/** A refresh can retain stale metadata on failure; only a successful Git read confirms a branch or detached HEAD. */
+	private async _readCurrentBranch(session: string, state: ISessionWithDefaultChat): Promise<{ readonly branchName: string | undefined } | undefined> {
+		const workingDirectory = state.workingDirectories?.[0];
+		if (!workingDirectory) {
+			this._logService.warn(`[AgentMergeController] Cannot validate the branch without a working directory: session=${session}`);
+			return undefined;
+		}
+		if (!this._gitService.getCurrentBranchName) {
+			throw new Error('Cannot validate the Agent Merge branch because branch name lookup is unavailable.');
+		}
+		const directory = URI.parse(workingDirectory);
+		const branchName = await this._gitService.getCurrentBranchName(directory, { throwOnError: true });
+		const currentDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		if (!isEqual(directory, currentDirectory ? URI.parse(currentDirectory) : undefined)) {
+			this._logService.debug(`[AgentMergeController] Discarding branch validation because the working directory changed: session=${session}`);
+			return undefined;
+		}
+		return { branchName };
 	}
 
 	private async _resolveRef(parsed: IParsedPullRequestUrl, signal: AbortSignal): Promise<PullRequestRef | undefined> {
@@ -893,6 +912,25 @@ export class AgentMergeController extends Disposable {
 
 	private _isCurrentRuntime(session: string, runtime: AgentMergeRuntime): boolean {
 		return this._runtimes.get(session) === runtime && !runtime.abortController.signal.aborted;
+	}
+
+	private _isCurrentEvaluation(session: string, runtime: AgentMergeRuntime, state: ISessionWithDefaultChat, configuration: AgentMergeConfiguration): boolean {
+		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.hasActiveTurn(session)) {
+			return false;
+		}
+		const current = this._stateManager.getSessionState(session);
+		const agentMerge = readAgentMergeSessionState(current?.config?.values);
+		const directory = state.workingDirectories?.[0];
+		const currentDirectory = current?.workingDirectories?.[0];
+		if (!agentMerge
+			|| !structuralEquals(agentMerge, readAgentMergeSessionState(state.config?.values))
+			|| !structuralEquals(this._getConfiguration(agentMerge), configuration)
+			|| !isEqual(directory ? URI.parse(directory) : undefined, currentDirectory ? URI.parse(currentDirectory) : undefined)) {
+			this._logService.debug(`[AgentMergeController] Reevaluating because the session or configuration changed: session=${session}`);
+			this._schedule(session, 0);
+			return false;
+		}
+		return true;
 	}
 
 	private _getConfiguration(agentMerge: AgentMergeSessionState): AgentMergeConfiguration {
@@ -1114,6 +1152,12 @@ export class AgentMergeController extends Disposable {
 			return false;
 		}
 		const currentCommit = await this._resolveLocalCommit(session);
+		const current = readAgentMergeSessionState(this._stateManager.getSessionState(session)?.config?.values);
+		if (!current
+			|| !structuralEquals(current, agentMerge)
+			|| !structuralEquals(this._getConfiguration(current), configuration)) {
+			return false;
+		}
 		if (!shouldStopMergingAfterAgentChanges(configuration, agentMerge, currentCommit)) {
 			return false;
 		}
