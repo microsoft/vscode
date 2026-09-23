@@ -8,7 +8,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
-	width: 520px;
+	width: min(520px, calc(100vw - 2 * var(--vscode-spacing-size240) - 2 * var(--vscode-strokeThickness)));
 	max-width: 100%;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 	color: var(--vscode-editorHoverWidget-foreground);
