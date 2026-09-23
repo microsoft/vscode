@@ -782,10 +782,12 @@ suite('Model picker destinations', () => {
 			...model,
 			metadata: {
 				...model.metadata,
-				configurationSchema: { properties: {
-					reasoningEffort: { ...properties.reasoningEffort, default: undefined },
-					contextSize: { ...properties.contextSize, default: undefined },
-				} },
+				configurationSchema: {
+					properties: {
+						reasoningEffort: { ...properties.reasoningEffort, default: undefined },
+						contextSize: { ...properties.contextSize, default: undefined },
+					}
+				},
 			},
 		};
 		assert.deepStrictEqual({

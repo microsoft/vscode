@@ -35,10 +35,12 @@ function model(id: string, configurable = true): ILanguageModelChatMetadataAndId
 			id, name: id, family: id, vendor: 'copilot', version: '1',
 			maxContextWindowTokens: 200000,
 			tooltip: 'Model information.',
-			configurationSchema: configurable ? { properties: {
-				effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' },
-				context: { type: 'number', group: 'tokens', enum: [32000, 64000], default: 32000 },
-			} } : undefined,
+			configurationSchema: configurable ? {
+				properties: {
+					effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' },
+					context: { type: 'number', group: 'tokens', enum: [32000, 64000], default: 32000 },
+				}
+			} : undefined,
 		}),
 	};
 }
@@ -51,15 +53,17 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 			...auto.metadata,
 			name: 'Auto',
 			detail: '10% discount',
-			configurationSchema: { properties: {
-				tier: {
-					type: 'string', group: 'navigation', title: 'Optimize for',
-					enum: ['efficiency', 'balance', 'intelligence'],
-					enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
-					enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
-					default: 'balance',
-				},
-			} },
+			configurationSchema: {
+				properties: {
+					tier: {
+						type: 'string', group: 'navigation', title: 'Optimize for',
+						enum: ['efficiency', 'balance', 'intelligence'],
+						enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+						enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
+						default: 'balance',
+					},
+				}
+			},
 		},
 	};
 }
@@ -219,11 +223,13 @@ suite('TabbedModelPicker', () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();
 		const values = { tier: 'balance' };
-		const result = createPicker({ models: [...models, auto], access: {
-			getModelConfiguration: id => id === auto.identifier ? values : undefined,
-			getModelConfigurationActions: () => [],
-			setModelConfiguration: async (_id, next) => { await pending.p; Object.assign(values, next); },
-		} });
+		const result = createPicker({
+			models: [...models, auto], access: {
+				getModelConfiguration: id => id === auto.identifier ? values : undefined,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, next) => { await pending.p; Object.assign(values, next); },
+			}
+		});
 		openDetails(result.popup, 'Auto');
 		result.popup.querySelectorAll<HTMLElement>('.chat-model-card [role="radio"]')[2].click();
 		await timeout(0);
@@ -359,11 +365,13 @@ suite('TabbedModelPicker', () => {
 	test('leaving details prevents a late save from changing the selected model', async () => {
 		const pending = new DeferredPromise<void>();
 		const writes: string[] = [];
-		const result = createPicker({ access: {
-			getModelConfiguration: () => ({}),
-			getModelConfigurationActions: () => [],
-			setModelConfiguration: async id => { writes.push(id); await pending.p; },
-		} });
+		const result = createPicker({
+			access: {
+				getModelConfiguration: () => ({}),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async id => { writes.push(id); await pending.p; },
+			}
+		});
 		openDetails(result.popup, 'Second');
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
@@ -379,16 +387,18 @@ suite('TabbedModelPicker', () => {
 	test('saves stay serialized across close and reopen', async () => {
 		const pending = new DeferredPromise<void>();
 		const writes: string[] = [];
-		const result = createPicker({ access: {
-			getModelConfiguration: () => ({}),
-			getModelConfigurationActions: () => [],
-			setModelConfiguration: async (_id, values) => {
-				writes.push(String(values.effort));
-				if (writes.length === 1) {
-					await pending.p;
-				}
-			},
-		} });
+		const result = createPicker({
+			access: {
+				getModelConfiguration: () => ({}),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, values) => {
+					writes.push(String(values.effort));
+					if (writes.length === 1) {
+						await pending.p;
+					}
+				},
+			}
+		});
 		openDetails(result.popup, 'Second');
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
@@ -445,14 +455,16 @@ suite('TabbedModelPicker', () => {
 		const pending = new DeferredPromise<void>();
 		const firstValues: IStringDictionary<unknown> = {};
 		const secondValues: IStringDictionary<unknown> = {};
-		const result = createPicker({ access: {
-			getModelConfiguration: () => firstValues,
-			getModelConfigurationActions: () => [],
-			setModelConfiguration: async (_id, values) => {
-				await pending.p;
-				Object.assign(firstValues, values);
-			},
-		} });
+		const result = createPicker({
+			access: {
+				getModelConfiguration: () => firstValues,
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (_id, values) => {
+					await pending.p;
+					Object.assign(firstValues, values);
+				},
+			}
+		});
 		openDetails(result.popup, 'Second');
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);

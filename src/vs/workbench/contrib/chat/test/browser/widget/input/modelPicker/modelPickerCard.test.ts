@@ -809,10 +809,12 @@ suite('ModelCard', () => {
 	});
 
 	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
-		const result = createCard({}, { model: createModel({
-			id: 'hydrafusion', name: 'HydraFusion', detail: 'Research preview',
-			configurationSchema: undefined, maxContextWindowTokens: 200000,
-		}) });
+		const result = createCard({}, {
+			model: createModel({
+				id: 'hydrafusion', name: 'HydraFusion', detail: 'Research preview',
+				configurationSchema: undefined, maxContextWindowTokens: 200000,
+			})
+		});
 		assert.deepStrictEqual({
 			badge: result.card.element.querySelector('.chat-model-card-header .chat-model-card-badge')?.textContent,
 			context: result.card.element.querySelector('.chat-model-card-section-value')?.textContent,
