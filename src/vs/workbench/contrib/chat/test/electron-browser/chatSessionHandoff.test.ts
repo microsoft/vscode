@@ -18,16 +18,12 @@ suite('ChatSessionHandoff', () => {
 		const openedSessions: string[] = [];
 		const visibilityBySession = new Map<string, boolean>();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
-			override getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
-				const visible = visibilityBySession.get(sessionResource.toString());
-				if (visible === undefined) {
-					return undefined;
-				}
-				return createChatWidget(visible);
+			override getAllWidgets(): readonly IChatWidget[] {
+				return Array.from(visibilityBySession, ([resource, visible]) => createChatWidget(URI.parse(resource), visible));
 			}
 		}();
 
-		const controller = new ChatSessionHandoffController(chatWidgetService, async sessionResource => {
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async sessionResource => {
 			openedSessions.push(sessionResource.toString());
 			return true;
 		});
@@ -46,13 +42,13 @@ suite('ChatSessionHandoff', () => {
 	test('retries unsuccessful opens', async () => {
 		const session = URI.parse('test:/session');
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
-			override getWidgetBySessionResource(): IChatWidget {
-				return createChatWidget(false);
+			override getAllWidgets(): readonly IChatWidget[] {
+				return [createChatWidget(session, false)];
 			}
 		}();
 		const results = [false, true];
 		let attempts = 0;
-		const controller = new ChatSessionHandoffController(chatWidgetService, async () => results[attempts++]);
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async () => results[attempts++]);
 
 		await controller.open(session);
 		await controller.open(session);
@@ -66,11 +62,11 @@ suite('ChatSessionHandoff', () => {
 		const pendingOpen = new DeferredPromise<boolean>();
 		let attempts = 0;
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
-			override getWidgetBySessionResource(): undefined {
-				return undefined;
+			override getAllWidgets(): readonly IChatWidget[] {
+				return [];
 			}
 		}();
-		const controller = new ChatSessionHandoffController(chatWidgetService, async () => {
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => true, async () => {
 			attempts++;
 			return pendingOpen.p;
 		});
@@ -82,10 +78,32 @@ suite('ChatSessionHandoff', () => {
 
 		assert.strictEqual(attempts, 1);
 	});
+
+	test('does not treat an inactive Chat editor as a hidden Chat view', async () => {
+		const session = URI.parse('test:/session');
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override getAllWidgets(): readonly IChatWidget[] {
+				return [createChatWidget(session, false)];
+			}
+		}();
+		let attempts = 0;
+		const controller = new ChatSessionHandoffController(chatWidgetService, () => false, async () => {
+			attempts++;
+			return true;
+		});
+
+		await controller.open(session);
+		await controller.open(session);
+
+		assert.strictEqual(attempts, 2);
+	});
 });
 
-function createChatWidget(visible: boolean): IChatWidget {
+function createChatWidget(sessionResource: URI, visible: boolean): IChatWidget {
 	return new class extends mock<IChatWidget>() {
 		override readonly visible = visible;
+		override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() {
+			override readonly sessionResource = sessionResource;
+		}();
 	}();
 }

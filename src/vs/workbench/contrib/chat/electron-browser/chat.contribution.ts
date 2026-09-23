@@ -34,7 +34,7 @@ import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '.
 import './codexCustomizationSettings.contribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
+import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -76,9 +76,11 @@ class ChatCommandLineHandler extends Disposable {
 	) {
 		super();
 
-		this.chatSessionHandoffController = new ChatSessionHandoffController(chatWidgetService, async sessionResource => {
-			return !!await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-		});
+		this.chatSessionHandoffController = new ChatSessionHandoffController(
+			chatWidgetService,
+			widget => isIChatViewViewContext(widget.viewContext),
+			async sessionResource => !!await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget),
+		);
 		this.registerListeners();
 	}
 

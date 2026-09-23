@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import type { URI } from '../../../../base/common/uri.js';
-import type { IChatWidgetService } from '../browser/chat.js';
+import type { IChatWidget, IChatWidgetService } from '../browser/chat.js';
 
 /** Preserves hidden chat state after a session has been handed off to this editor window. */
 export class ChatSessionHandoffController {
@@ -15,11 +16,16 @@ export class ChatSessionHandoffController {
 
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
+		private readonly isChatViewWidget: (widget: IChatWidget) => boolean,
 		private readonly openSession: (sessionResource: URI) => Promise<boolean>,
 	) { }
 
 	async open(sessionResource: URI): Promise<void> {
-		const existingWidget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const existingWidget = this.chatWidgetService.getAllWidgets().find(widget =>
+			this.isChatViewWidget(widget)
+			&& !!widget.viewModel?.sessionResource
+			&& isEqual(widget.viewModel.sessionResource, sessionResource)
+		);
 		if (this.openedSessions.has(sessionResource) && existingWidget && !existingWidget.visible) {
 			return;
 		}
