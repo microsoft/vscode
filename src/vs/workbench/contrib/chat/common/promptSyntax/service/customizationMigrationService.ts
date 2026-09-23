@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -193,6 +194,7 @@ export interface ICustomizationMigrationCount {
 
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeCustomizations: Event<void>;
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
