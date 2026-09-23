@@ -455,7 +455,12 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
-		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
+		const cardSize = getAgentsPartCardContentSize(
+			width,
+			height,
+			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.layoutService.isVisible(Parts.SIDEBAR_PART)
+		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);

@@ -117,7 +117,12 @@ export class CustomViewGridPart extends Part {
 			return;
 		}
 
-		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
+		const cardSize = getAgentsPartCardContentSize(
+			width,
+			height,
+			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.layoutService.isVisible(Parts.SIDEBAR_PART)
+		);
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 		this._layoutNode(contentSize.width, contentSize.height);
 
