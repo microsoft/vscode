@@ -39,6 +39,24 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
+	test('describes automatic external session adoption', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.strictEqual(
+			content.split('\n').find(line => line.startsWith('Once you send a message to an external session')),
+			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external.',
+		);
+	});
+
 	test('describes picker shortcuts only when the unified workspace picker is enabled', () => {
 		const getPickerHelp = (enabled: boolean) => {
 			const instantiationService = store.add(new TestInstantiationService());

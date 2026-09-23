@@ -31,6 +31,8 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -228,6 +230,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostCheckpointService, checkpointService],
 			[IAgentHostGitStateService, createNoopGitStateService()],
 			[IAgentHostStateManager, stateManager],
+			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
