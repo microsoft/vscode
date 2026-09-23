@@ -436,6 +436,7 @@
 
 .inbox-notifications-item-header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size100);
 }
@@ -460,18 +461,20 @@
 
 .inbox-notifications-item-title {
 	flex: 1 1 auto;
-	min-width: 0;
+	min-width: 10em;
 	font-weight: 600;
 	overflow-wrap: anywhere;
 }
 
 .inbox-notifications-item-header-actions {
 	display: flex;
-	flex-wrap: nowrap;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	margin-inline-start: auto;
-	flex: 0 0 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .inbox-notifications-item-header-actions .monaco-button,
