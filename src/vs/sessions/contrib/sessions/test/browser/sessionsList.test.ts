@@ -51,7 +51,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
@@ -3211,6 +3211,7 @@ suite('Sessions - SessionsList', () => {
 		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				workspace: constObservable(undefined),
 				title: constObservable(title),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(status),
@@ -3236,7 +3237,7 @@ suite('Sessions - SessionsList', () => {
 			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 		}
 
-		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false, expandChats = true): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
+		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false, expandChats = true, compact = false): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], enableMotion
 				? instantiationService => instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isMotionReduced(): boolean { return false; }
@@ -3246,6 +3247,7 @@ suite('Sessions - SessionsList', () => {
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
+				compact: () => compact,
 				onSessionOpen: () => { },
 				onChatOpen,
 			}));
@@ -3263,6 +3265,64 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		function createMultiFolderSession(sessionFolders: readonly ISessionFolder[], chatFolders: readonly (readonly ISessionFolder[] | undefined)[]): ISession {
+			const base = createTestSession('Session').session;
+			const sessionWorkspace = { ...base.workspace.get()!, label: 'Session workspace', folders: [...sessionFolders] };
+			const chats = chatFolders.map((folders, index) => upcastPartial<IChat>({
+				...createChat(index === 0 ? 'Main chat' : 'Peer chat', index === 0 ? undefined : ChatOriginKind.User),
+				workspace: constObservable(folders ? { ...sessionWorkspace, uri: folders[0].root, label: folders[0].name, folders: [...folders] } : sessionWorkspace),
+			}));
+			return {
+				...base,
+				workspace: constObservable(sessionWorkspace),
+				chats: constObservable(chats),
+				mainChat: constObservable(chats[0]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+		}
+
+		function summarizeFolderLabel(container: HTMLElement) {
+			const row = container.querySelector<HTMLElement>('.session-chat-item');
+			return {
+				hasFolderLabel: row?.classList.contains('has-compact-folder-label'),
+				folder: row?.querySelector('.session-compact-hover-description')?.textContent,
+				ariaLabel: row?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			};
+		}
+
+		test('shows the folder of a chat scoped to one project of a multi-project session', () => {
+			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
+			const session = createMultiFolderSession([first, second], [undefined, [second]]);
+
+			const compact = renderSessionChatsList(session, undefined, false, true, true).container;
+			const regular = renderSessionChatsList(session, undefined, false, true, false).container;
+
+			assert.deepStrictEqual({
+				compact: summarizeFolderLabel(compact),
+				// The label is only shown in the compact list; screen readers hear it there too.
+				regularAriaLabel: summarizeFolderLabel(regular).ariaLabel,
+			}, {
+				compact: { hasFolderLabel: true, folder: 'second', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+				regularAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+			});
+		});
+
+		test('shows no folder when the session folders are checkouts of the same project', () => {
+			const project = URI.file('/repos/project');
+			const first = { root: project, workingDirectory: URI.file('/worktrees/project-first'), name: 'project (first)', description: undefined };
+			const second = { root: project, workingDirectory: URI.file('/worktrees/project-second'), name: 'project (second)', description: undefined };
+			const session = createMultiFolderSession([first, second], [[first], [second]]);
+
+			const container = renderSessionChatsList(session, undefined, false, true, true).container;
+
+			assert.deepStrictEqual(summarizeFolderLabel(container), {
+				hasFolderLabel: false,
+				folder: '',
+				ariaLabel: 'Peer chat, chat, updated now, State: Completed',
+			});
+		});
 
 		test('shows non-main chats and excludes side chats, subagents, and hidden chats', () => {
 			const main = createChat('Main chat');
@@ -3376,6 +3436,7 @@ suite('Sessions - SessionsList', () => {
 			const mainStatus = observableValue('main-status', SessionStatus.Completed);
 			const main = upcastPartial<IChat>({
 				resource: URI.parse('test-chat://Main-chat'),
+				workspace: constObservable(undefined),
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
@@ -3447,6 +3508,7 @@ suite('Sessions - SessionsList', () => {
 			const main = createChat('Main chat');
 			const child = upcastPartial<IChat>({
 				resource: URI.parse('test-chat://Active-chat'),
+				workspace: constObservable(undefined),
 				title: constObservable('Active chat'),
 				updatedAt: constObservable(new Date()),
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
@@ -3593,6 +3655,7 @@ suite('Sessions - SessionsList', () => {
 			const mainStatus = observableValue('main-status', SessionStatus.Completed);
 			const main = upcastPartial<IChat>({
 				resource: URI.parse('test-chat://Main-chat'),
+				workspace: constObservable(undefined),
 				title: constObservable('Main chat'),
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
@@ -4794,6 +4857,7 @@ suite('Sessions - SessionsList', () => {
 		function createChat(id: string): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${id}`),
+				workspace: constObservable(undefined),
 				title: constObservable(id),
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
