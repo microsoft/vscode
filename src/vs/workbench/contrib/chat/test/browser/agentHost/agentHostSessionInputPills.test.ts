@@ -389,6 +389,34 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('keeps the newest artifact and title for duplicate GitHub links', () => {
+		const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/1';
+		const issueUrl = 'https://github.com/microsoft/vscode/issues/2';
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'old-pr', type: SessionArtifactType.PullRequest, label: 'Old PR', link: pullRequestUrl, isGitHub: true, isArtifact: true },
+			{ id: 'old-issue', type: SessionArtifactType.Issue, label: 'Old Issue', link: issueUrl, isGitHub: true, isArtifact: true },
+			{ id: 'new-pr', type: SessionArtifactType.PullRequest, label: 'New PR', link: `${pullRequestUrl}/`, isGitHub: true, isArtifact: true },
+			{ id: 'new-issue', type: SessionArtifactType.Issue, label: 'New Issue', link: `${issueUrl}/`, isGitHub: true, isArtifact: true },
+		];
+		const metadata = getAgentHostSessionPillMetadata(withSessionArtifacts(undefined, entries));
+
+		assert.deepStrictEqual({
+			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitle: metadata.pullRequestTitles.get(pullRequestUrl),
+			pullRequestArtifactId: metadata.pullRequestArtifacts.get(pullRequestUrl)?.id,
+			issueUrls: metadata.issueUrls,
+			issueTitle: metadata.issueTitles.get(issueUrl),
+			issueArtifactId: metadata.issueArtifacts.get(issueUrl)?.id,
+		}, {
+			pullRequestUrls: [`${pullRequestUrl}/`],
+			pullRequestTitle: 'New PR',
+			pullRequestArtifactId: 'new-pr',
+			issueUrls: [`${issueUrl}/`],
+			issueTitle: 'New Issue',
+			issueArtifactId: 'new-issue',
+		});
+	});
+
 	test('renders rich GitHub metadata in editor session pills', async () => {
 		const instantiationService = createInstantiationService();
 		const disposedSubscriptions: string[] = [];
