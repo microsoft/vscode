@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -2363,8 +2364,12 @@ suite('AgentHostChatContribution', () => {
 
 				const configurationStore = disposables.add(new ChatModelConfigurationStore(
 					() => 'chat.modelConfiguration.panel.agent-host-copilot',
+					() => false,
+					constObservable(false),
 					instantiationService.get(ILanguageModelsService),
 					instantiationService.get(IStorageService),
+					new NullManagedSettingsService(),
+					new NullLogService(),
 				));
 				const intent = new IntendedModelSlot();
 				const syncInput = (): void => inputModel.setState({

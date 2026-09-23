@@ -49,7 +49,7 @@ class TestMigrationService extends mock<ICustomizationMigrationService>() {
 function fileMigration(type: CustomizationMigrationType, storage: readonly PromptsStorage[] = [PromptsStorage.local]): CustomizationMigration {
 	if (type === CustomizationMigrationType.McpServers) {
 		return {
-			type, servers: [], candidates: [], discoveryComplete: true,
+			type, servers: [], candidates: [], exclusions: [], discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		};
 	}
@@ -113,7 +113,7 @@ suite('NewChatMigrationNotice', () => {
 		env.migrations.result = async (_resource, type) => {
 			if (type === CustomizationMigrationType.McpServers) {
 				return {
-					type, servers: [], discoveryComplete: true,
+					type, servers: [], exclusions: [], discoveryComplete: true,
 					coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 					candidates: [{
 						type, id: 'server', name: 'Server',
