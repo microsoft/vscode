@@ -72,21 +72,52 @@ export function parseSearchParams(modelResponseString: string): any {
 	return args;
 }
 
-function jsonToTable(args: any): string[] {
+const findInFilesArgKeys: readonly (keyof FindInFilesArgs)[] = ['query', 'replace', 'filesToInclude', 'filesToExclude', 'isRegex', 'isCaseSensitive'];
+
+/**
+ * Renders text as a markdown inline code span. Backticks cannot be backslash-escaped inside a code
+ * span, so the delimiter run is widened past the longest run in the text instead, which keeps the
+ * whole text literal rather than letting it close the span early and render the rest as markdown.
+ */
+function toCodeSpan(text: string): string {
+	const longestBacktickRun = Math.max(0, ...Array.from(text.matchAll(/`+/g), match => match[0].length));
+	const fence = '`'.repeat(longestBacktickRun + 1);
+	// A code span strips one space from each end when it has spaces on both ends and is not all spaces.
+	const stripsSpaces = text.startsWith(' ') && text.endsWith(' ') && /[^ ]/.test(text);
+	const padding = text.startsWith('`') || text.endsWith('`') || stripsSpaces ? ' ' : '';
+	return `${fence}${padding}${text}${padding}${fence}`;
+}
+
+/**
+ * Renders model-provided text as literal code inside a single markdown table cell.
+ *
+ * Line breaks would end the table row, so they are collapsed. A `|` would start a new cell, so it is
+ * escaped as `\|`, which GFM honours even inside a code span. That escape only works when the pipe
+ * follows an even number of backslashes though: after an odd run the added backslash makes the run
+ * even, and the pipe splits the cell anyway. Those pipes cannot be represented inside a code span at
+ * all, so the text is split around them and they are emitted between code spans as `&#124;`.
+ */
+function toTableCellCode(value: string): string {
+	const text = value.replace(/\r\n|[\r\n\u2028\u2029]/g, ' ');
+	return text
+		.split(/(?<=(?<!\\)(?:\\\\)*\\)\|/)
+		// CodeQL [SM02383] The remaining pipes follow an even backslash run, so escaping them keeps them in the cell.
+		.map(segment => segment ? toCodeSpan(segment.replace(/\|/g, '\\|')) : '')
+		.join('&#124;');
+}
+
+export function jsonToTable(args: any): string[] {
 	if (!args) {
 		return [];
 	}
 	const table = ['| Parameter  | Value |\n', '| ------ | ----- |\n'];
-	for (const [key, value] of Object.entries(args)) {
-		if (value === '') {
+	// Only the known parameters are used by the search follow-up, and their fixed names need no escaping.
+	for (const key of findInFilesArgKeys) {
+		const value = args[key];
+		if (value === undefined || value === '') {
 			continue;
 		}
-		let nonEscapeValue = value;
-		if (typeof value === 'string' || value instanceof String) {
-			// CodeQL [SM02383] Since this is inside of a markdown table cell, only a `|` pipe character would interfere with formatting.
-			nonEscapeValue = value.replace(/\|/g, '\\|');
-		}
-		table.push(`| ${key} | \`${nonEscapeValue}\` |\n`);
+		table.push(`| ${key} | ${toTableCellCode(String(value))} |\n`);
 	}
 	table.push(`\n`);
 	return table;
