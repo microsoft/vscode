@@ -198,25 +198,6 @@ suite('SessionTypePicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('exposes the effective selected session type', () => {
-		management.setSessionTypes([
-			sessionType('local', 'copilot', 'Copilot'),
-			sessionType('remote', 'claude', 'Claude'),
-		]);
-		const picker = createPicker(disposables, session, management, storage);
-		picker.setFolderSource(constObservable(folder));
-		const initial = picker.selectedSessionType?.label;
-		picker.pick({ providerId: 'remote', sessionTypeId: 'claude' });
-
-		assert.deepStrictEqual({
-			initial,
-			selected: picker.selectedSessionType?.label,
-		}, {
-			initial: 'Copilot',
-			selected: 'Claude',
-		});
-	});
-
 	test('filters Automation targets to available hosts without affecting ordinary session choices', () => {
 		management.setSessionTypes([
 			sessionType('non-ahp', 'extension-session', 'Extension'),

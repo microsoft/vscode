@@ -108,7 +108,7 @@
 	align-self: center;
 }
 
-.new-session-harness-icon {
+.new-session-brand-icon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -119,11 +119,11 @@
 	line-height: 1;
 }
 
-.new-session-harness-icon[hidden] {
+.new-session-brand-icon[hidden] {
 	display: none;
 }
 
-.new-chat-widget-content.experimental-new-session-composer > .new-session-harness-icon > .codicon {
+.new-chat-widget-content.experimental-new-session-composer > .new-session-brand-icon > .codicon {
 	font-size: 64px;
 }
 

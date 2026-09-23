@@ -470,7 +470,7 @@ export class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
-		const harnessIcon = dom.append(chatWidgetContent, dom.$('.new-session-harness-icon'));
+		const brandIcon = dom.append(chatWidgetContent, dom.$('.new-session-brand-icon'));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -533,15 +533,12 @@ export class NewChatWidget extends Disposable {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
-			this._updateHarnessIcon(harnessIcon, useExperimentalLayout);
+			this._updateBrandIcon(brandIcon, useExperimentalLayout);
 			this._newChatInput.placeRepositoryControls(
 				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
 					? this._workspaceRepositoryControlsHost
 					: undefined
 			);
-		}));
-		this._register(this._newChatInput.sessionTypePicker.onDidChangeSelectedPick(() => {
-			this._updateHarnessIcon(harnessIcon, this._useExperimentalComposerLayout.get());
 		}));
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
 
@@ -625,13 +622,12 @@ export class NewChatWidget extends Disposable {
 		chatWidgetContainer.classList.add('revealed');
 	}
 
-	private _updateHarnessIcon(container: HTMLElement, visible: boolean): void {
+	private _updateBrandIcon(container: HTMLElement, visible: boolean): void {
 		dom.clearNode(container);
 		container.setAttribute('aria-hidden', 'true');
-		const icon = this._newChatInput.sessionTypePicker.selectedSessionType?.icon;
-		container.hidden = !visible || !icon;
-		if (visible && icon) {
-			dom.append(container, renderIcon(icon));
+		container.hidden = !visible;
+		if (visible) {
+			dom.append(container, renderIcon(Codicon.vscode));
 		}
 	}
 

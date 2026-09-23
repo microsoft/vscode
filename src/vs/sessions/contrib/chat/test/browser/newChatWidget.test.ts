@@ -196,14 +196,6 @@ interface IRenderSessionTypePickerHarness {
 	};
 }
 
-interface IUpdateHarnessIconHarness {
-	readonly _newChatInput: {
-		readonly sessionTypePicker: {
-			readonly selectedSessionType: { readonly icon: { readonly id: string } } | undefined;
-		};
-	};
-}
-
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
@@ -248,7 +240,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
-const updateHarnessIcon = Reflect.get(NewChatWidget.prototype, '_updateHarnessIcon') as (this: IUpdateHarnessIconHarness, container: HTMLElement, visible: boolean) => void;
+const updateBrandIcon = Reflect.get(NewChatWidget.prototype, '_updateBrandIcon') as (container: HTMLElement, visible: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
@@ -286,51 +278,24 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows the selected harness icon only for the experimental layout', () => {
+	test('shows the VS Code icon only for the experimental layout', () => {
 		const container = document.createElement('div');
-		let selectedSessionType: IUpdateHarnessIconHarness['_newChatInput']['sessionTypePicker']['selectedSessionType'] = { icon: Codicon.copilot };
-		const harness: IUpdateHarnessIconHarness = {
-			_newChatInput: {
-				sessionTypePicker: {
-					get selectedSessionType() {
-						return selectedSessionType;
-					},
-				},
-			},
-		};
-
-		updateHarnessIcon.call(harness, container, true);
-		const initial = {
+		updateBrandIcon(container, true);
+		const experimental = {
 			hidden: container.hidden,
 			ariaHidden: container.getAttribute('aria-hidden'),
 			icon: container.firstElementChild?.className,
 		};
-		selectedSessionType = { icon: Codicon.sparkle };
-		updateHarnessIcon.call(harness, container, true);
-		const changed = {
-			hidden: container.hidden,
-			icon: container.firstElementChild?.className,
-			childCount: container.childElementCount,
-		};
-		updateHarnessIcon.call(harness, container, false);
+		updateBrandIcon(container, false);
 		const legacy = { hidden: container.hidden, childCount: container.childElementCount };
-		selectedSessionType = undefined;
-		updateHarnessIcon.call(harness, container, true);
-		const missing = { hidden: container.hidden, childCount: container.childElementCount };
 
-		assert.deepStrictEqual({ initial, changed, legacy, missing }, {
-			initial: {
+		assert.deepStrictEqual({ experimental, legacy }, {
+			experimental: {
 				hidden: false,
 				ariaHidden: 'true',
-				icon: 'codicon codicon-copilot',
-			},
-			changed: {
-				hidden: false,
-				icon: 'codicon codicon-sparkle',
-				childCount: 1,
+				icon: 'codicon codicon-vscode',
 			},
 			legacy: { hidden: true, childCount: 0 },
-			missing: { hidden: true, childCount: 0 },
 		});
 	});
 

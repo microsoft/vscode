@@ -396,12 +396,6 @@ export class SessionTypePicker extends Disposable {
 		return this._picked;
 	}
 
-	get selectedSessionType(): ISessionType | undefined {
-		return this._folderSessionTypes.find(type =>
-			type.providerId === this._picked?.providerId && type.sessionType.id === this._picked?.sessionTypeId)?.sessionType
-			?? this._folderSessionTypes.find(type => type.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
-	}
-
 	/**
 	 * The session types to offer for a session: all quick-chat types when the
 	 * session is a workspace-less quick chat, otherwise the folder's types.
@@ -801,7 +795,9 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
 		this._triggerElement.setAttribute('aria-disabled', String(disabled));
 		this._isVisible.set(!disabled, undefined);
-		const currentType = this.selectedSessionType;
+		const currentType = this._folderSessionTypes.find(t =>
+			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
+			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._picked?.sessionTypeId ?? '';
 

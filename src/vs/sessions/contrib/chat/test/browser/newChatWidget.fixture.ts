@@ -193,7 +193,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		state: AgentFeedbackState.Accepted,
 	}));
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
-	const sessionTypes = createFixtureSessionTypes(experimentalComposerLayout);
+	const sessionTypes = createFixtureSessionTypes();
 	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : []);
 	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
@@ -544,7 +544,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The experimental new-session composer is centered with the selected Copilot harness icon displayed prominently above it. The large icon is visually separate from the compact Copilot harness picker that remains inside the composer controls.'],
+		expectedVisualDescriptions: ['The experimental new-session composer is centered with the VS Code icon displayed prominently above it. The large product icon is visually separate from the compact Copilot harness picker that remains inside the composer controls.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionChatBackground: defineComponentFixture({
@@ -678,12 +678,12 @@ function createFixtureWorkspace(remote: boolean): ISessionWorkspace {
 	};
 }
 
-function createFixtureSessionTypes(useCopilotIcon = false): readonly ISessionType[] {
+function createFixtureSessionTypes(): readonly ISessionType[] {
 	return [
 		{
 			id: 'copilotcli',
 			label: 'Copilot',
-			icon: useCopilotIcon ? Codicon.copilot : Codicon.terminal,
+			icon: Codicon.terminal,
 			authRequirement: SessionTypeAuthRequirement.None,
 		},
 		{
