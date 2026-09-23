@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './inboxNotificationsAccessibility.js';
-import './inboxNotificationsToast.js';
 import { timeout } from '../../../../base/common/async.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
