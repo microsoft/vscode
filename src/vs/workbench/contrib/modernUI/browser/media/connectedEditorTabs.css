@@ -404,7 +404,7 @@
 	content: '';
 	position: absolute;
 	top: 0;
-	bottom: var(--modern-ui-connected-tab-shoulder-radius);
+	bottom: 0;
 	right: var(--modern-ui-connected-tab-shoulder-radius);
 	width: var(--modern-ui-connected-tab-cap-radius);
 	box-sizing: border-box;
