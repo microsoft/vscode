@@ -1977,14 +1977,11 @@ export class PluginListWidget extends Disposable {
 					return sessionItems;
 				}
 				const failedMarketplaces = new Set(snapshot.failures.map(failure => failure.marketplace));
-				const localFailures = new Set<string>();
-				const localItems = (await this.pluginMarketplaceService.fetchMarketplacePlugins(token, undefined, {
-					onMarketplaceError: reference => localFailures.add(reference.displayLabel),
-				})).map(marketplacePluginToItem);
-				for (const failed of localFailures) {
-					failedMarketplaces.delete(failed);
+				const recovery = await this.pluginMarketplaceService.fetchMarketplacePluginsForNames(token, failedMarketplaces);
+				for (const unresolved of recovery.unresolved) {
+					failedMarketplaces.delete(unresolved);
 				}
-				return mergeFailedMarketplacePlugins(sessionItems, localItems, failedMarketplaces);
+				return mergeFailedMarketplacePlugins(sessionItems, recovery.plugins.map(marketplacePluginToItem), failedMarketplaces);
 			}
 		}
 		return (await this.pluginMarketplaceService.fetchMarketplacePlugins(token)).map(marketplacePluginToItem);

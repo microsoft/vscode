@@ -14,6 +14,7 @@ import { revive } from '../../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -157,6 +158,8 @@ export interface IFetchMarketplacePluginsOptions {
 	 * a complete one.
 	 */
 	readonly onMarketplaceError?: (reference: IMarketplaceReference, error: unknown) => void;
+	/** Called after reading a valid marketplace definition, including one with no plugins. */
+	readonly onMarketplaceRead?: (reference: IMarketplaceReference) => void;
 }
 
 export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceService>('pluginMarketplaceService');
@@ -183,6 +186,7 @@ export interface IPluginMarketplaceService {
 	/** Clears all reported marketplaces, or only the provided canonical IDs. */
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
+	fetchMarketplacePluginsForNames(token: CancellationToken, names: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<{ plugins: IMarketplacePlugin[]; unresolved: ReadonlySet<string> }>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
@@ -456,11 +460,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 	}
 
-	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
-		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
-			return [];
-		}
-
+	private _getConfiguredMarketplaceReferences(): IMarketplaceReference[] {
 		// Effective set: user-facing `chat.plugins.marketplaces` (default + user)
 		// unioned with the enterprise policy-only `chat.plugins.extraMarketplaces`.
 		// `parseMarketplaceReferences` dedupes by canonical id.
@@ -488,7 +488,29 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 		}
 
-		const refsToFetch = allRefs.filter(ref =>
+		return allRefs;
+	}
+
+	async fetchMarketplacePluginsForNames(token: CancellationToken, names: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<{ plugins: IMarketplacePlugin[]; unresolved: ReadonlySet<string> }> {
+		const marketplaceIds = new Set(this._getConfiguredMarketplaceReferences()
+			.filter(reference => names.has(reference.displayLabel))
+			.map(reference => reference.canonicalId));
+		const unresolved = new Set(names);
+		const plugins = await this.fetchMarketplacePlugins(token, marketplaceIds, {
+			...options,
+			onMarketplaceRead: reference => {
+				unresolved.delete(reference.displayLabel);
+				options?.onMarketplaceRead?.(reference);
+			},
+		});
+		return { plugins, unresolved };
+	}
+
+	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+			return [];
+		}
+		const refsToFetch = this._getConfiguredMarketplaceReferences().filter(ref =>
 			(!marketplaceIds || marketplaceIds.has(ref.canonicalId))
 			&& this._isMarketplaceAllowedByStrictPolicy(ref)
 		);
@@ -520,6 +542,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		const cached = options?.refresh ? undefined : this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
 		if (cached) {
+			options?.onMarketplaceRead?.(reference);
 			return cached.map(c => {
 				const plugin = ensureSourceDescriptor(c);
 				return {
@@ -532,6 +555,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		let repoMayBePrivate = true;
+		let definitionRead = false;
 
 		const plugins = await this._readPluginsFromDefinitions(reference, async (defPath) => {
 			if (token.isCancellationRequested) {
@@ -552,15 +576,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				this._logService.debug(`[PluginMarketplaceService] Failed to fetch marketplace.json from ${url}:`, err);
 				return undefined;
 			}
-		});
+		}, undefined, () => { definitionRead = true; });
 
-		if (plugins.length > 0) {
+		if (definitionRead) {
 			cache.set(reference.canonicalId, {
 				plugins,
 				expiresAt: Date.now() + GITHUB_MARKETPLACE_CACHE_TTL_MS,
 				referenceRawValue: reference.rawValue,
 			});
 			this._savePersistedGitHubMarketplaceCache(cache);
+			options?.onMarketplaceRead?.(reference);
 			return plugins;
 		}
 
@@ -578,6 +603,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${repo}`);
+		if (!token.isCancellationRequested) {
+			options?.onMarketplaceError?.(reference, new Error(localize('marketplaceDefinitionNotFound', "No readable marketplace definition was found.")));
+		}
 		return [];
 	}
 
@@ -935,7 +963,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
-		return this._readPluginsFromDirectory(repoDir, reference, token);
+		let definitionRead = false;
+		const plugins = await this._readPluginsFromDirectory(repoDir, reference, token, () => { definitionRead = true; });
+		if (!token.isCancellationRequested) {
+			if (definitionRead) {
+				options?.onMarketplaceRead?.(reference);
+			} else {
+				options?.onMarketplaceError?.(reference, new Error(localize('marketplaceDefinitionNotFound', "No readable marketplace definition was found.")));
+			}
+		}
+		return plugins;
 	}
 
 	async readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]> {
@@ -1014,7 +1051,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		return false;
 	}
 
-	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {
+	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken, onRead?: () => void): Promise<IMarketplacePlugin[]> {
 		return this._readPluginsFromDefinitions(reference, async (defPath) => {
 			if (token?.isCancellationRequested) {
 				return undefined;
@@ -1026,7 +1063,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			} catch {
 				return undefined;
 			}
-		}, repoDir);
+		}, repoDir, onRead);
 	}
 
 	/**
@@ -1038,13 +1075,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		reference: IMarketplaceReference,
 		readJson: (defPath: string) => Promise<IMarketplaceJson | undefined>,
 		repoDir?: URI,
+		onRead?: () => void,
 	): Promise<IMarketplacePlugin[]> {
 		for (const def of MARKETPLACE_DEFINITIONS) {
 			const json = await readJson(def.path);
 			if (!json?.plugins || !Array.isArray(json.plugins)) {
 				continue;
 			}
-			return this._parseMarketplacePlugins(json, reference, def.type, repoDir);
+			const plugins = this._parseMarketplacePlugins(json, reference, def.type, repoDir);
+			onRead?.();
+			return plugins;
 		}
 
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${reference.rawValue}`);

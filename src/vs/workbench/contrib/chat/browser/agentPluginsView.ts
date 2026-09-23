@@ -623,15 +623,10 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 						: undefined;
 					if (snapshot) {
 						if (snapshot.failures.length > 0) {
-							const unresolved = new Set(snapshot.failures.map(failure => failure.marketplace));
-							const localPlugins = await marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
+							const recovery = await marketplaceService.fetchMarketplacePluginsForNames(cts.token, new Set(snapshot.failures.map(failure => failure.marketplace)), {
 								refresh: true,
-								onMarketplaceError: () => { },
 							});
-							for (const plugin of localPlugins) {
-								unresolved.delete(plugin.marketplace);
-							}
-							failedLabels.push(...unresolved);
+							failedLabels.push(...recovery.unresolved);
 						}
 						return;
 					}

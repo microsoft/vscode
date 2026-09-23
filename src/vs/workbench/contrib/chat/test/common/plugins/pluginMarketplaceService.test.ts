@@ -427,6 +427,80 @@ suite('PluginMarketplaceService', () => {
 suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const outcome of ['http-empty', 'clone-empty', 'clone-plugins', 'clone-read-failure', 'clone-prepare-failure']) {
+		test(`name-scoped recovery respects policy and reports ${outcome}`, async () => {
+			const requestUrls: string[] = [];
+			const repositories: string[] = [];
+			const errors: string[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.PluginMarketplaces]: [],
+				[ChatConfiguration.ExtraMarketplaces]: { private: 'microsoft/private', other: 'microsoft/other', blocked: 'microsoft/blocked' },
+				[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/private' }, { source: 'github', repo: 'microsoft/other' }],
+				[ChatConfiguration.PluginsEnabled]: true,
+			}));
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+			instantiationService.stub(IFileService, {
+				readFile: async () => {
+					if (outcome === 'clone-read-failure') {
+						throw new Error('Cannot read definition');
+					}
+					return { value: VSBuffer.fromString(JSON.stringify({
+						plugins: outcome === 'clone-plugins' ? [{ name: 'recovered', source: 'plugins/recovered' }] : [],
+					})) };
+				},
+			} as Partial<IFileService> as IFileService);
+			instantiationService.stub(IAgentPluginRepositoryService, {
+				agentPluginsHome: URI.file('/agent-plugins'),
+				ensureRepository: async (reference: IMarketplaceReference) => {
+					repositories.push(reference.canonicalId);
+					if (outcome === 'clone-prepare-failure') {
+						throw new Error('Cannot prepare repository');
+					}
+					return URI.file('/agent-plugins/private');
+				},
+			} as Partial<IAgentPluginRepositoryService> as IAgentPluginRepositoryService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IRequestService, {
+				request: async (options: { url: string }) => {
+					requestUrls.push(options.url);
+					return { res: { headers: {}, statusCode: outcome === 'http-empty' ? 200 : 404 }, stream: bufferToStream(VSBuffer.fromString('{"plugins":[]}')) };
+				},
+			} as Partial<IRequestService> as IRequestService);
+			instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+			instantiationService.stub(IWorkspacePluginSettingsService, {
+				extraMarketplaces: observableValue('test.extraMarketplaces', []),
+				enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+			} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+			instantiationService.stub(IWorkspaceTrustManagementService, {
+				isWorkspaceTrusted: () => true, onDidChangeTrust: Event.None,
+			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+			instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' } as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+			stubMeteredConnectionService(instantiationService);
+			const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+
+			const result = await service.fetchMarketplacePluginsForNames(CancellationToken.None, new Set(['private', 'blocked', 'missing-alias']), {
+				refresh: true,
+				onMarketplaceError: reference => errors.push(reference.displayLabel),
+			});
+			const failed = outcome.endsWith('failure');
+
+			assert.deepStrictEqual({
+				onlyPrivateRequested: requestUrls.length > 0 && requestUrls.every(url => url.includes('/microsoft/private/')),
+				repositories,
+				plugins: result.plugins.map(plugin => plugin.name),
+				unresolved: [...result.unresolved],
+				errors,
+			}, {
+				onlyPrivateRequested: true,
+				repositories: outcome === 'http-empty' ? [] : ['github:microsoft/private'],
+				plugins: outcome === 'clone-plugins' ? ['recovered'] : [],
+				unresolved: failed ? ['private', 'blocked', 'missing-alias'] : ['blocked', 'missing-alias'],
+				errors: failed ? ['private'] : [],
+			});
+		});
+	}
+
 	test('fetches GitHub marketplace definitions from the configured ref', async () => {
 		const requestUrls: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
