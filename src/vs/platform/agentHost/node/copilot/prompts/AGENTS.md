@@ -8,6 +8,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `openaiPrompt.ts` — Sol/Astra targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -78,6 +79,8 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 ```
 
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
+
+This branch's Sol/Astra contributor is unconditional for `gpt-5.6-sol`, `gpt-6-astra`, and their hyphen-suffixed variants; it has no setting. The experiment is isolated to the branch and tracked in [microsoft/vscode-internalbacklog#9142](https://github.com/microsoft/vscode-internalbacklog/issues/9142). It discourages automatic post-edit rereads and full-diff reviews, but preserves targeted reads for failed checks, ambiguous tool output, or correctness uncertainty, required validation, and explicitly requested broader reviews. It does not change delegation or other models. Guidance is resolved on session create/resume; existing in-flight sessions keep their launch-time prompt.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 
