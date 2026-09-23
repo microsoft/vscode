@@ -19,7 +19,7 @@ import { IConfigurationChangeEvent } from '../../../../../../platform/configurat
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
@@ -30,7 +30,6 @@ import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/a
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -189,7 +188,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			cancelled: fixture.requests[0].token.isCancellationRequested,
 			content: fixture.page.getAccessibilityContent().match(/^(?:connector|stale)-mail$/gm),
 		};
-		await setEnabled(fixture.configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 		await fixture.requests[2].result.complete({ items: [resource('public-mail')] });
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -312,8 +311,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('mail');
 		fixture.page.setVisible(true);
-		await setEnabled(fixture.configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, true);
-		await setEnabled(fixture.configuration, ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await fixture.requests[2].result.complete({ items: [resource('current mail', { sourceId: 'copilotConnectors' })] });
 		await fixture.requests[0].result.complete({ items: [resource('stale mail')] });
 		await fixture.requests[1].result.complete({ items: [resource('also stale mail')] });
@@ -323,13 +322,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			hasCurrent: fixture.page.getAccessibilityContent().includes('current mail'),
 			hasStale: fixture.page.getAccessibilityContent().includes('stale mail'),
 		};
-		await setEnabled(fixture.configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 		const disabled = {
 			hasAvailable: fixture.page.getAccessibilityContent().includes('current mail'),
 			hasInstalled: fixture.page.getAccessibilityContent().includes('Local mail skill'),
 			requests: fixture.requests.length,
 		};
-		await setEnabled(fixture.configuration, ChatConfiguration.AgentFinderPublicFeedEnabled, true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await fixture.requests[3].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			beforeDisable, disabled, searches: fixture.requests.map(request => [request.options.query, request.options.cursor]),
@@ -343,8 +342,8 @@ suite('AICustomizationDiscoveryPage', () => {
 	test('unchanged source settings and entitlement notifications preserve the request', async () => {
 		const fixture = createPage();
 		fixture.page.setVisible(true);
-		await setEnabled(fixture.configuration, ChatConfiguration.AgentFinderPublicFeedEnabled, true);
-		await setEnabled(fixture.configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 		fixture.sentimentChanged.fire();
 		const cancelled = fixture.requests[0].token.isCancellationRequested;
 		await fixture.requests[0].result.complete({ items: [] });

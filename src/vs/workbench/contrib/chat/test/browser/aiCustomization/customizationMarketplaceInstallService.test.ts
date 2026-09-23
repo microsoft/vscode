@@ -18,6 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -51,8 +52,8 @@ const destinationDirectory = URI.file('/workspace/.github/skills');
 const skillDestination = joinPath(destinationDirectory, 'demo-skill');
 const skillContent = '# Demo skill\n';
 const sources = [
-	{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
-	{ id: 'copilotConnectors', enablementSetting: ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled },
+	{ id: 'testSource', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
+	{ id: 'copilotConnectors', enablementSetting: CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled },
 	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
 	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
 ];
@@ -1167,7 +1168,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('is unavailable when the connector experiment is disabled', async () => {
 			const fixture = await createFixture();
-			await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 
 			const state = fixture.service.getInstallState(connectorResource());
 

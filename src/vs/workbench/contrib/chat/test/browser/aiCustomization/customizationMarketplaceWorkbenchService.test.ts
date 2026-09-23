@@ -18,13 +18,12 @@ import { AgentFinderRestProvider } from '../../../../../../platform/agentFinder/
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, IAgentFinderMarketplaceService, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceChannel, CustomizationMarketplaceChannelClient } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
-import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { AgentFinderMarketplaceWorkbenchService, CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -117,10 +116,10 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration('chat.customizations.unifiedMarketplace.enabled', true);
 		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.publicGitHubFeed.enabled', true);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
@@ -128,7 +127,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			await service.query({}, CancellationToken.None),
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
-		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
@@ -162,8 +161,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 
 	test('composes the built-in catalog with Copilot connectors', async () => {
 		const configuration = new TestConfigurationService({
-			[ChatConfiguration.AgentFinderPublicFeedEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const builtinService = new class extends mock<IAgentFinderMarketplaceService>() {
@@ -378,7 +377,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('source toggles reject stale continuations and fresh queries do not touch the disabled source', async () => {
 		const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
 		const first = await fixture.service.query({ query: 'mail', pageSize: 24 }, CancellationToken.None);
-		await setEnabled(fixture.configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 		await assert.rejects(fixture.service.query({ query: 'mail', pageSize: 24, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
 		const callsBefore = fixture.connectorCalls.length;
 		const fresh = await fixture.service.query({ query: 'mail', pageSize: 24 }, CancellationToken.None);
@@ -408,9 +407,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const service = new CustomizationMarketplaceWorkbenchService(publicService, connectorsService, configuration);
 		const pending = service.query({ query: 'mail' }, CancellationToken.None);
 		const cancelled = assert.rejects(pending, isCancellationError);
-		await setEnabled(configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, true);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
 		const beforeToggle = tokens.map(token => token.isCancellationRequested);
-		await setEnabled(configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 		await cancelled;
 		await publicResponse.complete({ items: [] });
 		await connectorResponse.complete([createConnector('mail')]);

@@ -18,6 +18,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { CopilotConnectorsRequestService } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -26,7 +27,6 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
 function catalogResponse(status: 'available' | 'connected', names = ['mail']): unknown {
@@ -134,7 +134,7 @@ suite('CopilotConnectorsService', () => {
 			};
 		}();
 		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: enabled,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabled,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const opened: string[] = [];
@@ -166,9 +166,9 @@ suite('CopilotConnectorsService', () => {
 	}
 
 	async function setEnabled(configuration: TestConfigurationService, enabled: boolean): Promise<void> {
-		await configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, enabled);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, enabled);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(section: string): boolean { return section === ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled; }
+			override affectsConfiguration(section: string): boolean { return section === CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled; }
 		}());
 	}
 
@@ -548,7 +548,7 @@ suite('CopilotConnectorsService', () => {
 	test('re-enabling is observed before starting a snapshot even if the configuration notification is pending', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available') }]);
 		await setEnabled(fixture.configurationService, false);
-		await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, true);
+		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
 		const snapshot = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
 		assert.deepStrictEqual({ names: snapshot.connectors.map(connector => connector.name), invalid: snapshot.cacheToken.isCancellationRequested }, { names: ['mail'], invalid: false });
 	});

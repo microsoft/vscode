@@ -19,14 +19,13 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { CopilotConnectorsError, CopilotConnectorsRequest, copilotConnectorsScope, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { ChatConfiguration } from '../../common/constants.js';
 
 const maxSearchQueryLength = 256;
 const maxSearchWords = 16;
@@ -144,7 +143,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this.accountIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
 		this.updateEnablement();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled)) {
+			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)) {
 				this.updateEnablement();
 			}
 		}));
@@ -377,7 +376,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled) === true;
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;
 	}
 
 	private async createOperation(token: CancellationToken): Promise<{ readonly token: CancellationToken; readonly cacheToken: CancellationToken; dispose(): void }> {
@@ -501,7 +500,7 @@ export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarke
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled) !== true ||
+		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true ||
 			(options.mediaType !== undefined && options.mediaType !== CustomizationMarketplaceMediaType.McpServer)) {
 			if (options.cursor !== undefined) {
 				throw invalidConnectorPage();

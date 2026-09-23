@@ -12,8 +12,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('CopilotConnectorsMarketplaceProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,7 +28,7 @@ suite('CopilotConnectorsMarketplaceProvider', () => {
 
 	function createSource(connectors: readonly ICopilotConnector[], enabled = true) {
 		const calls: CancellationToken[] = [];
-		const configuration = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: enabled });
+		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const service = new class extends mock<ICopilotConnectorsService>() {
 			override connectors = connectors;
@@ -296,7 +296,7 @@ suite('CopilotConnectorsMarketplaceProvider', () => {
 	});
 
 	test('cancellation discards an unresponsive catalog response', async () => {
-		const configuration = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: true });
+		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const response = new DeferredPromise<readonly ICopilotConnector[]>();
 		const service = new class extends mock<ICopilotConnectorsService>() {
