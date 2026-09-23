@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -34,7 +35,7 @@ function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFil
 
 		queueMicrotask(() => callback(expectation.error ?? null, expectation.stdout ?? '', expectation.stderr ?? ''));
 
-		return {} as cp.ChildProcess;
+		return { kill: () => true } as cp.ChildProcess;
 	}) as typeof cp.execFile;
 }
 
@@ -65,7 +66,7 @@ suite('LocalGitService', () => {
 	test('clone passes scoped HTTP authentication through Git config environment variables', async () => {
 		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
 		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
-		const expectations: IExecFileExpectation[] = [{
+		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
 			args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
 			environment: {
 				GIT_TRACE2: '0',
@@ -91,6 +92,36 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
+	test('authenticated Git rejects old versions and rechecks after an upgrade', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
+			{ args: ['--version'], stdout: 'git version 2.31.0\n' },
+			{ args: ['fetch'] },
+			{ args: ['fetch'] },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+		const options = { authentication: { urlPrefix: 'https://github.com/', authorizationHeader: 'Authorization: Basic secret' } };
+
+		await assert.rejects(service.fetch('old-git', '/tmp/private', options), /requires Git 2\.31 or later/);
+		await service.fetch('upgraded-git', '/tmp/private', options);
+		await service.fetch('cached-version', '/tmp/private', options);
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('cancelling the authentication version check does not launch a network operation', async () => {
+		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+		const operation = service.fetch('cancelled', '/tmp/private', {
+			authentication: { urlPrefix: 'https://github.com/', authorizationHeader: 'Authorization: Basic secret' },
+		});
+		const rejected = assert.rejects(operation, isCancellationError);
+		await service.cancel('cancelled');
+		await rejected;
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
 	test('authenticated failures redact credentials before logging and rejecting', async () => {
 		const logged: string[] = [];
 		const logService = new class extends NullLogService {
@@ -99,7 +130,7 @@ suite('LocalGitService', () => {
 			}
 		}();
 		const error = createPullError('Authorization: Basic dummy-credential', 'Trace2: Authorization: Basic dummy-credential');
-		const service = new LocalGitService(logService, createExecFile([{
+		const service = new LocalGitService(logService, createExecFile([{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
 			args: ['fetch'],
 			error,
 		}]));

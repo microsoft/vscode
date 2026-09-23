@@ -14,13 +14,24 @@ export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
 
 	private _runningProcesses = new Map<string, cp.ChildProcess>();
+	private _supportsAuthenticationEnvironment = false;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		private readonly _execFile: typeof cp.execFile = cp.execFile,
 	) { }
 
-	private _exec(operationId: string, args: string[], cwd?: string, options?: IGitNetworkOptions): Promise<string> {
+	private async _exec(operationId: string, args: string[], cwd?: string, options?: IGitNetworkOptions): Promise<string> {
+		if (options?.authentication && !this._supportsAuthenticationEnvironment) {
+			const version = await this._exec(operationId, ['--version']);
+			const match = /^git version (?<major>\d+)\.(?<minor>\d+)/.exec(version);
+			const major = Number(match?.groups?.major);
+			const minor = Number(match?.groups?.minor);
+			if (!(major > 2 || (major === 2 && minor >= 31))) {
+				throw new Error(localize('gitAuthenticationRequiresNewerGit', "VS Code GitHub authentication requires Git 2.31 or later. Update Git and retry."));
+			}
+			this._supportsAuthenticationEnvironment = true;
+		}
 		return new Promise((resolve, reject) => {
 			this._logService.trace(`[LocalGitService] git ${args.join(' ')}${cwd ? ` (cwd: ${cwd})` : ''}`);
 			const proc = this._execFile('git', args, { cwd, encoding: 'utf8', env: this._getEnvironment(options) }, (err, stdout, stderr) => {
