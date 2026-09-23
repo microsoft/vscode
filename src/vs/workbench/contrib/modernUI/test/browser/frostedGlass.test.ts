@@ -101,9 +101,11 @@ suite('Frosted glass styles', () => {
 
 	for (const domPosition of [ContextViewDOMPosition.ABSOLUTE, ContextViewDOMPosition.FIXED_SHADOW]) {
 		const name = domPosition === ContextViewDOMPosition.FIXED_SHADOW ? 'shadow-root' : 'ordinary';
+		const supportsShadowSelectors = CSS.supports('selector(:host-context(.modern-ui))');
+		const glassMotionTest = supportsGlass(document.body) && (domPosition !== ContextViewDOMPosition.FIXED_SHADOW || supportsShadowSelectors) ? test : test.skip;
 
 		for (const useMenuMotionClass of [false, true]) {
-			(supportsGlass(document.body) ? test : test.skip)(`scales the complete ${name} ${useMenuMotionClass ? 'dropdown' : 'context'} menu without fading`, () => {
+			glassMotionTest(`scales the complete ${name} ${useMenuMotionClass ? 'dropdown' : 'context'} menu without fading`, () => {
 				const { container, surface } = createNestedMenu(domPosition);
 				container.classList.toggle(CONTEXT_VIEW_MENU_MOTION_CLASS, useMenuMotionClass);
 				const animations = container.getAnimations({ subtree: true });
@@ -144,7 +146,7 @@ suite('Frosted glass styles', () => {
 			});
 		}
 
-		(supportsGlass(document.body) ? test : test.skip)(`shares the ${name} menu anchor across the glass and content scale`, () => {
+		glassMotionTest(`shares the ${name} menu anchor across the glass and content scale`, () => {
 			const { container, surface } = createNestedMenu(domPosition);
 			const corners = ['bottom left', 'bottom right', 'top left', 'top right'];
 			const actual = corners.map(corner => {
@@ -165,7 +167,7 @@ suite('Frosted glass styles', () => {
 			assert.deepStrictEqual(actual, corners.map(corner => ({ corner, correctAnchor: true, paintOrigin: true, contentOrigin: true })));
 		});
 
-		(supportsGlass(document.body) ? test : test.skip)(`closes the ${name} glass and content from the same in-flight scale`, () => {
+		glassMotionTest(`closes the ${name} glass and content from the same in-flight scale`, () => {
 			const { container, surface, contextView } = createNestedMenu(domPosition);
 			const targetWindow = getWindow(container);
 			const openingTransform = targetWindow.getComputedStyle(surface).transform;
@@ -185,7 +187,7 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		(supportsGlass(document.body) ? test : test.skip)(`stops both ${name} scale animations when motion is reduced`, () => {
+		glassMotionTest(`stops both ${name} scale animations when motion is reduced`, () => {
 			const { root, container, surface } = createNestedMenu(domPosition);
 			root.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
 			const targetWindow = getWindow(container);
@@ -202,7 +204,7 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		test(`keeps ${name} nested menu glass stable during the parent opening animation`, () => {
+		glassMotionTest(`keeps ${name} nested menu glass stable during the parent opening animation`, () => {
 			const { root, container, surface, finishOpening } = createNestedMenu(domPosition);
 			const openingStyle = getWindow(surface).getComputedStyle(surface);
 			const entrance = {
@@ -241,7 +243,7 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		test(`finishes the ${name} glass entrance before positioning a submenu`, () => {
+		glassMotionTest(`finishes the ${name} glass entrance before positioning a submenu`, () => {
 			const { root, container, animation, finishOpening } = createNestedMenu(domPosition);
 			const submenu = openSubmenu(container);
 			const initialBounds = submenu.getBoundingClientRect();
@@ -261,7 +263,7 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		test(`keeps ${name} submenus tinted during closing and releases the tint when motion is disabled`, () => {
+		glassMotionTest(`keeps ${name} submenus tinted during closing and releases the tint when motion is disabled`, () => {
 			const { root, container, surface, finishOpening } = createNestedMenu(domPosition);
 			finishOpening();
 			const submenu = openSubmenu(container);
@@ -286,7 +288,7 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		test(`opens ${name} submenus without changing their glass tint`, () => {
+		glassMotionTest(`opens ${name} submenus without changing their glass tint`, () => {
 			const { root, container, finishOpening } = createNestedMenu(domPosition);
 			finishOpening();
 			const submenu = openSubmenu(container);
@@ -317,10 +319,13 @@ suite('Frosted glass styles', () => {
 	test('scales glass menus when the editor Modern UI motion styles are unavailable', () => {
 		const { root, menuContainer, shadowMenuContainer } = createOverlays();
 		root.classList.remove('modern-ui');
-		root.classList.add('modern-ui-frosted-glass', 'monaco-enable-motion');
+		root.classList.add('monaco-enable-motion');
 		root.style.setProperty('--modern-ui-glass-opacity', '50%');
 		const menus = [menuContainer, shadowMenuContainer];
 		menus.forEach(menu => menu.classList.add(CONTEXT_VIEW_MENU_MOTION_CLASS));
+		const originalAnimations = menus.map(menu => menu.getAnimations({ subtree: true }));
+		originalAnimations.flat().forEach(animation => animation.pause());
+		root.classList.add('modern-ui-frosted-glass');
 		const animations = menus.flatMap(menu => menu.getAnimations({ subtree: true }));
 		animations.forEach(animation => {
 			animation.pause();
@@ -328,15 +333,15 @@ suite('Frosted glass styles', () => {
 		});
 		const opening = menus.map(menu => Math.round(readColor(menu, '::before').rgba.a * 100));
 		animations.forEach(animation => animation.finish());
-		const supported = supportsGlass(root);
+		const supported = [supportsGlass(root), supportsGlass(root) && CSS.supports('selector(:host-context(.modern-ui))')];
 		assert.deepStrictEqual({
 			opening,
 			settled: menus.map(menu => Math.round(readColor(menu, '::before').rgba.a * 100)),
 			animationCount: animations.length,
 		}, {
-			opening: menus.map(() => supported ? 50 : 0),
-			settled: menus.map(() => supported ? 50 : 0),
-			animationCount: supported ? 4 : 2,
+			opening: supported.map(supported => supported ? 50 : 0),
+			settled: supported.map(supported => supported ? 50 : 0),
+			animationCount: supported.reduce((count, supported, index) => count + (supported ? 2 : originalAnimations[index].length), 0),
 		});
 	});
 

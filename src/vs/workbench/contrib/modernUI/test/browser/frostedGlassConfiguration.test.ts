@@ -22,10 +22,11 @@ suite('FrostedGlassConfiguration', () => {
 		{ oldKey: 'workbench.experimental.modernUIFrostedGlassOpacity', newKey: LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY, values: [50, 75.5, 100], configuredValue: 75 },
 	]) {
 		const migration = migrations.find(migration => migration.key === oldKey);
+		const settingRegistered = !!properties[newKey];
 
 		test(`only registers ${oldKey} migration where ${newKey} is available`, () => {
 			assert.deepStrictEqual({
-				settingRegistered: !!properties[newKey],
+				settingRegistered,
 				migrationRegistered: !!migration,
 			}, {
 				settingRegistered: isNative,

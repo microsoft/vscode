@@ -25,6 +25,8 @@ import '../../../../browser/workbench.contribution.js';
 
 suite('FrostedGlassContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	// Registry suites remove startup contributions before these tests execute.
+	const properties = { ...Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties() };
 
 	function createServices(enabled = true, isSessionsWindow = false) {
 		const configuration = new TestConfigurationService({
@@ -84,7 +86,6 @@ suite('FrostedGlassContribution', () => {
 	}
 
 	test('shares enabled and opacity defaults with the Agents window', () => {
-		const properties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		assert.deepStrictEqual({
 			enabled: properties[LayoutSettings.MODERN_UI_FROSTED_GLASS].default,
 			agentsWindow: properties[LayoutSettings.MODERN_UI_FROSTED_GLASS].agentsWindow,
@@ -99,7 +100,6 @@ suite('FrostedGlassContribution', () => {
 	});
 
 	test('registers both settings without experimental names or tags', () => {
-		const properties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const keys = [LayoutSettings.MODERN_UI_FROSTED_GLASS, LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY];
 		assert.deepStrictEqual({
 			keys,

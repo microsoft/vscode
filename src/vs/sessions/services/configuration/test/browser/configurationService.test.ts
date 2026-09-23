@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -55,6 +57,7 @@ suite('Sessions ConfigurationService', () => {
 	let userDataProfileService: IUserDataProfileService;
 	let workspaceConfigResource: URI;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const startupProperties = { ...configurationRegistry.getConfigurationProperties() };
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
@@ -427,6 +430,19 @@ suite('Sessions ConfigurationService', () => {
 
 	(isNative ? test : test.skip)('displays and persists frosted-glass preferences in the Agents profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const keys = [LayoutSettings.MODERN_UI_FROSTED_GLASS, LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY];
+		const properties: Record<string, IConfigurationPropertySchema> = {};
+		for (const key of keys) {
+			if (!configurationRegistry.getConfigurationProperties()[key]) {
+				assert.ok(startupProperties[key], `${key} must be registered at startup`);
+				properties[key] = deepClone(startupProperties[key]);
+			}
+		}
+		if (Object.keys(properties).length) {
+			const configuration: IConfigurationNode = { id: '_test_sessions_glass', properties };
+			configurationRegistry.registerConfiguration(configuration);
+			disposables.add(toDisposable(() => configurationRegistry.deregisterConfigurations([configuration])));
+			await testObject.reloadConfiguration();
+		}
 		const parent = disposables.add(new SettingsTreeGroupElement('glass', undefined, 'Glass', 0, true));
 		const assignments = disposables.add(new ExperimentalSettingsService());
 		const languageService = new class extends mock<ILanguageService>() { }();
