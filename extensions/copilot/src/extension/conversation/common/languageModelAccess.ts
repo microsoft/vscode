@@ -14,7 +14,8 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  * `undefined`, otherwise the UI shows an "undefined" state.
  *
  * Selection order:
- *  - claude / Kimi K3 families → 'high' if available
+ *  - claude-opus-5.5 → 'medium' if available
+ *  - other claude / Kimi K3 families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
  */
@@ -23,7 +24,8 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const preferred = lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3') ? 'high' : 'medium';
+	const isOpus55 = /^claude-opus-5[.-]5/.test(lowerFamily);
+	const preferred = !isOpus55 && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}
