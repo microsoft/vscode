@@ -58,6 +58,8 @@ class TestChat extends mock<IChat>() {
 	override readonly capabilities = observableValue('capabilities', { canRename: false, canDelete: true });
 	override readonly title = observableValue('title', this.name);
 	override readonly status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
+	override readonly changes = constObservable([]);
+	override readonly changesets = constObservable([]);
 	override readonly isRead = observableValue('read', false);
 	override readonly isArchived = observableValue('archived', false);
 	override readonly interactivity = observableValue('interactivity', ChatInteractivity.Full);

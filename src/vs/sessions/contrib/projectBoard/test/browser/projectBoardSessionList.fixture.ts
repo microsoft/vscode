@@ -41,6 +41,7 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 			updatedAt: constObservable(new Date(2026, 8, 16, 12)),
 			description: constObservable(undefined),
 			changes: constObservable([]),
+			changesets: constObservable([]),
 			checkpoints: constObservable(undefined),
 			modelId: constObservable(undefined),
 			modelSource: constObservable(undefined),

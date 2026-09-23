@@ -135,6 +135,17 @@ try {
 	for (const page of initialPages) {
 		assert.equal(await page.locator(`.chat-editor-relative[data-bound-chat-resource=${JSON.stringify(resource)}]`).count(), 0, 'Close the dedicated test chat window before running');
 	}
+	const assertInputLayout = async (page: Page) => {
+		await expect.poll(() => page.locator('.interactive-session').evaluate(element => {
+			const input = element.querySelector<HTMLElement>('.interactive-input-part');
+			const list = element.querySelector<HTMLElement>('.interactive-list');
+			const welcome = element.querySelector<HTMLElement>('.chat-welcome-view-container');
+			if (!input || !list || !welcome) {
+				throw new Error('Chat input, transcript and welcome container must be present');
+			}
+			return Math.abs(element.clientHeight - input.offsetHeight - Math.max(list.clientHeight, welcome.clientHeight));
+		}), { message: 'The transcript must follow composer height changes without activating the owner window' }).toBeLessThanOrEqual(1);
+	};
 	const open = async () => {
 		await card.focus();
 		await boardPage.keyboard.press('Enter');
@@ -151,6 +162,7 @@ try {
 		assert.ok(opened);
 		chat = opened;
 		await prepare(opened);
+		await assertInputLayout(opened);
 		await focus(opened);
 		const target = opened;
 		await expect.poll(() => hasExclusiveFocus(target)).toBe(true);
@@ -159,6 +171,17 @@ try {
 	};
 	chat = await open();
 	await expect.poll(() => inputText(chat)).toBe('');
+	await chat.keyboard.type('First layout line');
+	await chat.keyboard.press('Shift+Enter');
+	await chat.keyboard.type('Second layout line');
+	await chat.keyboard.press('Shift+Enter');
+	await chat.keyboard.type('Third layout line');
+	await assertInputLayout(chat);
+	const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await chat.keyboard.press(`${modifier}+a`);
+	await chat.keyboard.press('Backspace');
+	await expect.poll(() => inputText(chat)).toBe('');
+	await assertInputLayout(chat);
 	await chat.keyboard.type('abc def');
 	await expect.poll(() => inputText(chat)).toBe('abc def');
 	await chat.keyboard.press('Backspace');
@@ -166,7 +189,6 @@ try {
 	await chat.keyboard.press('Home');
 	await chat.keyboard.press('Delete');
 	await expect.poll(() => inputText(chat)).toBe('bc de');
-	const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 	await chat.keyboard.press(`${modifier}+a`);
 	await chat.keyboard.type('xyz');
 	await expect.poll(() => inputText(chat)).toBe('xyz');
@@ -212,7 +234,7 @@ try {
 	await board.keyboard.up('Escape');
 	await expect.poll(() => hasExclusiveFocus(boardPage)).toBe(true);
 	assert.equal(context.pages().length, initialPages.size, 'Verification must not leave extra windows');
-	console.log('PASS: themed scrollbar thumb and wheel, bounded scrolling, real editing keys, popup priority, Enter/Escape, retained input, and window cleanup');
+	console.log('PASS: themed scrollbar thumb and wheel, bounded scrolling, standalone transcript layout, real editing keys, popup priority, Enter/Escape, retained input, and window cleanup');
 } finally {
 	if (board && !board.isClosed()) {
 		if (scrollPosition) {

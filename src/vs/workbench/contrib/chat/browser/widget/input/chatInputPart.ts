@@ -4132,14 +4132,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			updateCarouselMaxHeightScheduler.schedule();
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
-		}));
+		}, dom.getWindow(this.container)));
 		this._register(inputResizeObserver.observe(this.container));
 
 		if (this.options.renderStyle === 'compact') {
 			const toolbarsResizeObserver = this._register(new dom.DisposableResizeObserver('ChatInputPart.compactToolbars', () => {
 				// Recalculate the shared width without changing the editor's height.
 				this.layoutForToolbarChange();
-			}));
+			}, dom.getWindow(toolbarsContainer)));
 			this._register(toolbarsResizeObserver.observe(toolbarsContainer));
 		}
 	}

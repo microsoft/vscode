@@ -155,7 +155,7 @@ node scripts\test-project-board.mts http://127.0.0.1:9337 "<dedicated-test-chat-
 
 When multiple board windows are open, append the board's stable ID as a third argument (`default` for the migrated board). The gate selects that window without closing unrelated boards.
 
-The gate performs native focus transitions through the existing smoke driver, real wheel/keyboard input, popup priority, Enter/Escape, input restoration and window cleanup. It does not send prompts. Failed runs retain nonempty test input for inspection.
+The gate performs native focus transitions through the existing smoke driver, real wheel/keyboard input, popup priority, Enter/Escape, input restoration and window cleanup. It verifies transcript layout before activating the owner window and while growing/shrinking the standalone composer. It does not send prompts. Failed runs retain nonempty test input for inspection.
 
 Use `connectOverCDP(..., { noDefaults: true })` in additional automation and wait for all targets to attach. Stale focus from older clients requires actual native activation/blur transitions; `page.bringToFront()` and DOM focus alone are not sufficient. See [native-gate details](../test/smoke/README.md#project-board-native-interaction-gate).
 
