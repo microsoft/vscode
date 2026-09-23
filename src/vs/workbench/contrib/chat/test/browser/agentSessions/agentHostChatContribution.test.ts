@@ -16,6 +16,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -9171,7 +9172,7 @@ suite('AgentHostChatContribution', () => {
 				chats: [{
 					resource: childChatUri,
 					title: 'Review agentHost changes',
-					status: SessionStatus.Idle,
+					status: SessionStatus.InProgress,
 					modifiedAt: new Date().toISOString(),
 					origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tc-subagent' },
 					interactivity: ChatInteractivity.ReadOnly,
@@ -9333,7 +9334,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false);
 		});
 
-		test('preserves reconstructed task descriptions over generic migrated subagent titles', async () => {
+		test('preserves task descriptions without loading settled subagent history until opened', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'migrated-subagent-history');
 			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
@@ -9379,10 +9380,11 @@ suite('AgentHostChatContribution', () => {
 					id: 'child-turn',
 					message: { text: 'Summarize agent service', origin: { kind: MessageKind.User } },
 					state: TurnState.Complete,
-					responseParts: [],
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'child-response', content: 'Detailed child result' }],
 					usage: undefined,
 				}],
 			} as SessionState);
+			agentHostService.failNextSubscriptionFor.add(childChatUri);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/migrated-subagent-history' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -9395,9 +9397,32 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
+				available: toolPart.toolSpecificData.isChatAvailable,
+				active: toolPart.toolSpecificData.isActive,
+				childWasNotRead: agentHostService.failNextSubscriptionFor.has(childChatUri),
+				subscribed: agentHostService.hasLiveSubscription(childChatUri),
 			} : undefined, {
 				description: 'Summarize agent service',
 				chatResource: childChatUri,
+				available: true,
+				active: false,
+				childWasNotRead: true,
+				subscribed: false,
+			});
+
+			agentHostService.failNextSubscriptionFor.delete(childChatUri);
+			const childResource = getSubagentEditorResource({ chatResource: childChatUri, parentSessionResource: sessionResource.toString() });
+			assert.ok(childResource);
+			const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+			disposables.add(toDisposable(() => childSession.dispose()));
+			assert.deepStrictEqual({
+				subscribed: agentHostService.hasLiveSubscription(childChatUri),
+				markdown: childSession.history.flatMap(item => item.type === 'response'
+					? item.parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : [])
+					: []),
+			}, {
+				subscribed: true,
+				markdown: ['Detailed child result'],
 			});
 		});
 
@@ -9468,8 +9493,22 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(parts, [
 				{ resource: childChatUri, available: true },
-				{ resource: grandchildChatUri, available: true },
 			]);
+			assert.deepStrictEqual({
+				child: agentHostService.hasLiveSubscription(childChatUri),
+				grandchild: agentHostService.hasLiveSubscription(grandchildChatUri),
+				unrelated: agentHostService.hasLiveSubscription(unrelatedChatUri),
+			}, { child: false, grandchild: false, unrelated: false });
+
+			const childResource = getSubagentEditorResource({ chatResource: childChatUri, parentSessionResource: session.sessionResource.toString() });
+			assert.ok(childResource);
+			const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+			disposables.add(toDisposable(() => childSession.dispose()));
+			assert.deepStrictEqual(childSession.history.flatMap(item => item.type === 'response' ? item.parts.flatMap(part =>
+				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent'
+					? [{ resource: part.toolSpecificData.chatResource, available: part.toolSpecificData.isChatAvailable }]
+					: []) : []), [{ resource: grandchildChatUri, available: true }]);
+			assert.strictEqual(agentHostService.hasLiveSubscription(grandchildChatUri), false);
 		});
 
 		test('opens a subagent editor from its exact chat URI before the chat catalog hydrates', async () => {
