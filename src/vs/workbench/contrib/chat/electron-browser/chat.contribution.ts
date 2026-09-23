@@ -77,7 +77,7 @@ class ChatCommandLineHandler extends Disposable {
 		super();
 
 		this.chatSessionHandoffController = new ChatSessionHandoffController(chatWidgetService, async sessionResource => {
-			await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+			return !!await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		});
 		this.registerListeners();
 	}
