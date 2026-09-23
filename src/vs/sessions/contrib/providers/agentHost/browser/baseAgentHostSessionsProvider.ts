@@ -514,8 +514,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 		return undefined;
 	}
 
-	// A session carries one repository, so a link from another repository would
-	// be polled against the wrong coordinates. Leave those in their own pill.
+	// Repository metadata stays scoped to the checkout; chat pills resolve recorded links independently.
 	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
