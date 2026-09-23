@@ -780,10 +780,12 @@ suite('ChatWidget', () => {
 			viewOptions: {},
 			_location: { location: ChatAgentLocation.Chat },
 			chatSuggestNextWidget: { height: 0 },
-			inputPartDisposable: { value: {
-				setMaxHeight: () => { },
-				layout: (width: number) => inputWidths.push(width),
-			} },
+			inputPartDisposable: {
+				value: {
+					setMaxHeight: () => { },
+					layout: (width: number) => inputWidths.push(width),
+				}
+			},
 			_layoutListForInputHeight: () => { },
 			_onDidLayout: { fire: ({ width }: { width: number }) => layoutWidths.push(width) },
 		});

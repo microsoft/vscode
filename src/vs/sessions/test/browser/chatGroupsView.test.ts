@@ -316,6 +316,39 @@ suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
 
+	test('aligns transcript overlays with full-width split chats', () => {
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		const sessionsPart = mainWindow.document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart');
+		const groups = mainWindow.document.createElement('div');
+		groups.classList.add('chat-groups-view');
+		const session = mainWindow.document.createElement('div');
+		session.classList.add('interactive-session');
+		const scrollDown = mainWindow.document.createElement('button');
+		scrollDown.classList.add('chat-scroll-down');
+		const list = mainWindow.document.createElement('div');
+		list.classList.add('interactive-list');
+		const transcriptContext = mainWindow.document.createElement('div');
+		transcriptContext.classList.add('chat-transcript-context');
+		list.appendChild(transcriptContext);
+		session.append(scrollDown, list);
+		groups.appendChild(session);
+		sessionsPart.appendChild(groups);
+		workbench.appendChild(sessionsPart);
+		mainWindow.document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.deepStrictEqual({
+			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
+			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
+		}, {
+			scrollDownRight: '32px',
+			transcriptContextMaxWidth: 'none',
+		});
+	});
+
 	test('opens a session with an active child chat after initial layout', () => {
 		const { view, chatViewFactory } = createHarness(disposables);
 		const main = createChat('main');
