@@ -1032,9 +1032,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.resultStatus.textContent = message;
 			this.announce(message);
-		} else if (entries.length === 0 && this.sourceWarnings.hasErrors) {
+		} else if (entries.length === 0 && this.sourceWarnings.hasWarnings) {
 			this.resultStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
-		} else if (entries.length === 0) {
+		} else if (entries.length === 0 && !this.sourceWarnings.hasErrors) {
 			this.resultStatus.textContent = localize('customizationDiscovery.noResults', "No customizations match this search.");
 		} else {
 			this.resultStatus.textContent = catalogPending ? this.getLoadingLabel() : '';
@@ -1092,9 +1092,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		if (this.loading) {
 			this.browseStatus.textContent = this.getLoadingLabel();
-		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasErrors) {
+		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasWarnings) {
 			this.browseStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
-		} else if (!this.catalogItems.length && this.loaded) {
+		} else if (!this.catalogItems.length && this.loaded && !this.sourceWarnings.hasErrors) {
 			this.browseStatus.textContent = localize('customizationDiscovery.emptyCatalog', "No catalog customizations are available.");
 		} else {
 			this.browseStatus.textContent = this.installErrors.values().next().value ?? '';

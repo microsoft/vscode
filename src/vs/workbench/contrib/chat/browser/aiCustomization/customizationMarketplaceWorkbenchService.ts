@@ -90,7 +90,8 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 			return undefined;
 		}
 		return {
-			label: localize('customizationMarketplace.authorizeConnectors', "Authorize Connectors"),
+			label: localize('customizationMarketplace.signIn', "Sign In"),
+			kind: 'signIn',
 			run: token => this.copilotConnectorsService.authorize(token),
 		};
 	}

@@ -6,10 +6,12 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -20,6 +22,7 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
@@ -63,6 +66,7 @@ import {
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -154,6 +158,7 @@ type McpAccessTestWidget = {
 	policyAccess: McpAccessValue | undefined;
 	configurationService: IConfigurationService;
 	connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
+	connectorSignIn: MutableDisposable<Disposable>;
 	connectorsCancelCount: number;
 	connectorsLoading: boolean;
 	searchInput: { hideMessage(): void };
@@ -185,6 +190,7 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	} as unknown as IConfigurationService;
 	widget.connectorsCancelCount = 0;
 	widget.connectorsCancellation = store.add(new MutableDisposable());
+	widget.connectorSignIn = store.add(new MutableDisposable());
 	widget.connectorsLoading = false;
 	widget.searchInput = { hideMessage() { } };
 	widget.disabledIcon = document.createElement('div');
@@ -200,6 +206,95 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scenario of ['sign-in', 'network failure', 'refresh during sign-in', 'hide during sign-in'] as const) {
+		test(`connector recovery: ${scenario}`, async () => {
+			const authorizationRequired = scenario !== 'network failure';
+			const widget = Object.create(McpListWidget.prototype) as {
+				isConnectorsEnabled(): boolean;
+				filteredConnectors: readonly ICopilotConnector[];
+				connectorsLoading: boolean;
+				connectorsError: string | undefined;
+				connectorsService: ICopilotConnectorsService;
+				cardDisposables: DisposableStore;
+				connectorSignIn: MutableDisposable<Disposable>;
+				connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
+				visible: boolean;
+				cardListControllers: WeakMap<HTMLElement, { finalize(): void }>;
+				firstCardFocusElement: HTMLElement | undefined;
+				notificationService: INotificationService;
+				refreshConnectors(): Promise<void>;
+				renderCardSection(parent: HTMLElement): HTMLElement;
+				renderConnectorSection(parent: HTMLElement): void;
+				setVisible(visible: boolean): void;
+				clearMcpServerCompatibilityScope(): void;
+			};
+			const container = DOM.append(document.body, DOM.$('.mcp-connector-signin-test'));
+			disposables.add(toDisposable(() => container.remove()));
+			const authorizations: CancellationToken[] = [];
+			const notifications: Parameters<INotificationService['error']>[0][] = [];
+			const authorization = new DeferredPromise<void>();
+			let refreshes = 0;
+			widget.isConnectorsEnabled = () => true;
+			widget.filteredConnectors = [];
+			widget.connectorsLoading = false;
+			widget.connectorsError = 'Unable to load connectors.';
+			widget.cardDisposables = disposables.add(new DisposableStore());
+			widget.connectorSignIn = disposables.add(new MutableDisposable());
+			widget.connectorsCancellation = disposables.add(new MutableDisposable());
+			widget.visible = true;
+			widget.clearMcpServerCompatibilityScope = () => { };
+			widget.cardListControllers = new WeakMap();
+			widget.renderCardSection = parent => DOM.append(parent, DOM.$('.plugin-inventory-list'));
+			widget.refreshConnectors = async () => { refreshes++; };
+			widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
+				override readonly authorizationRequired = authorizationRequired;
+				override async authorize(token: CancellationToken) {
+					authorizations.push(token);
+					await authorization.p;
+				}
+			}();
+			widget.notificationService = new class extends mock<INotificationService>() {
+				override error(error: Parameters<INotificationService['error']>[0]) { notifications.push(error); }
+			}();
+			widget.renderConnectorSection(container);
+			const action = container.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(action);
+			const initial = {
+				authorizations: authorizations.length,
+				signIn: container.querySelector('.customization-marketplace-source-message')?.textContent,
+				failure: container.querySelector('.plugin-inventory-empty')?.textContent,
+				primary: !action.classList.contains('secondary'),
+				focusTarget: widget.firstCardFocusElement === action,
+			};
+			action.click();
+			if (scenario === 'refresh during sign-in') {
+				widget.cardDisposables.clear();
+				DOM.clearNode(container);
+				widget.renderConnectorSection(container);
+			} else if (scenario === 'hide during sign-in') {
+				widget.setVisible(false);
+			}
+			const cancelledWhilePending = authorizations[0]?.isCancellationRequested;
+			const busyAfterRefresh = scenario === 'refresh during sign-in' ? container.querySelector('.monaco-button')?.getAttribute('aria-disabled') : undefined;
+			await authorization.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ initial, authorizations: authorizations.length, cancelledWhilePending, busyAfterRefresh, refreshes, notifications }, {
+				initial: {
+					authorizations: 0,
+					signIn: authorizationRequired ? 'Sign in to view connectors.' : undefined,
+					failure: authorizationRequired ? undefined : 'Unable to load connectors.',
+					primary: authorizationRequired,
+					focusTarget: true,
+				},
+				authorizations: authorizationRequired ? 1 : 0,
+				cancelledWhilePending: authorizationRequired ? scenario === 'hide during sign-in' : undefined,
+				busyAfterRefresh: scenario === 'refresh during sign-in' ? 'true' : undefined,
+				refreshes: scenario === 'hide during sign-in' ? 0 : 1,
+				notifications: [],
+			});
+		});
+	}
 
 	test('item count includes only enabled MCP servers', () => {
 		interface TestWidget {

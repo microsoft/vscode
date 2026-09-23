@@ -2538,6 +2538,14 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 }
 
+.mcp-list-widget .customization-marketplace-source-warnings {
+	margin-top: 0;
+}
+
+.mcp-list-widget .customization-marketplace-source-signin {
+	border: none;
+}
+
 /* MCP Empty State */
 .mcp-list-widget .mcp-empty-state {
 	display: flex;

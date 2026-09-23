@@ -107,7 +107,7 @@ export interface ICopilotConnectorsService {
 	readonly connectors: readonly ICopilotConnector[];
 	readonly connectedMcpServers: readonly IConnectedCopilotConnectorMcpServer[];
 	readonly authorizationRequired: boolean;
-	/** Requests connector consent for the active GitHub account after an explicit user action. */
+	/** Signs in if needed, then requests connector consent after an explicit user action. */
 	authorize(token: CancellationToken): Promise<void>;
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	/** Reads the catalog and its source/account validity token atomically. */
@@ -182,9 +182,19 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private async doAuthorize(cancellation: CancellationTokenSource): Promise<void> {
-		const authentication = await this.getAuthentication(cancellation.token, true);
+		let authentication = await this.getAuthentication(cancellation.token, true);
 		if (!authentication) {
-			throw new CopilotConnectorsError(localize('copilotConnectors.signInRequired', "Sign in to GitHub Copilot before connecting this service."));
+			const account = await raceCancellationError(this.defaultAccountService.signIn(), cancellation.token);
+			if (!account) {
+				throw new CancellationError();
+			}
+			authentication = await this.getAuthentication(cancellation.token, true);
+			if (authentication && getAccountIdentity(authentication.account) !== getAccountIdentity(account)) {
+				throw new CancellationError();
+			}
+		}
+		if (!authentication) {
+			throw connectorSignInRequired();
 		}
 		if (authentication.sessions.some(session => hasConnectorScope(session, false))) {
 			this._authorizationRequired = false;
@@ -396,12 +406,15 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private async request(request: CopilotConnectorsRequest, token: CancellationToken, requireAuthentication = false): Promise<unknown> {
 		const authentication = await this.getAuthentication(token, requireAuthentication);
 		if (!authentication) {
+			if (requireAuthentication) {
+				throw connectorSignInRequired();
+			}
 			return undefined;
 		}
 		const session = authentication.sessions.find(session => hasConnectorScope(session, request.type === 'query'));
 		if (!session) {
 			this._authorizationRequired = true;
-			throw new CopilotConnectorsError(localize('copilotConnectors.authorizationRequired', "Your GitHub sign-in needs permission to access Copilot connectors. Authorize connectors to continue."));
+			throw connectorSignInRequired();
 		}
 		this._authorizationRequired = false;
 		return this.requestService.request(request, session.accessToken, token);
@@ -435,9 +448,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 		const session = account ? sessions.find(candidate => candidate.id === account.sessionId) : undefined;
 		if (!account || !session) {
-			if (requireAuthentication) {
-				throw new CopilotConnectorsError(localize('copilotConnectors.signInRequired', "Sign in to GitHub Copilot before connecting this service."));
-			}
+			this._authorizationRequired = true;
 			return undefined;
 		}
 		this.authenticationAccountId = session.account.id;
@@ -515,6 +526,9 @@ export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketp
 		}
 		if (!continuation) {
 			const { connectors, cacheToken } = await raceCancellationError(this.service.getConnectorsSnapshot(token), token);
+			if (this.service.authorizationRequired) {
+				throw connectorSignInRequired();
+			}
 			const entries = words.length ? connectors.flatMap(connector => {
 				const score = scoreConnector(connector, words);
 				return score === undefined ? [] : [{ ...toMarketplaceEntry(connector), score }];
@@ -545,6 +559,10 @@ function getAccountIdentity(account: IDefaultAccount | null): string | undefined
 
 function invalidConnectorPage(): CopilotConnectorsError {
 	return new CopilotConnectorsError(localize('copilotConnectors.invalidCursor', "The Copilot connectors page is invalid. Start a new search."));
+}
+
+function connectorSignInRequired(): CopilotConnectorsError {
+	return new CopilotConnectorsError(localize('copilotConnectors.signInRequired', "Sign in to view connectors."));
 }
 
 /** Exact names score 100; otherwise average each word's best name (70-95), keyword (40-65), or descriptive (10-35) match. */

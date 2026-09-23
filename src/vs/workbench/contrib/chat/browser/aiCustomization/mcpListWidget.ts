@@ -67,6 +67,8 @@ import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServe
 import { ChatConfiguration } from '../../common/constants.js';
 import { ConnectorRowAction, getConnectorActionLabel, getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnectorMcpServer } from './copilotConnectorsService.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -1389,6 +1391,8 @@ export class McpListWidget extends Disposable {
 	private connectorsLoading = false;
 	private connectorsError: string | undefined;
 	private readonly connectorsCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** Survives section rerenders, but not a hidden or disabled MCP page. */
+	private readonly connectorSignIn = this._register(new MutableDisposable<CustomizationMarketplaceSourceWarnings>());
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
 	private readonly mcpServerCompatibility = observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(this, new Map());
@@ -1439,6 +1443,7 @@ export class McpListWidget extends Disposable {
 				if (this.visible && this.isConnectorsEnabled()) {
 					void this.refreshConnectors();
 				} else {
+					this.connectorSignIn.clear();
 					this.connectors = [];
 					this.connectorsLoading = false;
 					this.filterServers();
@@ -1626,6 +1631,7 @@ export class McpListWidget extends Disposable {
 		} else {
 			this.connectorsCancellation.value?.cancel();
 			this.connectorsCancellation.clear();
+			this.connectorSignIn.clear();
 			this.connectorsLoading = false;
 			this.clearMcpServerCompatibilityScope();
 		}
@@ -1670,6 +1676,7 @@ export class McpListWidget extends Disposable {
 		if (disabled) {
 			this.connectorsCancellation.value?.cancel();
 			this.connectorsCancellation.clear();
+			this.connectorSignIn.clear();
 			this.connectorsLoading = false;
 			this.searchInput.hideMessage();
 			this.disabledIcon.className = 'empty-icon';
@@ -2055,7 +2062,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private renderConnectorSection(parent: HTMLElement): void {
-		if (!this.isConnectorsEnabled() || this.filteredConnectors.length === 0 && !this.connectorsLoading && !this.connectorsError) {
+		if (!this.isConnectorsEnabled() || this.filteredConnectors.length === 0 && !this.connectorsLoading && !this.connectorsError && !this.connectorsService.authorizationRequired) {
 			return;
 		}
 		const list = this.renderCardSection(
@@ -2068,6 +2075,23 @@ export class McpListWidget extends Disposable {
 		list.classList.add('plugin-inventory-list');
 		if (this.connectorsLoading && this.filteredConnectors.length === 0) {
 			renderVirtualizedSectionLoadingPlaceholder(list, localize('loadingConnectors', "Loading connectors..."), MCP_INSTALLED_ITEM_HEIGHT);
+			this.cardListControllers.get(list)?.finalize();
+			return;
+		}
+		if (this.connectorsService.authorizationRequired) {
+			const source = CustomizationMarketplaceSources.CopilotConnectors;
+			const signIn = this.connectorSignIn.value ?? (this.connectorSignIn.value = new CustomizationMarketplaceSourceWarnings(list, [source],
+				() => void this.refreshConnectors(),
+				() => ({
+					label: localize('connectors.signIn', "Sign In"),
+					kind: 'signIn',
+					run: token => this.connectorsService.authorize(token),
+				}),
+				this.notificationService,
+			));
+			DOM.append(list, signIn.element);
+			signIn.update([{ sourceId: source.id, message: localize('connectors.signInRequired', "Sign in to view connectors.") }], false);
+			this.firstCardFocusElement ??= signIn.firstActionElement;
 			this.cardListControllers.get(list)?.finalize();
 			return;
 		}

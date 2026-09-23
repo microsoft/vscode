@@ -22,6 +22,7 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	private readonly rows = this._register(new DisposableStore());
 	private readonly recovery = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly buttons: Button[] = [];
+	private readonly actions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction | undefined>();
 	private errors: readonly ICustomizationMarketplaceSourceError[] = [];
 	private recoveringSourceId: string | undefined;
 	private loading = false;
@@ -36,12 +37,20 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 		super();
 		this.element = DOM.append(parent, DOM.$('.customization-marketplace-source-warnings'));
 		this.element.setAttribute('role', 'group');
-		this.element.setAttribute('aria-label', localize('customizationMarketplace.unavailableSources', "Unavailable marketplace sources"));
+		this.element.setAttribute('aria-label', localize('customizationMarketplace.sources', "Marketplace sources"));
 		this.element.hidden = true;
 	}
 
 	get hasErrors(): boolean {
 		return this.errors.length > 0;
+	}
+
+	get hasWarnings(): boolean {
+		return this.errors.some(error => this.actions.get(error.sourceId)?.kind !== 'signIn');
+	}
+
+	get firstActionElement(): HTMLElement | undefined {
+		return this.buttons[0]?.element;
 	}
 
 	update(errors: readonly ICustomizationMarketplaceSourceError[], loading: boolean): void {
@@ -52,23 +61,30 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 			this.errors = errors;
 			this.rows.clear();
 			this.buttons.length = 0;
+			this.actions.clear();
 			DOM.clearNode(this.element);
 			for (const error of errors) {
-				const row = DOM.append(this.element, DOM.$('.customization-marketplace-source-warning'));
-				const icon = DOM.append(row, DOM.$('span'));
-				icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
-				icon.setAttribute('aria-hidden', 'true');
-				DOM.append(row, DOM.$('span.customization-marketplace-source-warning-message')).textContent = this.getMessage(error);
 				const action = this.getRecoveryAction(error.sourceId);
-				const retry = this.rows.add(new Button(row, { ...defaultButtonStyles, secondary: true, small: true }));
+				this.actions.set(error.sourceId, action);
+				const signIn = action?.kind === 'signIn';
+				const row = DOM.append(this.element, DOM.$(signIn ? '.customization-marketplace-source-signin' : '.customization-marketplace-source-warning'));
+				if (!signIn) {
+					const icon = DOM.append(row, DOM.$('span'));
+					icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+					icon.setAttribute('aria-hidden', 'true');
+				}
+				DOM.append(row, DOM.$('span.customization-marketplace-source-message')).textContent = signIn ? error.message : this.getMessage(error);
+				const retry = this.rows.add(new Button(row, { ...defaultButtonStyles, secondary: !signIn, small: !signIn }));
 				retry.label = action?.label ?? localize('customizationMarketplace.retrySource', "Retry");
-				retry.setAriaLabel(action
+				retry.setAriaLabel(signIn
+					? localize('customizationMarketplace.signInSourceLabel', "{0} to view {1}.", action.label, this.getSourceName(error))
+					: action
 					? localize('customizationMarketplace.recoverSourceLabel', "{0} for {1}. Reload all sources from the first page.", action.label, this.getSourceName(error))
 					: localize('customizationMarketplace.retrySourceLabel', "Retry {0}. Reload all sources from the first page.", this.getSourceName(error)));
 				this.rows.add(retry.onDidClick(() => this.retry(error.sourceId, action)));
 				this.buttons.push(retry);
 			}
-			if (this.hasErrors) {
+			if (this.hasWarnings) {
 				DOM.append(this.element, DOM.$('.customization-marketplace-source-warning-help')).textContent = this.getRetryHint();
 			}
 			this.element.hidden = !this.hasErrors;
@@ -115,12 +131,19 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	}
 
 	getAccessibilityContent(): string {
-		return this.hasErrors ? [...this.errors.map(error => {
-			const action = this.getRecoveryAction(error.sourceId);
+		const messages = this.errors.map(error => {
+			const action = this.actions.get(error.sourceId);
+			if (action?.kind === 'signIn') {
+				return localize('customizationMarketplace.sourceSignIn', "{0} Choose {1} to view {2}.", error.message, action.label, this.getSourceName(error));
+			}
 			return action
 				? localize('customizationMarketplace.sourceRecovery', "{0} Choose {1} to restore this source.", this.getMessage(error), action.label)
 				: this.getMessage(error);
-		}), this.getRetryHint()].join('\n') : '';
+		});
+		if (this.hasWarnings) {
+			messages.push(this.getRetryHint());
+		}
+		return messages.join('\n');
 	}
 
 	private getSourceName(error: ICustomizationMarketplaceSourceError): string {

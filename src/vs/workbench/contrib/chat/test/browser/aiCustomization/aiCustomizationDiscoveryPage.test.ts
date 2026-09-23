@@ -258,22 +258,25 @@ suite('AICustomizationDiscoveryPage', () => {
 		const consent = new DeferredPromise<void>();
 		const authorizations: CancellationToken[] = [];
 		fixture.recoveryActions.set('copilotConnectors', {
-			label: 'Authorize Connectors',
+			label: 'Sign In',
+			kind: 'signIn',
 			run: async token => { authorizations.push(token); await consent.p; },
 		});
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [resource('public-mail')],
-			sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Connector permission required' }],
+			sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
 		});
 		await timeout(0);
-		const action = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-warning .monaco-button');
+		const action = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
 		assert.ok(action);
 		const initial = {
 			authorizations: authorizations.length,
 			healthyVisible: fixture.page.getAccessibilityContent().includes('public-mail'),
-			accessibleAction: fixture.page.getAccessibilityContent().includes('Choose Authorize Connectors'),
+			accessibleAction: fixture.page.getAccessibilityContent().includes('Choose Sign In'),
 			label: action.getAttribute('aria-label'),
+			primary: !action.classList.contains('secondary'),
+			warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning, .customization-marketplace-source-warning-help, .customization-marketplace-source-warnings .codicon-warning').length,
 		};
 		action.focus();
 		action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
@@ -287,17 +290,21 @@ suite('AICustomizationDiscoveryPage', () => {
 			initial, pending,
 			cursors: fixture.requests.map(request => request.options.cursor),
 			warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning').length,
+			signIns: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
 			notifications: fixture.notifications,
 		}, {
 			initial: {
 				authorizations: 0,
 				healthyVisible: true,
 				accessibleAction: true,
-				label: 'Authorize Connectors for Copilot Connectors. Reload all sources from the first page.',
+				label: 'Sign In to view Copilot Connectors.',
+				primary: true,
+				warnings: 0,
 			},
 			pending: { authorizations: 1, disabled: 'true', requests: 1 },
 			cursors: [undefined, undefined],
 			warnings: 0,
+			signIns: 0,
 			notifications: [],
 		});
 	});
@@ -308,16 +315,17 @@ suite('AICustomizationDiscoveryPage', () => {
 			const consent = new DeferredPromise<void>();
 			let authorizationToken = CancellationToken.None;
 			fixture.recoveryActions.set('copilotConnectors', {
-				label: 'Authorize Connectors',
+				label: 'Sign In',
+				kind: 'signIn',
 				run: async token => { authorizationToken = token; await consent.p; },
 			});
 			fixture.page.setVisible(true);
 			await fixture.requests[0].result.complete({
 				items: [resource('public-mail')],
-				sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Connector permission required' }],
+				sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
 			});
 			await timeout(0);
-			const action = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-warning .monaco-button');
+			const action = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
 			assert.ok(action);
 			action.click();
 			const denied = new Error('Permission denied');
@@ -345,6 +353,30 @@ suite('AICustomizationDiscoveryPage', () => {
 	}
 
 	for (const query of ['', '@type:mcp mail']) {
+		test(`connector sign-in with no ${query ? 'search' : 'browse'} results is an invitation, not a warning or empty success`, async () => {
+			const fixture = createPage(['copilotConnectors']);
+			fixture.recoveryActions.set('copilotConnectors', { label: 'Sign In', kind: 'signIn', run: async () => { } });
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({
+				items: [],
+				sourceErrors: [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }],
+			});
+			await timeout(0);
+			const state = fixture.container.querySelector(query ? '.customization-discovery-results .customization-discovery-state' : '.customization-discovery-browse .customization-discovery-state');
+			assert.deepStrictEqual({
+				prompt: fixture.container.querySelector('.customization-marketplace-source-signin .customization-marketplace-source-message')?.textContent,
+				state: state?.textContent,
+				warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning, .customization-marketplace-source-warning-help, .customization-marketplace-source-warnings .codicon-warning').length,
+				accessibleAction: fixture.page.getAccessibilityContent().includes('Choose Sign In'),
+				accessibleFailure: /unavailable|incomplete|could not|No customizations/.test(fixture.page.getAccessibilityContent()),
+			}, {
+				prompt: 'Sign in to view connectors.', state: '', warnings: 0, accessibleAction: true, accessibleFailure: false,
+			});
+		});
+
 		test(`isolates source failures in ${query ? 'search' : 'welcome browsing'} and restarts ranking on source retry`, async () => {
 			const fixture = createPage(['agentFinder', 'copilotConnectors']);
 			let failing = true;

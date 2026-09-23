@@ -20,8 +20,6 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { copilotConnectorsScope } from '../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDefaultAccountProvider, IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1615,12 +1613,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 		const { additionalScopes, ...sessionOptions } = options ?? {};
 		const defaultAccountScopes = this.defaultAccountConfig.authenticationProvider.scopes[0];
-		const connectorScopes = !authProvider.enterprise && this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true
-			? [copilotConnectorsScope]
-			: [];
-		const scopes = additionalScopes || connectorScopes.length
-			? distinct([...defaultAccountScopes, ...(additionalScopes ?? []), ...connectorScopes])
-			: defaultAccountScopes;
+		const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
 		const session = await this.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
 		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
 			this.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);

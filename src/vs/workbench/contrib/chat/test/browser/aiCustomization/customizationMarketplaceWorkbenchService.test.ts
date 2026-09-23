@@ -139,30 +139,30 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: ['GET', 'POST'], sources: [['agentFinder'], ['agentFinder']] });
 	});
 
+	test('connector sign-in is offered only for a source requiring explicit authorization', async () => {
+		const configuration = createConfiguration(['copilotConnectors']);
+		const authorizations: CancellationToken[] = [];
+		let authorizationRequired = true;
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override get authorizationRequired() { return authorizationRequired; }
+			override async authorize(token: CancellationToken) { authorizations.push(token); authorizationRequired = false; }
+		}();
+		const service = new CustomizationMarketplaceWorkbenchService(new class extends mock<IAgentFinderMarketplaceService>() { }(), connectorsService, configuration);
+		const unrelated = service.getSourceRecoveryAction('agentFinder');
+		const action = service.getSourceRecoveryAction('copilotConnectors');
+		assert.ok(action);
+		await action.run(CancellationToken.None);
+		assert.deepStrictEqual({
+			unrelated, label: action.label, kind: action.kind, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
+		}, {
+			unrelated: undefined, label: 'Sign In', kind: 'signIn', authorizations: [CancellationToken.None], afterConsent: undefined,
+		});
+	});
+
 	test('composes the built-in catalog with Copilot connectors', async () => {
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.AgentFinderPublicFeedEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled]: true,
-		});
-
-		test('connector recovery is offered only for a source requiring explicit authorization', async () => {
-			const configuration = new TestConfigurationService();
-			const authorizations: CancellationToken[] = [];
-			let authorizationRequired = true;
-			const connectorsService = new class extends mock<ICopilotConnectorsService>() {
-				override get authorizationRequired() { return authorizationRequired; }
-				override async authorize(token: CancellationToken) { authorizations.push(token); authorizationRequired = false; }
-			}();
-			const service = new CustomizationMarketplaceWorkbenchService(new class extends mock<IAgentFinderMarketplaceService>() { }(), connectorsService, configuration);
-			const unrelated = service.getSourceRecoveryAction('agentFinder');
-			const action = service.getSourceRecoveryAction('copilotConnectors');
-			assert.ok(action);
-			await action.run(CancellationToken.None);
-			assert.deepStrictEqual({
-				unrelated, label: action.label, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
-			}, {
-				unrelated: undefined, label: 'Authorize Connectors', authorizations: [CancellationToken.None], afterConsent: undefined,
-			});
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const builtinService = new class extends mock<IAgentFinderMarketplaceService>() {

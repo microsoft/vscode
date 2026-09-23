@@ -1498,8 +1498,9 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		});
 	});
 
-	test('only the connector experiment widens initial sign-in scopes', async () => {
+	test('connector experiments never change default sign-in scopes', async () => {
 		assert.deepStrictEqual({
+			unset: await signIn(),
 			disabled: await signIn(undefined, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: false }),
 			publicFeedOnly: await signIn(undefined, { [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true }),
 			enabled: await signIn(undefined, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }),
@@ -1508,19 +1509,20 @@ suite('DefaultAccountProvider sign in scopes', () => {
 				'github.copilot.advanced.authProvider': 'github-enterprise',
 			}),
 		}, {
+			unset: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			disabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			publicFeedOnly: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
-			enabled: [{ scopes: ['read:user', 'user:email', 'repo', 'write:plugin_gateway_connections'], options: {} }],
+			enabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			enterprise: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 		});
 	});
 
-	test('deduplicates connector consent alongside explicitly requested scopes', async () => {
+	test('preserves only explicitly requested additional scopes when connectors are enabled', async () => {
 		assert.deepStrictEqual(await signIn({
-			additionalScopes: ['workflow', 'write:plugin_gateway_connections'],
+			additionalScopes: ['workflow', 'workflow'],
 			provider: 'google',
 		}, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }), [{
-			scopes: ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'],
+			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
 			options: { provider: 'google' },
 		}]);
 	});

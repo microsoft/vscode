@@ -124,6 +124,7 @@ export interface ICustomizationMarketplaceSourceInfo {
 
 export interface ICustomizationMarketplaceSourceRecoveryAction {
 	readonly label: string;
+	readonly kind?: 'signIn';
 	run(token: CancellationToken): Promise<void>;
 }
 

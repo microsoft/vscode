@@ -59,7 +59,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.links', "Available customization names open their external resource so you can review it before installing."),
 				localize('customizationDiscovery.help.paging', "Load More appends another page without removing loaded results."),
 				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry button above the results. The Accessible View includes the warnings and retry instructions. Load More continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
-				localize('customizationDiscovery.help.authorization', "If your GitHub sign-in needs connector permissions, choose Authorize Connectors in the source warning. Authorization only starts when you choose this action or connect a service. Other marketplace sources remain available if you cancel."),
+				localize('customizationDiscovery.help.authorization', "Choose Sign In in the Sign in to view connectors prompt to access the connector catalog. Normal GitHub sign-in does not request connector permissions. Connector authorization only starts when you choose this action or connect a service. Other marketplace sources remain available if you cancel."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : welcomePage.getAccessibilityContent(),
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : welcomePage.focus(),
