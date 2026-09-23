@@ -199,15 +199,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : []);
 	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	const runningSession = withRunningSession ? new class extends mock<ISession>() {
+		override readonly status = constObservable(SessionStatus.InProgress);
+	}() : undefined;
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObservable;
-		override readonly visibleSessions = constObservable(withRunningSession
-			? [new class extends mock<IActiveSession>() {
-				override readonly sessionId = 'running-session';
-				override readonly isCreated = constObservable(true);
-			}()]
-			: activeSession ? [activeSession] : []);
+		override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
 	}();
 	const configurationService = new TestConfigurationService({
 		...(withChatBackground ? {
@@ -259,6 +257,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
+				override readonly onDidChangeSessions = Event.None;
+				override getSessions() { return runningSession ? [runningSession] : []; }
 				override getSessionTypesForFolder() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
 				}
