@@ -46,6 +46,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration('chat.agentFinder.enabled', true);
 		await configuration.setUserConfiguration('chat.customizations.unifiedMarketplace.enabled', true);
 		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled', true);
+		await configuration.setUserConfiguration('chat.customizations.marketplace.sources.publicGitHubFeed.enabled', true);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await configuration.setUserConfiguration(ChatConfiguration.AgentFinderPublicFeedEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);

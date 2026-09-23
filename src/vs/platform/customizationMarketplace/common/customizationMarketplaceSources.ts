@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
-	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicGitHubFeed.enabled',
+	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
