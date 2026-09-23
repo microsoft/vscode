@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IActivityService } from '../../../services/activity/common/activity.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISCMHistoryProvider } from '../../../scm/common/history.js';
-import { ISCMProvider, ISCMRepository, ISCMResourceGroup, ISCMResource, ISCMService } from '../../../scm/common/scm.js';
+import { ISCMProvider, ISCMRepository, ISCMResource, ISCMResourceGroup, ISCMService } from '../../../scm/common/scm.js';
 import { ScmMultiDiffSourceResolver, ScmHistoryItemResolver } from '../../browser/scmMultiDiffSourceResolver.js';
 
 suite('ScmMultiDiffSourceResolver', () => {
@@ -31,11 +32,15 @@ suite('ScmMultiDiffSourceResolver', () => {
 			override readonly providerId = 'scm0';
 			override readonly rootUri = URI.file('/repository');
 			override readonly groups = [group];
+			override readonly label = 'SCM';
+			override readonly name = 'SCM';
+			override readonly onDidChangeResources = new Emitter<void>().event;
 			override readonly onDidChangeResourceGroups = new Emitter<void>().event;
 		}();
 		const repository = new class extends mock<ISCMRepository>() {
 			override readonly id = provider.id;
 			override readonly provider = provider;
+			override readonly input = mock<any>();
 		}();
 		const repositories = [repository];
 		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
@@ -48,7 +53,12 @@ suite('ScmMultiDiffSourceResolver', () => {
 			}
 		}();
 
-		const resolver = new ScmMultiDiffSourceResolver(scmService, mock<any>() as any);
+		const activityChange = disposables.add(new Emitter<void>());
+		const activityService = new class extends mock<IActivityService>() {
+			override readonly onDidChangeActivity = activityChange.event;
+			override getViewContainerActivities(): readonly any[] { return []; }
+		}();
+		const resolver = new ScmMultiDiffSourceResolver(scmService, activityService);
 		const sourceUri = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(provider.rootUri.toString(), group.id);
 		const sourcePromise = resolver.resolveDiffSource(sourceUri);
 
@@ -56,6 +66,21 @@ suite('ScmMultiDiffSourceResolver', () => {
 			new class extends mock<ISCMResource>() {
 				override readonly sourceUri = URI.file('/repository/githubServer.ts');
 				override readonly multiDiffEditorModifiedUri = this.sourceUri;
+				override readonly resourceGroup = group;
+				override readonly decorations = {};
+				override readonly contextValue = undefined;
+				override readonly command = undefined;
+				override open(): Promise<void> { return Promise.resolve(); }
+				override readonly resourceGroup = group;
+				override readonly decorations = {};
+				override readonly contextValue = undefined;
+				override readonly command = undefined;
+				override open(): Promise<void> { return Promise.resolve(); }
+				override readonly resourceGroup = group;
+				override readonly decorations = {};
+				override readonly contextValue = undefined;
+				override readonly command = undefined;
+				override open(): Promise<void> { return Promise.resolve(); }
 			}(),
 			new class extends mock<ISCMResource>() {
 				override readonly sourceUri = URI.file('/repository/env.ts');
