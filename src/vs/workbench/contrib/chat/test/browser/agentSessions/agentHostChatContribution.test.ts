@@ -1055,7 +1055,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
-	return disposables.add(instantiationService.createInstance(AgentHostSessionListStore, connection));
+	return disposables.add(instantiationService.createInstance(AgentHostSessionListStore, connection, undefined));
 }
 
 function createSessionListController(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection, sessionType = 'agent-host-copilot', provider = 'copilot', description: string | undefined = undefined): AgentHostSessionListController {
@@ -16182,7 +16182,7 @@ suite('AgentHostChatContribution', () => {
 			return promptParts;
 		}
 
-		test('silently authenticates an existing session without an active turn', async () => {
+		test('silently authenticates identical successive MCP challenges without an active turn', async () => {
 			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, {
 				authServiceOverride: {
 					getOrActivateProviderIdForServer: async () => 'notion',
@@ -16237,11 +16237,35 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			await timeout(0);
 
+			const customizations = agentHostService.sessionStates.get(backendSession.toString())!.customizations!;
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: customizations.map(customization => customization.type === CustomizationType.McpServer
+						? { ...customization, state: { kind: McpServerStatus.Starting } }
+						: customization),
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionCustomizationsChanged, customizations },
+				serverSeq: 2,
+				origin: undefined,
+			});
+			await timeout(0);
+
 			assert.deepStrictEqual({
 				authenticateCalls: agentHostService.authenticateCalls,
 				turnActions: agentHostService.turnActions,
 			}, {
 				authenticateCalls: [{
+					resource: 'https://mcp.notion.com/mcp',
+					scopes: [],
+					token: 'notion-token',
+				}, {
 					resource: 'https://mcp.notion.com/mcp',
 					scopes: [],
 					token: 'notion-token',

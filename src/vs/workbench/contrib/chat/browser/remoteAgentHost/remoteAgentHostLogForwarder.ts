@@ -12,7 +12,7 @@ import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLeve
 import { AgentHostClientState, type AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatHostBuildInfo, readHostBuildInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
+import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 
 /**
  * Forwarder that bridges a connected {@link AgentHostProtocolClient}'s

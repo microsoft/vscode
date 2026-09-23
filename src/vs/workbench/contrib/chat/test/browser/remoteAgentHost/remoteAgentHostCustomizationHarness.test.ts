@@ -20,19 +20,19 @@ import { type IAgentSubscription } from '../../../../../../platform/agentHost/co
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStat, type IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
-import { PromptsType } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
-import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { MockPromptsService as BaseMockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { RemoteAgentPluginController } from '../../../browser/remoteAgentHost/remoteAgentHostCustomizationHarness.js';
+import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { MockPromptsService as BaseMockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { IAgentHostCustomizationService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentCustomizationItemProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 
 class MockPromptsService extends BaseMockPromptsService {
 	override getDisabledPromptFiles(): ResourceSet {

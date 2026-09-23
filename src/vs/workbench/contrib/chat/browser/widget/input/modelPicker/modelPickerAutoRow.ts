@@ -70,6 +70,10 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this.render();
 	}
 
+	focus(): void {
+		this._toggle.domNode.focus();
+	}
+
 	/** Re-reads the selection and tier so the row matches the current state. */
 	render(): void {
 		if (this.isDisposed) {

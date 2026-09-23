@@ -12,7 +12,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../.
 import {
 	CloudSandboxTelemetryService,
 	requestOutcomeForStatus,
-} from '../../browser/cloudSandboxTelemetry.js';
+} from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 interface ICapturedEvent {
 	readonly eventName: string;

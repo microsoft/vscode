@@ -18,6 +18,7 @@ import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
 const TAB_RESIZE_ANIMATION: KeyframeAnimationOptions = { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+const BODY_COLLAPSE_ANIMATION: KeyframeAnimationOptions = { duration: 200, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
 
 /** The box a tab occupied, including the spacing that travels with its width. */
 interface ITabBox {
@@ -128,8 +129,12 @@ export interface ITabbedActionListShowOptions<T> {
 	 * tabs, rather than as its own row below them.
 	 */
 	readonly filterInTabBar?: boolean;
+	/** Whether the tabs and list are collapsed, leaving only the footer. Re-read on refresh. */
+	readonly isBodyCollapsed?: () => boolean;
 	/** Renders content pinned below the list, e.g. a persistent option row. */
 	renderFooter?(container: HTMLElement, activeTab: string): IDisposable;
+	/** Focuses a footer control when the body is collapsed. */
+	focusFooter?(): void;
 	/**
 	 * Renders the body when the active tab has no items, e.g. a sign-in prompt.
 	 * When it returns `undefined` the empty list is shown instead.
@@ -240,7 +245,9 @@ export class TabbedActionListWidget extends Disposable {
 				const block = dom.append(container, dom.$('.context-view-block'));
 				renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
 
-				const tabBar = dom.append(widget, dom.$('.tabbed-action-list-tabbar'));
+				const body = dom.append(widget, dom.$('.tabbed-action-list-body'));
+				const bodyContent = dom.append(body, dom.$('.tabbed-action-list-body-content'));
+				const tabBar = dom.append(bodyContent, dom.$('.tabbed-action-list-tabbar'));
 				if (options.tabBarClassName) {
 					tabBar.classList.add(options.tabBarClassName);
 				}
@@ -311,7 +318,7 @@ export class TabbedActionListWidget extends Disposable {
 					: undefined;
 
 				const { items, listOptions } = options.createActionList(activeTab);
-				const emptyBody = items.length === 0 ? this._renderEmptyBody(widget, options, activeTab, renderDisposables) : undefined;
+				const emptyBody = items.length === 0 ? this._renderEmptyBody(bodyContent, options, activeTab, renderDisposables) : undefined;
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -327,6 +334,14 @@ export class TabbedActionListWidget extends Disposable {
 				// depend on state that changed while it stayed open.
 				this._refreshActiveList = refreshOptions => {
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
+					const bodyHeight = body.offsetHeight;
+					if (options.isBodyCollapsed?.() && dom.isAncestorOfActiveElement(body)) {
+						options.focusFooter?.();
+					}
+					if (body.inert !== !!options.isBodyCollapsed?.()) {
+						// Refreshing must not anchor a hover against the body's old position.
+						list.setHoverEnabled(false);
+					}
 					applyWidgetClassNames();
 					const sizing = sizingTab !== undefined
 						? options.createActionList(sizingTab, true)
@@ -348,8 +363,11 @@ export class TabbedActionListWidget extends Disposable {
 						layout();
 						this._contextViewService.layout();
 					}
+					updateBodyCollapsed(bodyHeight);
 					if (hadFocus && !dom.isAncestorOfActiveElement(widget)) {
-						if (emptyBody) {
+						if (body.inert) {
+							options.focusFooter?.();
+						} else if (emptyBody) {
 							radio.focusActiveItem();
 						} else {
 							list.focus();
@@ -362,16 +380,16 @@ export class TabbedActionListWidget extends Disposable {
 
 				if (!emptyBody) {
 					if (list.headerContainer) {
-						widget.appendChild(list.headerContainer);
+						bodyContent.appendChild(list.headerContainer);
 					}
 					if (list.filterContainer) {
 						// The filter takes the tabs' place inside the bar, so the trailing
 						// actions stay put and no extra row appears.
-						(options.filterInTabBar ? filterSlot : widget).appendChild(list.filterContainer);
+						(options.filterInTabBar ? filterSlot : bodyContent).appendChild(list.filterContainer);
 					}
-					widget.appendChild(list.domNode);
+					bodyContent.appendChild(list.domNode);
 					if (list.footerContainer) {
-						widget.appendChild(list.footerContainer);
+						bodyContent.appendChild(list.footerContainer);
 					}
 				}
 
@@ -389,9 +407,10 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
+				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
 				const layout = () => {
-					const body = emptyBody ?? list.domNode;
-					const chromeHeight = widget.offsetHeight - body.offsetHeight;
+					const listBody = emptyBody ?? list.domNode;
+					const chromeHeight = getExpandedPopupHeight() - listBody.offsetHeight;
 					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
 						: Math.max(0, this._fixedPopupHeight - chromeHeight);
@@ -401,10 +420,57 @@ export class TabbedActionListWidget extends Disposable {
 						emptyBody.style.minHeight = list.domNode.style.height;
 					}
 					if (this._fixedListHeight !== undefined && this._fixedPopupHeight === undefined) {
-						this._fixedPopupHeight = widget.offsetHeight;
+						this._fixedPopupHeight = getExpandedPopupHeight();
 					}
 				};
 				layout();
+
+				const bodyAnimation = renderDisposables.add(new MutableDisposable<DisposableStore>());
+				const finishBodyAnimation = () => {
+					bodyAnimation.clear();
+					this._contextViewService.layout();
+					list.setHoverEnabled(!body.inert);
+				};
+				const updateBodyCollapsed = (fromHeight?: number) => {
+					const collapsed = !!options.isBodyCollapsed?.();
+					if (body.inert === collapsed) {
+						return;
+					}
+					bodyAnimation.clear();
+					list.setHoverEnabled(false);
+					body.inert = collapsed;
+					body.classList.toggle('collapsed', collapsed);
+
+					if (fromHeight !== undefined && !this._accessibilityService.isMotionReduced()) {
+						const animationDisposables = new DisposableStore();
+						bodyAnimation.value = animationDisposables;
+						body.classList.add('animating');
+						const animation = body.animate([
+							{ height: `${fromHeight}px` },
+							{ height: `${collapsed ? 0 : bodyContent.offsetHeight}px` },
+						], BODY_COLLAPSE_ANIMATION);
+						animationDisposables.add(toDisposable(() => {
+							animation.cancel();
+							body.classList.remove('animating');
+						}));
+						animationDisposables.add(dom.animate(dom.getWindow(body), () => this._contextViewService.layout()));
+						animationDisposables.add(dom.addDisposableListener(animation, 'finish', finishBodyAnimation));
+					}
+					if (fromHeight !== undefined) {
+						this._contextViewService.layout();
+					}
+					if (!bodyAnimation.value) {
+						list.setHoverEnabled(!collapsed);
+					}
+				};
+				updateBodyCollapsed();
+				if (options.isBodyCollapsed) {
+					renderDisposables.add(this._accessibilityService.onDidChangeReducedMotion(() => {
+						if (this._accessibilityService.isMotionReduced()) {
+							finishBodyAnimation();
+						}
+					}));
+				}
 
 				if (footer) {
 					const observer = renderDisposables.add(new dom.DisposableResizeObserver('TabbedActionListWidget.footer', () => {
@@ -418,7 +484,9 @@ export class TabbedActionListWidget extends Disposable {
 				renderDisposables.add(this._animateTabResize(radio, options.tabs, tabBoxes, tabTexts));
 				this._previousTabBoxes = tabBoxes;
 				this._previousTabTexts = tabTexts;
-				if (emptyBody) {
+				if (body.inert) {
+					options.focusFooter?.();
+				} else if (emptyBody) {
 					// The list is not in the DOM at all, so focusing it would drop focus
 					// out of the popup. The active tab is the nearest thing to act on, and
 					// it leads to the empty body's own action.
@@ -514,7 +582,7 @@ export class TabbedActionListWidget extends Disposable {
 			get anchorPosition() { return listRef?.anchorPosition; },
 		}, undefined, false);
 
-		if (options.showCheckedItemHover) {
+		if (options.showCheckedItemHover && !options.isBodyCollapsed?.()) {
 			listRef?.showHoverForCheckedItem();
 		}
 

@@ -22,8 +22,8 @@ import { RootStateSubscription } from '../../../../../../platform/agentHost/comm
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { createCloudSandboxSessionPreparation } from '../../browser/cloudSandboxLegacySessionPreparation.js';
-import { createCloudSandboxConnectionCustomization } from '../../browser/cloudSandboxConnectionCustomization.js';
+import { createCloudSandboxSessionPreparation } from '../../../browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
+import { createCloudSandboxConnectionCustomization } from '../../../browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 
 const repository = URI.parse('https://github.com/microsoft/vscode');
 
