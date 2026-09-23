@@ -10,6 +10,7 @@ import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
+import { getRepositoryRootFromWorktree } from '../../platform/agentHost/common/worktreePaths.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
@@ -163,13 +164,22 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
-	// state / project association. Additional directories are emitted as plain
-	// peer folders — per-folder git state is owned by the deferred git track and
-	// is not populated here.
+	// state / project association. Additional directories carry no per-folder
+	// git state; a VS Code-created worktree reports its repository as the
+	// folder's project, so a chat working in it shows that project.
 	const primary = workingDirectories?.[0];
 	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const name = basename(dir) || dir.path;
-		return { root: dir, workingDirectory: dir, name, description: options.description };
+		const repositoryRoot = getRepositoryRootFromWorktree(dir);
+		const root = repositoryRoot ?? dir;
+		return {
+			root,
+			workingDirectory: dir,
+			name: basename(root) || root.path,
+			description: options.description,
+			...(repositoryRoot ? {
+				gitRepository: { uri: repositoryRoot, workTreeUri: dir, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
+			} : {}),
+		};
 	});
 
 	if (project) {

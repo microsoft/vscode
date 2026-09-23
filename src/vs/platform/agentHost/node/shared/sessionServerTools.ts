@@ -74,15 +74,15 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		relationship: {
 			type: 'string',
 			enum: [...createSessionRelationshipValues],
-			description: 'Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree.',
+			description: 'Set to `independent` only when the user asks for a separate, independent session. Otherwise omit it; the work is then created as a new chat in the current session (`currentSession`).',
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
-		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`.' },
-		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
+		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
+		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace. A worktree is not needed for read-only work. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
-	required: ['relationship', 'prompt', 'title'],
+	required: ['prompt', 'title'],
 };
 
 const getCurrentSessionInputSchema: ToolDefinition['inputSchema'] = {
@@ -175,7 +175,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.',
+		description: 'Create delegated work and start it with an initial prompt.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -226,6 +226,9 @@ interface ICreateSessionArgs {
 
 export type IResolvedCreateSessionArgs = {
 	readonly relationship: 'currentSession';
+	/** Folder for the new chat, added to the session; omitted when the chat shares the session's workspace. */
+	readonly workspace?: URI;
+	readonly worktree?: boolean;
 	readonly prompt: string;
 	readonly title: string;
 	readonly model?: IAgentModelInfo;
@@ -470,9 +473,6 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 
 async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<readonly IAgentSessionMetadata[]> {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
-	if (getCreateSessionRelationship(args) !== 'independent') {
-		return [];
-	}
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	if (workspace === undefined) {
 		return [];
@@ -507,9 +507,10 @@ function resolveModel(modelName: string | undefined, models: readonly IAgentMode
 	return matches[0];
 }
 
+/** Reads the requested relationship; an omitted relationship creates a chat in the current session. */
 function getCreateSessionRelationship(rawArgs: unknown): CreateSessionRelationship {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
-	const relationship = getRequiredString(args.relationship, 'relationship', SessionServerToolName.CreateSession);
+	const relationship = getOptionalString(args.relationship, 'relationship', SessionServerToolName.CreateSession) ?? 'currentSession';
 	if (!createSessionRelationshipValues.includes(relationship as CreateSessionRelationship)) {
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship must be "currentSession" or "independent".`);
 	}
@@ -528,14 +529,13 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
 	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
 	if (relationship === 'currentSession') {
-		if (workspace !== undefined) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace is only valid when relationship is "independent".`);
-		}
-		if (worktree !== undefined) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree is only valid when relationship is "independent"; chats in the current session share its workspace.`);
+		if (workspace === undefined && worktree !== undefined) {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree requires workspace.`);
 		}
 		return {
 			relationship,
+			...(workspace !== undefined ? { workspace: resolveWorkspace(workspace, sessions) } : {}),
+			...(worktree !== undefined ? { worktree } : {}),
 			prompt,
 			title,
 			...(model !== undefined ? { model } : {}),
@@ -823,11 +823,16 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
+		// A requested folder joins the session and is assigned only to the new chat.
+		const workingDirectory = args.workspace !== undefined
+			? await accessor.addSessionWorkingDirectory(currentSession, args.workspace, getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt))
+			: undefined;
 		const result = await createChat(accessor, {
 			session: currentSession,
 			prompt: args.prompt,
 			title: args.title,
 			model: args.model,
+			...(workingDirectory !== undefined ? { workingDirectories: [workingDirectory] } : {}),
 		}, source, sourceTurnId);
 		return { relationship: args.relationship, ...result };
 	}
@@ -886,6 +891,18 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
+/**
+ * Chooses how a folder requested for a current-session chat is prepared: an
+ * explicit `worktree` choice wins (a requested worktree is always a fresh one),
+ * otherwise the creating session's isolation, otherwise the folder itself.
+ */
+function getChatWorkingDirectoryOptions(worktree: boolean | undefined, inheritedIsolation: 'folder' | 'worktree' | undefined, prompt: string): IAddSessionWorkingDirectoryOptions {
+	const isolation = worktree === undefined ? inheritedIsolation ?? 'folder' : worktree ? 'worktree' : 'folder';
+	return isolation === 'worktree'
+		? { isolation, prompt, ...(worktree === true ? { forceNewWorktree: true } : {}) }
+		: { isolation };
+}
+
 /** Builds the model-facing `create_session` result. */
 export function formatCreateSessionResult(result: ICreateSessionResult): string {
 	if (result.relationship === 'currentSession') {
@@ -913,6 +930,7 @@ interface IResolvedCreateChatArgs {
 	readonly prompt: string;
 	readonly title?: string;
 	readonly model?: IAgentModelInfo;
+	readonly workingDirectories?: readonly URI[];
 }
 
 /**
@@ -967,7 +985,11 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chatId = generateUuid();
 	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
-	await accessor.createChat(args.session, chat, { title: args.title, model });
+	await accessor.createChat(args.session, chat, {
+		title: args.title,
+		model,
+		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
+	});
 	if (args.title !== undefined) {
 		await accessor.renameChat(args.session, chat, args.title);
 	}
@@ -1429,15 +1451,17 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 				displayName: localize('toolName.listSessions', "List Sessions"),
 				invocationMessage: localize('toolInvoke.listSessions', "List sessions"),
 			};
-		case SessionServerToolName.CreateSession:
-			if ((args as ICreateSessionArgs | undefined)?.relationship === 'currentSession') {
+		case SessionServerToolName.CreateSession: {
+			// Without arguments (e.g. only the tool name is known) the relationship is unknown.
+			const relationship = args === undefined ? undefined : (args as ICreateSessionArgs).relationship ?? 'currentSession';
+			if (relationship === 'currentSession') {
 				return {
 					displayName: localize('toolName.createChatInCurrentSession', "Create Chat in Current Session"),
 					invocationMessage: localize('toolInvoke.createChatInCurrentSession', "Creating chat in the current session"),
 					pastTenseMessage: localize('toolComplete.createChatInCurrentSession', "Created chat in the current session"),
 				};
 			}
-			if ((args as ICreateSessionArgs | undefined)?.relationship === 'independent') {
+			if (relationship === 'independent') {
 				return {
 					displayName: localize('toolName.createNewSession', "Create New Session"),
 					invocationMessage: localize('toolInvoke.createNewSession', "Creating new session"),
@@ -1449,6 +1473,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 				invocationMessage: localize('toolInvoke.createSession', "Creating session"),
 				pastTenseMessage: localize('toolComplete.createSession', "Created session"),
 			};
+		}
 		case SessionServerToolName.CreateChat:
 			return {
 				displayName: localize('toolName.createChat', "Create Chat"),

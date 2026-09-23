@@ -1390,8 +1390,9 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
+		// Files are shown relative to the active chat's folder, which may differ from the session's.
 		const activeSession = this.sessionsService.activeSession.get();
-		const folder = activeSession?.workspace.get()?.folders[0];
+		const folder = activeSession?.activeChat.get().workspace.get()?.folders[0];
 		if (!folder) {
 			return undefined;
 		}
@@ -1547,7 +1548,7 @@ export class ChangesViewPane extends ViewPane {
 				() => {
 					// Pass in the tree root to be used to compute the label description
 					const activeSession = this.sessionsService.activeSession.get();
-					const folder = activeSession?.workspace.get()?.folders[0];
+					const folder = activeSession?.activeChat.get().workspace.get()?.folders[0];
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: folder?.workingDirectory;

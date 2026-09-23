@@ -4624,6 +4624,51 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('create_session with currentSession gives the new chat its requested folder', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async createChat(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [primary] });
+			const defaultChat = buildDefaultChatUri(session);
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'source-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'Delegate work in another folder', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.CreateSession, {
+				relationship: 'currentSession',
+				workspace: other.toString(),
+				prompt: 'do it there',
+				title: 'Other Folder',
+			});
+
+			const stateManager = getStateManager(svc);
+			const createdChat = stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource !== defaultChat);
+			assert.deepStrictEqual({
+				session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+				defaultChat: stateManager.getChatState(defaultChat)?.workingDirectories,
+				createdChat: createdChat && stateManager.getChatState(createdChat.resource)?.workingDirectories,
+			}, {
+				session: [primary.toString(), other.toString()],
+				defaultChat: [primary.toString()],
+				createdChat: [other.toString()],
+			});
+		});
+
 		test('creates, reuses, and explicitly duplicates additional repository worktrees', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');
