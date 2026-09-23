@@ -1473,6 +1473,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
 			'Discover must link each customization type from its description.',
 		);
+		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
+		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
+		const featuredName = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-name');
+		const featuredMetadata = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-metadata');
+		const featuredDescription = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-description');
+		assert(
+			!featuredCard || !featuredName || !featuredMetadata || !featuredDescription
+			|| featuredName.parentElement === featuredMetadata.parentElement
+			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
+			'Featured cards must place source metadata beside the name and the description on the next line.',
+		);
 	}
 
 	if (options.discoveryQuery) {
@@ -1481,9 +1492,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultList = ctx.container.querySelector<HTMLElement>('.customization-discovery-results');
 		const resultRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-row');
 		const resultIdentity = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-identity');
+		const resultName = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-name');
+		const resultDetail = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-detail');
+		const resultDescription = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-description');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
+		assert(
+			!resultName || !resultDetail || !resultDescription
+			|| resultName.parentElement === resultDetail.parentElement
+			&& resultDescription.getBoundingClientRect().top > resultName.getBoundingClientRect().top,
+			'Discover results must place source metadata beside the name and the description on the next line.',
+		);
 		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
 		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
 		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
@@ -2329,13 +2349,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Discover shows compact Marketplace-style search and quick-filter controls above a responsive browse layout. Featured cards use large product icons, a three-line name/description/publisher hierarchy, and a trailing Install action.'],
+		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, wrapped quick filters, and no horizontal overflow.'],
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
 	}),
 
@@ -2770,7 +2790,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata, trailing ratings, and vertically centered Install or Uninstall actions.'],
+		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: 'review',
@@ -2789,7 +2809,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['An available search result uses a compact product icon, stacked name, description, and type/source metadata, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
+		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: 'correctness',
