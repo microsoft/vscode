@@ -115,7 +115,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			+ migratableMcpServerCount;
 		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		return workspaceCount + userCount > 0 ? {
-			hintId: this.generateHintId(),
+			migrationFlowId: this.generateMigrationFlowId(),
 			message: localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount),
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
@@ -165,7 +165,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return this.configurationService.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true;
 	}
 
-	protected generateHintId(): string {
+	protected generateMigrationFlowId(): string {
 		return generateUuid();
 	}
 }
