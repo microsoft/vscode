@@ -206,8 +206,8 @@ suite('Sessions - Comparison Result', () => {
 		const customSynthesis = [...buttons].find(button => button.textContent === 'Custom Synthesis');
 		const focusAttemptDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'Focus another attempt');
 		const synthesisDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'More synthesis options');
-		const useClaude = [...buttons].find(button => button.textContent === 'Use Attempt 1 (Claude)');
-		const useCodex = [...buttons].find(button => button.textContent === 'Use Attempt 2 (Codex)');
+		const useClaude = [...buttons].find(button => button.textContent === 'Use Attempt 1');
+		const useCodex = [...buttons].find(button => button.textContent === 'Use Attempt 2');
 		const synthesizerDecides = [...buttons].find(button => button.textContent === 'Synthesizer Decides');
 		const startCustomSynthesis = [...buttons].find(button => button.textContent === 'Start Custom Synthesis');
 		const title = result.domNode.querySelector<HTMLElement>('.session-comparison-result-title');
@@ -223,6 +223,7 @@ suite('Sessions - Comparison Result', () => {
 		const instructionsInput = instructionsPanel?.querySelector<HTMLInputElement>('input, textarea');
 		const synthesisPanel = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-plan');
 		const decisionTable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table');
+		const decisionTableScrollable = result.domNode.querySelector<HTMLElement>('.session-comparison-synthesis-table-scroll-wrapper');
 		const rationaleList = result.domNode.querySelector<HTMLElement>('.session-comparison-result-rationale');
 		const metricsDetails = result.domNode.querySelector<HTMLDetailsElement>('.session-comparison-result-metrics');
 		const metricsTable = result.domNode.querySelector<HTMLTableElement>('.session-comparison-result-metrics-table');
@@ -288,12 +289,10 @@ suite('Sessions - Comparison Result', () => {
 		metricsDetails?.querySelector('summary')?.click();
 		await timeout(0);
 		const metricsExpanded = metricsDetails?.open;
-		result.domNode.style.maxHeight = '160px';
-		result.domNode.scrollTop = result.domNode.scrollHeight;
 		const resultScroll = {
 			overflowY: mainWindow.getComputedStyle(result.domNode).overflowY,
-			contentExceedsViewport: result.domNode.scrollHeight > result.domNode.clientHeight,
-			scrollAdvanced: result.domNode.scrollTop > 0,
+			customTableScrollable: decisionTableScrollable?.classList.contains('monaco-scrollable-element'),
+			horizontalScrollbarHiddenAtRest: decisionTableScrollable?.querySelector('.scrollbar.horizontal')?.classList.contains('invisible'),
 		};
 		otherAttemptLink?.click();
 		await timeout(0);
@@ -546,9 +545,9 @@ suite('Sessions - Comparison Result', () => {
 				synthesisPrimaryWiderThanDropdown: true,
 			},
 			resultScroll: {
-				overflowY: 'auto',
-				contentExceedsViewport: true,
-				scrollAdvanced: true,
+				overflowY: 'visible',
+				customTableScrollable: true,
+				horizontalScrollbarHiddenAtRest: true,
 			},
 			accessibility: {
 				regionRole: 'region',

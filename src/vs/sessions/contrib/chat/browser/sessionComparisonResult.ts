@@ -10,6 +10,7 @@ import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/m
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -17,6 +18,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -45,6 +47,7 @@ export class SessionComparisonResult extends Disposable {
 	private renderedVerdict: ISessionComparison['verdict'];
 	private renderedParticipants: ISessionComparison['participants'] | undefined;
 	private winnerTitle: string | undefined;
+	private synthesisTableScrollable: DomScrollableElement | undefined;
 
 	constructor(
 		currentSession: IObservable<ISession | undefined>,
@@ -93,6 +96,7 @@ export class SessionComparisonResult extends Disposable {
 		this.domNode.style.width = `calc(${availableWidth}px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))`;
 		this.domNode.style.marginLeft = `${(centeredContentWidth - availableWidth) / 2}px`;
 		this.domNode.style.marginRight = '0';
+		this.synthesisTableScrollable?.scanDomNode();
 	}
 
 	private render(comparison: ISessionComparison | undefined): void {
@@ -100,6 +104,7 @@ export class SessionComparisonResult extends Disposable {
 		this.renderedVerdict = comparison?.verdict;
 		this.renderedParticipants = comparison?.participants;
 		this.renderStore.clear();
+		this.synthesisTableScrollable = undefined;
 		dom.clearNode(this.domNode);
 		this.winnerTitle = undefined;
 		const wasHidden = this.domNode.hidden;
@@ -478,7 +483,16 @@ export class SessionComparisonResult extends Disposable {
 		dom.append(panel, dom.$('p.session-comparison-synthesis-plan-description')).textContent =
 			localize('sessionComparisonResult.customizeSynthesisDescription', "Choose which attempt's approach the synthesis agent should follow for each implementation decision. The agent will reconcile dependencies and validate the combined result in a new worktree.");
 
-		const scroller = dom.append(panel, dom.$('.session-comparison-synthesis-table-scroll'));
+		const scroller = dom.$('.session-comparison-synthesis-table-scroll');
+		const tableScrollable = this.renderStore.add(new DomScrollableElement(scroller, {
+			className: 'session-comparison-synthesis-table-scroll-wrapper',
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this.synthesisTableScrollable = tableScrollable;
+		dom.append(panel, tableScrollable.getDomNode());
 		const table = dom.append(scroller, dom.$('table.session-comparison-synthesis-table'));
 		const head = dom.append(table, dom.$('thead'));
 		const headerRow = dom.append(head, dom.$('tr'));
@@ -510,6 +524,7 @@ export class SessionComparisonResult extends Disposable {
 			custom.element.setAttribute('aria-expanded', String(!panel.hidden));
 			this.onDidChangeLayout();
 			if (!panel.hidden) {
+				tableScrollable.scanDomNode();
 				firstSelectedButton?.focus();
 			}
 		}));
@@ -560,7 +575,7 @@ export class SessionComparisonResult extends Disposable {
 			this.comparisonService.setSynthesisPlan(comparison.id, createSynthesisPlan(decisionSections, selections, getInstructions()));
 		};
 
-		for (const attempt of attempts) {
+		for (const [attemptIndex, attempt] of attempts.entries()) {
 			const option = section.options.find(candidate => candidate.participantId === attempt.id);
 			const cell = dom.append(row, dom.$('td'));
 			if (!option) {
@@ -588,7 +603,7 @@ export class SessionComparisonResult extends Disposable {
 				secondary: true,
 				ariaLabel: ariaLabel(selections.get(section.id) === attempt.id),
 			}));
-			button.label = localize('sessionComparisonResult.useAttempt', "Use {0}", attemptLabel);
+			button.label = localize('sessionComparisonResult.useAttemptNumber', "Use Attempt {0}", attemptIndex + 1);
 			choiceButtons.push({ button, participantId: attempt.id, ariaLabel });
 			this.renderStore.add(button.onDidClick(() => select(attempt.id)));
 		}
