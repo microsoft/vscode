@@ -1000,6 +1000,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}();
+			const mcpService = new class extends mock<IMcpService>() {
+				override readonly servers = constObservable([]);
+				override readonly enablementModel = {
+					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readProfileEnabled: () => true,
+					setEnabled: () => { },
+					remove: () => { },
+				};
+			}();
 			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
 				harnessService,
 				activeClientService,
@@ -1008,14 +1017,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new NullLogService(),
 				configurationService,
 				new FixtureConfigurationResolverService(),
-				new class extends mock<IMcpService>() {
-					override readonly enablementModel = {
-						readEnabled: () => ContributionEnablementState.EnabledProfile,
-						readProfileEnabled: () => true,
-						setEnabled: () => { },
-						remove: () => { },
-					};
-				}(),
+				mcpService,
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
@@ -1025,11 +1027,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				promptsService,
 				harnessService,
 				configurationService,
-				agentHostCustomizationService,
-				new class extends mock<IMcpWorkbenchService>() {
-					override readonly onChange = Event.None;
-					override readonly onReset = Event.None;
-				}(),
+				mcpService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
