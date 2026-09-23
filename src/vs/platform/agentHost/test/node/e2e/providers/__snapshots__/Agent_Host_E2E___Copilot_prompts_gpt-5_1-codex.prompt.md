@@ -742,7 +742,7 @@
               "currentSession",
               "independent"
             ],
-            "description": "Use `independent` only for work that is unrelated to the current session's plan or deliverable. Otherwise omit it; defaults to `currentSession`."
+            "description": "Use `independent` only for work that is unrelated to the current session's plan or deliverable. Otherwise omit it; defaults to `currentSession`. Work in the current session can also be in a different workspace."
           },
           "prompt": {
             "type": "string",
