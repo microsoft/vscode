@@ -7,11 +7,14 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -20,7 +23,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
-import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CopilotConnectorsMarketplaceSource, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -75,26 +78,30 @@ suite('CopilotConnectorsService', () => {
 				};
 			}
 		}();
-		const account = {
+		const initialAccount: IDefaultAccount = {
 			authenticationProvider: { id: 'github', name: 'GitHub', enterprise },
 			accountName: 'octocat',
 			sessionId: 'session',
 			enterprise,
 		};
+		let account: IDefaultAccount | null = initialAccount;
+		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
+		const sessionsChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const initialSession: AuthenticationSession = {
+			id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'octocat' }, scopes: ['read:user'],
+		};
+		let sessions = [initialSession];
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
-			override readonly currentDefaultAccount = account;
+			override readonly onDidChangeDefaultAccount = accountChanged.event;
+			override get currentDefaultAccount() { return account; }
 			override async getDefaultAccount() { return account; }
-			override getDefaultAccountAuthenticationProvider() { return account.authenticationProvider; }
+			override getDefaultAccountAuthenticationProvider() { return account?.authenticationProvider ?? initialAccount.authenticationProvider; }
 		}();
 		const authenticationService = new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = sessionsChanged.event;
 			override async getSessions(...args: Parameters<IAuthenticationService['getSessions']>) {
 				authenticationCalls.push(args);
-				return [{
-					id: 'session',
-					accessToken: 'test-token',
-					account: { id: 'account', label: 'octocat' },
-					scopes: ['read:user'],
-				}];
+				return sessions;
 			}
 		}();
 		const productService = new class extends mock<IProductService>() {
@@ -123,7 +130,17 @@ suite('CopilotConnectorsService', () => {
 			openerService,
 			new NullLogService(),
 		));
-		return { service, requests, requestTokens, opened, configurationService, authenticationCalls };
+		return {
+			service, requests, requestTokens, opened, configurationService, authenticationCalls, authenticationService, defaultAccountService,
+			initialAccount, initialSession, accountChanged, sessionsChanged,
+			setAccount: (value: IDefaultAccount | null, notify = true) => {
+				account = value;
+				if (notify) {
+					accountChanged.fire(value);
+				}
+			},
+			setSessions: (value: AuthenticationSession[]) => { sessions = value; },
+		};
 	}
 
 	async function setEnabled(configuration: TestConfigurationService, enabled: boolean): Promise<void> {
@@ -144,13 +161,13 @@ suite('CopilotConnectorsService', () => {
 			first: first.items.map(item => ({ identifier: item.identifier, installation: item.installation, publisher: item.publisher })),
 			second: second.items.map(item => item.identifier),
 			total: first.total,
-			nextCursor: first.nextCursor,
+			hasCursor: typeof first.nextCursor === 'string',
 			requests: fixture.requests.map(request => request.url),
 		}, {
 			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot' }],
 			second: ['calendar'],
 			total: 2,
-			nextCursor: '1',
+			hasCursor: true,
 			requests: ['https://api.github.test/copilot-connectors/api/v1/plugins'],
 		});
 	});
@@ -187,6 +204,168 @@ suite('CopilotConnectorsService', () => {
 			opened: fixture.opened,
 			connectors: fixture.service.connectors,
 		}, { requests: 1, authentication: [['github', [], { silent: true }, true]], opened: [], connectors: [] });
+	});
+
+	test('native pages retain their ranked catalog after the sixty-second cache refresh changes metadata and membership', async () => {
+		await runWithFakedTimers({}, async () => {
+			await timeout(1);
+			const fixture = createFixture([
+				{ body: { plugins: [
+					{ name: 'description', metadata: { displayName: 'Entry', description: 'Search Mail' } },
+					{ name: 'prefix', metadata: { displayName: 'Mail Alpha' } },
+					{ name: 'exact', metadata: { displayName: 'Mail' } },
+				] } },
+				{ body: { plugins: [
+					{ name: 'new', metadata: { displayName: 'Mail' } },
+					{ name: 'description', metadata: { displayName: 'Mail' } },
+				] } },
+			]);
+			const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+			const options = { query: 'mail', pageSize: 1 };
+			const first = await source.query(options, CancellationToken.None);
+			await timeout(60_001);
+			await fixture.service.getConnectors(CancellationToken.None);
+			const second = await source.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+			const third = await source.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
+			const fresh = await source.query(options, CancellationToken.None);
+			assert.deepStrictEqual({
+				old: [first, second, third].map(page => [page.items[0].identifier, page.items[0].score, page.total]),
+				fresh: fresh.items.map(item => [item.identifier, item.score]),
+				catalog: fixture.service.connectors.map(connector => connector.name),
+				requests: fixture.requests.length,
+				sameContext: first.cacheToken === fresh.cacheToken,
+			}, {
+				old: [['exact', 100, 3], ['prefix', 90, 3], ['description', 25, 3]],
+				fresh: [['new', 100]],
+				catalog: ['new', 'description'],
+				requests: 2,
+				sameContext: true,
+			});
+		});
+	});
+
+	for (const change of ['account', 'session', 'source']) {
+		test(`${change} changes invalidate native snapshots and the catalog cache`, async () => {
+			const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }, { body: catalogResponse('available', ['fresh']) }]);
+			const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+			const first = await source.query({ pageSize: 1 }, CancellationToken.None);
+			if (change === 'account') {
+				fixture.setAccount({ ...fixture.initialAccount, accountName: 'another-account', sessionId: 'another-session' });
+				fixture.setSessions([{ ...fixture.initialSession, id: 'another-session' }]);
+			} else if (change === 'session') {
+				const session = { ...fixture.initialSession, accessToken: 'rotated-test-token' };
+				fixture.setSessions([session]);
+				fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: undefined, changed: [session] } });
+			} else {
+				await setEnabled(fixture.configurationService, false);
+				await setEnabled(fixture.configurationService, true);
+			}
+			const cleared = fixture.service.connectors.length === 0;
+			await assert.rejects(source.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+			const readsBeforeNewQuery = fixture.requests.length;
+			const fresh = await source.query({ pageSize: 1 }, CancellationToken.None);
+			assert.deepStrictEqual({
+				cleared, invalid: first.cacheToken?.isCancellationRequested, readsBeforeNewQuery,
+				fresh: fresh.items.map(item => item.identifier), requests: fixture.requests.length,
+			}, { cleared: true, invalid: true, readsBeforeNewQuery: 1, fresh: ['fresh'], requests: 2 });
+		});
+	}
+
+	test('sign-out refuses a continuation instead of exposing the previous account catalog', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
+		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const first = await source.query({ pageSize: 1 }, CancellationToken.None);
+		fixture.setAccount(null);
+		await assert.rejects(source.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+		const fresh = await source.query({}, CancellationToken.None);
+		assert.deepStrictEqual({ items: fresh.items, catalog: fixture.service.connectors, requests: fixture.requests.length }, { items: [], catalog: [], requests: 1 });
+	});
+
+	test('unchanged account identity and unrelated authentication events preserve snapshots', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
+		const source = new CopilotConnectorsMarketplaceSource(fixture.service, fixture.configurationService);
+		const first = await source.query({ pageSize: 1 }, CancellationToken.None);
+		fixture.setAccount({ ...fixture.initialAccount });
+		fixture.sessionsChanged.fire({ providerId: 'other-provider', label: 'Other', event: { added: undefined, removed: undefined, changed: [fixture.initialSession] } });
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: undefined, changed: [{ ...fixture.initialSession, id: 'unrelated-session' }] } });
+		const second = await source.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: second.items.map(item => item.identifier), invalid: first.cacheToken?.isCancellationRequested,
+			sameContext: first.cacheToken === second.cacheToken, requests: fixture.requests.length,
+		}, { items: ['calendar'], invalid: false, sameContext: true, requests: 1 });
+	});
+
+	test('initial account resolution happens before pinning the catalog context', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+		fixture.setAccount(null);
+		fixture.defaultAccountService.getDefaultAccount = async () => {
+			fixture.setAccount(fixture.initialAccount);
+			return fixture.initialAccount;
+		};
+		const snapshot = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		assert.deepStrictEqual({ names: snapshot.connectors.map(connector => connector.name), invalid: snapshot.cacheToken.isCancellationRequested, requests: fixture.requests.length }, {
+			names: ['mail'], invalid: false, requests: 1,
+		});
+	});
+
+	test('snapshots bind the current account even before its change notification is delivered', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available', ['old']) }, { body: catalogResponse('available', ['new']) }]);
+		const old = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		fixture.setAccount({ ...fixture.initialAccount, accountName: 'another-account', sessionId: 'another-session' }, false);
+		fixture.setSessions([{ ...fixture.initialSession, id: 'another-session' }]);
+		const fresh = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		assert.deepStrictEqual({
+			oldInvalid: old.cacheToken.isCancellationRequested, freshInvalid: fresh.cacheToken.isCancellationRequested,
+			names: fresh.connectors.map(connector => connector.name), requests: fixture.requests.length,
+		}, { oldInvalid: true, freshInvalid: false, names: ['new'], requests: 2 });
+	});
+
+	test('re-enabling is observed before starting a snapshot even if the configuration notification is pending', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+		await setEnabled(fixture.configurationService, false);
+		await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, true);
+		const snapshot = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		assert.deepStrictEqual({ names: snapshot.connectors.map(connector => connector.name), invalid: snapshot.cacheToken.isCancellationRequested }, { names: ['mail'], invalid: false });
+	});
+
+	test('an old account response cannot overwrite a newer account catalog or create a snapshot', async () => {
+		const ready = new DeferredPromise<void>();
+		const fixture = createFixture([{ body: catalogResponse('available', ['old']), ready: ready.p }, { body: catalogResponse('available', ['new']) }]);
+		const pending = fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		const rejected = assert.rejects(pending, /Start a new search/);
+		await timeout(0);
+		fixture.setAccount({ ...fixture.initialAccount, accountName: 'another-account', sessionId: 'another-session' });
+		fixture.setSessions([{ ...fixture.initialSession, id: 'another-session' }]);
+		await fixture.service.refresh(CancellationToken.None);
+		await ready.complete();
+		await rejected;
+		assert.deepStrictEqual({
+			cancelled: fixture.requestTokens[0].isCancellationRequested,
+			names: fixture.service.connectors.map(connector => connector.name), requests: fixture.requests.length,
+		}, { cancelled: true, names: ['new'], requests: 2 });
+	});
+
+	test('an account change during session lookup does not send the old credential', async () => {
+		const fixture = createFixture([]);
+		const sessions = new DeferredPromise<AuthenticationSession[]>();
+		fixture.authenticationService.getSessions = async () => sessions.p;
+		const pending = fixture.service.refresh(CancellationToken.None);
+		const rejected = assert.rejects(pending, isCancellationError);
+		await timeout(0);
+		fixture.setAccount(null);
+		await sessions.complete([fixture.initialSession]);
+		await rejected;
+		assert.deepStrictEqual(fixture.requests, []);
+	});
+
+	test('disposing the service invalidates snapshots and removes identity listeners', async () => {
+		const fixture = createFixture([{ body: catalogResponse('available') }]);
+		const snapshot = await fixture.service.getConnectorsSnapshot(CancellationToken.None);
+		fixture.service.dispose();
+		assert.deepStrictEqual({
+			invalid: snapshot.cacheToken.isCancellationRequested,
+			accountObserved: fixture.accountChanged.hasListeners(), sessionsObserved: fixture.sessionsChanged.hasListeners(),
+		}, { invalid: true, accountObserved: false, sessionsObserved: false });
 	});
 
 	for (const enabled of [true, false]) {

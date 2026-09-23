@@ -94,6 +94,8 @@ export interface ICustomizationMarketplaceSourcePage {
 	readonly items: readonly ICustomizationMarketplaceEntry[];
 	readonly total?: number;
 	readonly nextCursor?: string;
+	/** Optional validity token shared across native pages, independent of request cancellation. Invalidates buffered entries and continuations; never sent over IPC. */
+	readonly cacheToken?: CancellationToken;
 }
 
 /** Owns transport, response validation, and normalization, including any installation provenance. */
@@ -144,6 +146,7 @@ interface IMarketplaceSourceState {
 	cursor?: string;
 	total?: number;
 	items: ICustomizationMarketplaceEntry[];
+	cacheToken?: CancellationToken;
 	exhausted: boolean;
 	lastScore: number;
 }
@@ -186,7 +189,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const continuation = options.cursor && this.continuations.get(options.cursor.token);
 		if (options.cursor && (!continuation || continuation.query !== query || continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize ||
-			continuation.sourceIds.length !== sources.length || continuation.sourceIds.some((id, index) => id !== sources[index].id))) {
+			continuation.sourceIds.length !== sources.length || continuation.sourceIds.some((id, index) => id !== sources[index].id) ||
+			continuation.states.some(state => state.cacheToken?.isCancellationRequested))) {
 			throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
 		}
 		const states: IMarketplaceSourceState[] = continuation
@@ -202,6 +206,10 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 						return;
 					}
 					const page = await sources[index].query({ query, mediaType: options.mediaType, pageSize, cursor: state.cursor }, cancellation.token);
+					if (state.cacheToken?.isCancellationRequested || page.cacheToken?.isCancellationRequested ||
+						(state.cursor !== undefined && state.cacheToken !== page.cacheToken)) {
+						throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
+					}
 					if (page.items.length > pageSize ||
 						(page.total !== undefined && (!Number.isSafeInteger(page.total) || page.total < page.items.length)) ||
 						(page.nextCursor !== undefined && (!page.nextCursor || page.nextCursor === state.cursor || !page.items.length))) {
@@ -216,12 +224,16 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 						lastScore = score;
 					}
 					state.items = [...page.items];
+					state.cacheToken = page.cacheToken;
 					state.cursor = page.nextCursor;
 					state.total = page.total;
 					state.exhausted = page.nextCursor === undefined;
 					state.lastScore = lastScore;
 				})), cancellation.token);
 
+				if (states.some(state => state.cacheToken?.isCancellationRequested)) {
+					throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
+				}
 				let selected = -1;
 				for (let index = 0; index < states.length; index++) {
 					if (states[index].items.length && (selected < 0 ||

@@ -6,14 +6,17 @@
 import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { matchesFuzzy2 } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { listenStream } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceSource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -90,6 +93,11 @@ export interface IConnectedCopilotConnectorMcpServer {
 	readonly serverName: string;
 }
 
+interface ICopilotConnectorsSnapshot {
+	readonly connectors: readonly ICopilotConnector[];
+	readonly cacheToken: CancellationToken;
+}
+
 export const ICopilotConnectorsService = createDecorator<ICopilotConnectorsService>('copilotConnectorsService');
 
 export interface ICopilotConnectorsService {
@@ -98,6 +106,8 @@ export interface ICopilotConnectorsService {
 	readonly connectors: readonly ICopilotConnector[];
 	readonly connectedMcpServers: readonly IConnectedCopilotConnectorMcpServer[];
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
+	/** Reads the catalog and its source/account validity token atomically. */
+	getConnectorsSnapshot(token: CancellationToken): Promise<ICopilotConnectorsSnapshot>;
 	refresh(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	connect(name: string, token: CancellationToken): Promise<void>;
 	disconnect(name: string, token: CancellationToken): Promise<void>;
@@ -110,8 +120,9 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
-	private readonly enabledCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly catalogContext = this._register(new MutableDisposable<CancellationTokenSource>());
 	private enabled = false;
+	private accountIdentity: string | undefined;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _lastRefreshTime = 0;
 
@@ -125,10 +136,19 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.accountIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
 		this.updateEnablement();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled)) {
 				this.updateEnablement();
+			}
+		}));
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => this.updateAccountIdentity(account)));
+		this._register(this.authenticationService.onDidChangeSessions(({ providerId, event }) => {
+			const account = this.defaultAccountService.currentDefaultAccount;
+			if (account?.authenticationProvider.id === providerId &&
+				[event.added, event.changed, event.removed].some(sessions => sessions?.some(session => session.id === account.sessionId))) {
+				this.resetCatalogContext();
 			}
 		}));
 	}
@@ -161,13 +181,34 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		return this.refresh(token);
 	}
 
+	async getConnectorsSnapshot(token: CancellationToken): Promise<ICopilotConnectorsSnapshot> {
+		const operation = await this.createOperation(token);
+		try {
+			const connectors = await this.getConnectors(operation.token);
+			if (operation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return { connectors, cacheToken: operation.cacheToken };
+		} catch (error) {
+			if (operation.cacheToken.isCancellationRequested && !token.isCancellationRequested) {
+				throw invalidConnectorPage();
+			}
+			throw error;
+		} finally {
+			operation.dispose();
+		}
+	}
+
 	async refresh(token: CancellationToken): Promise<readonly ICopilotConnector[]> {
 		if (!this.isEnabled()) {
 			return [];
 		}
-		const operation = this.createOperation(token);
+		const operation = await this.createOperation(token);
 		try {
 			const document = await this.request('GET', '/plugins', undefined, operation.token);
+			if (operation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (document === undefined) {
 				this.setConnectors([]);
 				return this._connectors;
@@ -185,7 +226,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	async connect(name: string, token: CancellationToken): Promise<void> {
-		const operation = this.createOperation(token);
+		const operation = await this.createOperation(token);
 		try {
 			const connectors = await this.refresh(operation.token);
 			if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
@@ -212,7 +253,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	async disconnect(name: string, token: CancellationToken): Promise<void> {
-		const operation = this.createOperation(token);
+		const operation = await this.createOperation(token);
 		try {
 			await this.request('DELETE', `/connectors/managed/${encodeURIComponent(name)}/connection`, undefined, operation.token, true);
 			const deadline = Date.now() + connectionTimeout;
@@ -235,12 +276,24 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return;
 		}
 		this.enabled = enabled;
-		this.enabledCancellation.value?.cancel();
-		const cancellation = this.enabledCancellation.value = new CancellationTokenSource();
-		if (!enabled) {
+		this.resetCatalogContext();
+	}
+
+	private resetCatalogContext(): void {
+		this.catalogContext.value?.cancel();
+		const cancellation = this.catalogContext.value = new CancellationTokenSource();
+		if (!this.enabled) {
 			cancellation.cancel();
-			this._lastRefreshTime = 0;
-			this.setConnectors([]);
+		}
+		this._lastRefreshTime = 0;
+		this.setConnectors([]);
+	}
+
+	private updateAccountIdentity(account: IDefaultAccount | null): void {
+		const identity = getAccountIdentity(account);
+		if (identity !== this.accountIdentity) {
+			this.accountIdentity = identity;
+			this.resetCatalogContext();
 		}
 	}
 
@@ -248,20 +301,25 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled) === true;
 	}
 
-	private createOperation(token: CancellationToken): { readonly token: CancellationToken; dispose(): void } {
-		if (!this.isEnabled() || token.isCancellationRequested) {
+	private async createOperation(token: CancellationToken): Promise<{ readonly token: CancellationToken; readonly cacheToken: CancellationToken; dispose(): void }> {
+		if (!this.isEnabled() || token.isCancellationRequested || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		if (!this.defaultAccountService.currentDefaultAccount) {
+			await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token);
+		}
+		this.updateEnablement();
+		this.updateAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+		const cacheToken = this.catalogContext.value?.token ?? CancellationToken.Cancelled;
+		if (!this.isEnabled() || token.isCancellationRequested || cacheToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
-		const enabledToken = this.enabledCancellation.value?.token;
-		if (enabledToken?.isCancellationRequested) {
-			cancellation.cancel();
-		} else if (enabledToken) {
-			store.add(enabledToken.onCancellationRequested(() => cancellation.cancel()));
-		}
+		store.add(cacheToken.onCancellationRequested(() => cancellation.cancel()));
 		return {
 			token: cancellation.token,
+			cacheToken,
 			dispose: () => store.dispose(),
 		};
 	}
@@ -286,6 +344,9 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			throw new CancellationError();
 		}
 		const sessions = await this.authenticationService.getSessions(provider.id, [], { silent: true }, true);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const session = account ? sessions.find(candidate => candidate.id === account.sessionId) : undefined;
 		if (!session) {
 			if (requireAuthentication) {
@@ -351,13 +412,24 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	override dispose(): void {
-		this.enabledCancellation.value?.cancel();
+		this.catalogContext.value?.cancel();
 		super.dispose();
 	}
 }
 
+interface IConnectorContinuation {
+	readonly query: string;
+	readonly mediaType?: CustomizationMarketplaceMediaType;
+	readonly pageSize: number;
+	readonly entries: readonly ICustomizationMarketplaceEntry[];
+	readonly offset: number;
+	readonly expiresAt: number;
+	readonly cacheToken: CancellationToken;
+}
+
 export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketplaceSource {
 	readonly id = CustomizationMarketplaceSources.CopilotConnectors.id;
+	private readonly continuations = new LRUCache<string, IConnectorContinuation>(32);
 
 	constructor(
 		private readonly service: ICopilotConnectorsService,
@@ -370,6 +442,9 @@ export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketp
 		}
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled) !== true ||
 			(options.mediaType !== undefined && options.mediaType !== CustomizationMarketplaceMediaType.McpServer)) {
+			if (options.cursor !== undefined) {
+				throw invalidConnectorPage();
+			}
 			return { items: [], total: 0 };
 		}
 		const text = options.query?.trim() ?? '';
@@ -379,19 +454,47 @@ export class CopilotConnectorsMarketplaceSource implements ICustomizationMarketp
 			throw new CopilotConnectorsError(localize('copilotConnectors.invalidQuery', "Use a positive page size and at most {0} characters and {1} words to search Copilot connectors.", maxSearchQueryLength, maxSearchWords));
 		}
 		const pageSize = Math.min(requestedPageSize, 100);
-		const offset = parseOffset(options.cursor);
-		const connectors = await raceCancellationError(this.service.getConnectors(token), token);
-		const matches = words.length ? connectors.flatMap(connector => {
-			const score = scoreConnector(connector, words);
-			return score === undefined ? [] : [{ ...toMarketplaceEntry(connector), score }];
-		}).sort((a, b) => b.score - a.score) : connectors.map(connector => toMarketplaceEntry(connector));
-		const page = matches.slice(offset, offset + pageSize);
+		for (const [key, value] of [...this.continuations]) {
+			if (value.expiresAt <= Date.now() || value.cacheToken.isCancellationRequested) {
+				this.continuations.delete(key);
+			}
+		}
+		let continuation = options.cursor === undefined ? undefined : this.continuations.get(options.cursor);
+		if (options.cursor !== undefined && (!continuation || continuation.query !== text || continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize)) {
+			throw invalidConnectorPage();
+		}
+		if (!continuation) {
+			const { connectors, cacheToken } = await raceCancellationError(this.service.getConnectorsSnapshot(token), token);
+			const entries = words.length ? connectors.flatMap(connector => {
+				const score = scoreConnector(connector, words);
+				return score === undefined ? [] : [{ ...toMarketplaceEntry(connector), score }];
+			}).sort((a, b) => b.score - a.score) : connectors.map(connector => toMarketplaceEntry(connector));
+			continuation = { query: text, mediaType: options.mediaType, pageSize, entries, offset: 0, cacheToken, expiresAt: Date.now() + 30 * 60_000 };
+		}
+		if (continuation.cacheToken.isCancellationRequested) {
+			throw invalidConnectorPage();
+		}
+		const page = continuation.entries.slice(continuation.offset, continuation.offset + pageSize);
+		const offset = continuation.offset + page.length;
+		const nextCursor = offset < continuation.entries.length ? generateUuid() : undefined;
+		if (nextCursor) {
+			this.continuations.set(nextCursor, { ...continuation, offset });
+		}
 		return {
 			items: page,
-			total: matches.length,
-			nextCursor: offset + page.length < matches.length ? String(offset + page.length) : undefined,
+			total: continuation.entries.length,
+			nextCursor,
+			cacheToken: continuation.cacheToken,
 		};
 	}
+}
+
+function getAccountIdentity(account: IDefaultAccount | null): string | undefined {
+	return account ? JSON.stringify([account.authenticationProvider.id, account.authenticationProvider.enterprise, account.accountName, account.sessionId]) : undefined;
+}
+
+function invalidConnectorPage(): CopilotConnectorsError {
+	return new CopilotConnectorsError(localize('copilotConnectors.invalidCursor', "The Copilot connectors page is invalid. Start a new search."));
 }
 
 /** Exact names score 100; otherwise average each word's best name (70-95), keyword (40-65), or descriptive (10-35) match. */
@@ -603,17 +706,6 @@ function isHttpsUrl(value: string): boolean {
 	} catch {
 		return false;
 	}
-}
-
-function parseOffset(value: string | undefined): number {
-	if (value === undefined) {
-		return 0;
-	}
-	const offset = Number(value);
-	if (!Number.isSafeInteger(offset) || offset < 0 || String(offset) !== value) {
-		throw new CopilotConnectorsError(localize('copilotConnectors.invalidCursor', "The Copilot connectors page is invalid. Start a new search."));
-	}
-	return offset;
 }
 
 function readResponse(context: IRequestContext): Promise<string> {

@@ -323,6 +323,70 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	for (const hasBufferedEntries of [false, true]) {
+		test(`invalidating an authenticated source rejects its ${hasBufferedEntries ? 'buffered' : 'exhausted'} continuation without invalidating public-only queries`, async () => {
+			const context = store.add(new CancellationTokenSource());
+			const calls: string[] = [];
+			const service = new CustomizationMarketplaceService([
+				{ id: 'public', query: async options => {
+					calls.push('public');
+					return { items: [{ ...entry, score: options.cursor ? 95 : 100 }], nextCursor: options.cursor ? undefined : 'next' };
+				} },
+				{ id: 'authenticated', query: async () => {
+					calls.push('authenticated');
+					return { items: hasBufferedEntries ? [{ ...entry, score: 90 }] : [], cacheToken: context.token };
+				} },
+			]);
+			const options = { query: 'mail', pageSize: 1 };
+			const mixed = await service.query({ ...options, sourceIds: ['public', 'authenticated'] }, CancellationToken.None);
+			const publicOnly = await service.query({ ...options, sourceIds: ['public'] }, CancellationToken.None);
+			context.cancel();
+			await assert.rejects(service.query({ ...options, sourceIds: ['public', 'authenticated'], cursor: mixed.nextCursor }, CancellationToken.None), /Start a new search/);
+			const nextPublic = await service.query({ ...options, sourceIds: ['public'], cursor: publicOnly.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({
+				calls, publicScores: nextPublic.items.map(item => item.score), publicKeys: Object.keys(mixed),
+			}, { calls: ['public', 'authenticated', 'public', 'public'], publicScores: [95], publicKeys: ['items', 'total', 'nextCursor'] });
+		});
+	}
+
+	test('rechecks buffered source validity while awaiting another source', async () => {
+		const context = store.add(new CancellationTokenSource());
+		const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		let privateReads = 0;
+		const service = new CustomizationMarketplaceService([
+			{ id: 'public', query: async options => options.cursor ? pending.p : { items: [{ ...entry, score: 100 }, { ...entry, score: 95 }], nextCursor: 'next' } },
+			{ id: 'authenticated', query: async () => {
+				privateReads++;
+				return { items: [{ ...entry, score: 90 }, { ...entry, score: 85 }], cacheToken: context.token };
+			} },
+		]);
+		const options = { sourceIds: ['public', 'authenticated'], query: 'mail', pageSize: 2 };
+		const first = await service.query(options, CancellationToken.None);
+		const next = service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		const rejected = assert.rejects(next, /Start a new search/);
+		context.cancel();
+		await pending.complete({ items: [{ ...entry, score: 80 }] });
+		await rejected;
+		assert.strictEqual(privateReads, 1);
+	});
+
+	for (const cacheToken of [undefined, CancellationToken.None]) {
+		test(`refuses to change ${cacheToken ? 'an existing' : 'an absent'} source validity context across native pages`, async () => {
+			const context = store.add(new CancellationTokenSource());
+			const service = new CustomizationMarketplaceService([{
+				id: 'source',
+				query: async options => ({
+					items: [{ ...entry, score: 90 }],
+					nextCursor: options.cursor ? undefined : 'next',
+					cacheToken: options.cursor ? context.token : cacheToken,
+				}),
+			}]);
+			const options = { sourceIds: ['source'], query: 'mail', pageSize: 1 };
+			const first = await service.query(options, CancellationToken.None);
+			await assert.rejects(service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+		});
+	}
+
 	test('continuations expire and never accept caller-supplied buffered entries', async () => {
 		await runWithFakedTimers({}, async () => {
 			let calls = 0;

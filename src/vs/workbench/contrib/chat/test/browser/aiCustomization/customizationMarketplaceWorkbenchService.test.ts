@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -83,13 +83,14 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			listen: () => Event.None,
 		}, configuration);
 		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
-			override async getConnectors(token: CancellationToken) {
+			cacheToken = CancellationToken.None;
+			override async getConnectorsSnapshot(token: CancellationToken) {
 				connectorCalls.push(token);
-				return connectors;
+				return { connectors, cacheToken: this.cacheToken };
 			}
 		}();
 		const service = new CustomizationMarketplaceWorkbenchService(publicService, connectorsService, configuration);
-		return { configuration, service, publicService, publicEntries, connectors, ipcRequests, nativeRequests, connectorCalls, publicInitializations: () => publicInitializations };
+		return { configuration, service, publicService, publicEntries, connectors, connectorsService, ipcRequests, nativeRequests, connectorCalls, publicInitializations: () => publicInitializations };
 	}
 
 	test('disabled and cancelled queries do not instantiate the catalog client or perform requests', async () => {
@@ -166,6 +167,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly connectors = [connector];
 			override readonly connectedMcpServers = [];
 			override async getConnectors() { return this.connectors; }
+			override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
@@ -220,18 +222,21 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	}
 
 	for (const query of [undefined, 'mail']) {
-		test(`mixed ${query ? 'ranked search' : 'native browsing'} fills global pages of 24 without losing entries across IPC or native boundaries`, async () => {
+		test(`mixed ${query ? 'ranked search' : 'native browsing'} pins a changing catalog across global pages and IPC boundaries`, async () => {
 			const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
 			const pages: ICustomizationMarketplacePage[] = [];
+			const publicResults = fixture.publicEntries.map(item => ['agentFinder', item.identifier, item.score]);
+			const connectorResults = fixture.connectors.map(item => ['copilotConnectors', item.name, query ? 90 : undefined]);
 			let cursor: ICustomizationMarketplaceCursor | undefined;
 			do {
 				const page = await fixture.service.query({ query, pageSize: 24, cursor }, CancellationToken.None);
 				pages.push(page);
 				cursor = page.nextCursor;
+				if (pages.length === 1) {
+					fixture.connectors.splice(0, fixture.connectors.length, createConnector('new', 'Mail'), createConnector('connector-29', 'Mail'));
+				}
 				assert.ok(pages.length <= 4, 'Pagination must reach exhaustion');
 			} while (cursor);
-			const publicResults = fixture.publicEntries.map(item => ['agentFinder', item.identifier, item.score]);
-			const connectorResults = fixture.connectors.map(item => ['copilotConnectors', item.name, query ? 90 : undefined]);
 			assert.deepStrictEqual({
 				lengths: pages.map(page => page.items.length),
 				totals: pages.map(page => page.total),
@@ -248,11 +253,34 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				cursorKeys: [['token'], ['token'], ['token']],
 				nativePageSizes: [24],
 				nativeCalls: 9,
-				connectorCalls: 2,
+				connectorCalls: 1,
 				ipcSourceIds: [['agentFinder'], ['agentFinder']],
 			});
 		});
 	}
+
+	test('account invalidation refuses buffered connectors before any IPC or catalog reads', async () => {
+		const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+		const context = store.add(new CancellationTokenSource());
+		fixture.connectorsService.cacheToken = context.token;
+		const options = { query: 'mail', pageSize: 2 };
+		const first = await fixture.service.query(options, CancellationToken.None);
+		context.cancel();
+		fixture.connectorsService.cacheToken = CancellationToken.None;
+		fixture.connectors.splice(0, fixture.connectors.length, createConnector('new-account', 'Mail'));
+		await assert.rejects(fixture.service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+		const readsBeforeNewSearch = [fixture.ipcRequests.length, fixture.connectorCalls.length];
+		const fresh = await fixture.service.query(options, CancellationToken.None);
+		assert.deepStrictEqual({
+			oldIds: first.items.map(item => item.identifier),
+			readsBeforeNewSearch,
+			fresh: fresh.items.map(item => [item.sourceId, item.identifier, item.score]),
+		}, {
+			oldIds: ['public-0', 'public-1'],
+			readsBeforeNewSearch: [1, 1],
+			fresh: [['agentFinder', 'public-0', 100], ['copilotConnectors', 'new-account', 100]],
+		});
+	});
 
 	test('forwards an opaque backend cursor without decoding it or exposing it in the combined cursor', async () => {
 		const opaque = 'opaque+/=&{"installation":"not-provenance"}';
@@ -313,9 +341,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			}
 		}();
 		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
-			override getConnectors(token: CancellationToken) {
+			override async getConnectorsSnapshot(token: CancellationToken) {
 				tokens.push(token);
-				return connectorResponse.p;
+				return { connectors: await connectorResponse.p, cacheToken: CancellationToken.None };
 			}
 		}();
 		const service = new CustomizationMarketplaceWorkbenchService(publicService, connectorsService, configuration);

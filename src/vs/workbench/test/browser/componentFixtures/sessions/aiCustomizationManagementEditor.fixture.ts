@@ -919,6 +919,7 @@ function createMockCopilotConnectorsService(enabled: boolean): ICopilotConnector
 			.filter(connector => connector.connectionStatus === 'connected')
 			.flatMap(connector => connector.mcpServers.map(server => ({ connector, serverName: server.name })));
 		override async getConnectors() { return this.connectors; }
+		override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
 		override async refresh() { return this.connectors; }
 		override async connect() { }
 		override async disconnect() { }
