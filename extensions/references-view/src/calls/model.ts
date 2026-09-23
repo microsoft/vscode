@@ -54,7 +54,7 @@ export const enum CallsDirection {
 	Outgoing
 }
 
-
+export const CallItemCollapsibleStateSym = ':-';
 
 export class CallItem {
 
@@ -86,7 +86,19 @@ class CallsModel implements SymbolItemNavigation<CallItem>, SymbolItemEditorHigh
 	private async _resolveCalls(call: CallItem): Promise<CallItem[]> {
 		if (this.direction === CallsDirection.Incoming) {
 			const calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', call.item);
-			return calls ? calls.map(item => new CallItem(this, item.from, call, item.fromRanges.map(range => new vscode.Location(item.from.uri, range)))) : [];
+			const callItemOut: CallItem[] = [];
+			calls.forEach(item => {
+				item.fromRanges.forEach((locs, idx) => {
+					const loc = new vscode.Location(call.item.uri, locs);
+					const detail = item.from.uri.fsPath.replace(/.*\//, '') + ' (' + (loc.range.start.line + 1) + ')';
+					if (0 === idx) {
+						item.from.detail = detail;
+					}
+					const itemOut = (0 === idx) ? item.from : new vscode.CallHierarchyItem(item.from.kind, item.from.name, detail + CallItemCollapsibleStateSym, item.from.uri, item.from.range, item.from.selectionRange);
+					callItemOut.push(new CallItem(this, itemOut, call, [loc]));
+				}, this);
+			}, this);
+			return callItemOut;
 		} else {
 			const calls = await vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', call.item);
 			return calls ? calls.map(item => new CallItem(this, item.to, call, item.fromRanges.map(range => new vscode.Location(call.item.uri, range)))) : [];
@@ -209,7 +221,14 @@ class CallItemDataProvider implements vscode.TreeDataProvider<CallItem> {
 			title: vscode.l10n.t('Open Call'),
 			arguments: openArgs
 		};
-		item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		const description = element.item.detail?.indexOf(CallItemCollapsibleStateSym);
+		if (description !== -1) {
+			item.description = item.description?.substring(0, description);
+			item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+		}
+		else {
+			item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		}
 		return item;
 	}
 
