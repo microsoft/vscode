@@ -1025,6 +1025,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				promptsService,
 				harnessService,
 				configurationService,
+				agentHostCustomizationService,
+				new class extends mock<IMcpWorkbenchService>() {
+					override readonly onChange = Event.None;
+					override readonly onReset = Event.None;
+				}(),
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;

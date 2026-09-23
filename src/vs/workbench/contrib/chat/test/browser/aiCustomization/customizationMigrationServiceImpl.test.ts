@@ -41,6 +41,7 @@ import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider,
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -198,8 +199,12 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 		logService: ILogService,
 		configurationService: TestConfigurationService,
 		configurationResolverService: TestConfigurationResolverService,
+		mcpWorkbenchService: IMcpWorkbenchService = new class extends mock<IMcpWorkbenchService>() {
+			override readonly onChange = Event.None;
+			override readonly onReset = Event.None;
+		}(),
 	) {
-		super(promptsService, harnessService, configurationService);
+		super(promptsService, harnessService, configurationService, agentHostCustomizationService, mcpWorkbenchService);
 		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
 			harnessService,
 			activeClientService,
@@ -277,6 +282,43 @@ function createWorkspaceMcpSupportSnapshot(root: URI, options: {
 suite('CustomizationMigrationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationResolverService = new TestConfigurationResolverService();
+
+	test('reports migration-relevant customization changes', () => {
+		const promptsChanged = store.add(new Emitter<void>());
+		const agentHostCustomizationsChanged = store.add(new Emitter<void>());
+		const mcpChanged = store.add(new Emitter<undefined>());
+		const mcpReset = store.add(new Emitter<void>());
+		const promptsService = store.add(new class extends TestPromptsService {
+			override readonly onDidChangeSlashCommands = promptsChanged.event;
+		}([]));
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = agentHostCustomizationsChanged.event;
+		}();
+		const mcpWorkbenchService = new class extends mock<IMcpWorkbenchService>() {
+			override readonly onChange = mcpChanged.event;
+			override readonly onReset = mcpReset.event;
+		}();
+		const service = store.add(new CustomizationMigrationService(
+			promptsService,
+			new TestCustomizationHarnessService(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+			agentHostCustomizationService,
+			{} as IFileService,
+			new NullLogService(),
+			store.add(createMigrationConfiguration()),
+			configurationResolverService,
+			mcpWorkbenchService,
+		));
+		let changeCount = 0;
+		store.add(service.onDidChangeCustomizations(() => changeCount++));
+
+		promptsChanged.fire();
+		agentHostCustomizationsChanged.fire();
+		mcpChanged.fire(undefined);
+		mcpReset.fire();
+
+		assert.strictEqual(changeCount, 4);
+	});
 
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
