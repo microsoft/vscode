@@ -295,10 +295,18 @@ export class ConversationFeature implements IExtensionContribution {
 				}
 
 				const commitMessage = await this.gitCommitMessageService.generateCommitMessage(repository, CancellationToken.None);
+				if (!commitMessage) {
+					return;
+				}
+
 				const terminal = vscode.window.activeTerminal;
-				if (commitMessage && terminal) {
-					const message = `git commit -m ${quoteShellArgument(commitMessage, terminal.state.shell)}`;
-					terminal.sendText(message, false);
+				const quotedMessage = terminal ? quoteShellArgument(commitMessage, terminal.state.shell) : undefined;
+				if (terminal && quotedMessage) {
+					terminal.sendText(`git commit -m ${quotedMessage}`, false);
+				} else {
+					// The message can't be typed into this terminal safely, so hand it to the commit box instead.
+					repository.inputBox.value = commitMessage;
+					await vscode.commands.executeCommand('workbench.view.scm');
 				}
 			}),
 			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: unknown, cancellationToken: vscode.CancellationToken | undefined) => {
