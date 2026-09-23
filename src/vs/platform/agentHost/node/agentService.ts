@@ -751,6 +751,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._logService.info('AgentService initialized');
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
+		this._register(this._stateManager.onDidRejectClientAction(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._persistAnnotations(e)));
 		// Archiving is terminal for Agent Merge, so the index is cleared from the
