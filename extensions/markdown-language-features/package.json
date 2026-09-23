@@ -1365,12 +1365,6 @@
         "$generated": true
       },
       {
-        "command": "markdown.editor.toggleLocked",
-        "key": "cmd+e",
-        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
-        "$generated": true
-      },
-      {
         "command": "markdown.editor.undo",
         "key": "cmd+z",
         "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
