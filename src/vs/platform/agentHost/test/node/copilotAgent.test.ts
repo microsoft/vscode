@@ -893,6 +893,9 @@ class TestSdkError extends Error {
 
 class MockAgentHostOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly diagnosticsEnabled = false;
+	emitTurnTiming(): void { }
+	emitFirstResponse(): void { }
 
 	async getSdkTelemetryConfig() {
 		return undefined;
@@ -931,6 +934,9 @@ class RecordingTitleOTelService extends MockAgentHostOTelService {
  */
 class RecordingReleaseOTelService implements IAgentHostOTelService {
 	declare readonly _serviceBrand: undefined;
+	readonly diagnosticsEnabled = false;
+	emitTurnTiming(): void { }
+	emitFirstResponse(): void { }
 	readonly released: string[] = [];
 
 	async getSdkTelemetryConfig() { return undefined; }

@@ -42,7 +42,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -73,6 +73,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../../../plat
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostFirstResponseEvent } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../../../../../../platform/agentHost/common/otel/agentHostTiming.js';
 import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
@@ -4566,6 +4567,8 @@ suite('AgentHostChatContribution', () => {
 
 		test('aborts the turn without creating a session when trust is declined', async () => {
 			const { sessionHandler, agentHostService, chatAgentService, trustController, instantiationService } = createContribution(disposables);
+			const exported: IAgentHostFirstResponseDiagnostic[] = [];
+			agentHostService.reportFirstResponse = async diagnostic => { exported.push(diagnostic); };
 			const records = captureFirstResponseTimings(instantiationService);
 			trustController.result = false;
 
@@ -4581,6 +4584,12 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(result, {});
 			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+			assert.strictEqual(exported.length, 1);
+			assert.deepStrictEqual({
+				outcome: exported[0].outcome, session: exported[0].agentSessionId,
+				text: exported[0].firstResponseTextMs, tools: exported[0].rootToolCallsBeforeFirstText,
+				trust: exported[0].trustInteractionRequired,
+			}, { outcome: 'notDispatched', session: undefined, text: undefined, tools: undefined, trust: true });
 			assert.strictEqual(trustController.workspaceTrustCalls + trustController.resourcesTrustCalls, 1);
 			assert.deepStrictEqual(records.map(record => ({
 				trustInteractionRequired: record.trustInteractionRequired,
@@ -5120,6 +5129,8 @@ suite('AgentHostChatContribution', () => {
 
 		test('first response telemetry avoids the common session ID and preserves log correlation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const exported: IAgentHostFirstResponseDiagnostic[] = [];
+			agentHostService.reportFirstResponse = async diagnostic => { exported.push(diagnostic); };
 			const events: Record<string, unknown>[] = [];
 			instantiationService.stub(ITelemetryService, {
 				...NullTelemetryService,
@@ -5145,6 +5156,9 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			const agentSessionId = AgentSession.uri('copilot', 'new-turntest').toString();
+			assert.deepStrictEqual(exported, events.map(event => ({
+				...event, agentSessionId: 'new-turntest', chatId: parseChatUri(session)?.chatId,
+			})));
 			assert.deepStrictEqual({
 				telemetry: events.map(event => ({
 					requestId: event.requestId,
@@ -5157,6 +5171,19 @@ suite('AgentHostChatContribution', () => {
 				telemetry: [{ requestId: turnId, agentSessionId, chatId: session, commonSessionIdKeys: [] }],
 				logs: events.map(event => ({ ...event, sessionId: agentSessionId, turnId })),
 			});
+		}));
+
+		test('first-response OTel bridge failures do not fail a completed invocation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			let attempts = 0;
+			agentHostService.reportFirstResponse = async () => {
+				attempts++;
+				throw new Error('disconnected');
+			};
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.strictEqual(attempts, 1);
 		}));
 
 		test('first response timing counts root tools before text, not updates or later tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
