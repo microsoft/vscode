@@ -27,7 +27,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -1241,7 +1241,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {
-		const resource = session.mainChat.get().resource;
+		await this._cancelChatRequest(session.mainChat.get());
+	}
+
+	private async _cancelChatRequest(chat: IChat): Promise<void> {
+		const resource = chat.resource;
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
 		if (!modelRef) {
@@ -1255,6 +1259,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
+		const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
+		if (activeChats.length === 0 && isActiveSessionStatus(session.status.get())) {
+			await this._cancelChatRequest(session.mainChat.get());
+		}
+		for (const chat of activeChats) {
+			await this._cancelChatRequest(chat);
+		}
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 		this._onDidArchiveSession.fire(session);
 	}

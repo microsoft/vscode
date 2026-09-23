@@ -114,6 +114,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		branchName: string,
 		authToken: string,
 		allowedPullRequestUrls?: readonly string[],
+		workingDirectory: string | undefined = state.workingDirectories?.[0],
 	): Promise<CreatedPullRequest | undefined> {
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
@@ -126,7 +127,6 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			return pullRequestByBranch;
 		}
 
-		const workingDirectory = state.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -263,7 +263,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		if (!sessionState || gitState?.branchName !== branchName || !context.isRestrictedMode()) {
 			return undefined;
 		}
-		const gitHubState = readSessionGitHubState(sessionState._meta);
+		const gitHubState = readSessionGitHubState(sessionState._meta, sessionState.workingDirectories?.[0]);
 		if (gitHubState?.owner !== owner || gitHubState.repo !== repo) {
 			return undefined;
 		}
