@@ -22,7 +22,7 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
-import { IFileService } from '../../../platform/files/common/files.js';
+import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
@@ -253,15 +253,19 @@ suite('ChatPills', () => {
 		store.add(createChatPillImagePreview(entry, fileService, CancellationToken.Cancelled).disposable);
 		let completedToken: CancellationToken | undefined;
 		const completedPreview = createChatPillImagePreview(entry, upcastPartial<IFileService>({
-			readFile: async (_resource, _options, token) => {
+			readFile: async (_resource, _options, token): Promise<IFileContent> => {
 				completedToken = token;
 				return {
 					resource,
+					name: 'design.png',
 					value: VSBuffer.fromString('image'),
 					etag: 'image-etag',
 					mtime: 0,
 					ctime: 0,
 					size: 5,
+					readonly: false,
+					locked: false,
+					executable: false,
 				};
 			},
 		}));
