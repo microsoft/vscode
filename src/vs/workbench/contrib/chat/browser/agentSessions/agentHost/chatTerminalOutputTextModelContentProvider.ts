@@ -15,7 +15,6 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { ITextModelService, type ITextModelContentProvider } from '../../../../../../editor/common/services/resolverService.js';
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';

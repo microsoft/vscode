@@ -22,20 +22,20 @@ import { ChatTerminalOutputResource, ChatTerminalOutputTextModelService } from '
 class TestTerminalSubscription extends Disposable implements IAgentSubscription<TerminalState> {
 	private readonly _onDidChange = this._register(new Emitter<TerminalState>());
 	private readonly _onDidError = this._register(new Emitter<Error>());
-	override readonly onDidChange = this._onDidChange.event;
-	override readonly onDidError = this._onDidError.event;
-	override readonly onWillApplyAction = Event.None;
-	override readonly onDidApplyAction = Event.None;
+	readonly onDidChange = this._onDidChange.event;
+	readonly onDidError = this._onDidError.event;
+	readonly onWillApplyAction = Event.None;
+	readonly onDidApplyAction = Event.None;
 
 	constructor(private _value: TerminalState | Error | undefined) {
 		super();
 	}
 
-	override get value(): TerminalState | Error | undefined {
+	get value(): TerminalState | Error | undefined {
 		return this._value;
 	}
 
-	override get verifiedValue(): TerminalState | undefined {
+	get verifiedValue(): TerminalState | undefined {
 		return this._value instanceof Error ? undefined : this._value;
 	}
 
@@ -71,7 +71,7 @@ suite('ChatTerminalOutputTextModelService', () => {
 				assert.strictEqual(resource.toString(), terminalResource.toString());
 				acquisitions++;
 				return {
-					object: subscription as IAgentSubscription<ComponentToState[T]>,
+					object: subscription as unknown as IAgentSubscription<ComponentToState[T]>,
 					dispose: () => releases++,
 				};
 			}
