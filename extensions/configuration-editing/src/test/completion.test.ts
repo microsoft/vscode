@@ -112,6 +112,36 @@ suite('Completions in settings.json', () => {
 		}
 	});
 
+	test('window.title completeness', async () => {
+		const expectedVariables = [
+			'activeEditorShort', 'activeEditorMedium', 'activeEditorLong', 'activeEditorLanguageId',
+			'activeFolderShort', 'activeFolderMedium', 'activeFolderLong',
+			'rootName', 'rootNameShort', 'rootPath', 'profileName',
+			'folderName', 'folderPath', 'appName', 'remoteName', 'dirty', 'focusedView', 'separator',
+			'activeRepositoryName', 'activeRepositoryBranchName', 'activeEditorState'
+		];
+
+		const content = [
+			'{',
+			'  "window.title": "|"',
+			'}',
+		].join('\n');
+		const offset = content.indexOf('|');
+		const strippedContent = content.substring(0, offset) + content.substring(offset + 1);
+
+		const docUri = vscode.Uri.file(path.join(await testFolder, testFile));
+		await fs.writeFile(docUri.fsPath, strippedContent);
+		const editor = await setTestContent(docUri, 'jsonc', strippedContent);
+		const position = editor.document.positionAt(offset);
+
+		const actualCompletions = (await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', docUri, position)) as vscode.CompletionList;
+		const actualLabels = new Set(actualCompletions.items.map(item => item.label));
+
+		for (const variable of expectedVariables) {
+			assert.ok(actualLabels.has('${' + variable + '}'), `missing completion for \${${variable}}`);
+		}
+	});
+
 	test('files.associations', async () => {
 		{
 			const content = [
