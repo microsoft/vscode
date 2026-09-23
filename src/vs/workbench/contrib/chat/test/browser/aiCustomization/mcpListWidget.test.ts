@@ -60,6 +60,7 @@ import {
 	updateMcpCompatibilityBadge,
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
+	preserveMcpEntryOrder,
 	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
@@ -207,6 +208,26 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves installed row order across enablement refreshes', () => {
+		const order = new Map<string, number>();
+		const first = { entry: { type: 'session-server-item' as const, server: createAgentHostServer({ id: 'first', name: 'First', enabled: true }) } };
+		const second = { entry: { type: 'session-server-item' as const, server: createAgentHostServer({ id: 'second', name: 'Second', enabled: false }) } };
+
+		const initial = preserveMcpEntryOrder([first, second], order);
+		const refreshed = preserveMcpEntryOrder([
+			{ entry: { ...second.entry, server: { ...second.entry.server, enabled: true } } },
+			{ entry: { ...first.entry, server: { ...first.entry.server, enabled: false } } },
+		], order);
+
+		assert.deepStrictEqual({
+			initial: initial.map(({ entry }) => entry.type === 'session-server-item' ? entry.server.id : ''),
+			refreshed: refreshed.map(({ entry }) => entry.type === 'session-server-item' ? entry.server.id : ''),
+		}, {
+			initial: ['first', 'second'],
+			refreshed: ['first', 'second'],
+		});
+	});
 
 	test('item count includes only enabled MCP servers', () => {
 		interface TestWidget {
