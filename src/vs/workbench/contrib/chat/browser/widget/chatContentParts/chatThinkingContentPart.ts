@@ -19,7 +19,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { marked } from '../../../../../../base/common/marked/marked.js';
+import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -46,6 +46,8 @@ import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js'
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { isMcpToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -107,7 +109,10 @@ function isNoProblemsFoundResult(toolId: string | undefined, resultText: string 
 	return isProblemsToolId(toolId) && resultText?.toLowerCase().includes('no problems found') === true;
 }
 
-export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon, resultText?: string): ThemeIcon {
+export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon, resultText?: string, source?: ToolDataSource): ThemeIcon {
+	if (isMcpToolInvocation({ toolId, source })) {
+		return Codicon.mcp;
+	}
 	if (isNoProblemsFoundResult(toolId, resultText)) {
 		return Codicon.search;
 	}
@@ -167,15 +172,51 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
-/** A line that is entirely a bold span, e.g. `**Analyzing the request**`. */
-function isThinkingHeaderLine(line: string): boolean {
-	return /^\s*\*\*.+\*\*\s*$/.test(line);
-}
-
 function extractThinkingHeader(line: string): string | undefined {
 	const trimmed = line.trim();
 	const title = stripStandaloneBold(trimmed);
 	return title !== trimmed ? renderAsPlaintext(new MarkdownString(title)).trim() || undefined : undefined;
+}
+
+function getThinkingHeaders(content: string): { lineIndex: number; title: string }[] {
+	const headers: { lineIndex: number; title: string }[] = [];
+	if (!/^\s*\*\*.+\*\*\s*$/m.test(content)) {
+		return headers;
+	}
+	const source = content.replace(/\r\n?/g, '\n');
+	const lineCount = source.split('\n').length;
+	let depth = 0;
+	const lexer = new class extends marked.Lexer {
+		override blockTokens(src: string, tokens?: Token[], lastParagraphClipped?: boolean): Token[];
+		override blockTokens(src: string, tokens?: TokensList, lastParagraphClipped?: boolean): TokensList;
+		override blockTokens(src: string, tokens?: Token[], lastParagraphClipped?: boolean): Token[] {
+			depth++;
+			try {
+				return super.blockTokens(src, tokens, lastParagraphClipped);
+			} finally {
+				depth--;
+			}
+		}
+	}({
+		tokenizer: new class extends marked.Tokenizer {
+			override paragraph(src: string): Tokens.Paragraph | undefined {
+				const token = super.paragraph(src);
+				if (token && depth === 1 && token.raw.includes('**')) {
+					// Reference definitions are omitted from the token list, so locate headings from the remaining source.
+					const lineIndex = lineCount - src.split('\n').length;
+					for (const [index, line] of token.raw.split('\n').entries()) {
+						const title = extractThinkingHeader(line);
+						if (title !== undefined) {
+							headers.push({ lineIndex: lineIndex + index, title });
+						}
+					}
+				}
+				return token;
+			}
+		},
+	});
+	lexer.lex(source);
+	return headers;
 }
 
 /** Strips the surrounding `**` when the whole text is a single bold span, so a standalone header renders as plain text. */
@@ -194,20 +235,20 @@ function stripStandaloneBold(text: string): string {
  * surfaced as the collapsible title. Returns `undefined` unless the value has at
  * least two header lines, so ordinary reasoning prose keeps single-block rendering.
  */
-export function splitReasoningSummaryRows(text: string, dropLeadingHeader = true): string[] | undefined {
+export function splitReasoningSummaryRows(text: string, dropLeadingHeader = true, headers = getThinkingHeaders(text)): string[] | undefined {
+	if (headers.length < 2) {
+		return undefined;
+	}
+	const headerLines = new Set(headers.map(header => header.lineIndex));
 	const sections: { isHeader: boolean; lines: string[] }[] = [];
-	for (const line of text.split('\n')) {
-		if (isThinkingHeaderLine(line)) {
+	for (const [index, line] of text.split('\n').entries()) {
+		if (headerLines.has(index)) {
 			sections.push({ isHeader: true, lines: [line] });
 		} else if (sections.length === 0) {
 			sections.push({ isHeader: false, lines: [line] });
 		} else {
 			sections[sections.length - 1].lines.push(line);
 		}
-	}
-
-	if (sections.filter(section => section.isHeader).length < 2) {
-		return undefined;
 	}
 
 	const dropFirst = dropLeadingHeader && sections[0].isHeader;
@@ -989,6 +1030,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			this.retireSummaryRows();
 		}
 
+		const previousHeader = this.renderedThinkingHeaders.get(this.textContainer);
 		if (this.isPersistentReasoning && this.textContainer) {
 			this.renderedThinkingHeaders.delete(this.textContainer);
 		}
@@ -1009,23 +1051,19 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		// header only when that header is the tracked title owner, so a grouped block
 		// never drops a header that isn't surfaced as the title.
 		const dropLeadingHeader = !this.isPersistentReasoning && this.droppedSummaryHeader !== undefined && extractTitleFromThinkingContent(cleanedContent) === this.droppedSummaryHeader;
-		const summaryRows = splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
+		const headers = getThinkingHeaders(cleanedContent);
+		const summaryRows = splitReasoningSummaryRows(cleanedContent, dropLeadingHeader, headers);
 		if (summaryRows && this.textContainer?.parentNode) {
 			this.renderSummaryRows(summaryRows);
 			return;
 		}
 		this.clearSummaryRows();
 
-		if (this.isPersistentReasoning && this.textContainer && !summaryRows) {
-			const lines = cleanedContent.split('\n');
-			const paragraphLines = new Set(marked.lexer(cleanedContent).flatMap(token => token.type === 'paragraph' ? token.raw.split('\n').map(line => line.trim()) : []));
-			for (const [index, line] of lines.entries()) {
-				const title = extractThinkingHeader(line);
-				if (title !== undefined && paragraphLines.has(line.trim())) {
-					this._markdownResult.value = this.renderThinkingMarkdownWithHeader(lines, index, title);
-					return;
-				}
-			}
+		if (this.isPersistentReasoning && this.textContainer && !summaryRows && headers.length) {
+			const { lineIndex, title } = headers[0];
+			const target = reuseExisting && previousHeader?.title === title ? this._markdownResult.value?.element : undefined;
+			this._markdownResult.value = this.renderThinkingMarkdownWithHeader(cleanedContent.split('\n'), lineIndex, title, target);
+			return;
 		}
 
 		// If the entire content is bolded, strip the bold markers for rendering
@@ -1038,14 +1076,17 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	private getThinkingBody(content: string): string {
 		if (this.isPersistentReasoning && this.droppedSummaryHeader) {
-			return content.split('\n').filter(line => extractThinkingHeader(line) !== this.droppedSummaryHeader).join('\n').trim();
+			const droppedLines = new Set(getThinkingHeaders(content).filter(header => header.title === this.droppedSummaryHeader).map(header => header.lineIndex));
+			return content.split('\n').filter((_, index) => !droppedLines.has(index)).join('\n').trim();
 		}
 		return content.trim();
 	}
 
-	private renderThinkingMarkdownWithHeader(lines: string[], headerIndex: number, title: string): IRenderedMarkdown {
+	private renderThinkingMarkdownWithHeader(lines: string[], headerIndex: number, title: string, target?: HTMLElement): IRenderedMarkdown {
 		const store = new DisposableStore();
-		const element = $('div');
+		const element = target ?? $('div');
+		const previousSections = Array.from(element.children).filter(isHTMLElement);
+		let sectionIndex = 0;
 		const sections = [
 			lines.slice(0, headerIndex).join('\n').trim(),
 			lines[headerIndex],
@@ -1056,15 +1097,19 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				continue;
 			}
 			const content = index === 1 && !sections[0] && !sections[2] ? stripStandaloneBold(section) : section;
-			const rendered = store.add(this.renderThinkingMarkdown(undefined, content));
-			element.appendChild(rendered.element);
+			const rendered = store.add(this.renderThinkingMarkdown(undefined, content, previousSections[sectionIndex++]));
+			if (rendered.element.parentElement !== element) {
+				element.appendChild(rendered.element);
+			}
 			if (index === 1) {
 				this.renderedThinkingHeaders.set(this.textContainer, { title, element: rendered.element });
 			}
 		}
-		clearNode(this.textContainer);
-		this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
-		this.textContainer.appendChild(element);
+		if (!target) {
+			clearNode(this.textContainer);
+			this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
+			this.textContainer.appendChild(element);
+		}
 		return { element, dispose: () => store.dispose() };
 	}
 
@@ -1566,7 +1611,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 		if (this.isPersistentReasoning) {
 			this.extractedTitles = this.allThinkingParts.flatMap(part =>
-				extractTextFromPart(part).split('\n').map(extractThinkingHeader).filter(title => title !== undefined));
+				getThinkingHeaders(extractTextFromPart(part)).map(header => header.title));
 			if (this.extractedTitles.length === 1 && !this.droppedSummaryHeader) {
 				this.droppedSummaryHeader = this.extractedTitles[0];
 				this.lastExtractedTitle = this.droppedSummaryHeader;
@@ -2431,7 +2476,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 						// Update terminal tool icon based on sandbox wrapping state
 						const termData = toolInvocationOrMarkdown.toolSpecificData as IChatTerminalToolInvocationData | undefined;
-						if (termData?.kind === 'terminal') {
+						if (termData?.kind === 'terminal' && !isMcpToolInvocation(toolInvocationOrMarkdown)) {
 							const iconEl = this.toolIconsByCallId.get(toolCallId);
 							if (iconEl) {
 								const newIcon = termData.commandLine?.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal;
@@ -2461,7 +2506,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const completedMessage = toolInvocationOrMarkdown.pastTenseMessage ?? toolInvocationOrMarkdown.invocationMessage;
 							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
 							const iconElement = this.toolIconsByCallId.get(toolCallId);
-							if (iconElement && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
+							if (iconElement && !isMcpToolInvocation(toolInvocationOrMarkdown) && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
 								setThinkingIcon(iconElement, Codicon.search);
 							}
 						}
@@ -2597,12 +2642,15 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
 		const isExternalEdit = toolInvocationOrMarkdown?.kind === 'externalEdit';
+		const isMcpTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && isMcpToolInvocation(toolInvocationOrMarkdown);
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
-		if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
+		if (isMcpTool) {
+			icon = Codicon.mcp;
+		} else if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
 			icon = Codicon.search;
 		} else if (isMarkdownEdit || isExternalEdit) {
 			icon = Codicon.pencil;

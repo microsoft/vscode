@@ -2106,6 +2106,74 @@ suite('ChatListRenderer', () => {
 		request.response?.complete();
 	});
 
+	for (const restored of [false, true]) {
+		for (const source of [ToolDataSource.Internal, { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' }] satisfies ToolDataSource[]) {
+			test(`persistent MCP tool icons override registered and inferred icons (restored=${restored}, source=${source.type})`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Read the reference', toolSpecificData: { kind: 'search' }, icon: Codicon.tools },
+					{ id: source.type === 'mcp' ? 'read_reference' : 'mcp__reference__read', displayName: 'Read reference', modelDescription: 'Read reference', source },
+					'mcp-read', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				model.acceptResponseProgress(request, restored ? tool.toJSON() : tool);
+				renderer.renderElement(node, 0, template);
+				assert.deepStrictEqual({
+					mcpIcons: template.value.querySelectorAll('.chat-tool-call-icon.codicon-mcp').length,
+					searchIcons: template.value.querySelectorAll('.chat-tool-call-icon.codicon-search-compact').length,
+				}, { mcpIcons: 1, searchIcons: 0 });
+				request.response?.complete();
+			});
+		}
+	}
+
+	test('MCP confirmation uses the MCP icon with persistent progress on and off', () => {
+		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		model.acceptResponseProgress(request, new ChatToolInvocation(
+			{ invocationMessage: 'Read the reference', confirmationMessages: { title: 'Read reference?', message: 'Allow the MCP tool.' } },
+			{ id: 'mcp__reference__read', displayName: 'Read reference', modelDescription: 'Read reference', source: ToolDataSource.Internal },
+			'mcp-approval', undefined, {},
+		));
+		const icons = [];
+		for (const progress of [ChatProgressAnimation.Draw, ChatProgressAnimation.Off]) {
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+			renderer.renderElement(node, 0, template);
+			icons.push(!!template.value.querySelector('.chat-confirmation-widget2 .codicon-mcp'));
+		}
+		assert.deepStrictEqual(icons, [true, true]);
+		request.response?.complete();
+	});
+
+	for (const restored of [false, true]) {
+		for (const error of ['Could not read the question input.', true]) {
+			test(`persistent progress reveals question-tool errors without result details (restored=${restored}, error=${error})`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Waiting for answer...' },
+					{ id: 'ask_user', displayName: 'Ask questions', modelDescription: 'Ask questions', source: ToolDataSource.Internal },
+					'ask', undefined, {},
+				);
+				if (!restored) {
+					model.acceptResponseProgress(request, tool);
+					renderer.renderElement(node, 0, template);
+					assert.strictEqual(template.value.querySelectorAll('.chat-tool-invocation-part').length, 0);
+				}
+				await tool.didExecuteTool({ content: [], toolResultError: error });
+				if (restored) {
+					model.acceptResponseProgress(request, tool.toJSON());
+					request.response?.complete();
+				}
+				renderer.renderElement(node, 0, template);
+				assert.deepStrictEqual({
+					errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
+					error: template.value.textContent?.replace(/\u00a0/g, ' ').includes(typeof error === 'string' ? error : 'Tool execution failed'),
+					waiting: template.value.textContent?.includes('Waiting for answer...'),
+				}, { errorRows: 1, error: true, waiting: false });
+				request.response?.complete();
+			});
+		}
+	}
+
 	for (const interaction of ['question', 'planReview', 'elicitation'] as const) {
 		test(`persistent progress resumes after ${interaction} submission without provider output`, async () => {
 			const { model, request, response, renderer, template, node } = createPersistentProgressRenderer();
@@ -3154,6 +3222,64 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, externalTool);
 		await externalTool.didExecuteTool(undefined);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(finalText) });
+	}
+
+	for (const verbosity of [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
+		for (const presentation of [ToolInvocationPresentation.Hidden, ToolInvocationPresentation.HiddenAfterComplete]) {
+			for (const serialized of [false, true]) {
+				test(`completed hidden tools stop progressive rendering (${verbosity}, ${presentation}, serialized=${serialized})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+					const { disposables, container, configurationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: verbosity });
+					try {
+						container.classList.add('monaco-reduce-motion');
+						configurePersistentProgressTypography(container, 13);
+						configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Searching the repository.') });
+						for (const id of ['read_file', 'search_files', 'task_complete']) {
+							const tool = new ChatToolInvocation(
+								{ invocationMessage: id, pastTenseMessage: id === 'task_complete' ? new MarkdownString('**Task completed:** No instances found.') : id },
+								{ id, displayName: id, modelDescription: id, source: ToolDataSource.Internal },
+								id, undefined, {},
+							);
+							if (id === 'task_complete') {
+								tool.presentation = presentation;
+							}
+							await tool.didExecuteTool(undefined);
+							model.acceptResponseProgress(request, serialized ? tool.toJSON() : tool);
+						}
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('**Task completed:** No instances found.') });
+						renderer.renderElement(node, 0, template);
+						const output = template.renderedParts?.filter(part => part instanceof ChatMarkdownContentPart).at(-1)?.domNode;
+						request.response?.complete();
+						renderer.renderElement(node, 0, template);
+						await timeout(500);
+						const settled = {
+							rendering: response.renderData !== undefined,
+							loading: template.rowContainer.classList.contains('chat-response-loading'),
+						};
+
+						renderer.renderElement(node, 0, template);
+						const comparisons = sinon.spy(template.renderedParts![0], 'hasSameContent');
+						disposables.add(toDisposable(() => comparisons.restore()));
+						await timeout(500);
+						assert.deepStrictEqual({
+							settled,
+							idleRenderComparisons: comparisons.callCount,
+							sameOutput: template.renderedParts?.filter(part => part instanceof ChatMarkdownContentPart).at(-1)?.domNode === output,
+							outputText: output?.textContent?.trim(),
+							groupedOutput: !!output?.closest('.chat-thinking-tool-chain'),
+						}, {
+							settled: { rendering: false, loading: false },
+							idleRenderComparisons: 0,
+							sameOutput: true,
+							outputText: 'Task completed: No instances found.',
+							groupedOutput: false,
+						});
+					} finally {
+						disposables.dispose();
+					}
+				}));
+			}
+		}
 	}
 
 	for (const animation of Object.values(ChatProgressAnimation)) {
@@ -4511,6 +4637,47 @@ suite('ChatListRenderer', () => {
 			link.blur();
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
+		});
+
+		test(`regrouping keeps focused tool content open when following text arrives in the same render (incremental=${incremental})`, async () => {
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			const first = new ChatToolInvocation(
+				{ invocationMessage: new MarkdownString('Read the [reference](https://example.com/reference)') },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'first', undefined, {},
+			);
+			await first.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, first);
+			renderer.renderElement(node, 0, template);
+			const link = template.value.querySelector<HTMLAnchorElement>('.chat-tool-invocation-part a');
+			assert.ok(link);
+			link.focus();
+			const second = new ChatToolInvocation(
+				{ invocationMessage: 'Search related files' },
+				{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+				'second', undefined, {},
+			);
+			await second.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, second);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The following response.') });
+			renderer.renderElement(node, 0, template);
+			const chain = template.value.querySelector('.chat-tool-chain');
+			assert.ok(chain);
+			const whileFocused = {
+				focusKept: mainWindow.document.activeElement === link,
+				expanded: !chain.classList.contains('chat-used-context-collapsed'),
+				inert: !!link.closest('[inert]'),
+			};
+			link.blur();
+			link.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+
+			assert.deepStrictEqual({
+				whileFocused,
+				collapsedAfterBlur: chain.classList.contains('chat-used-context-collapsed'),
+			}, { whileFocused: { focusKept: true, expanded: true, inert: false }, collapsedAfterBlur: true });
+			request.response?.complete();
 		});
 	}
 

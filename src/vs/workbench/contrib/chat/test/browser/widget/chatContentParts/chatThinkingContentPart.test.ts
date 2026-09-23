@@ -193,8 +193,18 @@ suite('ChatThinkingContentPart', () => {
 			deleteComments: Codicon.comment,
 			resolveComments: Codicon.comment,
 			viewUnreviewedComments: Codicon.comment,
-			prefixedComment: Codicon.comment,
+			prefixedComment: Codicon.mcp,
 		});
+	});
+
+	test('uses the MCP icon instead of registered or inferred tool icons', () => {
+		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
+		assert.deepStrictEqual({
+			source: getToolInvocationIcon('read_file', undefined, undefined, source),
+			registered: getToolInvocationIcon('search', Codicon.tools, undefined, source),
+			problems: getToolInvocationIcon('get_errors', Codicon.error, 'No problems found', source),
+			agentHost: getToolInvocationIcon('mcp__reference__read', Codicon.book),
+		}, { source: Codicon.mcp, registered: Codicon.mcp, problems: Codicon.mcp, agentHost: Codicon.mcp });
 	});
 
 	suite('Persistent tool previews', () => {
@@ -1441,6 +1451,52 @@ suite('ChatThinkingContentPart', () => {
 				body: ['Before the example.', 'After the example.'],
 				code: '**Not a heading**',
 			});
+		});
+
+		for (const restored of [false, true]) {
+			for (const example of [
+				{ name: 'fenced code', value: 'Before the example.\n\n```markdown\n**Not a heading**\n```', code: '**Not a heading**', title: 'Existing summary' },
+				{ name: 'indented code', value: 'Before the example.\n\n    **Not a heading**', code: '**Not a heading**', title: 'Existing summary' },
+				{ name: 'multiple code lines', value: '```markdown\n**First example**\n\n**Second example**\n```', code: '**First example**\n\n**Second example**', title: 'Existing summary' },
+				{ name: 'matching real heading', value: '**Review**\n\n```markdown\n**Review**\n```', code: '**Review**', title: 'Review' },
+				{ name: 'reference definitions before a heading', value: '[reference]: https://example.invalid\n\n**Review**\n\n```markdown\n**Review**\n```', code: '**Review**', title: 'Review' },
+				{ name: 'CRLF content', value: '**Review**\r\n\r\n```markdown\r\n**Review**\r\n```', code: '**Review**', title: 'Review' },
+				{ name: 'quoted lazy continuation', value: '> Quoted introduction\n**Not a heading**', code: '', title: 'Existing summary' },
+			]) {
+				test(`preserves ${example.name} after reasoning completes (restored=${restored})`, () => {
+					const content = createThinkingPart(example.value);
+					content.generatedTitle = 'Existing summary';
+					const part = createPersistentReasoning(content, restored);
+					part.finalizeTitleIfDefault();
+					part.expandContent();
+
+					assert.deepStrictEqual({
+						title: snapshot(part).title,
+						code: Array.from(part.domNode.querySelectorAll('[data-code]'), element => element.textContent).join('\n'),
+						duplicateHeading: snapshot(part).body.includes(example.title),
+					}, { title: example.title, code: example.code, duplicateHeading: false });
+				});
+			}
+		}
+
+		test('reuses the single-heading wrapper and markdown targets while reasoning streams', () => {
+			const targets: Array<HTMLElement | undefined> = [];
+			const part = createPersistentReasoning(createThinkingPart('**Review**\n\nCheck the renderer.'), false, {
+				render: (markdown, options, target) => {
+					targets.push(target);
+					return renderMarkdown(markdown, options, target);
+				},
+			});
+			const wrapper = part.domNode.querySelector('.chat-thinking-item > div');
+			const sections = Array.from(wrapper?.children ?? []);
+			targets.length = 0;
+
+			part.updateThinking(createThinkingPart('**Review**\n\nCheck the renderer. Keep the wrapper stable.'));
+
+			assert.deepStrictEqual({
+				sameWrapper: part.domNode.querySelector('.chat-thinking-item > div') === wrapper,
+				reusedTargets: targets.map((target, index) => target === sections[index]),
+			}, { sameWrapper: true, reusedTargets: [true, true] });
 		});
 
 		test('preserves a focused heading link until focus moves into the body', () => {

@@ -35,7 +35,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -2393,6 +2393,28 @@ suite('ChatResponseModel', () => {
 
 		assert.strictEqual(completedNotifications, 1);
 	});
+
+	for (const error of [undefined, false, true, 'Could not read tool input']) {
+		test(`preserves tool errors independently of result details (error=${error})`, async () => {
+			const invocation = new ChatToolInvocation({ invocationMessage: 'Ask questions' }, {
+				id: 'ask_user', displayName: 'Ask questions', modelDescription: 'Ask questions', source: ToolDataSource.Internal,
+			}, 'ask', undefined, {});
+			await invocation.didExecuteTool({ content: [], toolResultError: error });
+			const restored: IChatToolInvocationSerialized = JSON.parse(JSON.stringify(invocation.toJSON()));
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([restored]));
+			const text = 'Ask questions' + (error ? '\nTool execution failed' + (typeof error === 'string' ? `: ${error}` : '') : '');
+			assert.deepStrictEqual({
+				liveError: IChatToolInvocation.resultError(invocation),
+				restoredError: IChatToolInvocation.resultError(restored),
+				liveDetails: IChatToolInvocation.resultDetails(invocation),
+				restoredDetails: IChatToolInvocation.resultDetails(restored),
+				liveText: liveResponse.toString(),
+				restoredText: restoredResponse.toString(),
+			}, { liveError: error, restoredError: error, liveDetails: undefined, restoredDetails: undefined, liveText: text, restoredText: text });
+		});
+	}
 
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

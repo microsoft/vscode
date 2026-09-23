@@ -1205,6 +1205,12 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
+		this._minimumScrollHeight = 0;
+		this.updateBottomPadding();
+		this.revealLastItem();
+	}
+
+	private revealLastItem(): void {
 		// Reveal the tree's actual last visible item rather than the held `_lastItem`. `reveal` reliably
 		// scrolls all the way down even while item heights are still settling (see #234089)
 		const lastElement = this.getItems().at(-1);
@@ -1240,7 +1246,7 @@ export class ChatListWidget extends Disposable {
 		fn();
 		this.updateBottomPadding();
 		if (wasScrolledToBottom) {
-			this.scrollToEnd();
+			this.revealLastItem();
 		}
 	}
 
@@ -1332,7 +1338,7 @@ export class ChatListWidget extends Disposable {
 		this._paddingBottom = value;
 		this.updateBottomPadding();
 		if (wasScrolledToBottom) {
-			this.scrollToEnd();
+			this.revealLastItem();
 		}
 	}
 

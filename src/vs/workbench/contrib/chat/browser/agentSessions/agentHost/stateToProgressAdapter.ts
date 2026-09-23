@@ -1963,6 +1963,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
+			resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
@@ -2028,6 +2029,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
+		resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 	};
 }
 
@@ -2958,7 +2960,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails
-		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
+		? { content: [], toolResultError: isFailure ? errorString || (isCompleted ? true : undefined) : undefined, toolResultDetails: resultDetails }
 		: undefined;
 	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
 	invocation.acceptProgress({ message: undefined });

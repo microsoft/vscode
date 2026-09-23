@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -39,7 +40,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
@@ -1281,6 +1282,66 @@ suite('ChatListWidget', () => {
 		disposables.dispose();
 	});
 
+	test('completed compact responses stay idle after request editing is canceled', async () => {
+		const text = 'Search the repository';
+		const { disposables, model, viewModel, container, widget } = createWidget({ getEditingValue: () => text }, configurationService => {
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
+			configurationService.setUserConfiguration('chat.editRequests', 'input');
+		}, true);
+		container.classList.add('interactive-list');
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Searching the repository.') });
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		for (const id of ['read_file', 'search_files', 'task_complete']) {
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: id, pastTenseMessage: id },
+				{ id, displayName: id, modelDescription: id, source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			if (id === 'task_complete') {
+				tool.presentation = ToolInvocationPresentation.Hidden;
+			}
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool(undefined);
+		}
+		const finalText = 'Task completed: No instances found. All tracked files were searched.';
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(finalText) });
+		request.response?.complete();
+		widget.refresh();
+		const response = viewModel.getItems().find(isResponseVM)!;
+		await retry(async () => assert.ok(!response.renderData, 'Completed responses must finish progressive rendering'), 20, 50);
+
+		viewModel.setEditing(viewModel.getItems().find(isRequestVM));
+		widget.refresh();
+		viewModel.setEditing(undefined);
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const responseContainer = container.querySelector<HTMLElement>('.interactive-response')!;
+		let mutations = 0;
+		const observer = new mainWindow.MutationObserver(records => mutations += records.length);
+		disposables.add(toDisposable(() => observer.disconnect()));
+		observer.observe(responseContainer, { childList: true, subtree: true });
+		await timeout(250);
+		assert.deepStrictEqual({
+			rendering: response.renderData !== undefined,
+			loading: responseContainer.classList.contains('chat-response-loading'),
+			finalText: responseContainer.querySelector('.value > .chat-markdown-part')?.textContent?.trim(),
+			idleDOMMutations: mutations,
+		}, {
+			rendering: false,
+			loading: false,
+			finalText,
+			idleDOMMutations: 0,
+		});
+	});
+
 	suite('persistent progress collapse anchoring', () => {
 		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0) {
 			const context = createWidget({ paddingBottom }, configurationService => {
@@ -1473,6 +1534,50 @@ suite('ChatListWidget', () => {
 				remainingPadding: widget.scrollHeight - widget.contentHeight,
 			}, { reservedSpace: true, remainingPadding: 32 });
 		});
+
+		for (const newRequest of [false, true]) {
+			test(`scrolling to the end reveals content after a tall progress collapse (newRequest=${newRequest})`, async () => {
+				const context = await createPreview('thinking', false, 32);
+				const { model, request, widget, container, preview } = context;
+				model.acceptResponseProgress(request, {
+					kind: 'thinking', id: 'thinking',
+					value: '\n\n' + Array.from({ length: 40 }, (_, index) => `Additional reasoning paragraph ${index}.`).join('\n\n'),
+				});
+				await collapsePreview(context);
+				request.response?.complete();
+				widget.refresh();
+				await waitForStableLayout(widget);
+				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+				assert.ok(button);
+				button.click();
+				await waitForStableLayout(widget);
+				widget.scrollTop += preview.getBoundingClientRect().top - container.getBoundingClientRect().top - 16;
+				await waitForStableLayout(widget);
+				button.click();
+				await waitForStableLayout(widget);
+				const reservedMoreThanViewport = widget.scrollHeight - widget.contentHeight > widget.renderHeight;
+				if (newRequest) {
+					const text = 'The latest request';
+					model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					widget.refresh();
+				}
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const latest = Array.from(container.querySelectorAll<HTMLElement>(newRequest ? '.interactive-request' : '.interactive-response .value > .chat-markdown-part')).at(-1);
+				assert.ok(latest);
+				const viewport = container.getBoundingClientRect();
+				const bounds = latest.getBoundingClientRect();
+				assert.deepStrictEqual({
+					reservedMoreThanViewport,
+					remainingPadding: widget.scrollHeight - widget.contentHeight,
+					latestIsVisible: bounds.bottom > viewport.top && bounds.top < viewport.bottom,
+					atBottom: widget.isScrolledToBottom,
+				}, { reservedMoreThanViewport: true, remainingPadding: 32, latestIsVisible: true, atBottom: true });
+			});
+		}
 
 		test('completed progress summaries preserve preceding content during automatic and manual collapse', async () => {
 			const { model, container, widget } = createWidget({}, configurationService => {

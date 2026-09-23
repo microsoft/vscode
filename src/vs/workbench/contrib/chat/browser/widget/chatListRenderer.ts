@@ -3081,6 +3081,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const batchedSubagentParts = new Set<ChatSubagentContentPart>();
 		let replacementFocusPart: ChatSubagentContentPart | undefined;
 		let regroupedTool = false;
+		const restoreRegroupedToolFocus = () => {
+			if (regroupedTool && focusedContent?.isConnected && dom.getActiveElement() !== focusedContent) {
+				focusedContent.focus({ preventScroll: true });
+			}
+		};
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
 		let displacedWorkingPart: ChatWorkingProgressContentPart | undefined;
@@ -3254,6 +3259,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						alreadyRenderedPart?.domNode?.remove();
 					}
 				}
+				restoreRegroupedToolFocus();
 				return;
 			}
 
@@ -3299,6 +3305,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (!this.isPersistentProgressEnabled() || !workingPartToPreserve) {
 				alreadyRenderedPart?.domNode?.remove();
 			}
+			restoreRegroupedToolFocus();
 		});
 		try {
 			if (invalidatedThinkingParts.size > 0) {
@@ -3892,7 +3899,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private shouldGroupToolInvocation(content: ReadonlyArray<IChatRendererContent>, contentIndex: number, element: ChatTreeItem): boolean {
 		const tool = content[contentIndex];
-		if ((tool.kind !== 'toolInvocation' && tool.kind !== 'toolInvocationSerialized') || !isResponseVM(element) || !this.shouldPinPart(tool, element)) {
+		if ((tool.kind !== 'toolInvocation' && tool.kind !== 'toolInvocationSerialized')
+			|| !isResponseVM(element)
+			|| IChatToolInvocation.isEffectivelyHidden(tool)
+			|| !this.shouldPinPart(tool, element)) {
 			return false;
 		}
 		if (!this.isPersistentProgressEnabled() || this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose) {
@@ -4504,7 +4514,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (context.suppressProgressShimmer && isAskQuestionsToolInvocation(toolInvocation)) {
 			const state = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.get() : undefined;
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-			const hasError = isToolResultInputOutputDetails(resultDetails) && resultDetails.isError;
+			const hasError = !!IChatToolInvocation.resultError(toolInvocation) || (isToolResultInputOutputDetails(resultDetails) && resultDetails.isError);
 			const isCancelled = state?.type === IChatToolInvocation.StateKind.Cancelled || (toolInvocation.kind === 'toolInvocationSerialized' && !toolInvocation.isComplete);
 			if (!hasError && !isCancelled && (!state || !isBlockingToolState(state.type))) {
 				if (!getSubagentId(toolInvocation)) {
@@ -4593,12 +4603,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}, context, templateData);
 
 				if (thinkingPart instanceof ChatThinkingContentPart) {
-					if (partToReuse && dom.isAncestorOfActiveElement(partToReuse.domNode)) {
-						thinkingPart.expandContent();
-					}
+					const preserveFocus = partToReuse && dom.isAncestorOfActiveElement(partToReuse.domNode);
 					// Append using factory - thinking part decides whether to render lazily
 					toolInvocation.isAttachedToThinking = true;
 					thinkingPart.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value, undefined, partToReuse);
+					if (preserveFocus) {
+						thinkingPart.expandContent();
+					}
 					retainedToolParts?.deleteAndLeak(toolInvocation.toolCallId);
 					this.setupConfirmationTransitionWatcher(toolInvocation, thinkingPart, () => lazilyCreatedPart, createToolPart, context, templateData);
 				}
