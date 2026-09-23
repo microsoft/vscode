@@ -26,17 +26,18 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
 import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/aiCustomizationDiscoveryPage.js';
-import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const secondSource = { id: 'other', displayName: 'Other Feed', enablementSetting: 'test.marketplace.other.enabled' };
-	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource];
+	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource, CustomizationMarketplaceSources.PluginMarketplaces];
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 		return {
@@ -46,7 +47,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
-	function createPage(enabledSources: readonly string[] = ['agentFinder', 'other']) {
+	function createPage(enabledSources: readonly string[] = ['agentFinder', 'other'], installedPlugins: readonly IAgentPlugin[] = []) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -92,12 +93,17 @@ suite('AICustomizationDiscoveryPage', () => {
 			filename: 'SKILL.md', description: 'Installed locally', source: 'local', promptType: PromptsType.skill, disabled: false,
 		}];
 		instantiationService.stub(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() {
+			override getActiveItemSource(): IAICustomizationItemSource {
+				return new class extends mock<IAICustomizationItemSource>() {
+					override async fetchProviderItems() { return []; }
+				}();
+			}
 			override getItems(section: ItemsModelSection) {
 				return constObservable(section === AICustomizationManagementSection.Skills ? installed : []);
 			}
 		}());
 		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
-			override readonly plugins = constObservable([]);
+			override readonly plugins = constObservable(installedPlugins);
 		}());
 		instantiationService.stub(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 			override readonly onChange = Event.None;
@@ -181,6 +187,61 @@ suite('AICustomizationDiscoveryPage', () => {
 			available: fixture.page.getAccessibilityContent().includes('public-mail'),
 			installed: fixture.page.getAccessibilityContent().includes('Local mail skill'),
 		}, { queries: 1, available: false, installed: true });
+	});
+
+	test('plugin-only source picker and accessible results keep configured provenance', async () => {
+		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id]);
+		fixture.page.setSearchQuery('@type:plugin review');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, description: 'Review code', originLabel: 'owner/catalog' })],
+		});
+		await timeout(0);
+		const availableAccessible = fixture.page.getAccessibilityContent().includes('review\nPlugin · Configured Plugin Marketplaces · owner/catalog\nReview code');
+		await fixture.selectSource(CustomizationMarketplaceSources.PluginMarketplaces.id);
+		await fixture.requests[1].result.complete({ items: [] });
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options.sourceIds),
+			source: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			availableAccessible,
+			accessible: fixture.page.getAccessibilityContent().includes('Configured Plugin Marketplaces'),
+		}, {
+			requests: [undefined, [CustomizationMarketplaceSources.PluginMarketplaces.id]],
+			source: 'Configured Plugin Marketplaces',
+			availableAccessible: true,
+			accessible: true,
+		});
+	});
+
+	test('different configured plugins with the same name remain available', async () => {
+		const installedPlugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/review');
+			override readonly label = 'review';
+		}();
+		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id], [installedPlugin]);
+		fixture.page.rebuildCards(new Set([AICustomizationManagementSection.Plugins]));
+		fixture.page.setSearchQuery('@type:plugin review');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			rows: fixture.container.querySelectorAll('.customization-discovery-results .monaco-list-row').length,
+			accessible: fixture.page.getAccessibilityContent().includes('Configured Plugin Marketplaces'),
+		}, { rows: 2, accessible: true });
+	});
+
+	test('strict plugin policy changes clear cached plugin results and restart discovery', async () => {
+		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id]);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('blocked', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id })] });
+		await setEnabled(fixture.configuration, ChatConfiguration.StrictMarketplaces, true);
+		await fixture.requests[1].result.complete({ items: [] });
+		assert.deepStrictEqual({
+			queries: fixture.requests.length,
+			containsBlocked: fixture.page.getAccessibilityContent().includes('blocked'),
+		}, { queries: 2, containsBlocked: false });
 	});
 
 	for (const query of ['', '@type:mcp mail']) {

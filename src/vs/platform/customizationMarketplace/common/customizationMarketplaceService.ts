@@ -43,6 +43,8 @@ export interface ICustomizationMarketplaceEntry {
 	readonly repository?: URI;
 	readonly icon?: URI;
 	readonly publisher?: string;
+	/** Source-supplied origin within a feed, distinct from the feed's display name. */
+	readonly originLabel?: string;
 	readonly version?: string;
 	readonly stars?: number;
 	/** Source-assigned relevance from 0 to 100, not a quality or trust rating. Unscored search results rank as 0. */

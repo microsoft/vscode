@@ -115,6 +115,7 @@ export enum ChatConfiguration {
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	AgentFinderPublicFeedEnabled = CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+	PluginMarketplacesFeedEnabled = CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled,
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',

@@ -3325,6 +3325,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (this.showPluginDiscovery(section, options)) {
+			return;
+		}
 		if (this.selectedSection === section && !options?.showMarketplace) {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
@@ -3797,6 +3800,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Selects a specific section programmatically.
 	 */
 	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (this.showPluginDiscovery(sectionId, options)) {
+			return;
+		}
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
 			// Directly update state and UI, bypassing the early-return guard in selectSection
@@ -3805,6 +3811,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.viewMode === 'editor') {
 				this.goBackToList();
 			}
+
 			if (this.viewMode === 'migration') {
 				this.viewMode = 'list';
 			}
@@ -3840,6 +3847,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 		}
+	}
+
+	private showPluginDiscovery(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
+		if (section !== AICustomizationManagementSection.Plugins || !options?.showMarketplace ||
+			this.configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) !== true) {
+			return false;
+		}
+		this.showWelcomePage();
+		this.welcomePage?.setSearchQuery('@type:plugin');
+		return true;
 	}
 
 	private prepareCustomizationMigrationView(): void {

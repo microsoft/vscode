@@ -234,7 +234,7 @@ suite('aiCustomizationManagementEditor', () => {
 		recordMigrationActivity(category: ICustomizationMigrationCategory, context: { storage: PromptsStorage; key: string; label: string }, items: ICustomizationMigrationDashboardActivity['items']): void;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
-		selectSectionById(section: AICustomizationManagementSection): void;
+		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void;
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
@@ -491,7 +491,7 @@ suite('aiCustomizationManagementEditor', () => {
 	});
 
 	test('keeps a contributed section alive while either source is enabled', async () => {
-		const secondSetting = 'test.marketplace.second.enabled';
+		const secondSetting = ChatConfiguration.PluginMarketplacesFeedEnabled;
 		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(
 			true, [ChatConfiguration.AgentFinderPublicFeedEnabled, secondSetting]);
 		editor.rebuildVisibleSections();
@@ -531,6 +531,20 @@ suite('aiCustomizationManagementEditor', () => {
 			noneEnabled: { widget: undefined, selected: undefined, disposed: 1, sections: [AICustomizationManagementSection.Agents] },
 			reenabled: { created: 2, visible: true },
 		});
+	});
+
+	test('plugin marketplace deep links open plugin-filtered Discover only when its source is enabled', async () => {
+		const { editor, configuration } = createGatedSectionEditor();
+		const queries: string[] = [];
+		Object.assign(editor, {
+			welcomePage: {
+				setSearchQuery(query: string) { queries.push(query); },
+			},
+		});
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		await configuration.updateValue(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		assert.deepStrictEqual(queries, ['@type:plugin']);
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {

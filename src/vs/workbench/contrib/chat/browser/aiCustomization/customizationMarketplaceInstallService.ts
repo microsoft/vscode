@@ -10,12 +10,13 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { posix } from '../../../../../base/common/path.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { dirname, getComparisonKey, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -36,6 +37,7 @@ import { IPluginMarketplaceService, MarketplaceReferenceKind, parseMarketplaceRe
 import { SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
+import { getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 
 const maxSkillEntries = 1000;
 const maxSkillBytes = 50 * 1024 * 1024;
@@ -145,6 +147,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (this.pending.has(resourceKey)) {
 			return { kind: 'installing' };
 		}
+		if (resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id) {
+			if (isWeb) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginWebUnsupported', "Installing configured marketplace plugins is not available in VS Code for the Web.") };
+			}
+			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
+			}
+			return { kind: this.getInstalledPlugin(resource) ? 'installed' : 'available' };
+		}
 		const source = resource.installation;
 		if (!source) {
 			return {
@@ -235,6 +246,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private async doUninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+		if (resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id) {
+			const installed = this.getInstalledPlugin(resource);
+			if (!installed) {
+				return;
+			}
+			const plugin = this.agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, installed.pluginUri));
+			if (!plugin?.remove) {
+				throw new Error(localize('customizationMarketplace.pluginUninstallUnavailable', "This plugin cannot be uninstalled from the customization marketplace."));
+			}
+			if (!await plugin.remove()) {
+				throw new CancellationError();
+			}
+			return;
+		}
 		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
@@ -272,6 +297,16 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async doInstall(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
 		this.checkEnabled(resource.sourceId, token);
+		if (resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id) {
+			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
+			this.checkEnabled(resource.sourceId, token);
+			const plugin = plugins.find(plugin => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+			if (!plugin) {
+				throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+			}
+			await this.pluginInstallService.installPlugin(plugin);
+			return;
+		}
 		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
@@ -306,6 +341,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getInstalledPlugin(resource: ICustomizationMarketplaceResource) {
+		if (resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id) {
+			return this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+		}
 		const source = resource.installation;
 		if (source?.kind !== 'plugin') {
 			return undefined;

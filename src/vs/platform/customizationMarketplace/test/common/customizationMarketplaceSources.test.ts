@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,19 @@ suite('CustomizationMarketplaceSources', () => {
 		{ id: 'first', enablementSetting: 'test.first.enabled' },
 		{ id: 'second', enablementSetting: 'test.second.enabled' },
 	];
+
+	test('configured plugin marketplaces have an independent disabled-by-default source setting', () => {
+		const configuration = createConfiguration([]);
+		assert.deepStrictEqual({
+			setting: CustomizationMarketplaceSources.PluginMarketplaces.enablementSetting,
+			publicSetting: CustomizationMarketplaceSources.AgentFinderPublicFeed.enablementSetting,
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)),
+		}, {
+			setting: CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled,
+			publicSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+			enabled: [],
+		});
+	});
 
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService(Object.fromEntries(sources.map(source => [source.enablementSetting, enabledIds.includes(source.id)])));
@@ -39,7 +52,7 @@ suite('CustomizationMarketplaceSources', () => {
 			const configuration = createConfiguration(enabledIds);
 			const calls: ICustomizationMarketplaceRequest[] = [];
 			const tokens: CancellationToken[] = [];
-			const options = { query: 'review', pageSize: 12, sourceIds: ['unselected'] };
+			const options = { query: 'review', pageSize: 12 };
 			const query = queryEnabledCustomizationMarketplaceSources(configuration, sources, options, CancellationToken.None, async (request, token) => {
 				calls.push(request);
 				tokens.push(token);
@@ -50,6 +63,16 @@ suite('CustomizationMarketplaceSources', () => {
 			} else {
 				await assert.rejects(query, isCancellationError);
 			}
+
+			test('source picker never queries a different enabled source', async () => {
+				const configuration = createConfiguration(['first', 'second']);
+				const calls: ICustomizationMarketplaceRequest[] = [];
+				await queryEnabledCustomizationMarketplaceSources(configuration, sources, { sourceIds: ['second'] }, CancellationToken.None, async request => {
+					calls.push(request);
+					return { items: [] };
+				});
+				assert.deepStrictEqual(calls, [{ sourceIds: ['second'] }]);
+			});
 			assert.deepStrictEqual({
 				enabled: getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
 				calls,

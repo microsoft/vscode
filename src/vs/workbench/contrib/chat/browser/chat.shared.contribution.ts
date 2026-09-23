@@ -2531,6 +2531,12 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.PluginMarketplacesFeedEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.marketplace.sources.pluginMarketplaces.enabled', "Shows plugins from configured marketplaces in Discover. Only marketplaces permitted by plugin policy are queried. When disabled, plugin discovery remains in the Plugins section."),
+			default: false,
+		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],

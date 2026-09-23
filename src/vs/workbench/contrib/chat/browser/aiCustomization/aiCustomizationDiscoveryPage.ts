@@ -26,7 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -42,6 +42,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -52,6 +53,7 @@ import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
 import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery, CustomizationDiscoveryType } from './aiCustomizationQuery.js';
 import { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
+import { getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -175,6 +177,9 @@ function getCatalogKeys(resource: ICustomizationMarketplaceResource): readonly s
 	const type = getCatalogType(resource);
 	if (!type) {
 		return [];
+	}
+	if (resource.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id) {
+		return [`plugin:configured:${resource.identifier}`];
 	}
 	const keys = new Set<string>([`${type}:name:${normalizedName(resource.displayName)}`]);
 	const installation = resource.installation;
@@ -487,7 +492,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.hoverService,
 			resource => this.getInstallState(resource),
 			resource => this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)),
-			resource => this.getMarketplaceSourceLabel(resource.sourceId),
+			resource => this.getMarketplaceResourceLabel(resource),
 			resource => void this.install(resource),
 			item => void this.uninstall(item),
 			resource => void this.openExternal(resource),
@@ -555,6 +560,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
 				this.updateSources();
 				this.handleAvailabilityChanged();
+			} else if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) === true &&
+				[ChatConfiguration.StrictMarketplaces, ChatConfiguration.PluginMarketplaces, ChatConfiguration.ExtraMarketplaces, ChatConfiguration.PluginsEnabled]
+					.some(setting => event.affectsConfiguration(setting))) {
+				this.handleAvailabilityChanged(true);
 			}
 		}));
 	}
@@ -652,7 +661,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSectionWithMarketplace(AICustomizationManagementSection.Plugins))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => {
+					if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) === true) {
+						this.callbacks.selectSection(AICustomizationManagementSection.Plugins);
+					} else {
+						this.callbacks.selectSectionWithMarketplace(AICustomizationManagementSection.Plugins);
+					}
+				})));
 			}
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
@@ -801,9 +816,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchToolbar.setActions(actions);
 	}
 
-	private handleAvailabilityChanged(): void {
+	private handleAvailabilityChanged(force = false): void {
 		const enabledSourceIds = this.getEnabledCatalogSourceIds();
-		if (equals(this.enabledSourceIds, enabledSourceIds)) {
+		if (!force && equals(this.enabledSourceIds, enabledSourceIds)) {
 			return;
 		}
 		this.enabledSourceIds = enabledSourceIds;
@@ -852,6 +867,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const name = plugin.label || basename(plugin.uri);
 				const source = plugin.fromMarketplace;
 				const keys = [`plugin:name:${normalizedName(name)}`];
+				if (source) {
+					keys.push(`plugin:configured:${getPluginMarketplaceIdentifier(source)}`);
+				}
 				const descriptor = source?.sourceDescriptor;
 				if (descriptor?.kind === 'github') {
 					keys.push(`plugin:source:${normalizedName(descriptor.repo)}:${normalizedName(descriptor.path ?? '')}`);
@@ -972,6 +990,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		return source?.displayName ?? sourceId;
 	}
 
+	private getMarketplaceResourceLabel(resource: ICustomizationMarketplaceResource): string {
+		const source = this.getMarketplaceSourceLabel(resource.sourceId);
+		return resource.originLabel ? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel) : source;
+	}
+
 	private cancelCatalogRequest(): void {
 		this.request.value?.cancel();
 		this.request.clear();
@@ -1077,7 +1100,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const marketplaceInstalled = state.kind === 'installed' || state.kind === 'uninstalling';
 				installed[matchingInstalledIndex] = {
 					...installed[matchingInstalledIndex],
-					sourceLabel: marketplaceInstalled ? this.getMarketplaceSourceLabel(resource.sourceId) : installed[matchingInstalledIndex].sourceLabel,
+					sourceLabel: marketplaceInstalled ? this.getMarketplaceResourceLabel(resource) : installed[matchingInstalledIndex].sourceLabel,
 					catalogResource: marketplaceInstalled ? resource : undefined,
 				};
 				continue;
@@ -1088,7 +1111,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					id: `installed:catalog:${getCustomizationMarketplaceResourceKey(resource)}`,
 					name: resource.displayName,
 					description: resource.description,
-					sourceLabel: this.getMarketplaceSourceLabel(resource.sourceId),
+					sourceLabel: this.getMarketplaceResourceLabel(resource),
 					type,
 					section: getSectionForCatalogType(type),
 					catalogKeys: keys,
@@ -1422,7 +1445,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		const type = getCatalogType(entry.resource);
 		const state = this.getInstallState(entry.resource);
-		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}. {3}. {4}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceSourceLabel(entry.resource.sourceId), entry.resource.description, state.kind);
+		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}. {3}. {4}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceResourceLabel(entry.resource), entry.resource.description, state.kind);
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -1502,7 +1525,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),
 			...installed.map(item => `${item.name}\n${[getTypeLabel(item.type), item.sourceLabel, localize('customizationDiscovery.installed', "Installed")].filter(Boolean).join(' · ')}\n${item.description}`),
-			...available.map(item => `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceSourceLabel(item.sourceId)}\n${item.description}`),
+			...available.map(item => `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceResourceLabel(item)}\n${item.description}`),
 		].filter(Boolean).join('\n\n');
 	}
 

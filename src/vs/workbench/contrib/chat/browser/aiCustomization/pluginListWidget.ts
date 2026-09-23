@@ -99,6 +99,10 @@ export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: Plu
 	return visible && state === 'uninitialized' && marketplaceAvailable;
 }
 
+export function shouldShowLegacyPluginMarketplace(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.PluginMarketplacesFeedEnabled) !== true;
+}
+
 export function isCurrentPluginMarketplaceRequest(
 	requestQuery: string,
 	currentQuery: string,
@@ -802,6 +806,16 @@ export class PluginListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled)) {
+				this.marketplaceCts?.dispose(true);
+				this.marketplaceSnapshotCts?.dispose(true);
+				this.marketplaceSnapshot.reset();
+				this.marketplaceItems = [];
+				if (!shouldShowLegacyPluginMarketplace(this.configurationService) && this.browseMode) {
+					this.toggleBrowseMode(false);
+				}
+				void this.refresh();
 			}
 		}));
 		this._register({
@@ -1579,7 +1593,7 @@ export class PluginListWidget extends Disposable {
 		const installedPlugins = this.installedItems;
 		const hasMarketplaceInstalledPlugins = this.pluginMarketplaceService.installedPlugins.get().length > 0;
 
-		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
+		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable() && shouldShowLegacyPluginMarketplace(this.configurationService))) {
 			void this.queryMarketplaceSnapshot();
 		}
 
@@ -1613,7 +1627,9 @@ export class PluginListWidget extends Disposable {
 			this.createPluginSectionList(remoteList, localize('remotePluginsSection', "Remote session plugins"), remoteItems.map(item => ({ type: 'remote-item', item })));
 		}
 
-		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
+		if (shouldShowLegacyPluginMarketplace(this.configurationService)) {
+			this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
+		}
 		this.schedulePluginSectionLayout();
 	}
 
@@ -1626,6 +1642,9 @@ export class PluginListWidget extends Disposable {
 		this.rememberCardFocusElement(create.element);
 		this.cardDisposables.add(create.onDidClick(() => this.runCreatePluginAction()));
 
+		if (!shouldShowLegacyPluginMarketplace(this.configurationService)) {
+			this.renderInstallFromSourceAction(actions);
+		}
 		if (hasInstalledPlugins) {
 			const updateLabel = localize('checkForAndApplyPluginUpdates', "Check for and apply updates");
 			const update = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updateLabel, ariaLabel: updateLabel }));
@@ -1666,6 +1685,10 @@ export class PluginListWidget extends Disposable {
 
 	private renderAvailableSectionActions(header: HTMLElement): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
+		this.renderInstallFromSourceAction(actions);
+	}
+
+	private renderInstallFromSourceAction(actions: HTMLElement): void {
 		const installLabel = localize('installFromSourceShort', "Install from Source");
 		const installTooltip = localize('installFromSource', "Install Plugin from Source");
 		if (this.pluginActions.length > 0) {
@@ -2004,6 +2027,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryMarketplace(): Promise<void> {
+		if (!shouldShowLegacyPluginMarketplace(this.configurationService)) {
+			return;
+		}
 		this.marketplaceCts?.dispose(true);
 		const cts = this.marketplaceCts = new CancellationTokenSource();
 		const query = this.searchQuery.toLowerCase().trim();
@@ -2063,7 +2089,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryPluginSearch(): Promise<void> {
-		if (!this.isBrowseMarketplaceAvailable()) {
+		if (!this.isBrowseMarketplaceAvailable() || !shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			this.marketplaceItems = [];
 			await this.filterPlugins();
 			return;

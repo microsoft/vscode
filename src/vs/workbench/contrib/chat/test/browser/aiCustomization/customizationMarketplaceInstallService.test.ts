@@ -18,6 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -33,6 +34,7 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
+import { getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -53,6 +55,7 @@ const sources = [
 	{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
 	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
 	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
+	CustomizationMarketplaceSources.PluginMarketplaces,
 ];
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
@@ -168,6 +171,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const installedPlugins = observableValue<readonly IMarketplaceInstalledPlugin[]>('installedPlugins', []);
 		const marketplaceService = new class extends mock<IPluginMarketplaceService>() {
 			readCount = 0;
+			availablePlugins: IMarketplaceInstalledPlugin['plugin'][] = [];
+			override async fetchMarketplacePlugins() { return this.availablePlugins; }
 			override get installedPlugins() {
 				this.readCount++;
 				return installedPlugins;
@@ -179,6 +184,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
+			readonly directInstalls: IMarketplaceInstalledPlugin['plugin'][] = [];
+			override async installPlugin(plugin: IMarketplaceInstalledPlugin['plugin']) {
+				this.directInstalls.push(plugin);
+			}
 			result: IInstallPluginFromSourceResult = { success: true };
 			onInstall: (() => Promise<IInstallPluginFromSourceResult>) | undefined;
 			override async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
@@ -268,7 +277,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		for (const source of sources) {
-			const enabled = source.id === 'testSource' ? options.enabled : options.otherSourceEnabled ?? options.enabled;
+			const enabled = source.id === CustomizationMarketplaceSources.PluginMarketplaces.id ? false : source.id === 'testSource' ? options.enabled : options.otherSourceEnabled ?? options.enabled;
 			if (enabled !== undefined) {
 				await configurationService.setUserConfiguration(source.enablementSetting, enabled);
 			}
@@ -734,6 +743,50 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('plugins', () => {
+		test('configured marketplace entries install through the plugin trust path only while enabled', async () => {
+			const fixture = await createFixture();
+			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' });
+			fixture.marketplaceService.availablePlugins = [plugin.plugin];
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: getPluginMarketplaceIdentifier(plugin.plugin),
+				displayName: plugin.plugin.name,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: undefined,
+			});
+			const disabled = fixture.service.getInstallState(candidate);
+			await assert.rejects(fixture.service.install(candidate), /Enable this resource/);
+			await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+			const available = fixture.service.getInstallState(candidate);
+			await fixture.service.install(candidate);
+			fixture.installedPlugins.set([plugin], undefined);
+			const installed = fixture.service.getInstallState(candidate);
+			assert.deepStrictEqual({
+				disabled, available, installed,
+				directInstalls: fixture.pluginService.directInstalls,
+				legacyInstalls: fixture.pluginService.calls,
+			}, {
+				disabled: { kind: 'unavailable', message: 'Enable this resource\'s marketplace source to install it.' },
+				available: { kind: 'available' },
+				installed: { kind: 'installed' },
+				directInstalls: [plugin.plugin],
+				legacyInstalls: [],
+			});
+		});
+
+		test('rejects stale configured marketplace entries rather than guessing a repository', async () => {
+			const fixture = await createFixture();
+			await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginMarketplacesFeedEnabled, true);
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: 'stale',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: undefined,
+			});
+			await assert.rejects(fixture.service.install(candidate), /no longer available/);
+			assert.deepStrictEqual({ direct: fixture.pluginService.directInstalls, legacy: fixture.pluginService.calls }, { direct: [], legacy: [] });
+		});
+
 		for (const path of ['plugins/demo', '']) {
 			test(`delegates the exact repository, revision and ${path ? 'subdirectory' : 'root directory'} to the existing installer`, async () => {
 				const fixture = await createFixture();
