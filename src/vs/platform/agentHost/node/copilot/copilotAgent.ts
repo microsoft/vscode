@@ -2222,7 +2222,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
 		// Managed defaults resolved for another account never apply.
-		const managedPolicy = this._managedModelPolicy?.token === this._githubCredentials.token ? this._managedModelPolicy.policy : undefined;
+		const managed = this._managedModelPolicy;
+		const managedPolicy = managed && managed.token === this._githubCredentials.token ? managed.policy : undefined;
 		this._models.set(applyCopilotManagedModelPolicy([...this._capiModels, ...hydraFusionModels, ...this._byokModels], managedPolicy, this.id), undefined);
 	}
 

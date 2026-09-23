@@ -539,8 +539,8 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 			readonly list: CopilotClient['rpc']['sessions']['list'];
 		};
 		readonly models: { readonly list: CopilotModelsList };
-		/** Not yet in the published SDK types; see `copilotManagedModelDefaults.ts`. */
-		readonly managedSettings: { readonly get: (params: { readonly gitHubToken: string }) => Promise<unknown> };
+		/** Not yet in the published SDK types; see `copilotManagedModelDefaults.ts`. Optional so the test client still casts to `CopilotClient`. */
+		readonly managedSettings?: { readonly get: (params: { readonly gitHubToken: string }) => Promise<unknown> };
 	};
 }
 
