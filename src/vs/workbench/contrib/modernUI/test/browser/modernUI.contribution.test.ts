@@ -2091,7 +2091,7 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
-	test('keeps upper-row terminal pills symmetric in wrapped and separate pinned rows', () => {
+	test('removes wrapped upper-row gutters while preserving separate pinned-row pills', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-cornerRadius-small: 4px; --vscode-strokeThickness: 1px;';
@@ -2109,7 +2109,7 @@ suite('ModernUIContribution', () => {
 			for (const rowEnd of ['', 'last-in-row', 'connected-tab-right-edge']) {
 				tab.className = `tab active connected-tab-upper-row ${rowEnd}`;
 				const style = getWindow(fill).getComputedStyle(fill);
-				assert.deepStrictEqual([style.left, style.right], ['2px', '2px'], `pinned row: ${pinnedRow}, row end: ${rowEnd}`);
+				assert.deepStrictEqual([style.left, style.right], pinnedRow ? ['2px', '2px'] : ['0px', '0px'], `pinned row: ${pinnedRow}, row end: ${rowEnd}`);
 			}
 		}
 	});
@@ -2436,7 +2436,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('uses direct strip geometry for connected rows while retaining upper-row pill gutters', () => {
+	test('uses direct strip geometry for both connected and upper wrapped rows', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
@@ -2479,8 +2479,8 @@ suite('ModernUIContribution', () => {
 			activeBottom: geometry(activeBottomTab, activeBottomFill),
 		}, {
 			rowPaddingTop: '0px',
-			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '4px' },
-			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '2px' },
+			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '0px' },
+			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '0px' },
 			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
 		});

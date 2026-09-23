@@ -687,6 +687,151 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('connected tab positions and spacing stay fixed when changing selection', async () => {
+		const group = connectedGroup();
+		for (let index = 2; index < 6; index++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${index}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const measure = () => tabs.map(tab => ({
+			left: tab.offsetLeft,
+			top: tab.offsetTop,
+			width: tab.getBoundingClientRect().width,
+			margin: mainWindow.getComputedStyle(tab).marginRight,
+		}));
+		const mismatches = [];
+		for (const { tabSizing, highContrast } of (['fit', 'fixed'] as const).flatMap(tabSizing => [false, true].map(highContrast => ({ tabSizing, highContrast })))) {
+			group.closest<HTMLElement>('.monaco-workbench')!.classList.toggle('hc-black', highContrast);
+			for (const wrapTabs of [false, true]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing, wrapTabs, tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				for (const width of wrapTabs ? [245, 365] : [1000]) {
+					await layoutConnectedGroup(group, width);
+					const baseline = measure();
+					for (let activeIndex = 0; activeIndex < tabs.length; activeIndex++) {
+						model.openEditor(model.getEditorByIndex(activeIndex)!, { active: true });
+						control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+						await layoutConnectedGroup(group, width);
+						const actual = measure();
+						if (JSON.stringify(actual) !== JSON.stringify(baseline)) {
+							mismatches.push({ tabSizing, highContrast, wrapTabs, width, activeIndex, baseline, actual });
+						}
+						for (let index = 1; index < tabs.length; index++) {
+							const previous = tabs[index - 1].getBoundingClientRect();
+							const current = tabs[index].getBoundingClientRect();
+							if (previous.top === current.top && Math.abs(current.left - previous.right) > 0.01) {
+								mismatches.push({ tabSizing, highContrast, wrapTabs, width, activeIndex, gapAfter: index - 1, gap: current.left - previous.right });
+							}
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(mismatches, []);
+	});
+
+	test('connected close action bounds stay fixed across selection and focus changes', async () => {
+		const group = connectedGroup();
+		for (let index = 2; index < 6; index++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${index}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const actions = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab .action-label'));
+		const bounds = (action: HTMLElement) => {
+			const { x, y, width, height } = action.getBoundingClientRect();
+			return { x, y, width, height };
+		};
+		const measure = () => actions.map(action => {
+			const resting = bounds(action);
+			action.focus();
+			const focused = bounds(action);
+			action.blur();
+			return { resting, focused };
+		});
+		const mismatches = [];
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		root.style.setProperty('--vscode-focusBorder', '#f38518');
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const tabHeight of ['default', 'compact'] as const) {
+				for (const tabActionLocation of ['right', 'left'] as const) {
+					for (const wrapTabs of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, tabActionLocation, wrapTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						await layoutConnectedGroup(group, wrapTabs ? 245 : 1000);
+						const baseline = measure().map(({ resting }) => ({ resting, focused: resting }));
+						for (let activeIndex = 0; activeIndex < actions.length; activeIndex++) {
+							model.openEditor(model.getEditorByIndex(activeIndex)!, { active: true });
+							control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+							await layoutConnectedGroup(group, wrapTabs ? 245 : 1000);
+							const actual = measure();
+							if (JSON.stringify(actual) !== JSON.stringify(baseline)) {
+								mismatches.push({ theme, tabHeight, tabActionLocation, wrapTabs, activeIndex, baseline, actual });
+							}
+						}
+					}
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual({ actionCount: actions.length, mismatches }, { actionCount: model.count, mismatches: [] });
+	});
+
+	test('connected fills meet without gutters and round corners away from the frame', async () => {
+		const group = connectedGroup();
+		for (let index = 2; index < 6; index++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${index}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const actual = [];
+		const expected = [];
+		for (const compact of [false, true]) {
+			group.closest<HTMLElement>('.monaco-workbench')!.classList.toggle('modern-ui-compact', compact);
+			for (const wrapTabs of [false, true]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, wrapTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				for (const activeIndex of [0, 1, 4, 5]) {
+					model.openEditor(model.getEditorByIndex(activeIndex)!, { active: true });
+					control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+					await layoutConnectedGroup(group, wrapTabs ? 245 : 1000);
+					for (const [index, tab] of tabs.entries()) {
+						const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+						const bounds = tab.getBoundingClientRect();
+						const surface = fill.getBoundingClientRect();
+						const style = mainWindow.getComputedStyle(fill);
+						const rowStart = index === 0 || tabs[index - 1].offsetTop !== tab.offsetTop;
+						const upper = tab.classList.contains('connected-tab-upper-row');
+						const active = index === activeIndex;
+						const radius = active && !upper ? '5px' : '4px';
+						const context = { compact, wrapTabs, activeIndex, index };
+						actual.push({
+							...context,
+							insets: [surface.left - bounds.left, bounds.right - surface.right, surface.top - bounds.top],
+							corners: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius],
+							leftBorder: rowStart ? style.borderLeftColor : undefined,
+						});
+						expected.push({
+							...context,
+							insets: [0, 0, 0],
+							corners: [rowStart ? '0px' : radius, radius, active && !upper ? '0px' : '4px', rowStart || active && !upper ? '0px' : '4px'],
+							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(actual, expected);
+	});
+
 	test('fit-sized connected row markers stay consistent at wrapping boundaries', async () => {
 		const group = connectedGroup();
 		const oldOptions = partOptions;
@@ -1109,7 +1254,7 @@ suite('MultiEditorTabsControl', () => {
 			reset: overflowEdge.style.left,
 		}, {
 			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
-			multiSelected: { clipping: '0px', edge: 'block', radius: '0px', connectedClass: true },
+			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: '""' },
 			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '3px', leftMaskTop: '0px', rightMaskHeight: '3px', rightMaskTop: '0px' },
