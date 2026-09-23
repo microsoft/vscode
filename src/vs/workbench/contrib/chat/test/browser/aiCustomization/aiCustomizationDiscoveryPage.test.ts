@@ -199,7 +199,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
 			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
 		}, {
-			labels: ['All sources', 'Public GitHub Feed', 'Copilot Connectors', 'Configure Marketplaces'],
+			labels: ['All sources', 'GitHub Feed', 'Copilot Connectors', 'Configure Marketplaces'],
 			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
 			selections: [undefined, ['copilotConnectors'], undefined],
 			finalLabel: 'All sources',
@@ -278,10 +278,12 @@ suite('AICustomizationDiscoveryPage', () => {
 		await fixture.requests[0].result.complete({ items, nextCursor: cursor });
 		await timeout(0);
 		loadMore(fixture);
-		await fixture.requests[1].result.complete({ items: [
-			resource('mail-24', { mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, score: 70 }),
-			resource('mail-25', { sourceId: 'copilotConnectors', score: 60 }),
-		] });
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('mail-24', { mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, score: 70 }),
+				resource('mail-25', { sourceId: 'copilotConnectors', score: 60 }),
+			]
+		});
 		await timeout(0);
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options),
@@ -296,6 +298,28 @@ suite('AICustomizationDiscoveryPage', () => {
 			hasLoadMoreFooter: false,
 		});
 	});
+
+	for (const query of ['', '@type:plugin demo']) {
+		test(`does not display Cursor plugins in ${query ? 'search' : 'browse'}`, async () => {
+			const fixture = createPage();
+			if (query) {
+				fixture.page.setSearchQuery(query);
+			}
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({
+				items: [
+					resource('demo Cursor plugin', { mediaType: CustomizationMarketplaceMediaType.CursorPlugin }),
+					resource('demo Copilot plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+				],
+			});
+			await timeout(0);
+			const content = fixture.page.getAccessibilityContent();
+			assert.deepStrictEqual({
+				cursor: content.includes('demo Cursor plugin'),
+				copilot: content.includes('demo Copilot plugin'),
+			}, { cursor: false, copilot: true });
+		});
+	}
 
 	test('single-type filters use the native type selector with the global page size', async () => {
 		const fixture = createPage();
@@ -509,12 +533,14 @@ suite('AICustomizationDiscoveryPage', () => {
 			let failing = true;
 			const service = new CustomizationMarketplaceService([
 				{ id: 'agentFinder', query: async () => ({ items: [resource('public-mail', { score: 50 })], total: 1 }) },
-				{ id: 'copilotConnectors', query: async () => {
-					if (failing) {
-						throw new Error('Connector catalog unavailable');
+				{
+					id: 'copilotConnectors', query: async () => {
+						if (failing) {
+							throw new Error('Connector catalog unavailable');
+						}
+						return { items: [resource('connector-mail', { score: 100 })], total: 1 };
 					}
-					return { items: [resource('connector-mail', { score: 100 })], total: 1 };
-				} },
+				},
 			]);
 			if (query) {
 				fixture.page.setSearchQuery(query);
@@ -574,7 +600,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			}, {
 				state: 'Available customizations could not be fully loaded. Retry an unavailable source.',
 				retries: [
-					'Retry Public GitHub Feed. Reload all sources from the first page.',
+					'Retry GitHub Feed. Reload all sources from the first page.',
 					'Retry Copilot Connectors. Reload all sources from the first page.',
 				],
 				accessibleErrors: [true, true],
@@ -587,16 +613,20 @@ suite('AICustomizationDiscoveryPage', () => {
 		const publicItems = Array.from({ length: 30 }, (_, index) => resource(`public-mail-${index}`, { score: 40 - index }));
 		const connectorItems = Array.from({ length: 24 }, (_, index) => resource(`connector-mail-${index}`, { score: 100 - index }));
 		const service = new CustomizationMarketplaceService([
-			{ id: 'agentFinder', query: async options => {
-				const offset = Number(options.cursor ?? 0);
-				return { items: publicItems.slice(offset, offset + 24), total: 30, nextCursor: offset === 0 ? '24' : undefined };
-			} },
-			{ id: 'copilotConnectors', query: async options => {
-				if (options.cursor) {
-					throw new Error('Connector continuation unavailable');
+			{
+				id: 'agentFinder', query: async options => {
+					const offset = Number(options.cursor ?? 0);
+					return { items: publicItems.slice(offset, offset + 24), total: 30, nextCursor: offset === 0 ? '24' : undefined };
 				}
-				return { items: connectorItems, total: 30, nextCursor: '24' };
-			} },
+			},
+			{
+				id: 'copilotConnectors', query: async options => {
+					if (options.cursor) {
+						throw new Error('Connector continuation unavailable');
+					}
+					return { items: connectorItems, total: 30, nextCursor: '24' };
+				}
+			},
 		]);
 		const complete = async (index: number) => {
 			const request = fixture.requests[index];
