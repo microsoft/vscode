@@ -4438,7 +4438,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			newSession.beginResolveConfigSync();
 			if (property === SessionConfigKey.Isolation) {
-				newSession.setConfigValue(SessionConfigKey.Branch, undefined);
+				const upstreamBranchName = normalizedValue === 'worktree'
+					? newSession.session.workspace.get()?.folders[0]?.gitRepository?.upstreamBranchName
+					: undefined;
+				newSession.setConfigValue(SessionConfigKey.Branch, upstreamBranchName);
 			}
 			newSession.setConfigValue(property, normalizedValue, true);
 			this._onDidChangeSessionConfig.fire(sessionId);

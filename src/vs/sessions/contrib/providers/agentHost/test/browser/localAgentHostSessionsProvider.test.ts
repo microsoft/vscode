@@ -4863,6 +4863,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('selects the current branch upstream when New Worktree is toggled on', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'feature' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'feature');
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		agentHost.setSessionState(AgentSession.id(backendUri), provider.sessionTypes[0].id, {
+			provider: provider.sessionTypes[0].id,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName: 'feature', upstreamBranchName: 'upstream/feature' }),
+		});
+		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'upstream/feature' },
+		};
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+		const worktreeConfig = provider.getCreateSessionConfig(session.sessionId);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'feature' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+
+		assert.deepStrictEqual({
+			repository: session.workspace.get()?.folders[0]?.gitRepository?.upstreamBranchName,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstToggleRequest).map(request => request.config),
+			worktreeConfig,
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			repository: 'upstream/feature',
+			requests: [
+				{ isolation: 'worktree', branch: 'upstream/feature' },
+				{ isolation: 'folder' },
+			],
+			worktreeConfig: { isolation: 'worktree', branch: 'upstream/feature' },
+			config: { isolation: 'folder', branch: 'feature' },
+		});
+	});
+
 	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });

@@ -2060,6 +2060,16 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		gitService.getBranch = async () => ({
+			ref: 'refs/heads/feature',
+			name: 'feature',
+			kind: GitRefType.Head,
+			upstream: {
+				ref: 'refs/remotes/origin/main',
+				name: 'origin/main',
+				remote: 'origin'
+			},
+		});
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
@@ -2072,6 +2082,11 @@ suite('AgentService (node dispatcher)', () => {
 		registerTestAgentProvider(localService, agent);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
 
+		const initialWorktree = await localService.resolveSessionConfig({
+			provider: 'copilot',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		});
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
@@ -2084,12 +2099,16 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		assert.deepStrictEqual({
+			initialWorktreeBranch: initialWorktree.values[SessionConfigKey.Branch],
+			initialWorktreeDefault: initialWorktree.schema.properties[SessionConfigKey.Branch]?.default,
 			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
 		}, {
+			initialWorktreeBranch: 'origin/main',
+			initialWorktreeDefault: 'origin/main',
 			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
