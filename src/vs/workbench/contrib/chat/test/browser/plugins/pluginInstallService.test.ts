@@ -1062,17 +1062,23 @@ suite('PluginInstallService', () => {
 			});
 		});
 
-		test('rejects unsafe plugin subdirectories before cloning', async () => {
+		test('rejects unsafe or oversized plugin subdirectories before cloning', async () => {
 			const { service, state } = createService();
 			const results = [];
-			for (const path of ['../outside', '/absolute', 'plugins/../other', 'plugins\\other', '.git', 'a//b', 'C:/plugin']) {
+			for (const path of ['../outside', '/absolute', 'plugins/../other', 'plugins\\other', '.git', 'a//b', 'C:/plugin', 'a'.repeat(8193)]) {
 				const result = await service.installPluginFromSource('owner/repo', { path });
 				results.push({ success: result.success, hasError: !!result.message });
 			}
 			assert.deepStrictEqual({ results, sources: state.ensurePluginSourceDescriptors }, {
-				results: Array.from({ length: 7 }, () => ({ success: false, hasError: true })),
+				results: Array.from({ length: 8 }, () => ({ success: false, hasError: true })),
 				sources: [],
 			});
+		});
+
+		test('accepts the maximum-length plugin subdirectory for source resolution', async () => {
+			const { service, state } = createService();
+			await service.installPluginFromSource('owner/repo', { path: 'a'.repeat(8192) });
+			assert.deepStrictEqual(state.ensurePluginSourceDescriptors.map(descriptor => descriptor.kind), [PluginSourceKind.GitHub]);
 		});
 
 		test('does not install a subdirectory without a supported manifest', async () => {

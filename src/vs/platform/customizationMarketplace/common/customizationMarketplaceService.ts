@@ -14,6 +14,13 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
+const maxContinuations = 32;
+const defaultPageSize = 30;
+const maxPageSize = 100;
+const maxQueryLength = 4096;
+const maxRelevanceScore = 100;
+const continuationLifetimeMs = 30 * 60_000;
+
 export const CustomizationMarketplaceMediaType = {
 	Skill: 'application/ai-skill',
 	McpServer: 'application/mcp-server+json',
@@ -177,7 +184,7 @@ interface IMarketplaceContinuation {
 
 export class CustomizationMarketplaceService implements ICustomizationMarketplaceQueryService {
 
-	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(32);
+	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(maxContinuations);
 
 	constructor(private readonly sources: readonly ICustomizationMarketplaceProvider[]) {
 		if (sources.some(source => !source.id) || new Set(sources.map(source => source.id)).size !== sources.length) {
@@ -191,12 +198,12 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const sources = this.sources.filter(source => options.sourceIds.includes(source.id));
 		const query = options.query?.trim() ?? '';
-		const requestedPageSize = options.pageSize ?? 30;
-		if (sources.length !== options.sourceIds.length || query.length > 4096 || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
+		const requestedPageSize = options.pageSize ?? defaultPageSize;
+		if (sources.length !== options.sourceIds.length || query.length > maxQueryLength || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
 			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new Error(localize('customizationMarketplace.invalidQuery', "The marketplace query is invalid."));
 		}
-		const pageSize = Math.min(requestedPageSize, 100);
+		const pageSize = Math.min(requestedPageSize, maxPageSize);
 		for (const [key, value] of [...this.continuations]) {
 			if (value.expiresAt <= Date.now()) {
 				this.continuations.delete(key);
@@ -209,7 +216,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const states: IMarketplaceSourceState[] = continuation
 			? continuation.states.map(state => ({ ...state, items: [...state.items] }))
-			: sources.map(() => ({ items: [], exhausted: false, lastScore: 100 }));
+			: sources.map(() => ({ items: [], exhausted: false, lastScore: maxRelevanceScore }));
 		let nextSourceIndex = continuation?.nextSourceIndex ?? 0;
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
@@ -239,7 +246,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					let lastScore = state.lastScore;
 					for (const item of page.items) {
 						const score = item.score ?? 0;
-						if ((item.score !== undefined && !Number.isFinite(item.score)) || score < 0 || score > 100 || (query && score > lastScore)) {
+						if ((item.score !== undefined && !Number.isFinite(item.score)) || score < 0 || score > maxRelevanceScore || (query && score > lastScore)) {
 							throw new Error(localize('customizationMarketplace.invalidSourceScore', "The marketplace source '{0}' returned invalid relevance ordering.", sources[index].id));
 						}
 						lastScore = score;
@@ -271,7 +278,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 				nextCursor = { token: generateUuid() };
 				this.continuations.set(nextCursor.token, {
 					query, mediaType: options.mediaType, pageSize, sourceIds: sources.map(source => source.id),
-					states, nextSourceIndex, expiresAt: Date.now() + 30 * 60_000,
+					states, nextSourceIndex, expiresAt: Date.now() + continuationLifetimeMs,
 				});
 			}
 			const sourceErrors = states.flatMap((state, index) => state.error === undefined ? [] : [{ sourceId: sources[index].id, message: state.error }]);
