@@ -544,10 +544,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/10c1ba1054b217624689436bd7abaa2d253ad43473cd630b00c269dd10a1d088)
 
 #### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ea7b4ebe5f3f231f526392635de54ae22bac085ed383418a1d1390ad2fc80bb7)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0ea3be2e4ece9f0b0a1ab854bec6439de3a4d53555ef6c32485f234274e7940c)
 
 #### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ccfe24b50defab730540d92a64f4b6a6733a2f2b73d9f6c7ebf96d13561913a1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/314828ead2ace50efbca39217b3b8863e37718bbe7bf9fb63e5b57d86bb8b7ec)
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b9228eb69394890656e1975c5a32aa97d67a19284106dfbfdeb4dc8660f7f64a)
