@@ -654,6 +654,32 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('routes external session import to the owning provider and propagates errors', async () => {
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test', isExternal: constObservable(true),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsImport: true }),
+		});
+		const calls: string[] = [];
+		let fail = false;
+		const provider = new class extends TestSessionsProvider {
+			override async importSession(sessionId: string): Promise<void> {
+				calls.push(sessionId);
+				if (fail) {
+					throw new Error('Import failed');
+				}
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await service.importSession(session);
+		fail = true;
+		await assert.rejects(() => service.importSession(session), /Import failed/);
+		await assert.rejects(() => service.importSession(stubSession({
+			sessionId: 'unsupported', providerId: 'test', isExternal: constObservable(true),
+		})), /not supported/);
+		await service.importSession(stubSession({ sessionId: 'owned', providerId: 'test' }));
+		assert.deepStrictEqual(calls, ['session', 'session']);
+	});
+
 	test('routes artifact removal to the owning provider and propagates errors', async () => {
 		const session = stubSession({
 			sessionId: 'session', providerId: 'test',

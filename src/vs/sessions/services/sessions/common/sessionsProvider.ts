@@ -474,6 +474,9 @@ export interface ISessionsProvider {
 	 */
 	archiveSession(sessionId: string): Promise<void>;
 
+	/** Permanently imports an external session without sending a message or changing its identity. */
+	importSession?(sessionId: string): Promise<void>;
+
 	/**
 	 * Unarchive a session.
 	 * @param sessionId The ID of the session to unarchive.

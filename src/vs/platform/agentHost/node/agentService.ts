@@ -1419,6 +1419,13 @@ export class AgentService extends Disposable implements IAgentService {
 		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId);
 	}
 
+	async importSession(session: URI): Promise<void> {
+		await this.restoreSession(session);
+		if (!await this._sessionRegistry.adoptExternalSession(session)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
+		}
+	}
+
 	private _isArtifactToolsEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true;
 	}

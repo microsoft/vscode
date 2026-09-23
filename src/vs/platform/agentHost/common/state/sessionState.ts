@@ -2301,7 +2301,7 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Whether a provider-native session has not yet been adopted by sending a user message. */
+/** Whether a provider-native session has not yet been adopted by the host. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
 }

@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -20,14 +21,16 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -65,6 +68,10 @@ import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/c
 // eslint-disable-next-line local/code-import-patterns
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
 // eslint-disable-next-line local/code-import-patterns
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../sessions/common/sessionConfig.js';
+// eslint-disable-next-line local/code-import-patterns
+import { SessionsArchiveActionsContribution } from '../../../../../sessions/contrib/sessions/browser/views/sessionsViewActions.js';
+// eslint-disable-next-line local/code-import-patterns
 import { createSessionArchiveTour } from '../../../../../sessions/contrib/onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SpotlightOverlay } from '../../../../contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ONBOARDING_TARGET_ATTR } from '../../../../contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -85,6 +92,7 @@ import { IAutomationService } from '../../../../contrib/chat/common/automations/
 import type { IAutomationRun } from '../../../../contrib/chat/common/automations/automation.js';
 import { ChatAutomationsEnabledContext } from '../../../../contrib/chat/common/automations/automationsEnabled.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -142,6 +150,9 @@ interface ISessionSpec {
 	readonly changesSummary?: ISessionChangesSummary;
 	readonly group?: string;
 	readonly isRead?: boolean;
+	readonly isExternal?: boolean;
+	readonly isArchived?: boolean;
+	readonly supportsMultipleChats?: boolean;
 	readonly hasFailingCI?: boolean;
 	/** Nested (non-main) chats shown as child rows under the session. */
 	readonly chats?: readonly IChatSpec[];
@@ -219,13 +230,14 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(spec.workspace ? createWorkspace(spec.workspace) : undefined);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!spec.workspace);
-		override readonly isArchived: IObservable<boolean> = constObservable(false);
+		override readonly isArchived: IObservable<boolean> = constObservable(spec.isArchived ?? false);
+		override readonly isExternal: IObservable<boolean> = constObservable(spec.isExternal ?? false);
 		override readonly isRead: IObservable<boolean> = constObservable(spec.isRead ?? true);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0, supportsRename: true });
+		override readonly capabilities = constObservable({ supportsMultipleChats: spec.supportsMultipleChats ?? nestedChats.length > 0, supportsRename: true, supportsImport: spec.isExternal === true });
 	}();
 }
 
@@ -247,6 +259,8 @@ interface IRenderOptions {
 	readonly showUnreadInCollapsedSections?: boolean;
 	readonly reducedMotion?: boolean;
 	readonly width?: number;
+	readonly height?: number;
+	readonly groupExternalSessions?: boolean;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
 	readonly showAutomations?: boolean;
@@ -297,6 +311,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			if (options.groupExternalSessions !== undefined) {
+				reg.define(IContextKeyService, ContextKeyService);
+			}
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
 				override readonly onDidActiveEditorChange = Event.None;
@@ -427,6 +444,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
+	ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
 	if (options.archiveOnboarding || options.showConfetti) {
 		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding ?? ChatSessionArchiveActionWording.MarkAsDone).archive;
 		const archiveAction = instantiationService.createInstance(MenuItemAction, {
@@ -484,6 +502,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.showConfetti) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 	}
+	if (options.groupExternalSessions !== undefined) {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, options.groupExternalSessions);
+		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		disposableStore.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		instantiationService.stub(IMenuService, disposableStore.add(instantiationService.createInstance(MenuService)));
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	// Phone layout is driven by both a CSS class (visual) and a context key (row
@@ -499,7 +524,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	const width = options.width ?? 340;
 	const hasPreviewSpace = !!(options.archiveOnboarding || options.showConfetti);
 	container.style.width = `${hasPreviewSpace ? width + 420 : width}px`;
-	container.style.height = hasPreviewSpace ? '420px' : options.phone ? '260px' : '220px';
+	container.style.height = options.height !== undefined ? `${options.height}px` : hasPreviewSpace ? '420px' : options.phone ? '260px' : '220px';
 	if (hasPreviewSpace) {
 		container.style.position = 'relative';
 	}
@@ -536,7 +561,14 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	list.layout(options.phone ? 260 : showHeader && !options.showCustomizationsNavigation ? 180 : 220, width);
+	if (options.sessions.some(session => session.isArchived)) {
+		list.setExcludeArchived(false);
+	}
+	list.layout(options.height ?? (options.phone ? 260 : showHeader && !options.showCustomizationsNavigation ? 180 : 220), width);
+	if (options.groupExternalSessions !== undefined) {
+		// Section context changes refresh the production menus after a debounce.
+		await timeout(100);
+	}
 	if (options.rename === 'session') {
 		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
 		if (!titleRow) {
@@ -691,6 +723,12 @@ const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'b', title: 'Add reconnect backoff', workspace: 'agent-host-protocol', minutesAgo: 64, group: GROUP.id },
 	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const EXTERNAL_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'regular', title: 'Update onboarding copy', workspace: 'vscode', minutesAgo: 10 },
+	{ id: 'external-repo', title: 'Hello world test', workspace: 'vscode', minutesAgo: 15, isExternal: true, supportsMultipleChats: true },
+	{ id: 'external-directory', title: 'Directory-only SDK session', workspace: 'scratch', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
+	{ id: 'done', title: 'Completed external session', workspace: 'vscode', minutesAgo: 60, isExternal: true, isArchived: true },
+];
 const COLLAPSED_SECTION_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, isRead: false },
 	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
@@ -751,6 +789,19 @@ const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_ExternalWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderSessionsList(ctx, { sessions: EXTERNAL_SESSIONS, groupExternalSessions: true, height: 340 }),
+	}),
+	SessionsList_ExternalDate: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderSessionsList(ctx, { sessions: EXTERNAL_SESSIONS, grouping: SessionsGrouping.Date, groupExternalSessions: true, height: 340 }),
+	}),
+	SessionsList_ExternalGroupingDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderSessionsList(ctx, { sessions: EXTERNAL_SESSIONS, groupExternalSessions: false, height: 340 }),
+	}),
 	SessionsList_Confetti: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [{ id: 'confetti', title: 'Finish confetti animation fixture', workspace: 'vscode', minutesAgo: 1 }],
