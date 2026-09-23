@@ -1048,8 +1048,8 @@ suite('CopilotChatSessionsProvider', () => {
 			workspaceRoot: session.workspace.get()?.folders[0].root.toString(),
 		}, {
 			beforeResolve: [],
-			afterResolve: ['Cloud'],
-			changes: [['Cloud']],
+			afterResolve: ['Copilot'],
+			changes: [['Copilot']],
 			sessionType: CopilotCloudSessionType.id,
 			workspaceRoot: 'github-remote-file://github/microsoft/vscode/HEAD',
 		});

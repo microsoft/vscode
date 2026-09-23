@@ -72,7 +72,7 @@ import { IPathService } from '../../../../../workbench/services/path/common/path
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
 	id: 'copilot-cloud-agent',
-	label: localize('copilotCloud', "Cloud"),
+	label: localize('copilotCloud', "Copilot"),
 	icon: Codicon.cloud,
 	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
