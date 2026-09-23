@@ -241,21 +241,21 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	'Expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The nested executed-command block contains the preview followed by a quiet Output truncated message. Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only); the output itself is not presented as a link.'],
+		expectedVisualDescriptions: ['The nested executed-command block contains the preview followed by the quiet sentence “Output truncated. Click the output preview to view the full output.” Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only); the guidance itself is not presented as a link.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true }),
 	}),
 	'Expanded no full output': defineComponentFixture({
-		expectedVisualDescriptions: ['A completed terminal command shows its expanded terminal preview without an Open Full Output footer.'],
+		expectedVisualDescriptions: ['A completed terminal command shows its expanded terminal preview without full-output guidance.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts', hasFullOutput: false, expanded: true }),
 	}),
 	'Expanded empty preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['With no preview text, the nested executed-command block shows Output truncated without claiming a preview is shown. Its header shows the local-terminal open-in-product icon for Open Full Output (Read-Only); no text button, link, or footer appears.'],
+		expectedVisualDescriptions: ['With no preview text, the nested executed-command block shows “A preview is not available.” followed by the quiet sentence “Output truncated. Click the output preview to view the full output.” Its header shows the local-terminal open-in-product icon for Open Full Output (Read-Only); no text button or link appears.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: '', hasFullOutput: true, expanded: true }),
 	}),
 	'Narrow expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['In a narrow terminal card, the preview and quiet Output truncated message stay within the output surface without exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
+		expectedVisualDescriptions: ['In a narrow terminal card, the preview and quiet full-output guidance wrap within the output surface without exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
 		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true, intention: 'List source files' }),
 	}),
 	'Collapsed full output': defineComponentFixture({
@@ -264,12 +264,12 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	}),
 	'Expanded collapsible full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains the preview and a quiet Output truncated message without a link.'],
+		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains the preview and quiet full-output guidance without a link.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true }),
 	}),
 	'Long truncated preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by a quiet Output truncated message. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
+		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by quiet full-output guidance. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
 		render: context => renderTerminalFullOutput(context, { width: 800, preview: `FULL_OUTPUT_BEGIN\n${'x'.repeat(501)}`, hasFullOutput: true, expanded: true, collapsible: true, intention: 'Generate large stdout for display test' }),
 	}),
 });
