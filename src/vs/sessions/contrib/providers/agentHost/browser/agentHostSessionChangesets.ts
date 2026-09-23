@@ -297,13 +297,6 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return lastValue;
 			}
 
-			// Render `state.files` when the changeset is `Ready`, or on the very
-			// first arrival (the initial snapshot contains the file list persisted
-			// from the previous session).
-			if (changesetState.status !== ChangesetStatus.Ready && lastValue !== undefined) {
-				return lastValue;
-			}
-
 			return changesetState.files;
 		});
 

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { basename } from '../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../files/common/files.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -22,6 +23,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
+		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -65,10 +67,25 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		const resource = URI.parse(params.target.resource);
 
-		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);
-
 		try {
-			await this._agentHostGitService.restore(workingDirectory, [resource.fsPath]);
+			const repositoryRoot = await this._agentHostGitService.getRepositoryRoot(workingDirectory);
+			this._throwIfCancelled(token);
+
+			const untrackedPaths = repositoryRoot
+				? await this._agentHostGitService.getUntrackedPaths(repositoryRoot)
+				: undefined;
+			this._throwIfCancelled(token);
+
+			const isUntracked = repositoryRoot !== undefined
+				&& untrackedPaths?.some(path => extUriBiasedIgnorePathCase.isEqual(URI.joinPath(repositoryRoot, path), resource));
+			if (isUntracked) {
+				const useTrash = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.Trash);
+				this._logService.info(`[AgentHostDiscardChangesOperationHandler] Deleting untracked file '${resource.fsPath}' for session ${sessionUri} (useTrash: ${useTrash})`);
+				await this._fileService.del(resource, { useTrash });
+			} else {
+				this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);
+				await this._agentHostGitService.restore(workingDirectory, [resource.fsPath]);
+			}
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(

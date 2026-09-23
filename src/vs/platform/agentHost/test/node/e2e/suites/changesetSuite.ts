@@ -1035,7 +1035,6 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
-	// The operation is advertised but currently fails for untracked paths; see KNOWN_ISSUES.md.
 	conformanceTest(context, 'discarding an untracked file removes it from disk', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-added-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-added');
@@ -1055,7 +1054,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			exists: false,
 			statuses: ['running', 'idle'],
 		});
-	}, false);
+	});
 
 	conformanceTest(context, 'discarding a deleted tracked file restores its contents', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-deleted-');
@@ -1489,7 +1488,6 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	if (context.tier === 'parity') {
 		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
-		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
 		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
 		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);

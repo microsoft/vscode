@@ -1241,7 +1241,7 @@ suite('MultiEditorTabsControl', () => {
 				highContrastRight.push({
 					theme, width,
 					mask: mainWindow.getComputedStyle(overflowEdge, '::after').backgroundColor,
-					capMeetsShoulder: parseFloat(cap.bottom) === parseFloat(shoulder.height),
+					capReachesBottom: parseFloat(cap.bottom) === 0,
 					strokesAlign: capRight - parseFloat(cap.borderRightWidth) === shoulderLeft,
 					baselineAligns: outline.getBoundingClientRect().bottom === tabs.getBoundingClientRect().bottom,
 				});
@@ -1279,10 +1279,10 @@ suite('MultiEditorTabsControl', () => {
 			hiddenAtFillEdge: ['none', 'none'],
 			highContrast: { clipping: '0px', edge: 'block', connectedClass: true },
 			highContrastRight: [
-				{ theme: 'hc-black', width: 240, mask: 'rgb(0, 0, 0)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
-				{ theme: 'hc-black', width: 324, mask: 'rgb(0, 0, 0)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
-				{ theme: 'hc-light', width: 240, mask: 'rgb(255, 255, 255)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
-				{ theme: 'hc-light', width: 324, mask: 'rgb(255, 255, 255)', capMeetsShoulder: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-black', width: 240, mask: 'rgb(0, 0, 0)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-black', width: 324, mask: 'rgb(0, 0, 0)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-light', width: 240, mask: 'rgb(255, 255, 255)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
+				{ theme: 'hc-light', width: 324, mask: 'rgb(255, 255, 255)', capReachesBottom: true, strokesAlign: true, baselineAligns: true },
 			],
 			reset: '',
 		});

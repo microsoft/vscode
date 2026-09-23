@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
-import { AgentsWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
+import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
@@ -394,6 +394,47 @@ suite('RemoteAgentHostService', () => {
 		await waitForConnected();
 
 		assert.deepStrictEqual(createdClientInfos, [agentsWindowAgentHostClientInfo]);
+	});
+
+	test('editor window ignores configured WebSocket hosts but connects staged sandboxes on demand', async () => {
+		service.dispose();
+		configService.setEntries([{ name: 'Initial host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://initial:8080' } }]);
+		service = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+		const initialEntries = service.configuredEntries;
+		configService.setEntries([{ name: 'Updated host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://updated:8080' } }]);
+		const updatedEntries = service.configuredEntries;
+
+		const factory = disposables.add(new TestConnectionFactory(RemoteAgentHostEntryType.CloudSandbox));
+		disposables.add(service.registerConnectionFactory(factory));
+		const address = 'cloudsandbox:editor-environment';
+		const client = disposables.add(new MockProtocolClient(address));
+		factory.stage({
+			name: 'Sandbox',
+			connection: { type: RemoteAgentHostEntryType.CloudSandbox, address, environmentId: 'editor-environment' },
+		}, client);
+		const connectionsBeforeOpen = factory.createdConnectionCount;
+		service.reconnect(address, true);
+		const connected = service.waitForConnection(address);
+		await client.connectDeferred.complete();
+		await connected;
+
+		assert.deepStrictEqual({
+			initialEntries,
+			updatedEntries,
+			connectionsBeforeOpen,
+			webSocketClients: createdClients.length,
+			sandboxConnections: factory.createdConnectionCount,
+			connections: service.connections.map(connection => [connection.address, connection.status.kind]),
+			settings: configService.entries,
+		}, {
+			initialEntries: [],
+			updatedEntries: [],
+			connectionsBeforeOpen: 0,
+			webSocketClients: 0,
+			sandboxConnections: 1,
+			connections: [[address, 'connected']],
+			settings: [{ name: 'Updated host', address: 'ws://updated:8080', connectionToken: undefined }],
+		});
 	});
 
 	test('getConnection returns client after successful connect', async () => {

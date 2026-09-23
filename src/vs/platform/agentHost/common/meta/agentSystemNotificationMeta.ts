@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum AgentSystemNotificationKind {
+	/** A content-free milestone in a HydraFusion workflow. */
+	FusionProgress = 'fusionProgress',
 	WorktreeCreationFailure = 'worktreeCreationFailure',
 	/** The session successfully changed to a requested workspace. */
 	WorkspaceTransition = 'workspaceTransition',
@@ -34,7 +36,11 @@ export const enum AgentSystemNotificationSeverity {
 	Warning = 'warning',
 }
 
+export type AgentFusionProgressStatus = 'selected' | 'completed' | 'failed' | 'cancelled' | 'degraded';
+const fusionStatuses: ReadonlySet<string> = new Set(['selected', 'completed', 'failed', 'cancelled', 'degraded']);
+
 const knownKinds: ReadonlySet<string> = new Set<string>([
+	AgentSystemNotificationKind.FusionProgress,
 	AgentSystemNotificationKind.WorktreeCreationFailure,
 	AgentSystemNotificationKind.WorkspaceTransition,
 	AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut,
@@ -56,6 +62,7 @@ export interface IAgentSystemNotificationMeta {
 	readonly severity?: AgentSystemNotificationSeverity;
 	readonly workspaceKind?: AgentSystemNotificationWorkspaceKind;
 	readonly workspaceName?: string;
+	readonly fusionStatus?: AgentFusionProgressStatus;
 }
 
 export interface IAgentWorkspaceTransitionRecord {
@@ -72,11 +79,13 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	}
 	const kind = meta['kind'];
 	const workspaceKind = meta['workspaceKind'];
+	const fusionStatus = meta['fusionStatus'];
 	return {
 		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
 		severity: meta['severity'] === AgentSystemNotificationSeverity.Warning ? meta['severity'] : undefined,
 		workspaceKind: workspaceKind === AgentSystemNotificationWorkspaceKind.Folder || workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? workspaceKind : undefined,
 		workspaceName: typeof meta['workspaceName'] === 'string' ? meta['workspaceName'] : undefined,
+		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
 	};
 }
 

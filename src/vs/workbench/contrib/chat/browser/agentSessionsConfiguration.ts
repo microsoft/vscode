@@ -9,7 +9,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration } from '../common/constants.js';
+import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
 
 const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
 const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
@@ -27,6 +27,14 @@ export const agentsWindowHandoffConfigurationProperties = {
 		description: nls.localize('chat.agentsParallelWorkBanner.enabled', "Show an invitation to work in parallel in the Agents Window when starting a new Agent Host chat while another Agent Host session is running."),
 		default: product.quality === 'insider',
 		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[ChatConfiguration.AgentsHandoffTipDelaySeconds]: {
+		type: 'number',
+		minimum: 0,
+		default: DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS,
+		markdownDescription: nls.localize('chat.agentsHandoffTip.delaySeconds', "Controls the delay, in seconds, after the latest user message before offering to continue an in-progress session in the Agents Window. Requires `#chat.agentsHandoffTip.mode#` to be `default` or `custom`."),
+		tags: ['experimental', 'advanced'],
 		experiment: { mode: 'auto' },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;

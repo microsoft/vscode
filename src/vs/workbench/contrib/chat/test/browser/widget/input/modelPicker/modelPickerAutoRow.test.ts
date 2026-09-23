@@ -63,6 +63,7 @@ suite('ModelPickerAutoRow', () => {
 	function createRow(initiallyEnabled: boolean, options: {
 		autoModel?: ILanguageModelChatMetadataAndIdentifier;
 		configurationAccess?: IModelConfigurationAccess;
+		selectionVersion?: () => number;
 		onToggle?: (enabled: boolean) => void;
 	} = {}) {
 		const toggles: boolean[] = [];
@@ -73,6 +74,7 @@ suite('ModelPickerAutoRow', () => {
 			autoModel: options.autoModel ?? createAutoModel(),
 			configurationAccess,
 			isEnabled: () => enabled,
+			selectionVersion: options.selectionVersion,
 			onToggle: next => {
 				enabled = next;
 				toggles.push(next);
@@ -165,6 +167,17 @@ suite('ModelPickerAutoRow', () => {
 		assert.deepStrictEqual(
 			{ strip: defaultPrevented(main), description: defaultPrevented(description) },
 			{ strip: true, description: true });
+	});
+
+	test('an internal Auto preset is not exposed as a selectable tier or mislabeled as Efficiency', () => {
+		const result = createRow(true, {
+			autoModel: createAutoModel(true),
+			configurationAccess: createConfigurationAccess({ tier: 'fast' }),
+		});
+		assert.deepStrictEqual({
+			tiers: result.tiers.map(element => element.textContent),
+			description: result.description.textContent,
+		}, { tiers: [], description: 'Automatic model selection' });
 	});
 
 	test('inactive tiers remain visible and interactive with the remembered tier and description', () => {
@@ -546,6 +559,39 @@ suite('ModelPickerAutoRow', () => {
 			});
 		});
 	}
+
+	test('a model selected elsewhere during a pending save is not overridden by enabling Auto', async () => {
+		const saved = new DeferredPromise<void>();
+		const access = createConfigurationAccess({ tier: 'balanced' });
+		let selectionVersion = 0;
+		const result = createRow(false, {
+			autoModel: createAutoModel(true),
+			selectionVersion: () => selectionVersion,
+			configurationAccess: {
+				...access,
+				setModelConfiguration: async (modelId, values) => {
+					await saved.p;
+					await access.setModelConfiguration(modelId, values);
+				},
+			},
+		});
+		result.tiers[2].click();
+		await timeout(0);
+		// E.g. HydraFusion switched on: Auto stays off, so only the selection moves.
+		selectionVersion++;
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			toggles: result.toggles,
+			enabled: result.row.element.classList.contains('enabled'),
+			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
+		}, {
+			toggles: [],
+			enabled: false,
+			savedTier: 'max',
+		});
+	});
 
 	test('a disposed row does not enable Auto or recreate controls after a pending save', async () => {
 		const saved = new DeferredPromise<void>();

@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -98,6 +98,105 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		};
 	}
+
+	suite('changeset snapshots', () => {
+		const cachedFiles: ChangesetState['files'] = [{
+			id: 'file:///repo/a.ts',
+			edit: {
+				after: { uri: 'file:///repo/a.ts', content: { uri: 'file:///repo/a.ts' } },
+				diff: { added: 57, removed: 45 },
+			},
+		}];
+
+		function createHarness() {
+			const isActiveSession = observableValue('isActiveSession', false);
+			const subscription = createMutableSubscription<ChangesetState | undefined>(undefined);
+			let acquired = 0;
+			let released = 0;
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					acquired++;
+					return {
+						object: subscription.object as IAgentSubscription<ComponentToState[T]>,
+						dispose: () => released++,
+					};
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			}, isActiveSession, [{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: 'changeset/branch',
+			}])[0];
+			disposables.add(autorun(reader => changeset.changes.read(reader)));
+
+			return {
+				isActiveSession,
+				subscription,
+				snapshot: () => ({
+					changes: changeset.changes.get().map(change => ({ insertions: change.insertions, deletions: change.deletions })),
+					loading: changeset.isLoadingChanges.get(),
+					acquired,
+					released,
+				}),
+			};
+		}
+
+		test('uses a computing snapshot after being observed while inactive', () => {
+			const { isActiveSession, subscription, snapshot } = createHarness();
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Computing, files: cachedFiles });
+
+			assert.deepStrictEqual(snapshot(), {
+				changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0,
+			});
+		});
+
+		test('uses a cached snapshot when returning to a session without retaining its subscription', () => {
+			const { isActiveSession, subscription, snapshot } = createHarness();
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
+			isActiveSession.set(false, undefined);
+			const inactive = snapshot();
+			subscription.set(undefined);
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Computing, files: cachedFiles });
+
+			assert.deepStrictEqual({ inactive, reactivated: snapshot() }, {
+				inactive: { changes: [], loading: false, acquired: 1, released: 1 },
+				reactivated: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 2, released: 1 },
+			});
+		});
+
+		test('uses every available snapshot and keeps the cache while waiting for a snapshot', () => {
+			const { isActiveSession, subscription, snapshot } = createHarness();
+			isActiveSession.set(true, undefined);
+			subscription.set({ status: ChangesetStatus.Ready, files: [] });
+			subscription.set({ status: ChangesetStatus.Computing, files: cachedFiles });
+			const populated = snapshot();
+			subscription.set(undefined);
+			const pending = snapshot();
+			subscription.set({ status: ChangesetStatus.Computing, files: [] });
+			const empty = snapshot();
+			subscription.set({ status: ChangesetStatus.Ready, files: [] });
+
+			assert.deepStrictEqual({ populated, pending, empty, ready: snapshot() }, {
+				populated: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				pending: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				empty: { changes: [], loading: true, acquired: 1, released: 0 },
+				ready: { changes: [], loading: false, acquired: 1, released: 0 },
+			});
+		});
+	});
 
 	suite('filterChangesToPrimaryWorkingDirectory', () => {
 		test('(a) multi-root: keeps only changes under the primary working directory', () => {
