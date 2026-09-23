@@ -67,6 +67,8 @@ export interface ICustomizationMarketplaceCursor {
 export interface ICustomizationMarketplaceQuery {
 	readonly query?: string;
 	readonly mediaType?: CustomizationMarketplaceMediaType;
+	/** Limit the query to the listed registered sources. An absent value queries every source. */
+	readonly sourceIds?: readonly string[];
 	/** Maximum number of entries in the combined page. */
 	readonly pageSize?: number;
 	/** Continue with the same query, media type, page size, and selected sources. */
@@ -90,7 +92,7 @@ export interface ICustomizationMarketplaceSourceError {
 	readonly message: string;
 }
 
-export interface ICustomizationMarketplaceSourceQuery extends Omit<ICustomizationMarketplaceQuery, 'cursor'> {
+export interface ICustomizationMarketplaceSourceQuery extends Omit<ICustomizationMarketplaceQuery, 'cursor' | 'sourceIds'> {
 	/** Maximum number of entries in a native source page; unchanged throughout pagination. */
 	readonly pageSize?: number;
 	readonly cursor?: string;

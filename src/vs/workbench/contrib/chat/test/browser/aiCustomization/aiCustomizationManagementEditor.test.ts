@@ -587,6 +587,29 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	test('reopening input reactivates Discover without a visibility transition', async () => {
+		const { editor } = createContributedSectionEditor();
+		const firstInput = store.add(new AICustomizationManagementEditorInput());
+		const reopenedInput = store.add(new AICustomizationManagementEditorInput());
+		const visibilityChanges: boolean[] = [];
+		editor.selectedSection = undefined;
+		Object.assign(editor, {
+			welcomePage: {
+				setVisible(visible: boolean) {
+					visibilityChanges.push(visible);
+				},
+			},
+		});
+		editor.setVisible(true);
+		await editor.setInput(firstInput, undefined, {}, CancellationToken.None);
+		visibilityChanges.length = 0;
+
+		editor.clearInput();
+		await editor.setInput(reopenedInput, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual(visibilityChanges, [false, true]);
+	});
+
 	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {
 		const { editor, section, state, focusedVisibility } = createContributedSectionEditor();
 		editor.setVisible(true);

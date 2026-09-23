@@ -940,6 +940,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly discoveryQuery?: string;
+	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
@@ -1086,8 +1087,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
-					{ id: 'testSource', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'copilotConnectors', enablementSetting: ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled },
+					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: ChatConfiguration.AgentFinderPublicFeedEnabled },
+					{ id: 'copilotConnectors', displayName: 'Copilot Connectors', enablementSetting: ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled },
 				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
@@ -1106,6 +1108,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					const text = query.query?.toLowerCase() ?? '';
 					const resources = marketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
+						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.token ?? 0);
 					return {
@@ -1130,6 +1133,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					customizationMarketplaceInstallChanged.fire();
 					await Promise.resolve();
 					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed' });
+					customizationMarketplaceInstallChanged.fire();
+				}
+				override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+					assert(marketplaceEnabled, 'A fixture with no enabled sources must not uninstall resources.');
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling' });
+					customizationMarketplaceInstallChanged.fire();
+					await Promise.resolve();
+					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
 					customizationMarketplaceInstallChanged.fire();
 				}
 			}());
@@ -1562,6 +1573,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.customization-discovery') !== null, 'The customization overview must render Discover.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
+		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
+		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
+		assert(
+			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
+			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
+			'Discover must link each customization type from its description.',
+		);
 	}
 
 	if (options.discoveryQuery) {
@@ -1571,11 +1591,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-row');
 		const resultIdentity = ctx.container.querySelector<HTMLElement>('.customization-discovery-result-identity');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
-		const groupHeader = ctx.container.querySelector<HTMLElement>('.customization-discovery-group-label');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
-		assert(header === null || groupHeader === null || Math.abs(header.getBoundingClientRect().left - groupHeader.getBoundingClientRect().left) <= 1, 'Discover result groups must align with the page header.');
 		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
+		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
+		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
+		const availableRows = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+			.filter(row => row.querySelector('.customization-discovery-result-actions .monaco-button')?.textContent === 'Install');
+		assert(availableRows.every(row => {
+			const detail = row.querySelector('.customization-discovery-result-detail')?.textContent;
+			return detail?.includes('Marketplace 1') || detail?.includes('Marketplace 2') || detail?.includes('Copilot Connectors');
+		}), 'Marketplace results must show their source name.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
 			resultRows[resultRows.length - 1]?.click();
@@ -1583,8 +1609,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 		if (options.discoveryQuery.includes('@installed')) {
 			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
-			assert(!resultList.textContent?.includes('Available ('), 'The Installed filter must hide the Available group.');
-			assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-footer')?.hidden === true, 'The Installed filter must hide catalog paging.');
+			const resultActions = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
+			assert(resultActions.every(action => action.textContent !== 'Install'), 'The Installed filter must hide available catalog actions.');
+		}
+		if (options.customizationMarketplaceState === 'loadingMore') {
+			const scrollable = resultList.querySelector<HTMLElement>('.monaco-scrollable-element');
+			if (scrollable) {
+				scrollable.scrollTop = scrollable.scrollHeight;
+				scrollable.dispatchEvent(new (DOM.getWindow(scrollable).Event)('scroll'));
+				await Promise.resolve();
+			}
+			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
+		}
+		if (options.clearDiscoveryQuery) {
+			editor.getWelcomePage()?.setSearchQuery('');
+			await Promise.resolve();
+			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
+			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
 		}
 	}
 
@@ -2778,16 +2819,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Search replaces browse cards with one virtualized list grouped into Installed and Available results. Selection bounds align with the title and search control; available rows use a large icon, stacked name/description/publisher metadata, trailing stars, and an Install action.'],
+		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata, trailing ratings, and vertically centered Install or Uninstall actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: 'review',
 		}),
 	}),
 
+	DiscoverClearedSearch: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'review',
+			clearDiscoveryQuery: true,
+		}),
+	}),
+
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['An available search result uses a large product icon, stacked name, description, and publisher/type metadata, with star metadata above a trailing Install action. The virtualized row spans exactly the same content measure as the search control.'],
+		expectedVisualDescriptions: ['An available search result uses a compact product icon, stacked name, description, and type/source metadata, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: 'correctness',
@@ -2797,11 +2848,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverCopilotConnector: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from GitHub Copilot with the standard Install action.'],
+		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from Copilot Connectors with the standard Install action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			copilotConnectorsEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
+		}),
+	}),
+
+	DiscoverInfiniteScroll: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The flat virtualized Discover results list keeps loaded rows visible while the next marketplace page loads automatically near the scroll boundary, without a Load More footer.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			discoveryQuery: 'review',
+			customizationMarketplaceState: 'loadingMore',
 		}),
 	}),
 

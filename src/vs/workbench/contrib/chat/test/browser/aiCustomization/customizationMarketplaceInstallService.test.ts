@@ -37,6 +37,7 @@ import { CustomizationMarketplaceInstallService } from '../../../browser/aiCusto
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IMarketplaceInstalledPlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -184,6 +185,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 				return installedPlugins;
 			}
 		}();
+		const agentPlugins = observableValue<readonly IAgentPlugin[]>('agentPlugins', []);
+		const agentPluginService = new class extends mock<IAgentPluginService>() {
+			override readonly plugins = agentPlugins;
+		}();
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
 			result: IInstallPluginFromSourceResult = { success: true };
@@ -208,6 +213,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly lookups: string[] = [];
 			readonly eligibilityChecks: IWorkbenchMcpServer[] = [];
 			readonly installs: IWorkbenchMcpServer[] = [];
+			readonly uninstalls: IWorkbenchMcpServer[] = [];
 			galleryServer: IWorkbenchMcpServer | undefined = mcpServer();
 			eligibility: true | IMarkdownString = true;
 			installError: Error | undefined;
@@ -230,13 +236,20 @@ suite('CustomizationMarketplaceInstallService', () => {
 				mcpChanges.fire(installed);
 				return installed;
 			}
+			override async uninstall(server: IWorkbenchMcpServer): Promise<void> {
+				this.uninstalls.push(server);
+				this.local = this.local.filter(candidate => candidate !== server);
+				mcpChanges.fire(undefined);
+			}
 		}();
 		const connectorChanges = store.add(new Emitter<void>());
 		const connectedConnectors = new Set<string>();
 		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
 			override readonly onDidChange = connectorChanges.event;
 			readonly connectCalls: string[] = [];
+			readonly disconnectCalls: string[] = [];
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
+			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			override get connectors() {
 				return [{
 					name: 'mail',
@@ -261,6 +274,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 					return this.onConnect(name, token);
 				}
 				connectedConnectors.add(name);
+				connectorChanges.fire();
+			}
+			override async disconnect(name: string, token: CancellationToken): Promise<void> {
+				this.disconnectCalls.push(name);
+				if (this.onDisconnect) {
+					return this.onDisconnect(name, token);
+				}
+				connectedConnectors.delete(name);
 				connectorChanges.fire();
 			}
 		}();
@@ -349,6 +370,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		instantiationService.stub(IPluginInstallService, pluginService);
 		instantiationService.stub(IPluginMarketplaceService, marketplaceService);
+		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
 		instantiationService.stub(ICopilotConnectorsService, connectorsService);
@@ -367,7 +389,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(ILogService, logService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
-			service, fileService, provider, installedPlugins, marketplaceService, pluginService, repositoryService, mcpService, mcpChanges,
+			service, fileService, provider, installedPlugins, marketplaceService, agentPlugins, pluginService, repositoryService, mcpService, mcpChanges,
 			connectorsService, connectorChanges, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
 	}
@@ -923,6 +945,28 @@ suite('CustomizationMarketplaceInstallService', () => {
 			states.push(fixture.service.getInstallState(candidate).kind);
 			assert.deepStrictEqual(states, ['installed', 'installed', 'available', 'available', 'available']);
 		});
+
+		test('uninstalls through the installed agent plugin', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const installed = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+			let removeCalls = 0;
+			fixture.installedPlugins.set([installed], undefined);
+			fixture.agentPlugins.set([
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = installed.pluginUri;
+					override async remove(): Promise<boolean> {
+						removeCalls++;
+						fixture.installedPlugins.set([], undefined);
+						return true;
+					}
+				}(),
+			], undefined);
+
+			await fixture.service.uninstall(candidate);
+
+			assert.deepStrictEqual({ removeCalls, state: fixture.service.getInstallState(candidate).kind }, { removeCalls: 1, state: 'available' });
+		});
 	});
 
 	suite('MCP servers', () => {
@@ -1015,9 +1059,93 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: fixture.service.getInstallState(mcpResource()),
 			}, { checks: [], installs: [], state: { kind: 'available' } });
 		});
+
+		test('uninstalls the matching registry server', async () => {
+			const fixture = await createFixture();
+			const installed = mcpServer('io.example/demo', McpServerInstallState.Installed);
+			fixture.mcpService.local = [installed];
+
+			await fixture.service.uninstall(mcpResource());
+
+			assert.deepStrictEqual(fixture.mcpService.uninstalls, [installed]);
+		});
 	});
 
 	suite('Copilot connectors', () => {
+		test('uninstalls through the connector lifecycle without public-feed or registry access', async () => {
+			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			const before = fixture.service.getInstallState(candidate);
+			await fixture.service.uninstall(candidate);
+			await fixture.service.uninstall(candidate);
+			assert.deepStrictEqual({
+				before,
+				disconnects: fixture.connectorsService.disconnectCalls,
+				registryLookups: fixture.mcpService.lookups,
+				after: fixture.service.getInstallState(candidate),
+			}, {
+				before: { kind: 'installed' },
+				disconnects: ['mail'],
+				registryLookups: [],
+				after: { kind: 'available' },
+			});
+		});
+
+		test('a failed disconnect remains installed and can be retried', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectorsService.onDisconnect = async () => { throw new Error('Disconnect failed'); };
+			await assert.rejects(fixture.service.uninstall(candidate), /Disconnect failed/);
+			const failed = fixture.service.getInstallState(candidate);
+			fixture.connectorsService.onDisconnect = undefined;
+			await fixture.service.uninstall(candidate);
+			assert.deepStrictEqual({ failed, disconnects: fixture.connectorsService.disconnectCalls, after: fixture.service.getInstallState(candidate) }, {
+				failed: { kind: 'installed' }, disconnects: ['mail', 'mail'], after: { kind: 'available' },
+			});
+		});
+
+		for (const change of ['source disabled', 'AI hidden'] as const) {
+			test(`a pending disconnect is deduplicated and cancelled when ${change}`, async () => {
+				const fixture = await createFixture();
+				const candidate = connectorResource();
+				await fixture.service.install(candidate);
+				const disconnect = new DeferredPromise<void>();
+				let disconnectToken: CancellationToken | undefined;
+				fixture.connectorsService.onDisconnect = (_name, token) => {
+					disconnectToken = token;
+					return disconnect.p;
+				};
+				const pending = fixture.service.uninstall(candidate);
+				const joined = fixture.service.uninstall(candidate);
+				const cancelled = Promise.all([assert.rejects(pending, isCancellationError), assert.rejects(joined, isCancellationError)]);
+				const during = fixture.service.getInstallState(candidate);
+				if (change === 'source disabled') {
+					await setSourcesEnabled(fixture.configurationService, false, ['copilotConnectors']);
+					await setSourcesEnabled(fixture.configurationService, true, ['copilotConnectors']);
+				} else {
+					fixture.entitlementService.sentiment.hidden = true;
+					fixture.sentimentChanges.fire();
+					fixture.entitlementService.sentiment.hidden = false;
+					fixture.sentimentChanges.fire();
+				}
+				await disconnect.complete();
+				await cancelled;
+				assert.deepStrictEqual({
+					during,
+					cancelled: disconnectToken?.isCancellationRequested,
+					disconnects: fixture.connectorsService.disconnectCalls,
+					after: fixture.service.getInstallState(candidate),
+				}, {
+					during: { kind: 'uninstalling' },
+					cancelled: true,
+					disconnects: ['mail'],
+					after: { kind: 'installed' },
+				});
+			});
+		}
+
 		test('uses the connector consent flow and reflects the connected state', async () => {
 			const fixture = await createFixture();
 			const candidate = connectorResource();
@@ -1183,6 +1311,19 @@ suite('CustomizationMarketplaceInstallService', () => {
 				progressLocation: ProgressLocation.Notification,
 				states: ['installing', 'installed'],
 			});
+		});
+
+		test('removes the installed skill directory', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+
+			await fixture.service.uninstall(candidate);
+
+			assert.deepStrictEqual({
+				exists: await fixture.fileService.exists(skillDestination),
+				state: fixture.service.getInstallState(candidate).kind,
+			}, { exists: false, state: 'available' });
 		});
 
 		test('supports a repository-root skill and the harness user source location', async () => {

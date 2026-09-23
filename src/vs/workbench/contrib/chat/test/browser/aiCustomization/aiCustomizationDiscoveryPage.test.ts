@@ -17,8 +17,10 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -48,12 +50,25 @@ suite('AICustomizationDiscoveryPage', () => {
 		container.style.width = '900px';
 		container.style.height = '600px';
 		store.add(toDisposable(() => container.remove()));
-		const configuration = new TestConfigurationService(Object.fromEntries(Object.values(CustomizationMarketplaceSources).map(source => [
-			source.enablementSetting, enabledSourceIds.includes(source.id),
-		])));
+		const configuration = new TestConfigurationService({
+			'workbench.list.smoothScrolling': false,
+			...Object.fromEntries(Object.values(CustomizationMarketplaceSources).map(source => [
+				source.enablementSetting, enabledSourceIds.includes(source.id),
+			])),
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const listService = store.add(new ListService());
+		instantiationService.stub(IListService, listService);
+		let sourceMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		store.add(toDisposable(() => sourceMenu?.onHide?.(false)));
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
+				sourceMenu?.onHide?.(false);
+				sourceMenu = delegate;
+			}
+		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const notifications: Parameters<INotificationService['error']>[0][] = [];
@@ -103,7 +118,22 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, 'Copilot'));
 		page.rebuildCards(new Set([AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers]));
 		page.layout(new DOM.Dimension(900, 600));
-		return { page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications };
+		function getSourceActions() {
+			const button = container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
+			assert.ok(button);
+			button.click();
+			assert.ok(sourceMenu?.getActions);
+			return sourceMenu.getActions();
+		}
+		async function selectSource(sourceId: string | undefined): Promise<void> {
+			const action = getSourceActions().find(action => action.id === `customizationDiscovery.source.${sourceId ?? 'all'}`);
+			assert.ok(action);
+			await action.run();
+			sourceMenu?.onHide?.(false);
+			sourceMenu = undefined;
+			await timeout(0);
+		}
+		return { page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService };
 	}
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
@@ -114,10 +144,15 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 	}
 
-	function loadMore(container: HTMLElement): void {
-		const button = container.querySelector<HTMLElement>('.customization-discovery-footer .monaco-button');
-		assert.ok(button);
-		button.click();
+	function loadMore(fixture: ReturnType<typeof createPage>): void {
+		const element = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list');
+		assert.ok(element);
+		element.focus();
+		element.dispatchEvent(new FocusEvent('focus'));
+		const list = fixture.listService.lastFocusedList;
+		assert.ok(list instanceof WorkbenchList);
+		list.scrollTop = 0;
+		list.scrollTop = list.scrollHeight;
 	}
 
 	for (const sourceIds of [[], ['agentFinder'], ['copilotConnectors'], ['agentFinder', 'copilotConnectors']]) {
@@ -134,12 +169,103 @@ suite('AICustomizationDiscoveryPage', () => {
 				installedVisible: fixture.page.getAccessibilityContent().includes('Local mail skill'),
 				searchVisible: fixture.container.querySelector('.customization-discovery-search') !== null,
 			}, {
-				catalogRequests: sourceIds.length ? [{ query: undefined, mediaType: undefined, pageSize: 24, cursor: undefined }] : [],
+				catalogRequests: sourceIds.length ? [{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined }] : [],
 				installedVisible: true,
 				searchVisible: true,
 			});
 		});
 	}
+
+	test('source selection uses public display names, cancels the previous query, and resets when disabled', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		const labels = fixture.getSourceActions().map(action => action.label).filter(Boolean);
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-mail', { sourceId: 'copilotConnectors' })] });
+		await fixture.requests[0].result.complete({ items: [resource('stale-mail')] });
+		await timeout(0);
+		const selected = {
+			label: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			cancelled: fixture.requests[0].token.isCancellationRequested,
+			content: fixture.page.getAccessibilityContent().match(/^(?:connector|stale)-mail$/gm),
+		};
+		await setEnabled(fixture.configuration, ChatConfiguration.ChatCustomizationsCopilotConnectorsEnabled, false);
+		await fixture.requests[2].result.complete({ items: [resource('public-mail')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			labels,
+			selected,
+			selections: fixture.requests.map(request => request.options.sourceIds),
+			finalLabel: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
+			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
+		}, {
+			labels: ['All sources', 'Public GitHub Feed', 'Copilot Connectors', 'Configure Marketplaces'],
+			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
+			selections: [undefined, ['copilotConnectors'], undefined],
+			finalLabel: 'All sources',
+			disabledSelectable: false,
+			content: ['public-mail'],
+		});
+	});
+
+	test('clearing search restores browse results only for the selected source', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('all-featured')] });
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-featured', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('');
+		const restored = fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm);
+		await fixture.selectSource(undefined);
+		assert.deepStrictEqual({
+			restored,
+			all: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
+			requests: fixture.requests.map(request => [request.options.query, request.options.sourceIds]),
+		}, {
+			restored: ['connector-featured'],
+			all: ['all-featured'],
+			requests: [[undefined, undefined], [undefined, ['copilotConnectors']], ['mail', ['copilotConnectors']]],
+		});
+	});
+
+	test('source recovery during search invalidates cached browse failures', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const sourceErrors = [{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' }];
+		fixture.recoveryActions.set('copilotConnectors', { label: 'Sign In', kind: 'signIn', run: async () => { } });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('old-featured')], sourceErrors });
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [], sourceErrors });
+		await timeout(0);
+		const signIn = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.ok(signIn);
+		signIn.click();
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('');
+		await timeout(0);
+		const restoredStale = fixture.page.getAccessibilityContent().includes('old-featured');
+		await fixture.requests[3].result.complete({ items: [resource('new-featured')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			queries: fixture.requests.map(request => request.options.query),
+			cursors: fixture.requests.map(request => request.options.cursor),
+			restoredStale,
+			signInPrompts: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+			featured: fixture.page.getAccessibilityContent().match(/^(?:old|new)-featured$/gm),
+		}, {
+			queries: [undefined, 'mail', 'mail', undefined],
+			cursors: [undefined, undefined, undefined, undefined],
+			restoredStale: false,
+			signInPrompts: 0,
+			featured: ['new-featured'],
+		});
+	});
 
 	test('multi-type filters share a single ranked page and opaque continuation rather than merging or sorting in the widget', async () => {
 		const fixture = createPage(['agentFinder', 'copilotConnectors']);
@@ -152,7 +278,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const cursor = { token: 'opaque+/=&continuation' };
 		await fixture.requests[0].result.complete({ items, nextCursor: cursor });
 		await timeout(0);
-		loadMore(fixture.container);
+		loadMore(fixture);
 		await fixture.requests[1].result.complete({ items: [
 			resource('mail-24', { mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, score: 70 }),
 			resource('mail-25', { sourceId: 'copilotConnectors', score: 60 }),
@@ -161,14 +287,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options),
 			visibleOrder: fixture.page.getAccessibilityContent().match(/^mail-\d+/gm),
-			moreHidden: fixture.container.querySelector<HTMLElement>('.customization-discovery-footer')?.hidden,
+			hasLoadMoreFooter: fixture.container.querySelector('.customization-discovery-footer') !== null,
 		}, {
 			requests: [
-				{ query: 'mail', mediaType: undefined, pageSize: 24, cursor: undefined },
-				{ query: 'mail', mediaType: undefined, pageSize: 24, cursor },
+				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor },
 			],
 			visibleOrder: [...items.filter(item => item.mediaType !== CustomizationMarketplaceMediaType.Skill).map(item => item.identifier), 'mail-24', 'mail-25'],
-			moreHidden: true,
+			hasLoadMoreFooter: false,
 		});
 	});
 
@@ -178,7 +304,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [] });
 		assert.deepStrictEqual(fixture.requests.map(request => request.options), [
-			{ query: 'mail', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 24, cursor: undefined },
+			{ query: 'mail', mediaType: CustomizationMarketplaceMediaType.McpServer, sourceIds: undefined, pageSize: 24, cursor: undefined },
 		]);
 	});
 
@@ -232,14 +358,16 @@ suite('AICustomizationDiscoveryPage', () => {
 		const cursor = { token: 'retryable' };
 		await fixture.requests[0].result.complete({ items: [resource('mail-first')], nextCursor: cursor });
 		await timeout(0);
-		loadMore(fixture.container);
+		loadMore(fixture);
 		await fixture.requests[1].result.error(new Error('Connection interrupted'));
 		await timeout(0);
 		const afterFailure = {
 			hasFirst: fixture.page.getAccessibilityContent().includes('mail-first'),
 			hasError: fixture.page.getAccessibilityContent().includes('Connection interrupted'),
 		};
-		loadMore(fixture.container);
+		const retry = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
+		assert.ok(retry);
+		retry.click();
 		await fixture.requests[2].result.complete({ items: [resource('mail-second')] });
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -479,13 +607,13 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setSearchQuery('@type:mcp mail');
 		fixture.page.setVisible(true);
 		await complete(0);
-		loadMore(fixture.container);
+		loadMore(fixture);
 		await complete(1);
 		const partial = {
 			loaded: fixture.page.getAccessibilityContent().match(/^(?:connector|public)-mail-\d+$/gm)?.length,
 			warning: fixture.page.getAccessibilityContent().includes('Connector continuation unavailable'),
 		};
-		loadMore(fixture.container);
+		loadMore(fixture);
 		fixture.page.setVisible(false);
 		await fixture.requests[2].result.complete({
 			items: [resource('cancelled-result')],
@@ -493,7 +621,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 		await timeout(0);
 		fixture.page.setVisible(true);
-		loadMore(fixture.container);
+		loadMore(fixture);
 		await complete(3);
 		assert.deepStrictEqual({
 			partial,

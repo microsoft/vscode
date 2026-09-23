@@ -215,7 +215,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	for (const enabledIds of [[], ['agentFinder'], ['copilotConnectors'], ['agentFinder', 'copilotConnectors']]) {
 		test(`queries only selected sources and keeps connectors out of IPC: ${enabledIds.join(', ') || 'none'}`, async () => {
 			const fixture = createMixedFixture(enabledIds);
-			const options = { query: 'mail', pageSize: 24, sourceIds: ['unselected'] };
+			const options = { query: 'mail', pageSize: 24, sourceIds: ['agentFinder', 'copilotConnectors', 'unselected'] };
 			const result = fixture.service.query(options, CancellationToken.None);
 			if (enabledIds.length) {
 				const page = await result;
