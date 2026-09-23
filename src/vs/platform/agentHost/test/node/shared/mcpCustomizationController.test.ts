@@ -11,11 +11,11 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { buildMcpChannel, getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
@@ -59,7 +59,15 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 		pluginMcpServerSources: opts.pluginMcpServerSources,
 		resolveEnablement: opts.resolveEnablement,
 	}, stateManager);
-	return { controller, actions };
+	return {
+		controller,
+		actions,
+		getCustomizations: () => stateManager.getSessionState(session)?.customizations ?? [],
+		setCustomizations: (customizations: readonly Customization[]) => stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [...customizations],
+		}),
+	};
 }
 
 function server(name: string, state: McpServerState): ISdkMcpServer {
@@ -324,6 +332,73 @@ suite('McpCustomizationController', () => {
 
 		controller.remove('fs');
 		assert.deepStrictEqual([...controller.runtimeStates.get().keys()], ['mcp-top-level:copilot:session-1:search']);
+	});
+
+	test('retains child runtime states through a transient plugin loading snapshot', () => {
+		const serverNames = ['workiq-me', 'calendar', 'mail'] as const;
+		const child = (name: string, state: McpServerState): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id: `mcp-child:workiq:${name}`,
+			uri: `mcp-child:workiq:${name}`,
+			name,
+			state,
+		});
+		const plugin = (load: PluginCustomization['load'], children: McpServerCustomization[] | undefined): PluginCustomization => ({
+			type: CustomizationType.Plugin,
+			id: 'plugin:workiq',
+			uri: 'file:///plugins/workiq',
+			name: 'WorkIQ',
+			load,
+			children,
+		});
+		const initial = plugin(
+			{ kind: CustomizationLoadStatus.Loaded },
+			serverNames.map(name => child(name, stopped())),
+		);
+		const { controller, getCustomizations, setCustomizations } = harness(store, { customizations: [initial] });
+		store.add(controller);
+		controller.applyAll(serverNames.map(name => server(name, authRequired())));
+
+		setCustomizations([plugin({ kind: CustomizationLoadStatus.Loading }, undefined)]);
+		controller.applyOne(server('workiq-me', ready()));
+
+		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
+		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
+			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me') }],
+			['mcp-child:workiq:calendar', { state: authRequired(), channel: undefined }],
+			['mcp-child:workiq:mail', { state: authRequired(), channel: undefined }],
+		]));
+
+		const refreshed = plugin(
+			{ kind: CustomizationLoadStatus.Loaded },
+			serverNames.map(name => child(name, stopped())),
+		);
+		const overlaid = applyMcpServerRuntimeStates(refreshed, controller.runtimeStates.get());
+		setCustomizations([overlaid]);
+		controller.applyAll([
+			server('workiq-me', ready()),
+			server('calendar', authRequired()),
+			server('mail', authRequired()),
+		]);
+		const published = getCustomizations()[0];
+		if (published?.type !== CustomizationType.Plugin) {
+			assert.fail('Expected the plugin customization to remain published');
+		}
+		assert.deepStrictEqual(published.children?.map(entry => entry.type === CustomizationType.McpServer ? {
+			name: entry.name,
+			state: entry.state,
+		} : undefined), [
+			{ name: 'workiq-me', state: ready() },
+			{ name: 'calendar', state: authRequired() },
+			{ name: 'mail', state: authRequired() },
+		]);
+
+		setCustomizations([plugin({ kind: CustomizationLoadStatus.Loaded }, [
+			child('workiq-me', stopped()),
+			child('calendar', stopped()),
+		])]);
+		controller.applyOne(server('mail', authRequired()));
+		assert.deepStrictEqual(controller.topLevelCustomizations().map(customization => customization.name), ['mail']);
 	});
 
 	test('resolves a published child before the SDK reports it', () => {
