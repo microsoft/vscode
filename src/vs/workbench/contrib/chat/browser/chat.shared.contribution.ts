@@ -1696,6 +1696,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.tgrep.enabled', "When enabled, Copilot Agent Host sessions force-enable tgrep indexed search, bypassing the repository-size threshold. Requires a local Git repository on a non-virtual filesystem. Changing this setting restarts the Copilot SDK client after active turns finish."),
 			default: false,
+			experiment: { mode: 'auto' },
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
