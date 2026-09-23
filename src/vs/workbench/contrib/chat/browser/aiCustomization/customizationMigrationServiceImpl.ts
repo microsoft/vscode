@@ -34,8 +34,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? this.emptyMcpServerMigration()
 				: { type, files: [], candidates: [] };
 		}
-		if (type !== CustomizationMigrationType.McpServers && !this.isMigrationEnabled(type)) {
-			return { type, files: [], candidates: [] };
+		if (!this.isMigrationEnabled(type)) {
+			return type === CustomizationMigrationType.McpServers
+				? this.emptyMcpServerMigration()
+				: { type, files: [], candidates: [] };
 		}
 
 		switch (type) {
@@ -108,11 +110,9 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			.filter(migration => this.isMigrationEnabled(migration.type))
 			.flatMap(migration => migration.candidates);
 		const migratableMcpServerCount = mcpServerMigration.candidates.length;
-		const mcpServerStorage = new Map(mcpServerMigration.servers.map(server => [server.id, server.storage]));
 		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
-			+ mcpServerMigration.candidates.filter(candidate => mcpServerStorage.get(candidate.id) === PromptsStorage.local).length;
-		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
-			+ mcpServerMigration.candidates.filter(candidate => mcpServerStorage.get(candidate.id) === PromptsStorage.user).length;
+			+ migratableMcpServerCount;
+		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		return workspaceCount + userCount > 0 ? {
 			message: localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount),
 			target: CustomizationMigrationHintTarget.FileMigrations,
@@ -151,6 +151,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
 			candidates: [],
+			exclusions: [],
 			discoveryComplete: true,
 			coverage: {
 				restrictedByMcpAccess: false,

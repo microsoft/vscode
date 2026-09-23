@@ -69,7 +69,6 @@ export interface FileCustomizationMigration {
 export interface IMcpServerCustomizationMigrationItem {
 	readonly id: string;
 	readonly name: string;
-	readonly storage: PromptsStorage | undefined;
 	/** Whether Agent Host delivery fully supports this server's configuration. */
 	readonly supported: boolean;
 }
@@ -103,6 +102,7 @@ export interface McpServerCustomizationMigration {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly servers: readonly IMcpServerCustomizationMigrationItem[];
 	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
+	readonly exclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 	/** Whether all lazy MCP collections known to the client have loaded; when false, servers may be missing. */
 	readonly discoveryComplete: boolean;
 	/** Snapshot-wide restrictions that may limit inventory or delivery, independent of per-server support. */
@@ -144,6 +144,10 @@ export interface IMcpServerCustomizationMigrationFailure {
 	readonly reason: McpServerCustomizationMigrationFailureReason;
 	readonly conflictingUri?: URI;
 	readonly error?: Error;
+}
+
+export interface IMcpServerCustomizationMigrationExclusion extends IMcpServerCustomizationMigrationFailure {
+	readonly details: readonly string[];
 }
 
 export interface IMcpServerCustomizationMigrationResult {

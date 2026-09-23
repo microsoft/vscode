@@ -437,21 +437,3 @@ type VisibilityResumedClassification = {
 export function logVisibilityResumed(telemetryService: ITelemetryService, data: { hiddenDurationMs: number; socketAlive: boolean; forceClosed: boolean }): void {
 	telemetryService.publicLog2<VisibilityResumedEvent, VisibilityResumedClassification>('vscodeAgents.socket/visibilityResumed', data);
 }
-
-// --- Terminal recovery telemetry ---
-
-type TerminalRecoveryEvent = {
-	recoveredCount: number;
-	totalCount: number;
-};
-
-type TerminalRecoveryClassification = {
-	owner: 'osortega';
-	comment: 'Tracks terminal reconnection outcomes after agent host disconnect.';
-	recoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of terminals successfully reconnected.' };
-	totalCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of active terminals at reconnect time.' };
-};
-
-export function logTerminalRecovery(telemetryService: ITelemetryService, data: { recoveredCount: number; totalCount: number }): void {
-	telemetryService.publicLog2<TerminalRecoveryEvent, TerminalRecoveryClassification>('vscodeAgents.terminal/recovery', data);
-}

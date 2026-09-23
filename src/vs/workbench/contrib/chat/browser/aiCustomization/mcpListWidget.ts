@@ -6,7 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
@@ -50,6 +50,7 @@ import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel,
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -476,13 +477,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 
 		if (state === McpServerStatus.AuthRequired && activeSessionServer !== undefined) {
 			const signInButton = createMcpSignInButton(templateData.actions, templateData.actionDisposables, label);
-			registerMcpInlineButtonAction(templateData.actionDisposables, signInButton, async () => {
-				signInButton.enabled = false;
-				try {
-					await authenticateMcpServer(this.agentHostCustomizationService, activeSessionResource, activeSessionServer.id);
-				} finally {
-					signInButton.enabled = true;
-				}
+			registerMcpSignInButtonAction(templateData.actionDisposables, signInButton, label, () => authenticateMcpServer(this.agentHostCustomizationService, activeSessionResource, activeSessionServer.id), {
+				updateTabbability: () => this.updateActionsTabbability(templateData),
 			});
 		}
 
@@ -619,10 +615,57 @@ function createMcpSignInButton(parent: HTMLElement, store: Pick<DisposableStore,
 		small: true,
 		title: signInLabel,
 		ariaLabel: signInLabel,
+		supportIcons: true,
 	}));
 	signInButton.label = localize('signIn', "Sign In");
 	signInButton.element.classList.add('mcp-server-sign-in');
 	return signInButton;
+}
+
+interface IMcpSignInButtonActionOptions {
+	readonly updateTabbability?: () => void;
+}
+
+export function registerMcpSignInButtonAction(store: Pick<DisposableStore, 'add'>, button: Button, serverLabel: string, action: () => Promise<void | boolean>, options?: IMcpSignInButtonActionOptions): void {
+	const signingInLabel = localize('signingIn', "Signing In...");
+	const signingInAriaLabel = localize('signingInToMcpServer', "Signing in to {0}", serverLabel);
+	let pending = false;
+	let disposed = false;
+	store.add(toDisposable(() => disposed = true));
+	registerMcpInlineButtonAction(store, button, async () => {
+		if (pending) {
+			return;
+		}
+
+		pending = true;
+		const wasEnabled = button.enabled;
+		button.label = `$(${Codicon.loading.id}) ${signingInLabel}`;
+		button.setTitle(signingInAriaLabel);
+		button.setAriaLabel(signingInAriaLabel);
+		button.element.setAttribute('aria-busy', 'true');
+		button.enabled = false;
+		status(localize('mcpServerSigningInStatus', "Signing in to {0}.", serverLabel));
+		try {
+			await action();
+		} finally {
+			if (!disposed) {
+				pending = false;
+				const tabIndex = button.element.tabIndex;
+				resetMcpSignInButton(button, serverLabel, wasEnabled);
+				button.element.tabIndex = tabIndex;
+				options?.updateTabbability?.();
+			}
+		}
+	});
+}
+
+function resetMcpSignInButton(button: Button, serverLabel: string, enabled: boolean): void {
+	const signInAriaLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
+	button.label = localize('signIn', "Sign In");
+	button.setTitle(signInAriaLabel);
+	button.setAriaLabel(signInAriaLabel);
+	button.element.removeAttribute('aria-busy');
+	button.enabled = enabled;
 }
 
 /** Registers an inline MCP button without allowing its pointer or click events to open the containing list row. */
@@ -1431,6 +1474,9 @@ export class McpListWidget extends Disposable {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
 			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+				this.updateMcpServerCompatibilityScope();
+			}
 		}));
 		this._register({
 			dispose: () => {
@@ -1606,6 +1652,9 @@ export class McpListWidget extends Disposable {
 	private updateMcpServerCompatibilityScope(): void {
 		this.clearMcpServerCompatibilityScope();
 		if (!this.visible) {
+			return;
+		}
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
 			return;
 		}
 		const descriptor = this.customizationHarnessService.getActiveDescriptor();
@@ -2202,22 +2251,30 @@ export class McpListWidget extends Disposable {
 
 		const label = getMcpEntryLabel(getEntry());
 		const signInButton = createMcpSignInButton(parent, this.cardDisposables, label);
-		registerMcpInlineButtonAction(this.cardDisposables, signInButton, async () => {
-			const activeSessionServer = getActiveSessionServer(getEntry());
-			if (!activeSessionServer) {
-				return;
-			}
-			signInButton.enabled = false;
-			try {
-				await authenticateMcpServer(this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer.id);
-			} catch (error) {
-				this.notificationService.error(localize('mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", label, getErrorMessage(error)));
-			} finally {
-				signInButton.enabled = true;
-			}
-		});
+		const actionDisposables = this.cardDisposables.add(new DisposableStore());
+		let hasAuthRequiredAction = false;
 		const update = () => {
-			signInButton.element.style.display = getMcpStatusKind(getEntry(), this.workspaceService.isSessionsWindow) === McpServerStatus.AuthRequired ? '' : 'none';
+			const isAuthRequired = getMcpStatusKind(getEntry(), this.workspaceService.isSessionsWindow) === McpServerStatus.AuthRequired;
+			if (hasAuthRequiredAction !== isAuthRequired) {
+				actionDisposables.clear();
+				resetMcpSignInButton(signInButton, label, true);
+				hasAuthRequiredAction = isAuthRequired;
+				if (isAuthRequired) {
+					registerMcpSignInButtonAction(actionDisposables, signInButton, label, async () => {
+						const activeSessionServer = getActiveSessionServer(getEntry());
+						if (!activeSessionServer) {
+							return;
+						}
+						try {
+							return await authenticateMcpServer(this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer.id);
+						} catch (error) {
+							this.notificationService.error(localize('mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", label, getErrorMessage(error)));
+							return false;
+						}
+					});
+				}
+			}
+			signInButton.element.style.display = isAuthRequired ? '' : 'none';
 		};
 		update();
 		return { element: signInButton.element, update };

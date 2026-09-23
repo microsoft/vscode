@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -954,6 +955,104 @@ suite('AgentSideEffects', () => {
 			target: 'file:///plugin#mcp=server',
 			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		}]);
+	});
+
+	suite('MCP server start failures', () => {
+		function requestStart(): void {
+			setupSession();
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin',
+					children: [{ type: CustomizationType.McpServer, id: 'server', uri: 'file:///plugin/.mcp.json', name: 'server', state: { kind: McpServerStatus.Stopped } }],
+				}],
+			});
+			const action = { type: ActionType.SessionMcpServerStartRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), action);
+		}
+
+		function serverState() {
+			const plugin = stateManager.getSessionState(sessionUri.toString())?.customizations?.[0];
+			const server = plugin?.type === CustomizationType.Plugin ? plugin.children?.[0] : undefined;
+			return server?.type === CustomizationType.McpServer ? server.state : undefined;
+		}
+
+		for (const supported of [true, false]) {
+			test(`reports a rejected Start as Error (${supported ? 'SDK rejection' : 'unsupported provider'})`, async () => {
+				if (supported) {
+					Object.assign(agent, { startMcpServer: async () => { throw new Error('no installed config'); } });
+				}
+				requestStart();
+				await timeout(0);
+				assert.deepStrictEqual(serverState(), {
+					kind: McpServerStatus.Error,
+					error: { errorType: 'mcp-server-start-failed', message: supported ? 'no installed config' : 'The session provider does not support starting MCP servers.' },
+				});
+			});
+		}
+
+		test('preserves a newer Stop when Start fails', async () => {
+			const start = new DeferredPromise<void>();
+			let token: CancellationToken = CancellationToken.None;
+			Object.assign(agent, { startMcpServer: (_session: URI, _id: string, requestToken: CancellationToken) => { token = requestToken; return start.p; } });
+			requestStart();
+			const stop = { type: ActionType.SessionMcpServerStopRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), stop, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), stop);
+			start.error(new Error('start failed'));
+			await timeout(0);
+			assert.deepStrictEqual({ state: serverState(), cancelled: token.isCancellationRequested }, { state: { kind: McpServerStatus.Stopped }, cancelled: true });
+		});
+
+		test('reports failure after refresh resets optimistic state', async () => {
+			const start = new DeferredPromise<void>();
+			Object.assign(agent, { startMcpServer: () => start.p });
+			requestStart();
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionMcpServerStateChanged, id: 'server', state: { kind: McpServerStatus.Stopped },
+			});
+			start.error(new Error('refresh failed'));
+			await timeout(0);
+			assert.deepStrictEqual(serverState(), {
+				kind: McpServerStatus.Error, error: { errorType: 'mcp-server-start-failed', message: 'refresh failed' },
+			});
+		});
+
+		test('preserves a newer Start when the superseded Start fails', async () => {
+			const first = new DeferredPromise<void>();
+			const second = new DeferredPromise<void>();
+			const tokens: CancellationToken[] = [];
+			Object.assign(agent, {
+				startMcpServer: (_session: URI, _id: string, token: CancellationToken) => {
+					tokens.push(token);
+					return tokens.length === 1 ? first.p : second.p;
+				},
+			});
+			requestStart();
+			const action = { type: ActionType.SessionMcpServerStartRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), action);
+			first.error(new Error('first failed'));
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: serverState(), cancelled: tokens.map(token => token.isCancellationRequested),
+			}, { state: { kind: McpServerStatus.Starting }, cancelled: [true, false] });
+			sideEffects.handleAction(sessionUri.toString(), { type: ActionType.SessionMcpServerStopRequested, id: 'server' });
+			assert.ok(tokens[1].isCancellationRequested, 'Finishing the old Start must not remove the new cancellation source');
+			second.complete();
+		});
+
+		test('cancels pending Starts on dispatcher disposal', async () => {
+			const start = new DeferredPromise<void>();
+			let token: CancellationToken = CancellationToken.None;
+			Object.assign(agent, { startMcpServer: (_session: URI, _id: string, requestToken: CancellationToken) => { token = requestToken; return start.p; } });
+			requestStart();
+			sideEffects.dispose();
+			start.error(new Error('late failure'));
+			await timeout(0);
+			assert.deepStrictEqual({ cancelled: token.isCancellationRequested, state: serverState() }, { cancelled: true, state: { kind: McpServerStatus.Starting } });
+		});
 	});
 
 	suite('customization enablement refresh', () => {

@@ -41,6 +41,7 @@ import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider,
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
 class TestPromptsService extends MockPromptsService {
@@ -207,6 +208,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 			logService,
 			configurationService,
 			configurationResolverService,
+			new TestMcpService(),
 		));
 	}
 }
@@ -437,8 +439,8 @@ suite('CustomizationMigrationService', () => {
 				{
 					type: 'mcpServers',
 					servers: [
-						{ id: 'supported', name: 'Supported server', storage: PromptsStorage.user, supported: true },
-						{ id: 'unsupported', name: 'Unsupported server', storage: PromptsStorage.local, supported: false },
+						{ id: 'supported', name: 'Supported server', supported: true },
+						{ id: 'unsupported', name: 'Unsupported server', supported: false },
 					],
 					candidates: [],
 					discoveryComplete: false,
@@ -456,6 +458,7 @@ suite('CustomizationMigrationService', () => {
 					type: 'mcpServers',
 					servers: [],
 					candidates: [],
+					exclusions: [],
 					discoveryComplete: true,
 					coverage: {
 						restrictedByMcpAccess: false,
@@ -719,7 +722,7 @@ suite('CustomizationMigrationService', () => {
 			target,
 		}, {
 			disabledMigration: {
-				servers: [{ id: 'mcp.config.ws0.server', name: 'server', storage: PromptsStorage.local, supported: true }],
+				servers: [],
 				candidates: [],
 			},
 			disabledHint: undefined,
@@ -792,15 +795,23 @@ suite('CustomizationMigrationService', () => {
 			target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
 		}, {
 			readsBeforeSupportSettled: [],
-			result: { migratedCount: 0, failures: ['noLongerEligible'] },
-			reads: [],
-			writes: [],
-			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: {} },
+			result: { migratedCount: 1, failures: [] },
+			reads: [
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.mcp.json',
+				'/queued-before-plan/.mcp.json',
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.vscode/mcp.json',
+				'/queued-before-plan/.mcp.json',
+			],
+			writes: ['/queued-before-plan/.mcp.json', '/queued-before-plan/.vscode/mcp.json'],
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
 		});
 	});
 
-	test('keeps MCP support diagnostics when MCP migration is disabled', async () => {
+	test('does not compute MCP migration or compatibility hints when MCP migration is disabled', async () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -881,10 +892,7 @@ suite('CustomizationMigrationService', () => {
 			fileReads: fileProvider.readRequests.map(resource => resource.path),
 		}, {
 			migration: {
-				servers: [
-					{ id: 'mcp.config.ws0.supported', name: 'supported', storage: PromptsStorage.local, supported: true },
-					{ id: 'mcp.config.ws0.unsupported', name: 'unsupported', storage: PromptsStorage.local, supported: false },
-				],
+				servers: [],
 				candidates: [],
 			},
 			hint: undefined,
@@ -1031,10 +1039,10 @@ suite('CustomizationMigrationService', () => {
 				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
-			changedDuringWriteResult: { migratedCount: 0, failures: ['noLongerEligible'] },
+			changedDuringWriteResult: { migratedCount: 1, failures: [] },
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
-			source: '{"servers":{"server":{"command":"node"}}}',
-			target: '{"mcpServers":{}}',
+			source: '{\n\t"servers": {}\n}',
+			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "stdio",\n\t\t\t"command": "node"\n\t\t}\n\t}\n}',
 		});
 	});
 
