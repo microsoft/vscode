@@ -364,9 +364,11 @@ suite('Editor cloud sandbox discovery', () => {
 
 	test('scopes discovery to workspace repositories and excludes sessions with no repository', async () => {
 		const h = createHarness(store);
-		h.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered, {
-			...discovered, environmentId: 'environment-three', sessionId: 'unscoped-session', taskId: 'unscoped-task', repoName: undefined,
-		}] };
+		h.state.result = {
+			kind: 'complete', sessions: [discovered, otherDiscovered, {
+				...discovered, environmentId: 'environment-three', sessionId: 'unscoped-session', taskId: 'unscoped-task', repoName: undefined,
+			}]
+		};
 		await h.refresh();
 		assert.deepStrictEqual({
 			items: h.items().map(item => item.resource.path),
@@ -377,9 +379,11 @@ suite('Editor cloud sandbox discovery', () => {
 
 	test('an empty window lists all projects, including sessions with no repository', async () => {
 		const h = createHarness(store, { workspaceFolders: [] });
-		h.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered, {
-			...discovered, environmentId: 'environment-three', sessionId: 'unscoped-session', taskId: 'unscoped-task', repoName: undefined,
-		}] };
+		h.state.result = {
+			kind: 'complete', sessions: [discovered, otherDiscovered, {
+				...discovered, environmentId: 'environment-three', sessionId: 'unscoped-session', taskId: 'unscoped-task', repoName: undefined,
+			}]
+		};
 		await h.refresh();
 		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session', '/other-session', '/unscoped-session']);
 	});
