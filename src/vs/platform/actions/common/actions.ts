@@ -57,6 +57,7 @@ export interface ISubmenuItem {
 		 */
 		primaryActionIds?: readonly string[];
 	};
+	highlightFunction?: (action: SubmenuItemAction) => boolean; // for SubmenuEntryItemViewAction: if function returns true the action button is highlighted
 }
 
 export function isIMenuItem(item: unknown): item is IMenuItem {
