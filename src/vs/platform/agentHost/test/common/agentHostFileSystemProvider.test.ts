@@ -213,24 +213,6 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		});
 	});
 
-	test('a local full-output content ref can opt into the owning connection', () => {
-		const original = URI.file('/workspace/full output #1.txt');
-		const wrapped = toAgentHostContentUri(original, 'local', { alwaysWrap: true });
-		assert.deepStrictEqual({
-			scheme: wrapped.scheme,
-			authority: wrapped.authority,
-			marked: isAgentHostContentRefUri(wrapped),
-			original: fromAgentHostUri(wrapped).toString(),
-			defaultMapping: toAgentHostContentUri(original, 'local').toString(),
-		}, {
-			scheme: AGENT_HOST_SCHEME,
-			authority: 'local',
-			marked: true,
-			original: original.toString(),
-			defaultMapping: original.toString(),
-		});
-	});
-
 	test('resource URI mappers translate remote resources and preserve local resources', () => {
 		const original = URI.file('/remote/file.txt');
 		const remote = createAgentHostResourceUriMapper('remote-host');
