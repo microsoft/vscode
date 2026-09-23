@@ -412,6 +412,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
 	}
 
+	private _onMcpOAuthCompleted: Event<SessionEventPayload<'mcp.oauth_completed'>> | undefined;
+	get onMcpOAuthCompleted(): Event<SessionEventPayload<'mcp.oauth_completed'>> {
+		return this._onMcpOAuthCompleted ??= this._sdkEvent('mcp.oauth_completed');
+	}
+
 	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
 	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');

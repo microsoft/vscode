@@ -160,6 +160,12 @@ interface IMcpAuthToolCall {
 	readonly parentToolCallId: string | undefined;
 }
 
+interface ILastMcpAuthRequirement {
+	readonly requestId: string;
+	readonly auth: McpAuthRequirement;
+	readonly acceptsTokenCompletion: boolean;
+}
+
 interface ICopilotActiveToolCall {
 	readonly turnId: string;
 	readonly toolName: string;
@@ -1159,10 +1165,10 @@ export class CopilotAgentSession extends Disposable {
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
 	/**
-	 * Retains challenge metadata after callbacks settle so a later `needs-auth` remains actionable.
-	 * Cleared when the server is disabled, unconfigured, or absent from SDK inventory.
+	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
+	 * Connected and needs-auth statuses remain the final lifecycle authority.
 	 */
-	private readonly _lastMcpAuthRequirements = new Map<string, McpAuthRequirement>();
+	private readonly _lastMcpAuthRequirements = new Map<string, ILastMcpAuthRequirement>();
 	/** Invalidates inventory snapshots when lifecycle events or authentication challenges arrive. */
 	private _mcpLifecycleVersion = 0;
 	private _mcpInventoryRequestVersion = 0;
@@ -2692,13 +2698,17 @@ export class CopilotAgentSession extends Disposable {
 			description: request.wwwAuthenticateParams?.error,
 		};
 		this._mcpLifecycleVersion++;
-		this._lastMcpAuthRequirements.set(request.serverName, auth);
 		const toolCalls = this._activeMcpToolCalls(request.serverName);
 		const result = this._pendingMcpAuthRequests.register(request.requestId, {
 			serverName: request.serverName,
 			resource,
 			requiredScopes,
 			toolCalls,
+		});
+		this._lastMcpAuthRequirements.set(request.serverName, {
+			requestId: request.requestId,
+			auth,
+			acceptsTokenCompletion: true,
 		});
 		this._mcpCustomizations.applyOne({
 			name: request.serverName,
@@ -2716,7 +2726,19 @@ export class CopilotAgentSession extends Disposable {
 			}, toolCall.parentToolCallId);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] MCP server '${request.serverName}' requires authentication for ${resource.resource}`);
-		return result;
+		try {
+			return await result;
+		} catch (error) {
+			this._disableMcpTokenCompletion(request.serverName, request.requestId);
+			throw error;
+		}
+	}
+
+	private _disableMcpTokenCompletion(serverName: string, requestId: string): void {
+		const requirement = this._lastMcpAuthRequirements.get(serverName);
+		if (requirement?.requestId === requestId && requirement.acceptsTokenCompletion) {
+			this._lastMcpAuthRequirements.set(serverName, { ...requirement, acceptsTokenCompletion: false });
+		}
 	}
 
 	private _activeMcpToolCalls(serverName: string): IMcpAuthToolCall[] {
@@ -2801,6 +2823,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingMcpAuthRequestsForServer(serverName: string): void {
+		const requirement = this._lastMcpAuthRequirements.get(serverName);
+		if (requirement) {
+			this._disableMcpTokenCompletion(serverName, requirement.requestId);
+		}
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
 			if (pending.serverName !== serverName) {
 				continue;
@@ -3806,6 +3832,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const state = this._mcpCustomizations.stateForServer(serverName);
 			if (state?.kind === McpServerStatus.AuthRequired) {
+				this._mcpLifecycleVersion++;
+				this._mcpCustomizations.applyOne({ name: serverName, state }, true);
 				if (this._hasPendingMcpAuthentication(serverName)) {
 					return;
 				}
@@ -3941,7 +3969,9 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		return this._mcpServerLifecycleSequencer.queue(serverName, async () => {
+			this._cancelPendingMcpAuthRequestsForServer(serverName);
 			await this._wrapper.session.rpc.mcp.stopServer({ serverName });
+			this._mcpLifecycleVersion++;
 			this._mcpCustomizations.applyOne({ name: serverName, state: { kind: McpServerStatus.Stopped } });
 		});
 	}
@@ -6508,6 +6538,10 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		this._register(wrapper.onMcpServerStatusChanged(e => {
 			this._mcpLifecycleVersion++;
+			const requirement = this._lastMcpAuthRequirements.get(e.data.serverName);
+			if (requirement && e.data.status !== 'pending') {
+				this._lastMcpAuthRequirements.set(e.data.serverName, { ...requirement, acceptsTokenCompletion: false });
+			}
 			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
 			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
 			if (!server) {
@@ -6515,6 +6549,9 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._mcpCustomizations.applyOne(server);
+		}));
+		this._register(wrapper.onMcpOAuthCompleted(e => {
+			this._handleMcpOAuthCompleted(e.data.requestId, e.data.outcome);
 		}));
 
 		this._register(wrapper.onToolsUpdated(() => {
@@ -6583,6 +6620,35 @@ export class CopilotAgentSession extends Disposable {
 		const sdkServers = servers
 			.map(s => this._toSdkMcpServer(s.name, s.status, s.error));
 		this._mcpCustomizations.applyAll(sdkServers);
+	}
+
+	/** Promotes a delivered OAuth token to Starting, then refreshes live inventory without treating it as Ready. */
+	private _handleMcpOAuthCompleted(requestId: string, outcome: 'token' | 'cancelled'): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const match = [...this._lastMcpAuthRequirements.entries()].find(([, requirement]) => requirement.requestId === requestId);
+		if (!match) {
+			return;
+		}
+		const [serverName, requirement] = match;
+		if (outcome !== 'token') {
+			this._disableMcpTokenCompletion(serverName, requestId);
+			return;
+		}
+		if (!requirement.acceptsTokenCompletion || this._hasPendingMcpAuthentication(serverName) || this._mcpCustomizations.stateForServer(serverName)?.kind !== McpServerStatus.AuthRequired) {
+			return;
+		}
+		this._mcpLifecycleVersion++;
+		this._disableMcpTokenCompletion(serverName, requestId);
+		this._mcpCustomizations.applyOne({
+			name: serverName,
+			state: { kind: McpServerStatus.Starting },
+			allowAuthRequiredToStarting: true,
+		});
+		void this._refreshMcpServersFromRpc().catch(error => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP server inventory after OAuth token delivery`, error);
+		});
 	}
 
 	/**
@@ -6716,7 +6782,7 @@ export class CopilotAgentSession extends Disposable {
 				if (hasPendingAuthentication && previous?.kind === McpServerStatus.AuthRequired) {
 					return previous;
 				}
-				const auth = this._lastMcpAuthRequirements.get(name);
+				const auth = this._lastMcpAuthRequirements.get(name)?.auth;
 				return auth ? { kind: McpServerStatus.AuthRequired, ...auth } : { kind: McpServerStatus.Starting };
 			}
 			case 'disabled':

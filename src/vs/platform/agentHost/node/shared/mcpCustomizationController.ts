@@ -318,9 +318,9 @@ export class McpCustomizationController extends Disposable {
 		});
 	}
 
-	/** Upserts a single server. */
-	applyOne(server: ISdkMcpServer): void {
-		transaction(tx => this._applyOne(server, tx));
+	/** Upserts a single server; `force` republishes retained state after an optimistic client update. */
+	applyOne(server: ISdkMcpServer, force = false): void {
+		transaction(tx => this._applyOne(server, tx, force));
 	}
 
 	private _applyOne(server: ISdkMcpServer, tx: ITransaction, force = false): void {

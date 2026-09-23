@@ -46,7 +46,7 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
-import { chatReducer } from '../../common/state/sessionReducers.js';
+import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -162,6 +162,7 @@ class MockCopilotSession {
 	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
 	readonly mcpStopServerCalls: Array<{ serverName: string }> = [];
 	readonly mcpAuthenticationStateChangedCalls: Array<{ serverName?: string; refreshSessionToken?: boolean }> = [];
+	onMcpAuthenticationStateChanged: (() => void) | undefined;
 	mcpAuthenticationStateChangedError: Error | undefined;
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
 	readonly registeredEventInterests: string[] = [];
@@ -540,6 +541,7 @@ class MockCopilotSession {
 			oauth: {
 				authenticationStateChanged: async (params: { serverName?: string; refreshSessionToken?: boolean }) => {
 					this.mcpAuthenticationStateChangedCalls.push(params);
+					this.onMcpAuthenticationStateChanged?.();
 					if (this.mcpAuthenticationStateChangedError) {
 						throw this.mcpAuthenticationStateChangedError;
 					}
@@ -15397,6 +15399,53 @@ Use the attached image as context.
 			});
 		});
 
+		test('retries current inventory after stopping during an in-flight inventory refresh', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Ready },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-stop',
+				serverName,
+				serverUrl: 'https://mcp.example.com',
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			const refreshGate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(refreshGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			await timeout(0);
+			await session.stopMcpServer(id);
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-stop',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+			refreshGate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				authResult: await auth,
+				listCalls: mockSession.mcpListCalls,
+				state: session.topLevelMcpCustomizations()[0]?.state.kind,
+			}, {
+				authResult: { kind: 'cancelled' },
+				listCalls: 3,
+				state: McpServerStatus.Stopped,
+			});
+		});
+
 		test('startMcpServer waits for an in-flight stop of the same server', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
@@ -15689,8 +15738,165 @@ Use the attached image as context.
 			]);
 		});
 
+		test('republishes an identical authentication challenge after token delivery starts the server', async () => {
+			const serverName = 'workiq';
+			const resource = 'https://mcp.example.com';
+			const { session, runtime, signals, mockSession } = await createAgentSession(disposables);
+			const initialAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-initial',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'initial-token' });
+			await initialAuth;
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-initial',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+
+			const repeatedAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-repeated',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				states: getActions(signals)
+					.filter(action => action.type === ActionType.SessionCustomizationUpdated)
+					.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer
+						? action.customization.state.kind
+						: undefined),
+				current: session.topLevelMcpCustomizations()[0]?.state.kind,
+			}, {
+				states: [McpServerStatus.AuthRequired, McpServerStatus.Starting, McpServerStatus.AuthRequired],
+				current: McpServerStatus.AuthRequired,
+			});
+
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'repeated-token' });
+			await repeatedAuth;
+		});
+
+		test('refreshes live inventory after token delivery when no status change arrives', async () => {
+			const serverName = 'workiq';
+			const resource = 'https://mcp.example.com';
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-connected',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'token' });
+			await auth;
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-connected',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+			await timeout(0);
+
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.Ready);
+		});
+
+		test('ignores an older token completion while a newer authentication callback is pending', async () => {
+			const serverName = 'workiq';
+			const resource = 'https://mcp.example.com';
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			const firstAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-first',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			const secondAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-second',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-first',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-second',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'second-token' });
+			await Promise.all([firstAuth, secondAuth]);
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-second',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.Starting);
+		});
+
+		test('does not promote cancelled OAuth completion to ready', async () => {
+			const serverName = 'workiq';
+			const resource = 'https://mcp.example.com';
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-cancelled',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'token' });
+			await auth;
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-cancelled',
+				outcome: 'cancelled',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+
+			assert.notStrictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.Ready);
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+		});
+
+		test('does not promote a delivered token after the SDK reports authentication rejection', async () => {
+			const serverName = 'workiq';
+			const resource = 'https://mcp.example.com';
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-rejected',
+				serverName,
+				serverUrl: resource,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'rejected-token' });
+			await auth;
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'needs-auth',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			mockSession.fire('mcp.oauth_completed', {
+				requestId: 'auth-rejected',
+				outcome: 'token',
+			} as SessionEventPayload<'mcp.oauth_completed'>['data']);
+
+			assert.strictEqual(session.topLevelMcpCustomizations()[0]?.state.kind, McpServerStatus.AuthRequired);
+		});
+
 		test('rearms exhausted MCP authentication only from an explicit server start', async () => {
-			const { session, runtime, mockSession } = await createAgentSession(disposables, {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				configureMockSession: mock => {
 					mock.mcpListResult = { servers: [{ name: 'workiq', status: 'needs-auth' }] };
 				},
@@ -15744,13 +15950,23 @@ Use the attached image as context.
 			}), false);
 			const id = session.topLevelMcpCustomizations()[0]?.id;
 			assert.ok(id);
+			const signalOffset = signals.length;
+			let stateWhenResetRequested: McpServerStatus | undefined;
+			mockSession.onMcpAuthenticationStateChanged = () => {
+				const restored = getActions(signals.slice(signalOffset)).find(action => action.type === ActionType.SessionCustomizationUpdated);
+				if (restored?.customization.type === CustomizationType.McpServer) {
+					stateWhenResetRequested = restored.customization.state.kind;
+				}
+			};
 			mockSession.mcpAuthenticationStateChangedError = new Error('reset rejected');
 			await assert.rejects(session.startMcpServer(id), /reset rejected/);
 			assert.deepStrictEqual({
+				stateWhenResetRequested,
 				stateAfterRejectedReset: session.topLevelMcpCustomizations()[0]?.state.kind,
 				authenticationStateChangedCalls: mockSession.mcpAuthenticationStateChangedCalls,
 				startServerCalls: mockSession.mcpStartServerCalls,
 			}, {
+				stateWhenResetRequested: McpServerStatus.AuthRequired,
 				stateAfterRejectedReset: McpServerStatus.AuthRequired,
 				authenticationStateChangedCalls: [{ serverName: 'workiq' }],
 				startServerCalls: [],
@@ -15798,8 +16014,8 @@ Use the attached image as context.
 			});
 		});
 
-		test('does not rearm a server while an MCP authentication callback is pending', async () => {
-			const { session, runtime, mockSession } = await createAgentSession(disposables);
+		test('restores auth-required after an optimistic start while an MCP authentication callback is pending', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
 			const auth = runtime.handleMcpAuthRequest({
 				requestId: 'auth-pending',
 				serverName: 'workiq',
@@ -15808,13 +16024,35 @@ Use the attached image as context.
 			}, { sessionId: 'test-session-1' });
 			await timeout(0);
 
-			const id = session.topLevelMcpCustomizations()[0]?.id;
-			assert.ok(id);
-			await session.startMcpServer(id);
+			const server = session.topLevelMcpCustomizations()[0];
+			assert.ok(server);
+			let clientState = sessionReducer({
+				...createSessionState({
+					resource: AgentSession.uri('copilot', 'test-session-1').toString(),
+					provider: 'copilot',
+					title: 'Test session',
+					status: SessionStatus.Idle,
+					createdAt: '2026-09-22T00:00:00.000Z',
+					modifiedAt: '2026-09-22T00:00:00.000Z',
+				}),
+				customizations: [server],
+			}, { type: ActionType.SessionMcpServerStartRequested, id: server.id });
+			const optimisticServer = clientState.customizations?.[0];
+			assert.ok(optimisticServer?.type === CustomizationType.McpServer && optimisticServer.state.kind === McpServerStatus.Starting);
+
+			const signalOffset = signals.length;
+			await session.startMcpServer(server.id);
+			for (const action of getActions(signals.slice(signalOffset))) {
+				if (action.type === ActionType.SessionCustomizationUpdated) {
+					clientState = sessionReducer(clientState, action);
+				}
+			}
 			assert.deepStrictEqual({
+				customizations: clientState.customizations,
 				authenticationStateChangedCalls: mockSession.mcpAuthenticationStateChangedCalls,
 				startServerCalls: mockSession.mcpStartServerCalls,
 			}, {
+				customizations: [server],
 				authenticationStateChangedCalls: [],
 				startServerCalls: [],
 			});
