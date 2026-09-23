@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -19,7 +19,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
-import { type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
 
@@ -41,7 +41,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, fromChat = false) {
 		const artifacts = observableValue('artifacts', entries);
 		const removed: string[] = [];
 		const errors: string[] = [];
@@ -72,7 +72,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
-			derived(reader => getSessionGitHubReferences(session.read(reader), reader)),
+			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ workspace }) : undefined)),
 			new class extends mock<IClipboardService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			configurationService,
@@ -198,6 +198,18 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['gitlab-pr', 'file'],
+			references: [],
+		});
+	});
+
+	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {
+		const { presentation } = createPresentation([
+			{ id: 'own-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Own repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
+			{ id: 'other-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Other repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/9') },
+		], { owner: 'owner', repo: 'repo' }, true);
+
+		assert.deepStrictEqual(visibleEntries(presentation), {
+			artifacts: ['other-repo-pr'],
 			references: [],
 		});
 	});

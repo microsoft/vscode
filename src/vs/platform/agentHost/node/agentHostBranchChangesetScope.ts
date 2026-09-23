@@ -86,3 +86,30 @@ export function resolveBranchChangesetScopeForOwner(stateManager: AgentHostState
 	}
 	return undefined;
 }
+
+/** The folder scope whose GitHub and pull request state a session, chat or folder owner uses. */
+export interface IGitHubStateScope {
+	readonly sessionUri: ProtocolURI;
+	/** The chat that represents the scope. */
+	readonly sourceUri: ProtocolURI;
+	/** Folder-scope id, or `undefined` for the default chat's scope, which uses the session-level GitHub state. */
+	readonly scopeId: string | undefined;
+	readonly workingDirectories: readonly ProtocolURI[];
+}
+
+/**
+ * Resolves the GitHub state scope for a session, chat channel or folder owner
+ * URI. Chats whose effective folders match the default chat's share its
+ * session-level state; every other folder scope has its own.
+ */
+export function resolveGitHubStateScope(stateManager: AgentHostStateManager, uri: ProtocolURI): IGitHubStateScope {
+	const scope = parseFolderChangesetOwnerUri(uri) ? resolveChangesetOwnerScope(stateManager, uri) : resolveBranchChangesetScopeForSource(stateManager, uri);
+	const scopeId = getWorkingDirectoryScopeId(scope.workingDirectories);
+	const defaultScopeId = getWorkingDirectoryScopeId(getEffectiveWorkingDirectories(stateManager, buildDefaultChatUri(scope.sessionUri)) ?? []);
+	return {
+		sessionUri: scope.sessionUri,
+		sourceUri: scope.sourceUri,
+		scopeId: scope.workingDirectories.length === 0 || scopeId === defaultScopeId ? undefined : scopeId,
+		workingDirectories: scope.workingDirectories,
+	};
+}

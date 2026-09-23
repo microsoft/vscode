@@ -13,7 +13,8 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { SessionArtifactType, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readSessionGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readScopeGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
+import { resolveGitHubStateScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
@@ -104,7 +105,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		return operations;
 	}
 
-	private _computeOperations({ sessionKey, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+	private _computeOperations({ sessionKey, ownerKey, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
 		// New Session
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
@@ -117,9 +118,13 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		// Pull request already exists for the currently checked out branch
+		// Pull request already exists for the currently checked out branch.
+		// Lifecycle status is tracked for the session's pull request only, so
+		// other folder scopes offer no lifecycle operations yet.
 		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return this._getPullRequestLifecycleOperations(sessionKey);
+			return ownerKey === undefined || resolveGitHubStateScope(this._stateManager, ownerKey).scopeId === undefined
+				? this._getPullRequestLifecycleOperations(sessionKey)
+				: undefined;
 		}
 
 		const hasBranchChanges = gitState?.hasBaseBranchChanges ?? (gitState?.outgoingChanges ?? 0) > 0;
@@ -265,6 +270,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),
 			});
 		});
+		// The pull request belongs to the folder scope it was created from.
+		const scope = resolveGitHubStateScope(this._stateManager, event.ownerUri);
 		await artifacts.mutate(collection => collection.addOrPromoteArtifact({
 			type: SessionArtifactType.PullRequest,
 			label: event.pullRequestTitle ?? '',
@@ -272,10 +279,10 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			link: event.pullRequestUrl,
 		}, generateUuid));
 
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		await this._gitStateService.setSessionGitHubState(sessionKey, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
+		const gitHubState = readScopeGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, scope.scopeId);
+		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);
-		void this._registry?.refreshSessionGitState(sessionKey);
+		void this._registry?.refreshSessionGitState(event.ownerUri);
 	}
 }

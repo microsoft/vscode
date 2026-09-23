@@ -10,11 +10,14 @@ import { ISessionGitHubState, ISessionGitState, SessionSummaryMeta } from './sta
 
 export const META_GIT_STATE = 'agentHost.git';
 export const META_GITHUB_STATE = 'agentHost.github';
+/** GitHub state of every non-default chat folder scope, keyed by folder-scope id. */
+export const META_GITHUB_SCOPES_STATE = 'agentHost.githubScopes';
 export const META_SOURCE_CONTROL_STATE = 'agentHost.sourceControl';
 
 export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 	[META_GIT_STATE]: true,
 	[META_GITHUB_STATE]: true,
+	[META_GITHUB_SCOPES_STATE]: true,
 	[META_SOURCE_CONTROL_STATE]: true,
 };
 
@@ -48,8 +51,16 @@ export interface IAgentHostGitStateService {
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
 	/**
-	 * Sets the GitHub state for a given session.
-	 * @param sessionKey The key of the session for which to set the GitHub state.
+	 * Returns the GitHub state of the folder scope a session, chat channel or
+	 * folder owner URI resolves to. Chats whose effective folders match the
+	 * default chat's share the session-level state.
+	 */
+	readonly getGitHubState?: (key: string) => ISessionGitHubState | undefined;
+
+	/**
+	 * Merges into the GitHub state of the folder scope a session, chat channel
+	 * or folder owner URI resolves to.
+	 * @param sessionKey The session, chat channel or folder owner URI whose scope's GitHub state to set.
 	 * @param state The GitHub state to set.
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;

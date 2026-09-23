@@ -1875,7 +1875,10 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
  * reads a detached meta snapshot without retaining the owning state.
  */
 export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
-	const value = meta?.[SESSION_META_GITHUB_KEY];
+	return parseSessionGitHubState(meta?.[SESSION_META_GITHUB_KEY]);
+}
+
+function parseSessionGitHubState(value: unknown): ISessionGitHubState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
@@ -1931,6 +1934,77 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 		delete next[SESSION_META_GITHUB_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} holding the GitHub state of
+ * each chat folder scope other than the default chat's, keyed by folder-scope
+ * id (see `getWorkingDirectoryScopeId`). The default chat's scope keeps using
+ * {@link SESSION_META_GITHUB_KEY}. VS Code convention layered on the protocol's
+ * generic `_meta` bag.
+ */
+export const SESSION_META_GITHUB_SCOPES_KEY = 'githubScopes';
+
+/** Reads the GitHub state of every non-default folder scope, keyed by folder-scope id. */
+export function readSessionScopedGitHubStates(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitHubState> {
+	const value = meta?.[SESSION_META_GITHUB_SCOPES_KEY];
+	const states = new Map<string, ISessionGitHubState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+	for (const [scopeId, raw] of Object.entries(value)) {
+		const state = parseSessionGitHubState(raw);
+		if (state) {
+			states.set(scopeId, state);
+		}
+	}
+	return states;
+}
+
+/**
+ * Reads the GitHub state of a folder scope. Omit `scopeId` for the default
+ * chat's scope, which is stored under {@link SESSION_META_GITHUB_KEY}.
+ */
+export function readScopeGitHubState(meta: SessionSummaryMeta | undefined, scopeId: string | undefined): ISessionGitHubState | undefined {
+	return scopeId === undefined ? readSessionGitHubState(meta) : readSessionScopedGitHubStates(meta).get(scopeId);
+}
+
+/**
+ * Returns `meta` with the GitHub state of a folder scope replaced, removing the
+ * entry when `gitHubState` is `undefined`. Omit `scopeId` for the default
+ * chat's scope. Returns `undefined` if the result would be empty.
+ */
+export function withScopeGitHubState(meta: SessionSummaryMeta | undefined, scopeId: string | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+	if (scopeId === undefined) {
+		return withSessionGitHubState(meta, gitHubState);
+	}
+	const scopes: { [scopeId: string]: ISessionGitHubState } = Object.fromEntries(readSessionScopedGitHubStates(meta));
+	if (gitHubState !== undefined) {
+		scopes[scopeId] = gitHubState;
+	} else {
+		delete scopes[scopeId];
+	}
+	const next: { [key: string]: unknown } = { ...meta };
+	if (Object.keys(scopes).length > 0) {
+		next[SESSION_META_GITHUB_SCOPES_KEY] = scopes;
+	} else {
+		delete next[SESSION_META_GITHUB_SCOPES_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Every pull request URL related to the session across all folder scopes, deduplicated. */
+export function getAllSessionRelatedPullRequestUrls(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const urls = new Map<string, string>();
+	for (const state of [readSessionGitHubState(meta), ...readSessionScopedGitHubStates(meta).values()]) {
+		for (const url of getSessionRelatedPullRequestUrls(state)) {
+			const key = getSessionPullRequestUrlKey(url);
+			if (!urls.has(key)) {
+				urls.set(key, url);
+			}
+		}
+	}
+	return [...urls.values()];
 }
 
 /**

@@ -6,7 +6,7 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { parseGitHubPullRequestUrl } from './utils.js';
 
 export interface ISessionGitHubReferences {
@@ -27,6 +27,10 @@ export function parseGitHubArtifactLink(artifact: ISessionArtifact): Pick<IGitHu
 	return artifact.kind === SessionArtifactKind.Issue ? parseGitHubIssueUrl(link) : undefined;
 }
 
+function isSameRepository(first: { readonly owner: string; readonly repo: string }, second: { readonly owner: string; readonly repo: string }): boolean {
+	return first.owner.toLowerCase() === second.owner.toLowerCase() && first.repo.toLowerCase() === second.repo.toLowerCase();
+}
+
 function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[], associated: readonly T[], merge: (recorded: T, associated: T) => T): readonly T[] {
 	const recordedLinks = new Set(recorded.map(ref => linkKey(ref.uri.toString())));
 	return [
@@ -39,9 +43,16 @@ function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[]
 	];
 }
 
-/** Resolves recorded GitHub links independently of a workspace, retaining repository-discovered associations. */
-export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined): ISessionGitHubReferences {
-	const gitHubInfo = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+/**
+ * Resolves recorded GitHub links independently of a workspace, retaining repository-discovered associations.
+ * Pass `chat` to use the repository associations of the chat's workspace instead of the session's; recorded
+ * pull requests from other repositories are then left out once the chat's repository is known.
+ */
+export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined, chat?: IChat): ISessionGitHubReferences {
+	// A chat in another folder scope reports its own repository associations.
+	const workspace = (chat?.workspace ?? session?.workspace)?.read(reader);
+	const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+	const chatRepository = chat ? gitHubInfo : undefined;
 	const pullRequests: IGitHubPullRequestRef[] = [];
 	const issues: IGitHubIssueRef[] = [];
 	for (const artifact of session?.artifacts?.read(reader) ?? []) {
@@ -56,7 +67,9 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 			recordedReferenceId: artifact.id,
 		};
 		if (artifact.kind === SessionArtifactKind.PullRequest) {
-			pullRequests.push({ ...ref, createdByThisSession: artifact.isArtifact });
+			if (!chatRepository || isSameRepository(ref, chatRepository)) {
+				pullRequests.push({ ...ref, createdByThisSession: artifact.isArtifact });
+			}
 		} else {
 			issues.push(ref);
 		}
