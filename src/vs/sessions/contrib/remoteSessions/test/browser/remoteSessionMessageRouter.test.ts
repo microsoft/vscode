@@ -899,9 +899,20 @@ suite('RemoteSessionMessageRouter', () => {
 			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
 			confirmedHost: true, confirmedChat: true, trusted: false, dispatches: 0,
 		});
-		await tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
+		const result = await tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
 		await assert.rejects(tool.invoke({ ...invocation, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None), /originating chat/);
-		assert.deepStrictEqual(first.dispatched.length, 1);
+		assert.deepStrictEqual({ dispatches: first.dispatched.length, content: result.content }, {
+			dispatches: 1,
+			content: [{
+				kind: 'text', value: JSON.stringify({
+					session: sessions[1].resource.toString(),
+					chat: sessions[1].chats.get()[1].resource.toString(),
+					openLink: buildOpenSessionLinkUri(sessions[1].resource, 'original-chat'),
+					host: { id: 'agenthost-first', label: 'agenthost-first' },
+					status: 'sent',
+				})
+			}],
+		});
 	});
 
 	test('tool guidance explains exact origins, queueing, target permissions and uncertain delivery', () => {
@@ -932,20 +943,18 @@ suite('RemoteSessionMessageRouter', () => {
 			dispatched: first.dispatched, needsVisibleWidget: tool.getToolData().when?.keys().includes(ChatContextKeys.chatIsAgentHostSession.key),
 		}, { dispatched: [], needsVisibleWidget: false });
 	});
-	test('tool guidance requires delegated task reports and avoids reply loops', () => {
+	test('tool guidance requests replies for assignments and avoids reply loops', () => {
 		const { tool } = setup();
 		const description = tool.getToolData().modelDescription;
 		assert.deepStrictEqual({
-			requiredReport: description.includes('report results or blockers before ending each delegated task, including follow-ups'),
-			noReminderRequired: description.includes('even if no reply was explicitly requested'),
-			noImplicitForwarding: description.includes('normal final answer is not forwarded'),
-			explicitOptOut: description.includes('unless explicitly instructed not to report back'),
+			requestsReply: description.includes('When assigning work, request a reply'),
+			noImplicitForwarding: description.includes('final answers are not forwarded'),
 			honestDelivery: description.includes('Only claim delivery after "sent" or "queued"'),
-			noAcknowledgementLoop: description.includes('Do not send acknowledgement-only replies'),
-			yield: description.includes('continue independent work or end your turn'),
-			noSleep: description.includes('Do not sleep or poll'),
+			noAcknowledgementLoop: description.includes('Do not retry uncertain delivery or acknowledge messages with no new task or question'),
+			yield: description.includes('Continue independent work or end your turn'),
+			noSleep: description.includes('do not sleep or poll'),
 		}, {
-			requiredReport: true, noReminderRequired: true, noImplicitForwarding: true, explicitOptOut: true,
+			requestsReply: true, noImplicitForwarding: true,
 			honestDelivery: true, noAcknowledgementLoop: true, yield: true, noSleep: true,
 		});
 	});

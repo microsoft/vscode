@@ -1608,9 +1608,10 @@ suite('AgentHostChatContributions', () => {
 			messages: results.map(result => result.message),
 			stableInstructions: results[0].instructions?.length === 1 && results[0].instructions[0] === results[1].instructions?.[0],
 			exactOrigin: instruction.includes('session "origin"') && instruction.includes('exact originating chat'),
-			noPolling: instruction.includes('rather than polling'),
+			toolDiscovery: instruction.includes('Load send_remote_message with tool search if needed'),
+			noPolling: instruction.includes('do not sleep or poll'),
 			noRetry: instruction.includes('Do not retry uncertain delivery'),
-		}, { messages, stableInstructions: true, exactOrigin: true, noPolling: true, noRetry: true });
+		}, { messages, stableInstructions: true, exactOrigin: true, toolDiscovery: true, noPolling: true, noRetry: true });
 	});
 
 	test('remote reply guidance requires reports for delegated work without acknowledgement loops', async () => {
@@ -1622,15 +1623,15 @@ suite('AgentHostChatContributions', () => {
 		});
 		const instruction = result.instructions?.[0] ?? '';
 		assert.deepStrictEqual({
-			noImplicitForwarding: instruction.includes('normal final answer') && instruction.includes('not forwarded'),
-			requiredBeforeFinishing: instruction.includes('must call send_remote_message with session "origin" before ending your turn'),
-			followUps: instruction.includes('including follow-up tasks'),
-			noReminderRequired: instruction.includes('even if the task does not explicitly ask for a reply'),
-			blockers: instruction.includes('If blocked or needing clarification, send the blocker or question instead'),
-			explicitOptOut: instruction.includes('unless explicitly instructed not to report back'),
-			noAcknowledgementLoop: instruction.includes('Do not send acknowledgement-only replies'),
-			honestDelivery: instruction.includes('Only claim delivery after the tool confirms "sent" or "queued"'),
-			visibleFailure: instruction.includes('report the failure in this chat'),
+			noImplicitForwarding: instruction.includes('Final answers are not forwarded'),
+			requiredBeforeFinishing: instruction.includes('send_remote_message with session "origin" before ending your turn'),
+			followUps: instruction.includes('including follow-ups'),
+			noReminderRequired: instruction.includes('For each delegated task'),
+			blockers: instruction.includes('results, blockers, or questions'),
+			explicitOptOut: instruction.includes('unless explicitly told not to report back'),
+			noAcknowledgementLoop: instruction.includes('Do not acknowledge messages with no new task or question'),
+			honestDelivery: instruction.includes('Only claim delivery after "sent" or "queued"'),
+			visibleFailure: instruction.includes('report failures here'),
 		}, {
 			noImplicitForwarding: true, requiredBeforeFinishing: true, followUps: true, noReminderRequired: true,
 			blockers: true, explicitOptOut: true, noAcknowledgementLoop: true, honestDelivery: true, visibleFailure: true,
@@ -1651,7 +1652,7 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual({
 			message: result.message,
 			hasReplyGuidance: result.instructions?.some(instruction => instruction.includes('<remote_session_origin>')),
-			requiresReport: result.instructions?.some(instruction => instruction.includes('must call send_remote_message with session "origin" before ending your turn')),
+			requiresReport: result.instructions?.some(instruction => instruction.includes('send_remote_message with session "origin" before ending your turn')),
 		}, { message, hasReplyGuidance: true, requiresReport: true });
 	});
 

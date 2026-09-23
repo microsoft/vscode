@@ -61,7 +61,7 @@ suite('RemoteSessionTools', () => {
 		const description = list.getToolData().modelDescription;
 		assert.deepStrictEqual({
 			requiresConnected: description.includes('Only connected hosts'),
-			unknownCapabilities: description.includes('Null delegation support'),
+			unknownCapabilities: description.includes('null support'),
 			notUnsupported: description.includes('unknown, not unsupported or zero'),
 		}, { requiresConnected: true, unknownCapabilities: true, notUnsupported: true });
 	});
@@ -71,13 +71,13 @@ suite('RemoteSessionTools', () => {
 		const description = create.getToolData().modelDescription;
 		assert.deepStrictEqual({
 			noWorkspace: description.includes('Omitted workspace creates a workspace-less session'),
-			noInheritance: description.includes('no branch or worktree is inherited'),
-			noClone: description.includes('No repository is cloned'),
+			noInheritance: description.includes('nothing is cloned, copied, or inherited from the origin'),
+			trustedWorkspace: description.includes('already exist and be trusted on the target'),
 			replies: description.includes('send_remote_message with session "origin"'),
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
-			connectedWindow: description.includes('Agents window remains connected'),
+			connectedWindow: description.includes('Keep the coordinating Agents window connected'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { noWorkspace: true, noInheritance: true, noClone: true, replies: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
+		}, { noWorkspace: true, noInheritance: true, trustedWorkspace: true, replies: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -89,11 +89,11 @@ suite('RemoteSessionTools', () => {
 		const { create } = setup();
 		const description = create.getToolData().modelDescription;
 		assert.deepStrictEqual({
-			explicitReport: description.includes('Include an explicit request to send results or blockers back'),
-			noImplicitForwarding: description.includes('normal final answer is not forwarded'),
-			asynchronousReply: description.includes('Replies arrive as new turns'),
-			yield: description.includes('continue independent work or end your turn'),
-			noSleep: description.includes('Do not sleep or poll'),
+			explicitReport: description.includes('Ask for results or blockers via send_remote_message'),
+			noImplicitForwarding: description.includes('final answers are not forwarded'),
+			asynchronousReply: description.includes('replies arrive as new turns'),
+			yield: description.includes('Continue independent work or end your turn'),
+			noSleep: description.includes('do not sleep or poll'),
 		}, { explicitReport: true, noImplicitForwarding: true, asynchronousReply: true, yield: true, noSleep: true });
 	});
 
@@ -135,7 +135,7 @@ suite('RemoteSessionTools', () => {
 			id: 'call-id',
 			token: CancellationToken.None,
 			prompt: 'Run the Linux tests',
-			response: [{ kind: 'text', value: JSON.stringify(result, undefined, 2) }],
+			response: [{ kind: 'text', value: JSON.stringify(result) }],
 		});
 	});
 
@@ -171,7 +171,7 @@ suite('RemoteSessionTools', () => {
 			callId: 'list-id', toolId: list.getToolData().id, parameters: {}, context: undefined,
 		}, async () => 0, progress, CancellationToken.None);
 		assert.deepStrictEqual({ content: response.content, creations: calls.length }, {
-			content: [{ kind: 'text', value: JSON.stringify({ hosts: [] }, undefined, 2) }], creations: 0,
+			content: [{ kind: 'text', value: JSON.stringify({ hosts: [] }) }], creations: 0,
 		});
 	});
 });

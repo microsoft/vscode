@@ -360,9 +360,9 @@ suite('RemoteSessionInspector', () => {
 			name: data.toolReferenceName, runsInWorkspace: data.runsInWorkspace,
 			keys: data.when?.keys().sort(), confirmation: prepared.confirmationMessages, subscriptions: first.subscribed,
 			noPolling: data.modelDescription.includes('do not sleep or poll'),
-			readOnly: data.modelDescription.includes('does not open or focus'),
+			readOnly: data.modelDescription.includes('Read-only'),
 			noReasoning: data.modelDescription.includes('Excludes reasoning'),
-			exactReference: data.modelDescription.includes('not a bare backend ID or "origin"'),
+			exactReference: data.modelDescription.includes('exact host-qualified references, not bare IDs or "origin"'),
 		}, {
 			name: 'get_remote_session', runsInWorkspace: false,
 			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
@@ -384,7 +384,7 @@ suite('RemoteSessionInspector', () => {
 			link: message.value.includes(buildOpenSessionLinkUri(resource)), trusted: message.isTrusted,
 			failedRead: typeof unavailable.toolResultError === 'string' && unavailable.toolResultError.includes('disconnected'),
 		}, {
-			content: [{ kind: 'text', value: JSON.stringify(expected, undefined, 2) }],
+			content: [{ kind: 'text', value: JSON.stringify(expected) }],
 			link: true, trusted: false, failedRead: true,
 		});
 	});

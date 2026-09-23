@@ -22,7 +22,7 @@ export class ListAgentHostsTool implements IToolImpl {
 			toolReferenceName: 'list_agent_hosts',
 			displayName: localize('remoteSessions.list.displayName', "List Agent Hosts"),
 			userDescription: localize('remoteSessions.list.description', "List connected remote agent hosts and their resources"),
-			modelDescription: 'List known remote agent hosts, connection status, remote-delegation support, execution-platform resources, running sessions, available agents/models, and known workspaces. Use this to inspect remote capacity or obtain an exact host ID or workspace URI. Only connected hosts with published capabilities are usable. Null delegation support or missing resource fields mean unknown, not unsupported or zero. A connected host explicitly reporting false delegation support needs updating. create_remote_session performs discovery and selection itself; this call is not a prerequisite. This tool does not connect hosts or change any session.',
+			modelDescription: 'List remote agent hosts, status, resources, load, agents/models, and workspaces to inspect capacity or get exact IDs. Only connected hosts with delegation support are usable; null support or missing resources mean unknown, not unsupported or zero. create_remote_session selects a host itself. This tool changes nothing.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -42,7 +42,7 @@ export class ListAgentHostsTool implements IToolImpl {
 	async invoke(_invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const hosts = this.remoteSessionsService.listHosts();
 		return {
-			content: [{ kind: 'text', value: JSON.stringify({ hosts }, undefined, 2) }],
+			content: [{ kind: 'text', value: JSON.stringify({ hosts }) }],
 			toolResultMessage: localize('remoteSessions.list.result', "Listed {0} remote agent hosts", hosts.length),
 		};
 	}
@@ -59,7 +59,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			toolReferenceName: 'create_remote_session',
 			displayName: localize('remoteSessions.create.displayName', "Create Remote Session"),
 			userDescription: localize('remoteSessions.create.description', "Delegate work to a matching remote agent host"),
-			modelDescription: 'Create a session and start a prompt on a connected remote agent host. Use this for work that should run remotely, optionally requiring a particular execution platform or minimum hardware capacity; use create_session for work on the current host. Requires an Agent Host originating chat; other chat providers are not supported. Selects a matching host with the fewest running sessions and pending creations, without pickers. Omitted workspace creates a workspace-less session, independent of the origin; omitted model uses the target default. A supplied workspace must already exist and be trusted on the target; worktree isolation creates a new branch from the specified target branch or the target default. No repository is cloned, no source files are copied, and no branch or worktree is inherited from the origin. Include an explicit request to send results or blockers back using send_remote_message with session "origin" in the task prompt, unless instructed otherwise. The child\'s normal final answer is not forwarded. Replies arrive as new turns or queue behind active work while the coordinating Agents window remains connected. Returns once the initial prompt is accepted, not when work finishes. Creation follows normal tool approval. After dispatch, continue independent work or end your turn to wait for incoming replies. Do not retry an uncertain creation. Do not sleep or poll for completion.',
+			modelDescription: 'Start a task on a connected remote agent host; use create_session for same-host work. Requires an Agent Host originating chat. Selects the matching host with the fewest running sessions and pending creations. Omitted workspace creates a workspace-less session; omitted model uses the target default. Workspaces must already exist and be trusted on the target; nothing is cloned, copied, or inherited from the origin. Ask for results or blockers via send_remote_message with session "origin"; final answers are not forwarded. Returns on prompt acceptance, not completion; replies arrive as new turns. Keep the coordinating Agents window connected. Normal approval applies. Continue independent work or end your turn; do not sleep or poll for replies. Do not retry an uncertain creation.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -71,37 +71,36 @@ export class CreateRemoteSessionTool implements IToolImpl {
 				additionalProperties: false,
 				required: ['prompt'],
 				properties: {
-					prompt: { type: 'string', minLength: 1, description: 'Task to start on the selected remote host. Include what results to send back using send_remote_message with session "origin", unless no report is wanted.' },
-					title: { type: 'string', minLength: 1, maxLength: 200, description: 'Optional title for the remote session.' },
-					hostId: { type: 'string', description: 'Optional exact ID from list_agent_hosts. Omit to select automatically.' },
+					prompt: { type: 'string', minLength: 1 },
+					title: { type: 'string', minLength: 1, maxLength: 200 },
+					hostId: { type: 'string', description: 'Exact ID from list_agent_hosts; omit for automatic placement.' },
 					model: {
 						type: 'object',
 						additionalProperties: false,
 						required: ['provider', 'id'],
-						description: 'Optional exact agent provider and model ID from list_agent_hosts. No silent substitution; omit to use the selected host default.',
+						description: 'Exact provider/model pair from list_agent_hosts; no substitution.',
 						properties: {
-							provider: { type: 'string', description: 'Agent provider, for example copilot, claude, or codex.' },
-							id: { type: 'string', description: 'Provider-native model ID advertised by the host.' },
+							provider: { type: 'string', description: 'Host-advertised agent provider.' },
+							id: { type: 'string', description: 'Provider-native model ID.' },
 						},
 					},
 					requirements: {
 						type: 'object',
 						additionalProperties: false,
 						properties: {
-							platform: { type: 'string', enum: ['windows', 'linux', 'macos'], description: 'Execution environment OS; WSL and Linux containers count as linux.' },
-							minMemoryGiB: { type: 'number', exclusiveMinimum: 0, description: 'Minimum memory capacity in GiB, not instantaneous free memory.' },
-							minCpuCount: { type: 'integer', minimum: 1, description: 'Minimum logical CPUs available to the execution environment.' },
+							platform: { type: 'string', enum: ['windows', 'linux', 'macos'], description: 'Execution OS (WSL/Linux containers: linux).' },
+							minMemoryGiB: { type: 'number', exclusiveMinimum: 0, description: 'Minimum capacity in GiB, not free memory.' },
+							minCpuCount: { type: 'integer', minimum: 1, description: 'Minimum logical CPUs.' },
 						},
 					},
 					workspace: {
 						type: 'object',
 						additionalProperties: false,
 						required: ['uri'],
-						description: 'Optional existing target workspace. Omit for a workspace-less session; no source workspace is required.',
 						properties: {
-							uri: { type: 'string', description: 'An exact remote workspace URI from list_agent_hosts (pins its host), or a file URI of a directory that exists on the target. Do not guess paths.' },
-							isolation: { type: 'string', enum: ['folder', 'worktree'], default: 'worktree', description: 'Defaults to a fresh Git worktree. folder edits the supplied directory directly.' },
-							branch: { type: 'string', description: 'Target-local Git base branch for the new worktree. Requires worktree isolation; omitted uses the target default.' },
+							uri: { type: 'string', description: 'Exact workspace URI from list_agent_hosts (pins its host), or an existing target directory\'s file URI. Do not guess paths.' },
+							isolation: { type: 'string', enum: ['folder', 'worktree'], default: 'worktree', description: 'worktree creates a fresh Git worktree; folder edits the directory directly.' },
+							branch: { type: 'string', description: 'Target-local base branch; worktree only. Omit for the target default.' },
 						},
 					},
 				},
@@ -152,7 +151,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		assertRemoteSessionCaller(source);
 		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
 		return {
-			content: [{ kind: 'text', value: JSON.stringify(created, undefined, 2) }],
+			content: [{ kind: 'text', value: JSON.stringify(created) }],
 			toolResultMessage: new MarkdownString().appendLink(created.openLink, localize('remoteSessions.create.result', "Created remote session on {0}", created.host.label)),
 		};
 	}
