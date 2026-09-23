@@ -200,14 +200,20 @@ suite('AgentHostPromptRegistry', () => {
 		});
 	});
 
-	suite('Sol/Astra contributor (registered via allPrompts)', () => {
+	suite('OpenAI contributor (registered via allPrompts)', () => {
 		const guidance = '\n' + [
 			'Do not automatically reread edited files or review the full diff after a successful edit.',
 			'When a check fails, tool output is ambiguous, or a concrete correctness question remains, inspect only the relevant code or diff hunks.',
 			'Still perform required validation, and honor explicit requests for a broader review.',
 		].join('\n');
 
-		for (const id of ['gpt-5.6-sol', 'gpt-5.6-sol-high', 'gpt-5.6-sol-2026-09-22', 'gpt-6-astra', 'gpt-6-astra-high', 'gpt-6-astra-2026-09-22']) {
+		for (const id of [
+			'gpt-3.5-turbo', 'gpt-4o', 'gpt-4.1', 'gpt-5', 'gpt-5-mini', 'gpt-5-codex',
+			'gpt-5.1', 'gpt-5.2', 'gpt-5.3-codex', 'gpt-5.4', 'gpt-5.5',
+			'gpt-5.6-sol', 'gpt-5.6-sol-high', 'gpt-5.6-sol-2026-09-22', 'gpt-5.6-luna', 'gpt-5.6-terra',
+			'gpt-6', 'gpt-6-astra', 'gpt-6-astra-high', 'gpt-6-astra-2026-09-22', 'gpt-6-codex', 'gpt-7-preview',
+			'o1', 'o1-preview', 'o3', 'o3-mini', 'o4-mini', 'openai', 'GPT-6', 'OpenAI',
+		]) {
 			test(`${id} appends only targeted review guidance without a setting`, () => {
 				assert.deepStrictEqual(
 					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
@@ -223,7 +229,7 @@ suite('AgentHostPromptRegistry', () => {
 		}
 
 		test('does not affect unrelated models or prefix collisions', () => {
-			for (const id of ['gpt-5.6', 'gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-solar', 'gpt-6', 'gpt-6-codex', 'gpt-6-astral', 'claude-opus-4-8', 'unknown']) {
+			for (const id of ['claude-opus-4-8', 'claude-sonnet-5', 'gemini-3-pro', 'grok-code-fast-1', 'gptcustom', 'o1custom', 'o3custom', 'openai-compatible', 'unknown']) {
 				assert.deepStrictEqual(
 					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
 					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
@@ -233,6 +239,17 @@ suite('AgentHostPromptRegistry', () => {
 				agentHostPromptRegistry.resolveSystemMessageConfig(undefined, context()),
 				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
 			);
+		});
+
+		test('routes custom OpenAI model IDs through the existing family override', () => {
+			const overrides = { 'preview-model-x': { family: 'gpt-6' } };
+			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
+			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
+				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
+				context()
+			);
+			assert.ok(result.mode === 'customize');
+			assert.deepStrictEqual(result.sections?.code_change_rules, { action: 'append', content: guidance });
 		});
 
 		test('preserves tool-gated, tool-search and workspaceless layers', () => {

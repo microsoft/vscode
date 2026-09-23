@@ -7,11 +7,13 @@ import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk'
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt } from './promptRegistry.js';
 
-class SolAstraPromptResolver implements IAgentHostPrompt {
+class OpenAIPromptResolver implements IAgentHostPrompt {
 	static readonly familyPrefixes: readonly string[] = [];
 
 	static matchesModel(model: ModelSelection): boolean {
-		return ['gpt-5.6-sol', 'gpt-6-astra'].some(id => model.id === id || model.id.startsWith(`${id}-`));
+		// Like Copilot Chat's OpenAI routing, match GPT families and the OpenAI alias; include legacy o-series IDs.
+		const family = model.id.toLowerCase();
+		return family.startsWith('gpt-') || family === 'openai' || /^o[134](?:-|$)/.test(family);
 	}
 
 	resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
@@ -28,4 +30,4 @@ class SolAstraPromptResolver implements IAgentHostPrompt {
 	}
 }
 
-agentHostPromptRegistry.registerPrompt(SolAstraPromptResolver);
+agentHostPromptRegistry.registerPrompt(OpenAIPromptResolver);
