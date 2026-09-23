@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
+import { SessionStatus } from './state/sessionState.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -118,6 +119,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly repoName?: string;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
+	/** Last reported activity; this does not establish environment availability or session flags. */
+	readonly status?: SessionStatus;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */

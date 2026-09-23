@@ -70,7 +70,7 @@ import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
-import { ReadOnlyChatSession } from '../../remoteAgentHost/browser/cloudSandboxReadOnlySessionHandler.js';
+import { ReadOnlyChatSession } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {

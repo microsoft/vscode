@@ -52,7 +52,7 @@ import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
-import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
+import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
@@ -111,6 +111,10 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	override getCachedSession(rawId: string): ISession | undefined {
 		const meta = this.seeded.find(seen => AgentSession.id(seen.session) === rawId);
 		return meta ? this._toSession(meta) : undefined;
+	}
+
+	override getSessionModifiedTime(rawId: string): number | undefined {
+		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
 	}
 
 	override publishWithheldSession(rawId: string): void {
@@ -360,8 +364,13 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		override get hasFocus() { return focused; }
 	}());
 	instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
-		override readonly onDidChangeSentiment = onDidChangeSentiment.event;
-		override get sentiment(): IChatSentiment { return { hidden: chatHidden }; }
+		override readonly onDidChangeSentiment = Event.any(
+			onDidChangeSentiment.event,
+			Event.map(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatAIDisabledSettingId)), () => undefined),
+		);
+		override get sentiment(): IChatSentiment {
+			return { hidden: chatHidden || configurationService.getValue<boolean>(ChatAIDisabledSettingId) };
+		}
 	}());
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
