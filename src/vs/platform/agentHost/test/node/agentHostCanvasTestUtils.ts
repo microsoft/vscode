@@ -122,9 +122,12 @@ export function createCanvasHostServices(store: Pick<DisposableStore, 'add'>, st
 	return { state, database, connections, providers, service };
 }
 
-export function createCanvasSession(state: AgentHostStateManager): void {
+export function createCanvasSession(state: AgentHostStateManager, persisted = true): void {
 	state.createSession({
 		resource: canvasSession, provider: 'copilot', title: 'Canvas Test', status: SessionStatus.Idle,
 		createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
 	});
+	if (persisted) {
+		state.markSessionUsed(canvasSession);
+	}
 }

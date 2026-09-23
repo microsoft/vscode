@@ -20,6 +20,7 @@ export const postinstallInputFiles: readonly string[] = [
 	'build/npm/copilotSdkCanvasPatch.ts',
 	'build/npm/copilot-sdk-canvas.json',
 	'build/npm/copilot-sdk-canvas.patch',
+	'build/npm/copilot-sdk-canvas-from-b3.patch',
 ];
 
 export function collectInputFiles(repositoryRoot: string = root): string[] {

@@ -16,7 +16,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, type IQuickPickItem, type QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
-import type { IChat } from '../../../services/sessions/common/session.js';
+import { SessionStatus, type IChat } from '../../../services/sessions/common/session.js';
 import { CANVAS_INPUT_MAX_LENGTH, CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, SessionCanvasUri, type CanvasEntry, type CanvasTypeDeclaration, type ISessionCanvasReference } from '../../../services/sessions/common/sessionCanvases.js';
 import { ISessionCanvasService, SessionCanvasInput, type ISessionCanvasTarget } from '../common/sessionCanvas.js';
 
@@ -100,16 +100,24 @@ export class SessionCanvasActions {
 	resolveTarget(context?: unknown): ISessionCanvasTarget {
 		let session: URI | undefined;
 		let chat: URI | undefined;
+		let untitled = false;
 		if (context === undefined || context === null) {
 			const represented = this.sessionContext.session.get();
 			session = represented?.resource;
-			chat = represented?.activeChat.get().resource;
+			const activeChat = represented?.activeChat.get();
+			chat = activeChat?.resource;
+			untitled = represented?.status.get() === SessionStatus.Untitled || activeChat?.status.get() === SessionStatus.Untitled;
 		} else if (isRecord(context) && URI.isUri(context.resource) && isObservable<IChat>(context.activeChat)) {
 			session = context.resource;
-			chat = context.activeChat.get().resource;
+			const activeChat = context.activeChat.get();
+			chat = activeChat.resource;
+			untitled = activeChat.status.get() === SessionStatus.Untitled;
 		} else if (isRecord(context) && typeof context.sessionResource === 'string' && typeof context.chatResource === 'string') {
 			session = URI.parse(context.sessionResource, true);
 			chat = URI.parse(context.chatResource, true);
+		}
+		if (untitled) {
+			throw new Error(localize('canvas.persistOwnerFirst', "Send a message in this conversation before using canvases."));
 		}
 		const target = session && chat ? this.canvasService.getTarget(session, chat) : undefined;
 		if (!target) {

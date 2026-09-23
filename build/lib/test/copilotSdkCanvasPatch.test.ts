@@ -36,6 +36,10 @@ const after = {
 	'dist/cjs/client.js': 'exports.canvas = true;\n',
 	'dist/helper.js': 'export const retained = null;\n',
 };
+const previous = {
+	...after,
+	'dist/client.js': 'export const canvas = "previous";\n',
+};
 const patch = [
 	'diff --git a/dist/client.js b/dist/client.js',
 	'--- a/dist/client.js',
@@ -61,6 +65,15 @@ const patch = [
 	'+++ b/dist/helper.js',
 	'@@ -0,0 +1 @@',
 	'+export const retained = null;',
+	'',
+].join('\n');
+const transitionPatch = [
+	'diff --git a/dist/client.js b/dist/client.js',
+	'--- a/dist/client.js',
+	'+++ b/dist/client.js',
+	'@@ -1 +1 @@',
+	'-export const canvas = "previous";',
+	'+export const canvas = true;',
 	'',
 ].join('\n');
 
@@ -102,7 +115,10 @@ function fixture(t: TestContext) {
 		'build/npm/copilot-sdk-canvas.json': JSON.stringify(value),
 	});
 	saveManifest(manifest);
-	writeFiles(root, { 'build/npm/copilot-sdk-canvas.patch': patch });
+	writeFiles(root, {
+		'build/npm/copilot-sdk-canvas.patch': patch,
+		'build/npm/copilot-sdk-canvas-from-b3.patch': transitionPatch,
+	});
 	return { root, packages, manifestPath, manifest, saveManifest };
 }
 
@@ -141,6 +157,33 @@ suite('Copilot SDK canvas dependency patch', () => {
 		const data = fixture(t);
 		assert.throws(() => ensureCopilotSdkCanvasPatch(data.root, { checkOnly: true }), /not installed/);
 		assert.deepStrictEqual(data.packages.map(directory => readFiles(directory, before)), [before, before]);
+	});
+
+	test('upgrades a complete previous backport through its declared transition', t => {
+		const data = fixture(t);
+		for (const directory of data.packages) {
+			writeFiles(directory, previous);
+		}
+		const transitionFile = 'copilot-sdk-canvas-from-previous.patch';
+		writeFiles(data.root, { [`build/npm/${transitionFile}`]: transitionPatch });
+		data.saveManifest({
+			...data.manifest,
+			transitions: [{
+				patchFile: transitionFile,
+				patchSha256: hash(transitionPatch),
+				before: hashes(previous),
+			}],
+		});
+
+		assert.deepStrictEqual({
+			applied: ensureCopilotSdkCanvasPatch(data.root).map(item => item.status),
+			checked: ensureCopilotSdkCanvasPatch(data.root, { checkOnly: true }).map(item => item.status),
+			files: data.packages.map(directory => readFiles(directory, after)),
+		}, {
+			applied: ['applied', 'applied'],
+			checked: ['verified', 'verified'],
+			files: [after, after],
+		});
 	});
 
 	test('a corrupt second target prevents modification of the first target', t => {
@@ -403,6 +446,7 @@ suite('Copilot SDK canvas dependency patch', () => {
 				'build/npm/copilotSdkCanvasPatch.ts',
 				'build/npm/copilot-sdk-canvas.json',
 				'build/npm/copilot-sdk-canvas.patch',
+				'build/npm/copilot-sdk-canvas-from-b3.patch',
 			],
 		);
 	});

@@ -1,27 +1,24 @@
 # Copilot SDK canvas backport
 
 VS Code still depends on the published `@github/copilot-sdk@1.0.13`. The adjacent
-generated B3 delta supplies the public Node SDK launch-provider, turnless
-retention, and initial script-classification bindings needed by the opt-in canvas integration. It is a local
-source-backed backport, not a new published SDK or CLI version.
+generated B4 delta supplies the public Node SDK launch-provider and initial
+script-classification bindings needed by the opt-in canvas integration. It is a
+local source-backed backport, not a new published SDK or CLI version.
 
 The SDK's internal CLI pin remains `1.0.83`. Applying this delta does not add
 runtime support: the selected runtime must implement launch-provider contract
-version 1, `session.retain`, and the initial create/resume script-classification option. The client rejects failed or unsupported
-negotiation rather than falling back to unadmitted extension execution.
+version 1 and the initial create/resume script-classification option. The caller
+must already own a durable chat before extension admission. The client rejects
+failed or unsupported negotiation rather than falling back to unadmitted
+extension execution.
 
 ## Client/runtime boundary
 
 The canvas client uses the public SDK JSON-RPC contract, not runtime-native
-exports. Internal runtime changes to how `session.retain` dispatches do not
-require a different client call or package patch when that contract is unchanged.
-
-Keep the connection-level `client.rpc.session.retain({ sessionId })` call during
-launch admission: create/resume may not yet have returned a session object.
-Missing session/default-launch context denies execution, retention errors must
-propagate, and only a successful `null` acknowledgement can allow startup.
-Cancellation or loss of authority must still reject a late acknowledgement.
-Do not replace retention with the non-equivalent `sessions.save` operation.
+exports. Missing session/default-launch context denies execution. Cancellation
+or loss of authority still rejects a late grant. The integration does not create
+durability during launch admission and does not substitute `sessions.save`, a
+dummy name, or a synthetic turn.
 
 The focused `copilotCanvases.test.ts` suite covers these client-side boundaries.
 It does not replace integration qualification against the actual selected runtime.
@@ -33,19 +30,17 @@ It does not replace integration qualification against the actual selected runtim
 | `copilot-sdk-canvas.source.patch` | Portable Node SDK source changes against the published release's source commit, including its patched generated TypeScript. |
 | `copilot-sdk-canvas.build.md` | Portable build recipe, immutable inputs, toolchain and regeneration boundary. |
 | `copilot-sdk-canvas.patch` | Generated package-relative changes to ESM, CommonJS and declarations. Do not hand-edit. |
+| `copilot-sdk-canvas-from-b3.patch` | Complete-image transition for an already installed B3 package. |
 | `copilot-sdk-canvas.json` | Complete before/after package SHA-256 vectors, payload digest, source provenance and build-tool versions. |
 | `copilotSdkCanvasPatch.ts` | Version-bound installation and verification of the emitted delta. |
 
 The base is SDK source commit
-`f13e4a2cc7e4e220974d2333142234e162a3252e`. The Node startup single-flight
-prerequisite comes from `3dbd843e46771f99070221a85d83c85d8046d0bd`.
-The backport adds connection-owned launch-provider attachment, strict v1
-negotiation, cancellation-safe callbacks and global/scoped retention. B2 also
-forwards the canonical optional `enableScriptSafety` field in the initial
-create and resume requests, before newly loaded extension work can begin.
-B3 preserves those bindings and adds idempotent cleanup after startup failure,
-without changing the public API or declarations.
-It does not transplant the newer SDK's unrelated APIs or dependency changes.
+`f13e4a2cc7e4e220974d2333142234e162a3252e`. B4 keeps B3's connection-owned
+launch-provider attachment, strict v1 negotiation, cancellation-safe callbacks
+and idempotent cleanup. It removes the unpublished retention method/event
+bindings and keeps the optional `enableScriptSafety` field in initial create and
+resume requests. It does not transplant unrelated newer SDK APIs or dependency
+changes.
 
 The unmodified release source reproduces all 52 published `dist` files.
 The emitted delta changes 12 paths, including three new files; the complete
@@ -58,11 +53,11 @@ tooling, not VS Code's TypeScript or esbuild versions. The exact versions and
 source-patch digest are recorded in the manifest. Building those checked-in
 sources does not require access to a private runtime checkout.
 
-Regenerating the RPC TypeScript is a separate operation: its schema baseline is
-CLI `1.0.83` plus the canonical unreleased launch-v1/retain fragments. Running
-the ordinary generator against only the published `1.0.83` schemas would
-remove the new bindings. An aligned runtime release and regeneration remain
-prerequisites to replacing this backport with a published SDK.
+Regenerating the RPC TypeScript uses CLI `1.0.83` plus the seven reviewed
+launch-v1 fragments from runtime `ef0ce220`. Released session-event input is
+used unchanged; no retention method or event is projected. An aligned runtime
+release and regeneration remain prerequisites to replacing this backport with
+a published SDK.
 
 ## Initial script classification
 
@@ -73,8 +68,8 @@ A post-create `options.update` cannot cover extension work that starts earlier.
 
 The SDK preserves an explicit `false` and omits an undefined value. The
 qualified runtime's scalar is not durable: omission on a resident session
-preserves its current memory, but cold omission defaults to false even after
-retention. This is not a persistence promise.
+preserves its current memory, while cold omission defaults to false. This is not
+a persistence promise.
 
 The option enables runtime classification of read-only shell commands; those
 commands may run without a prompt subject to managed/runtime policy. It does
@@ -116,11 +111,11 @@ errors, not successful installation. Replacement is per package, not a
 transaction across all trees.
 A later repair can finish a mixed complete-before/complete-after installation.
 
-The checked-in payload applies to the complete published package, not an older
-development backport. A known older candidate requires its own reviewed
-complete-image transition through the carrier's `manifestPath` option, followed
-by verification against this final manifest. Do not apply a clean-release patch
-over a previous backport or relax the before-image guard.
+The carrier recognizes both the complete published package and the complete B3
+after-image. Fresh installs use `copilot-sdk-canvas.patch`; existing B3 installs
+use `copilot-sdk-canvas-from-b3.patch`. Both routes must produce the same complete
+B4 after-image. Do not apply one route manually over the other or relax the
+before-image guard.
 
 Do not disable the guards to repair a linked or unexpected installation.
 Remove dependency links using the mechanism that created them, then restore
@@ -133,8 +128,8 @@ content-bound approval of extension directories, or a Node execution sandbox.
 ## Removing the backport
 
 Move to an aligned published SDK/runtime pair only after its public
-launch-provider negotiation, cancellation and turnless-retention behavior are
-qualified. Remove the payload, source patch, carrier and repair command
-together; remove both installation call sites, their explicit hash inputs and
-the generated-patch Git attributes. Do not leave declaration-only shims or a
-silent fallback behind.
+launch-provider negotiation, cancellation and initial script-safety behavior are
+qualified. Remove both payload routes, the source patch, carrier and repair
+command together; remove both installation call sites, their explicit hash
+inputs and the generated-patch Git attributes. Do not leave declaration-only
+shims or a silent fallback behind.

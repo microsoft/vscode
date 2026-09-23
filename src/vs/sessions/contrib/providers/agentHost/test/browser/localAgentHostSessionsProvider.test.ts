@@ -21,7 +21,6 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { withCanvasSessionRetained } from '../../../../../../platform/agentHost/common/meta/agentCanvasSessionMeta.js';
 import { getAgentHostExtensionInitializeResultMeta, type InitializeCanvasChatParams } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -792,7 +791,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			denied: 0,
 			initializations: [buildDefaultChatUri(AgentSession.uri('copilotcli', 'canvas-trust').toString())],
-			checked: [session.sessionId, session.sessionId, session.sessionId],
+			checked: [session.sessionId, session.sessionId],
 		});
 	});
 
@@ -822,7 +821,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			initializations: agentHost.canvasInitializations.length,
 			workspace: session.workspace.get()?.uri.toString(),
 		}, {
-			checks: 2,
+			checks: 1,
 			initializations: 1,
 			workspace: URI.file('/home/user/project').toString(),
 		});
@@ -845,28 +844,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { workbench: false, otherAgent: false, workbenchFacet: undefined, otherAgentFacet: undefined });
 	});
 
-	nativeCanvasTest('canvas presentation is disabled for pending and selected Dev Container execution', async () => {
-		const availability = new DeferredPromise<boolean>();
+	nativeCanvasTest('canvas presentation is unavailable for a draft before its first turn', () => {
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-		const provider = createProvider(disposables, agentHost, undefined, {
-			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
-			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
-				override async isAvailable(): Promise<boolean> { return availability.p; }
-			}(),
-		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
 		const draft = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
-		const canvases = provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource)!;
-		const supported = [draft.capabilities.get().supportsCanvases];
-		provider.preferDevContainer(draft.sessionId);
-		supported.push(draft.capabilities.get().supportsCanvases);
-		const pending = { availability: canvases.availability.get(), facet: provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource) };
-		await availability.complete(true);
-		await timeout(0);
-		supported.push(draft.capabilities.get().supportsCanvases);
-		provider.setDevContainerEnabled(draft.sessionId, false);
-		supported.push(draft.capabilities.get().supportsCanvases);
-		assert.deepStrictEqual({ supported, pending, restored: canvases.availability.get(), effects: agentHost.canvasOpens }, {
-			supported: [true, false, false, true], pending: { availability: 'unsupported', facet: undefined }, restored: 'available', effects: [],
+		assert.deepStrictEqual({
+			supported: draft.capabilities.get().supportsCanvases,
+			facet: provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource),
+			effects: agentHost.canvasOpens,
+		}, {
+			supported: false,
+			facet: undefined,
+			effects: [],
 		});
 	});
 
@@ -905,175 +894,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pureReadsSubscribed: false, members: { main: ['ahp-canvas:/counter'], peer: ['ahp-canvas:/peer'] }, listings: [defaultChat, peerChat],
 			removedPeer: 'unsupported', removedSession: 'unsupported',
 		});
-	});
-
-	nativeCanvasTest('canvas draft projections are disposed on discard and config replacement', async () => {
-		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
-		const availability: string[] = [];
-		for (const discard of [(id: string) => provider.deleteNewSession(id), (id: string) => provider.clearSessionConfig(id)]) {
-			const session = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
-			await timeout(0);
-			const canvases = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
-			discard(session.sessionId);
-			availability.push(canvases.availability.get());
-		}
-		assert.deepStrictEqual(availability, ['unsupported', 'unsupported']);
-	});
-
-	test('ready canvas membership commits its exact new peer without a first turn', async () => {
-		const rawId = 'canvas-new-peer';
-		const backend = AgentSession.uri('copilotcli', rawId);
-		const mainChat = buildDefaultChatUri(backend.toString());
-		const summary = (resource: string): ChatSummary => ({ resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' });
-		const initial: SessionState = {
-			provider: 'copilotcli', title: 'Canvas peers', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
-			activeClients: [], defaultChat: mainChat, chats: [summary(mainChat)],
-		};
-		agentHost.addSession(createSession(rawId));
-		agentHost.setSessionState(rawId, 'copilotcli', initial);
-		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
-		await timeout(0);
-		const session = provider.getSessions()[0];
-		const peer = await provider.createNewChat(session.sessionId);
-		const backendPeer = agentHost.createdChats[0].chat.toString();
-		const statuses = [peer.status.get()];
-		const withCanvas: SessionState = {
-			...initial, chats: [...initial.chats, summary(backendPeer)],
-			canvases: [canvasEntry(createCanvasState(backendPeer))],
-		};
-		agentHost.setSessionState(rawId, 'copilotcli', { ...withCanvas, lifecycle: SessionLifecycle.Creating });
-		statuses.push(peer.status.get());
-		agentHost.setSessionState(rawId, 'copilotcli', withCanvas);
-		statuses.push(peer.status.get());
-		const next = await provider.createNewChat(session.sessionId);
-		assert.deepStrictEqual({
-			statuses, distinctNextChat: !isEqual(next.resource, peer.resource), nextStatus: next.status.get(),
-			samePeer: session.chats.get().find(chat => isEqual(chat.resource, peer.resource)) === peer,
-		}, {
-			statuses: [SessionStatus.Untitled, SessionStatus.Untitled, SessionStatus.Completed],
-			distinctNextChat: true, nextStatus: SessionStatus.Untitled, samePeer: true,
-		});
-	});
-
-	for (const { metadataFirst, hasMember } of [
-		{ metadataFirst: true, hasMember: true },
-		{ metadataFirst: false, hasMember: true },
-		{ metadataFirst: true, hasMember: false },
-		{ metadataFirst: false, hasMember: false },
-	]) {
-		test(`canvas-first draft promotion preserves its owner and projection (${hasMember ? 'membership' : 'retained without members'}, ${metadataFirst ? 'summary first' : 'state first'})`, async () => {
-			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-			const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
-			await timeout(0);
-			const draft = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
-			provider.setModel(draft.sessionId, draft.mainChat.get().resource, 'selected-model', ChatModelSource.Chosen);
-			await timeout(0);
-			const backend = agentHost.createdSessionUris[0];
-			const rawId = AgentSession.id(backend);
-			const chat = buildDefaultChatUri(backend.toString());
-			const canvas = canvasEntry(createCanvasState(chat));
-			const canvases = provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource);
-			const replacements: string[] = [];
-			disposables.add(provider.onDidReplaceSession(e => replacements.push(`${e.from.sessionId}->${e.to.sessionId}`)));
-			const state: SessionState = {
-				provider: 'copilotcli', title: 'Canvas-first', status: ProtocolSessionStatus.Idle,
-				lifecycle: SessionLifecycle.Creating, activeClients: [], defaultChat: chat,
-				chats: [{ resource: chat, title: 'Canvas-first', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' }],
-				canvases: hasMember ? [canvas] : [],
-				_meta: hasMember ? undefined : withCanvasSessionRetained(undefined),
-			};
-			if (metadataFirst) {
-				fireSessionAdded(agentHost, rawId, { title: 'Canvas-first' });
-			}
-			agentHost.setSessionState(rawId, 'copilotcli', state);
-			const whileCreating = replacements.length;
-			agentHost.setSessionState(rawId, 'copilotcli', { ...state, lifecycle: SessionLifecycle.Ready, canvases: [], _meta: undefined });
-			const beforeDurableIntent = replacements.length;
-			agentHost.setSessionState(rawId, 'copilotcli', { ...state, lifecycle: SessionLifecycle.Ready });
-			const beforeSummary = replacements.length;
-			if (!metadataFirst) {
-				fireSessionAdded(agentHost, rawId, { title: 'Canvas-first' });
-			}
-			provider.deleteNewSession(draft.sessionId);
-			const committed = provider.getSessionByResource(draft.resource)!;
-			const projection = provider.getSessionCanvases(committed.sessionId, committed.mainChat.get().resource);
-			assert.deepStrictEqual({
-				whileCreating, beforeDurableIntent, beforeSummary, replacements,
-				owner: committed.resource.toString(), status: committed.status.get(), model: committed.modelId.get(),
-				projection: projection && {
-					members: projection.entries.get().map(entry => entry.resource), availability: projection.availability.get(),
-					sameProjection: projection === canvases,
-				},
-				disposedSessions: agentHost.disposedSessions.map(resource => resource.toString()),
-			}, {
-				whileCreating: 0, beforeDurableIntent: 0, beforeSummary: metadataFirst ? 1 : 0, replacements: [`${draft.sessionId}->${draft.sessionId}`],
-				owner: draft.resource.toString(), status: SessionStatus.Completed, model: 'selected-model',
-				projection: isWeb ? undefined : {
-					members: hasMember ? [canvas.resource] : [], availability: 'available', sameProjection: true,
-				},
-				disposedSessions: [],
-			});
-		});
-	}
-
-	nativeCanvasTest('canvas open waits for eager owner creation without a model request', async () => {
-		const creation = new DeferredPromise<void>();
-		agentHost.onCreateSession = () => creation.p;
-		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
-		const draft = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
-		const canvases = provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource)!;
-		const open = canvases.open({ ...createCanvasState().identity, title: 'Counter' });
-		await timeout(0);
-		const before = agentHost.canvasOpens.length;
-		await creation.complete();
-		await open;
-		assert.deepStrictEqual({
-			before, channels: agentHost.canvasOpens.map(params => params.channel),
-		}, { before: 0, channels: agentHost.createdSessionUris.map(resource => resource.toString()) });
-	});
-
-	test('canvas-first promotion waits for outstanding first-request preparation to settle', async () => {
-		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
-		await timeout(0);
-		const draft = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
-		const request = disposables.add(provider.startNewSessionRequest(draft.sessionId));
-		await timeout(0);
-		const backend = agentHost.createdSessionUris[0];
-		const rawId = AgentSession.id(backend);
-		const chat = buildDefaultChatUri(backend.toString());
-		const replacements: string[] = [];
-		disposables.add(provider.onDidReplaceSession(e => replacements.push(e.to.sessionId)));
-		fireSessionAdded(agentHost, rawId);
-		agentHost.setSessionState(rawId, 'copilotcli', {
-			provider: 'copilotcli', title: 'Canvas-first', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
-			activeClients: [], defaultChat: chat,
-			chats: [{ resource: chat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' }],
-			canvases: [canvasEntry(createCanvasState(chat))],
-		});
-		const before = replacements.length;
-		request.dispose();
-		assert.deepStrictEqual({ before, replacements, disposedSessions: agentHost.disposedSessions }, {
-			before: 0, replacements: [draft.sessionId], disposedSessions: [],
-		});
-	});
-
-	nativeCanvasTest('discarding an uncommitted canvas owner cancels a waiting open', async () => {
-		const creation = new DeferredPromise<void>();
-		agentHost.onCreateSession = () => creation.p;
-		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
-		const draft = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
-		const canvases = provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource)!;
-		const rejected = assert.rejects(canvases.open({ ...createCanvasState().identity, title: 'Counter' }), /Canceled/);
-		await timeout(0);
-		provider.deleteNewSession(draft.sessionId);
-		await creation.complete();
-		await rejected;
-		assert.deepStrictEqual(agentHost.canvasOpens, []);
 	});
 
 	test('Automation catalogue state follows local Agent Host connection lifetime', () => {

@@ -17,6 +17,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IProgressService, Progress, ProgressLocation, type IProgress, type IProgressOptions, type IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, QuickInputHideReason, type IInputOptions, type IQuickInputHideEvent, type IQuickPick, type IQuickPickDidAcceptEvent, type IQuickPickItem, type QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CanvasSourceKind, SessionCanvasUri, type CanvasTypeDeclaration, type SessionCanvasOpenOptions } from '../../../../services/sessions/common/sessionCanvases.js';
 import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { ISessionCanvasService, SessionCanvasInput, type ISessionCanvasTarget } from '../../common/sessionCanvas.js';
@@ -111,6 +112,12 @@ suite('Session canvas command ownership', () => {
 			f.actions.resolveTarget(null).session.resource.toString(),
 		], ['session:/a', 'session:/a', 'session:/b']);
 		assert.throws(() => f.actions.resolveTarget({ sessionResource: 'session:/missing', chatResource: f.a.mainChat.get().resource.toString() }), /Select a supported local conversation/);
+	});
+
+	test('untitled conversations require a normal first message', () => {
+		const f = fixture();
+		f.represented.set(makeSession(URI.parse('session:/draft'), { status: SessionStatus.Untitled }), undefined);
+		assert.throws(() => f.actions.resolveTarget(), /Send a message/);
 	});
 
 	test('initialization closes the pure picker before execution and returns to the same owner catalog', async () => {

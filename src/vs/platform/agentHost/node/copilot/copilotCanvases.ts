@@ -46,7 +46,7 @@ export interface ICopilotCanvasLaunch extends IDisposable {
 	readonly token: CancellationToken;
 	onEvent(event: SessionEvent): void;
 	permission(request: PermissionRequest): Promise<PermissionRequestResult | undefined>;
-	attach(wrapper: CopilotSessionWrapper): Promise<void>;
+	attach(wrapper: CopilotSessionWrapper, waitForExtensions?: boolean): Promise<void>;
 }
 
 interface ICanvasBacking {
@@ -182,17 +182,6 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 					|| isProjectSource && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
 					return { launch: null };
 				}
-				// Top-level extension code is effectful. Retention must precede the launch recipe.
-				const retained = await raceCancellationError(client.rpc.session.retain({ sessionId: backing.sessionId }), lifetime.token);
-				if (retained !== null || lifetime.token.isCancellationRequested || backing.store.isDisposed || this._client !== client || !this.available) {
-					return { launch: null };
-				}
-				await this._canvases.retainChat(backing.chat, lifetime.token);
-				const currentPath = await realpath(request.modulePath);
-				if (lifetime.token.isCancellationRequested || backing.store.isDisposed || this._client !== client || !this.available || currentPath !== canonicalPath
-					|| isProjectSource && !this._isWorkspaceSourceTrusted(backing, request, canonicalPath)) {
-					return { launch: null };
-				}
 				backing.sources.set(request.id, { modulePath: request.modulePath, canonicalPath });
 				return { launch: request.defaultLaunch };
 			} finally {
@@ -317,12 +306,15 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 				}
 			},
 			permission: request => this._permission(backing, request),
-			attach: async wrapper => {
+			attach: async (wrapper, waitForExtensions = true) => {
 				if (store.isDisposed) {
 					throw new CancellationError();
 				}
 				backing.session = wrapper.session;
 				store.add(wrapper.onDidDispose(() => store.dispose()));
+				if (!waitForExtensions) {
+					return;
+				}
 				await raceCancellationError(backing.extensionsLoaded.wait(), lifetime.token);
 				await this._refresh(backing);
 			},
@@ -359,6 +351,12 @@ export class CopilotCanvases extends Disposable implements IAgentCanvases {
 			}
 		}
 		const backing = this._backing(chat);
+		if (!backing.ready && backing.session) {
+			operation.willExecute();
+			await raceCancellationError(backing.session.rpc.extensions.reload(), operation.token);
+			await raceCancellationError(backing.extensionsLoaded.wait(), operation.token);
+			await this._refresh(backing);
+		}
 		if (!backing.ready || backing.pendingEvents || backing.failure || operation.token.isCancellationRequested) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, 'The canvas registry did not finish initializing.');
 		}

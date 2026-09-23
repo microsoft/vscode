@@ -30,14 +30,12 @@ import { AgentHostCanvasOperationLedger, CanvasOperationIndeterminateError } fro
 import { AgentHostCanvasApproval } from './agentHostCanvasApproval.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { isCanvasSessionRetained, withCanvasSessionRetained } from '../common/meta/agentCanvasSessionMeta.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 
 export const IAgentHostCanvasesService = createDecorator<IAgentHostCanvasesService>('agentHostCanvasesService');
-const retainedSessionStorageKey = 'agentHost.canvasSessionRetained';
 
 export interface IAgentHostCanvasConnection extends IAgentCanvasConnection, IDisposable {
 	readonly initiator: IAgentCanvasApprovalClient | undefined;
@@ -73,7 +71,6 @@ export interface IAgentHostCanvasesService {
 	cancelChatInitialization(chat: string): void;
 	cancelSessionInitialization(session: string): void;
 	assertChatInitialization(chat: string): void;
-	retainChat(chat: string, token: CancellationToken): Promise<void>;
 	needsTurnInitialization(chat: string): boolean;
 	prepareForTurn(chat: string, turnId: string, prompt: string, clientId?: string): Promise<void>;
 	beginTurnPreparation(chat: string, turnId: string, clientId?: string, initiator?: IAgentCanvasApprovalClient): IAgentHostCanvasTurnPreparation;
@@ -99,7 +96,6 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 	private readonly _closed = new Map<string, { chat: string; generation: string; instanceGeneration: string }>();
 	private readonly _approval: AgentHostCanvasApproval;
 	private readonly _holds = new Map<string, number>();
-	private readonly _retained = this._register(new DisposableMap<string>());
 	private readonly _connections = this._register(new DisposableMap<symbol, DisposableStore>());
 	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
 	private readonly _initializing = this._register(new DisposableMap<string, IAgentHostCanvasInitializationLease & { cancel(): void }>());
@@ -143,11 +139,6 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 			return store;
 		}));
 		this._register(this._state.onDidRegisterChat(chat => {
-			const session = parseChatUri(chat)?.session;
-			if (session && this._retained.has(session)) {
-				this._state.markSessionUsed(session);
-				queueMicrotask(() => this._projectRetention(session));
-			}
 			const pending = this._pending.get(chat);
 			if (pending) {
 				this._pending.deleteAndDispose(chat);
@@ -155,7 +146,6 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 			}
 		}));
 		this._register(this._state.onDidRemoveSession(session => {
-			this._retained.deleteAndDispose(session);
 			for (const [chat, initialization] of this._initializing) {
 				if (parseChatUri(chat)?.session === session) {
 					initialization.cancel();
@@ -247,54 +237,6 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 			throw new CancellationError();
 		}
 		this._initializing.get(chat)?.assertValid();
-	}
-
-	async retainChat(chat: string, token: CancellationToken): Promise<void> {
-		const parsed = parseChatUri(chat);
-		if (!parsed || token.isCancellationRequested || this._store.isDisposed) {
-			throw new CancellationError();
-		}
-		const initialization = this.getChatInitialization(chat);
-		const generation = this._state.getChatGeneration(chat);
-		if (!initialization && !this._hasChat(chat) || initialization?.token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		const reference = this._sessionData.openDatabase(URI.parse(parsed.session));
-		try {
-			await reference.object.setMetadata(retainedSessionStorageKey, 'true');
-			if (token.isCancellationRequested || generation !== this._state.getChatGeneration(chat) || initialization && this.getChatInitialization(chat) !== initialization) {
-				throw new CancellationError();
-			}
-			this._rememberRetention(parsed.session);
-		} finally {
-			reference.dispose();
-		}
-		if (token.isCancellationRequested || initialization && this.getChatInitialization(chat) !== initialization) {
-			throw new CancellationError();
-		}
-	}
-
-	private _rememberRetention(session: string): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		this._retained.set(session, disposableTimeout(() => this._retained.deleteAndDispose(session), 120_000));
-		this._state.markSessionUsed(session);
-		if (this._state.getSessionState(session)) {
-			this._projectRetention(session);
-		}
-	}
-
-	private _projectRetention(session: string): void {
-		const state = this._state.getSessionState(session);
-		if (!state || !this._retained.has(session) || this._store.isDisposed) {
-			return;
-		}
-		this._retained.deleteAndDispose(session);
-		this._state.markSessionUsed(session);
-		if (!isCanvasSessionRetained(state)) {
-			this._state.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: withCanvasSessionRetained(state._meta) });
-		}
 	}
 
 	needsTurnInitialization(chat: string): boolean {
@@ -600,6 +542,7 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 	}
 
 	private async _initializeChat(chat: string, operation: IAgentCanvasOperation, prompt?: string): Promise<void> {
+		this._assertPersistedChat(chat);
 		const provider = this._provider(chat, true);
 		if (this._state.isEphemeralSession(parseChatUri(chat)!.session)) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, 'Ephemeral chats do not initialize extension runtimes.');
@@ -671,6 +614,7 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 	}
 
 	private async _open(params: OpenCanvasParams, operation: IAgentCanvasOperation): Promise<OpenCanvasResult> {
+		this._assertPersistedChat(params.identity.chat);
 		const provider = this._provider(params.identity.chat, true);
 		this._assertInstanceNamespace(provider, params.identity);
 		if (!provider.getSnapshot(params.identity.chat)) {
@@ -744,6 +688,7 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 
 	private async _invoke(params: InvokeCanvasActionParams, operation: IAgentCanvasOperation): Promise<InvokeCanvasActionResult> {
 		const state = this._require(params.channel);
+		this._assertPersistedChat(state.identity.chat);
 		const provider = this._provider(state.identity.chat, true);
 		this._assertIncarnation(state, params.incarnation);
 		this._assertTrusted(provider, state.identity);
@@ -860,6 +805,7 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 
 	private async _restart(params: RestartCanvasProviderParams, operation: IAgentCanvasOperation): Promise<void> {
 		const state = this._require(params.channel);
+		this._assertPersistedChat(state.identity.chat);
 		this._assertIncarnation(state, params.incarnation);
 		const provider = this._provider(state.identity.chat, true);
 		const generation = provider.getSnapshot(state.identity.chat)?.generation;
@@ -1080,6 +1026,13 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 		return !!session && this._state.getSessionState(session)?.chats.some(candidate => candidate.resource === chat) === true;
 	}
 
+	private _assertPersistedChat(chat: string): void {
+		const session = parseChatUri(chat)?.session;
+		if (!session || this._state.isUnusedDraft(session) !== false) {
+			throw new ProtocolError(AhpErrorCodes.Conflict, 'Canvas execution requires an existing persisted conversation.');
+		}
+	}
+
 	private _provider(chat: string, writable = false): IAgentCanvases {
 		const state = this._chatOwner(chat, writable);
 		const provider = this._providers.getProvider(state.provider)?.canvases;
@@ -1182,9 +1135,6 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 			return [];
 		}
 		try {
-			if (await reference.object.getMetadata(retainedSessionStorageKey) === 'true') {
-				this._rememberRetention(parsed.session);
-			}
 			const serialized = await reference.object.getMetadata(this._storageKey(chat));
 			const entries: unknown = serialized && serialized.length <= 1024 * 1024 ? JSON.parse(serialized) : [];
 			if (!Array.isArray(entries) || entries.length > 64) {

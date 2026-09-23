@@ -84,13 +84,13 @@ suite('Agent Host session canvas projection', () => {
 	const chat = URI.parse('ahp-session:/one/chat/default');
 	const declaration: CanvasTypeDeclaration = { source: { kind: CanvasSourceKind.Extension, extensionId: 'fixture.counter' }, canvasType: 'counter', title: 'Counter' };
 
-	function fixture(waitForSession?: () => Promise<void>, canExecute: () => Promise<boolean> = async () => true) {
+	function fixture(canExecute: () => Promise<boolean> = async () => true) {
 		const connection = store.add(new TestCanvasConnection());
 		const binding = observableValue<IAgentHostCanvasBinding | undefined>('connection', { connection });
 		const enabled = observableValue('enabled', true);
 		const entries = observableValue<readonly CanvasEntry[] | undefined>('entries', [canvasEntry(connection.state)]);
 		let keepAlive = 0;
-		const canvases = store.add(new AgentHostSessionCanvases(session, chat, binding, enabled, entries, canExecute, () => { keepAlive++; }, waitForSession));
+		const canvases = store.add(new AgentHostSessionCanvases(session, chat, binding, enabled, entries, canExecute, () => { keepAlive++; }));
 		return { connection, binding, enabled, entries, canvases, keepAlive: () => keepAlive };
 	}
 
@@ -108,13 +108,13 @@ suite('Agent Host session canvas projection', () => {
 		});
 	});
 
-	test('explicit initialization waits for the exact owner then refreshes only its live catalog', async () => {
-		const ready = new DeferredPromise<void>();
-		const f = fixture(() => ready.p);
+	test('explicit initialization waits for session admission then refreshes only its live catalog', async () => {
+		const admitted = new DeferredPromise<boolean>();
+		const f = fixture(() => admitted.p);
 		f.connection.onList = async () => ({ types: [declaration] });
 		const initializing = f.canvases.initialize(CancellationToken.None);
 		const before = { initializations: f.connection.initializations.length, keepAlive: f.keepAlive(), busy: f.canvases.initializing.get() };
-		await ready.complete();
+		await admitted.complete(true);
 		await initializing;
 		assert.deepStrictEqual({
 			before, channels: f.connection.initializations.map(request => request.channel),
@@ -136,13 +136,13 @@ suite('Agent Host session canvas projection', () => {
 		}, { supported: false, initializations: [], keepAlive: 0 });
 	});
 
-	test('connection loss while waiting for an owner cancels initialization before its effect', async () => {
-		const ready = new DeferredPromise<void>();
-		const f = fixture(() => ready.p);
+	test('connection loss while waiting for admission cancels initialization before its effect', async () => {
+		const admitted = new DeferredPromise<boolean>();
+		const f = fixture(() => admitted.p);
 		const rejected = assert.rejects(f.canvases.initialize(CancellationToken.None), /changed before provider initialization/);
 		f.binding.set(undefined, undefined);
 		await rejected;
-		await ready.complete();
+		await admitted.complete(true);
 		assert.deepStrictEqual({ initializations: f.connection.initializations, busy: f.canvases.initializing.get(), keepAlive: f.keepAlive() },
 			{ initializations: [], busy: false, keepAlive: 0 });
 	});
@@ -216,12 +216,12 @@ suite('Agent Host session canvas projection', () => {
 		}, { keepAlive: 0, channels: [entry.resource], sourceReads: [] });
 	});
 
-	test('explicit canvas open waits for its owning session before issuing an effect', async () => {
-		const ready = new DeferredPromise<void>();
-		const f = fixture(() => ready.p);
+	test('explicit canvas open waits for session admission before issuing an effect', async () => {
+		const admitted = new DeferredPromise<boolean>();
+		const f = fixture(() => admitted.p);
 		const open = f.canvases.open({ ...declaration, instanceId: 'counter' });
 		const before = { effects: f.connection.effects.length, keepAlive: f.keepAlive() };
-		await ready.complete();
+		await admitted.complete(true);
 		const entry = await open;
 		assert.deepStrictEqual({
 			before, channels: f.connection.effects.map(effect => effect.channel), keepAlive: f.keepAlive(), owner: entry.identity.chat,
@@ -230,7 +230,7 @@ suite('Agent Host session canvas projection', () => {
 
 	test('executable effects require session admission while reads and close remain available', async () => {
 		let admissions = 0;
-		const f = fixture(undefined, async () => {
+		const f = fixture(async () => {
 			admissions++;
 			return false;
 		});
@@ -259,12 +259,12 @@ suite('Agent Host session canvas projection', () => {
 		});
 	});
 
-	test('a connection change while awaiting a canvas owner prevents the open effect', async () => {
-		const ready = new DeferredPromise<void>();
-		const f = fixture(() => ready.p);
+	test('a connection change while awaiting admission prevents the open effect', async () => {
+		const admitted = new DeferredPromise<boolean>();
+		const f = fixture(() => admitted.p);
 		const rejected = assert.rejects(f.canvases.open({ ...declaration, instanceId: 'counter' }), /changed before opening/);
 		f.binding.set({ connection: f.connection }, undefined);
-		await ready.complete();
+		await admitted.complete(true);
 		await rejected;
 		assert.deepStrictEqual({ effects: f.connection.effects, keepAlive: f.keepAlive() }, { effects: [], keepAlive: 0 });
 	});

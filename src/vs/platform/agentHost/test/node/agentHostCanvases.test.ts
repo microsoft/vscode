@@ -25,7 +25,6 @@ import { validateCanvasInput } from '../../node/agentHostCanvasSchema.js';
 import { CanvasesContribution } from '../../node/chatContributions/canvases/canvasesContribution.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 import { canvasChat, canvasIdentity, canvasSession, createCanvasServices, createCanvasSession } from './agentHostCanvasTestUtils.js';
-import { isCanvasSessionRetained } from '../../common/meta/agentCanvasSessionMeta.js';
 
 const openParams: OpenCanvasParams = { channel: canvasSession, canvas: 'ahp-canvas:/test', identity: canvasIdentity, title: 'Counter', requestId: 'open' };
 const invalidParams = (error: unknown) => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams;
@@ -153,9 +152,9 @@ suite('Agent Host canvas retry ledger', () => {
 suite('Agent Host canvas initialization', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('identity-free initialization deduplicates effects and retains an empty session without a turn', async () => {
+	test('identity-free initialization requires a persisted session and deduplicates effects', async () => {
 		const f = createCanvasServices(store);
-		createCanvasSession(f.state);
+		createCanvasSession(f.state, false);
 		f.facet.initialized = false;
 		const entered = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
@@ -163,11 +162,14 @@ suite('Agent Host canvas initialization', () => {
 		f.facet.onInitialize = async (chat, operation) => {
 			assert.strictEqual(operation.clientId, 'owner');
 			launches++;
-			await f.service.retainChat(chat, operation.token);
 			await entered.complete();
 			await release.p;
 		};
 		const connection = store.add(f.service.connect('owner'));
+		assert.strictEqual(f.state.isUnusedDraft(canvasSession), true);
+		await assert.rejects(connection.initializeCanvasChat({ channel: canvasChat, requestId: 'draft' }), /existing persisted conversation/);
+		f.state.markSessionUsed(canvasSession);
+		assert.strictEqual(f.state.isUnusedDraft(canvasSession), false);
 		const params = { channel: canvasChat, requestId: 'initialize' };
 		assert.deepStrictEqual(await connection.listCanvasTypes({ channel: canvasChat }), { types: [] });
 		const first = connection.initializeCanvasChat(params);
@@ -180,10 +182,10 @@ suite('Agent Host canvas initialization', () => {
 		connection.dispose();
 		const state = f.state.getSessionState(canvasSession)!;
 		assert.deepStrictEqual({
-			launches, retained: isCanvasSessionRetained(state), unused: f.state.isUnusedDraft(canvasSession),
+			launches, unused: f.state.isUnusedDraft(canvasSession),
 			active: state.activeTurn, turns: state.turns, members: f.state.getChatCanvasStates(canvasChat), held: f.service.holdsSession(canvasSession),
 			reloaded: await f.service.loadChat(canvasChat),
-		}, { launches: 1, retained: true, unused: false, active: undefined, turns: [], members: [], held: false, reloaded: [] });
+		}, { launches: 1, unused: false, active: undefined, turns: [], members: [], held: false, reloaded: [] });
 	});
 
 	test('cancellation remains indeterminate after initialization starts and never retries the same request', async () => {

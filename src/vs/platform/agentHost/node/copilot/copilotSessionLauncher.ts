@@ -635,6 +635,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const canvas = plan.isEphemeral ? undefined : this._canvases?.beginLaunch(plan.sessionId, runtime.chatUri.toString(), plan.workingDirectory);
+		const requestExtensions = canvas !== undefined && plan.kind === 'resume';
 		let wrapper: CopilotSessionWrapper | undefined;
 		const cancellation = canvas?.token.onCancellationRequested(() => wrapper?.dispose());
 		try {
@@ -642,9 +643,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				wrapper = new CopilotSessionWrapper(plan.sessionId);
 				runtime.onSessionStarting(wrapper);
 			}
-			const launched = this._launch(plan, runtime, canvas, wrapper);
+			const launched = this._launch(plan, runtime, canvas, requestExtensions, wrapper);
 			wrapper = await (canvas ? raceCancellationError(launched, canvas.token) : launched);
-			await canvas?.attach(wrapper);
+			await canvas?.attach(wrapper, requestExtensions);
 			return wrapper;
 		} catch (error) {
 			canvas?.dispose();
@@ -655,10 +656,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, canvas: ICopilotCanvasLaunch | undefined, pendingWrapper?: CopilotSessionWrapper): Promise<CopilotSessionWrapper> {
+	private async _launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, canvas: ICopilotCanvasLaunch | undefined, requestExtensions: boolean, pendingWrapper?: CopilotSessionWrapper): Promise<CopilotSessionWrapper> {
 		let managedSettingsResolved = false;
 		const earlyEvents = canvas && !pendingWrapper ? new CopilotSessionEventBuffer() : undefined;
-		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; }, canvas, earlyEvents, pendingWrapper);
+		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; }, canvas, requestExtensions, earlyEvents, pendingWrapper);
 		const sandboxConfig = () => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
@@ -863,7 +864,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void, canvas: ICopilotCanvasLaunch | undefined, earlyEvents?: CopilotSessionEventBuffer, pendingWrapper?: CopilotSessionWrapper): Promise<ResumeSessionConfig> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void, canvas: ICopilotCanvasLaunch | undefined, requestExtensions: boolean, earlyEvents?: CopilotSessionEventBuffer, pendingWrapper?: CopilotSessionWrapper): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
@@ -1009,7 +1010,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			enableScriptSafety: true,
-			requestExtensions: canvas !== undefined,
+			requestExtensions,
 			...(canvas ? { requestCanvasRenderer: true } : {}),
 			onPermissionRequest: async request => await canvas?.permission(request) ?? runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),

@@ -1,0 +1,259 @@
+diff --git a/dist/cjs/generated/rpc.js b/dist/cjs/generated/rpc.js
+index 56a7226..987895a 100644
+--- a/dist/cjs/generated/rpc.js
++++ b/dist/cjs/generated/rpc.js
+@@ -211,7 +211,7 @@ function createServerRpc(connection) {
+       disable: async (params) => connection.sendRequest("extensions.disable", params)
+     },
+     /**
+-     * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++     * Registers the calling SDK connection as the authoritative extension launch provider. Call before session startup and check contractVersion. Without registration, the built-in launcher is unchanged.
+      *
+      * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+      *
+@@ -690,15 +690,6 @@ function createServerRpc(connection) {
+        * @returns Outcome of an agentRegistry.spawn call.
+        */
+       spawn: async (params) => connection.sendRequest("agentRegistry.spawn", params)
+-    },
+-    /** @experimental */
+-    session: {
+-      /**
+-       * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+-       *
+-       * @param params Identifies the target session.
+-       */
+-      retain: async (params) => connection.sendRequest("session.retain", params)
+     }
+   };
+ }
+@@ -781,12 +772,6 @@ function createInternalServerRpc(connection) {
+ }
+ function createSessionRpc(connection, sessionId) {
+   return {
+-    /**
+-     * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+-     *
+-     * @experimental
+-     */
+-    retain: async () => connection.sendRequest("session.retain", { sessionId }),
+     /**
+      * Suspends the session while preserving persisted state for later resume.
+      *
+diff --git a/dist/generated/rpc.d.ts b/dist/generated/rpc.d.ts
+index 93412ee..4429fe4 100644
+--- a/dist/generated/rpc.d.ts
++++ b/dist/generated/rpc.d.ts
+@@ -1,6 +1,6 @@
+ /**
+  * AUTO-GENERATED FILE - DO NOT EDIT
+- * Generated from: api.schema.json
++ * Generated from: api.schema.json + experimental/canvas.schema.json
+  */
+ import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
+ import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+@@ -22774,23 +22774,10 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
+ /** @experimental */
+ export interface ExtensionLaunchProviderRegistrationResult {
+     /**
+-     * Supported extension launch-provider contract version. Clients requiring this contract must check for version 1 before creating or resuming sessions.
++     * Supported launch-admission version. Hosts must require version 1 before session startup.
+      */
+     contractVersion: 1;
+ }
+-/**
+- * Identifies the target session.
+- *
+- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+- * via the `definition` "SessionRetainRequest".
+- */
+-/** @experimental */
+-export interface SessionRetainRequest {
+-    /**
+-     * Target session identifier
+-     */
+-    sessionId: string;
+-}
+ /** @experimental */
+ export interface SessionModelListRequest {
+     /**
+@@ -23100,7 +23087,7 @@ export declare function createServerRpc(connection: MessageConnection): {
+         disable: (params: DiscoveredExtensionsDisableRequest) => Promise<void>;
+     };
+     /**
+-     * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++     * Registers the calling SDK connection as the authoritative extension launch provider. Call before session startup and check contractVersion. Without registration, the built-in launcher is unchanged.
+      *
+      * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+      *
+@@ -23580,24 +23567,9 @@ export declare function createServerRpc(connection: MessageConnection): {
+          */
+         spawn: (params: AgentRegistrySpawnRequest) => Promise<AgentRegistrySpawnResult>;
+     };
+-    /** @experimental */
+-    session: {
+-        /**
+-         * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+-         *
+-         * @param params Identifies the target session.
+-         */
+-        retain: (params: SessionRetainRequest) => Promise<null>;
+-    };
+ };
+ /** Create typed session-scoped RPC methods. */
+ export declare function createSessionRpc(connection: MessageConnection, sessionId: string): {
+-    /**
+-     * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+-     *
+-     * @experimental
+-     */
+-    retain: () => Promise<null>;
+     /**
+      * Suspends the session while preserving persisted state for later resume.
+      *
+@@ -25545,7 +25517,7 @@ export declare function registerClientSessionApiHandlers(connection: MessageConn
+ /** @experimental */
+ export interface ExtensionLaunchProviderHandler {
+     /**
+-     * Asks the registered SDK client to approve a launch profile immediately before every extension launch or reload. Return defaultLaunch unchanged to approve the runtime's built-in launcher, or return another profile. An absent or null launch denies execution with no fallback. The provider must respond within 15 seconds. Approval does not sandbox code or freeze mutable files; the host is responsible for approved package contents.
++     * Requests approval before each extension launch or reload. Return defaultLaunch unchanged to preserve the runtime bootstrap. Missing/null launch, errors, disconnect, cancellation, and the 15-second deadline fail closed. Approval does not sandbox or freeze mutable sources.
+      *
+      * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+      *
+diff --git a/dist/generated/rpc.js b/dist/generated/rpc.js
+index 98ca002..4290ea2 100644
+--- a/dist/generated/rpc.js
++++ b/dist/generated/rpc.js
+@@ -183,7 +183,7 @@ function createServerRpc(connection) {
+       disable: async (params) => connection.sendRequest("extensions.disable", params)
+     },
+     /**
+-     * Registers the calling SDK client as the authoritative per-entrypoint extension launch provider and returns the supported contract version. Call before creating any sessions. Contract version 1 supplies sessionId and defaultLaunch when available; absent or null launch, provider errors, timeouts, and shutdown cancellation never fall back. Without a registered provider, legacy launching is unchanged.
++     * Registers the calling SDK connection as the authoritative extension launch provider. Call before session startup and check contractVersion. Without registration, the built-in launcher is unchanged.
+      *
+      * @returns Authoritative capability acknowledgement for the registered extension launch provider.
+      *
+@@ -662,15 +662,6 @@ function createServerRpc(connection) {
+        * @returns Outcome of an agentRegistry.spawn call.
+        */
+       spawn: async (params) => connection.sendRequest("agentRegistry.spawn", params)
+-    },
+-    /** @experimental */
+-    session: {
+-      /**
+-       * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+-       *
+-       * @param params Identifies the target session.
+-       */
+-      retain: async (params) => connection.sendRequest("session.retain", params)
+     }
+   };
+ }
+@@ -753,12 +744,6 @@ function createInternalServerRpc(connection) {
+ }
+ function createSessionRpc(connection, sessionId) {
+   return {
+-    /**
+-     * Records explicit persistence intent for a local session and flushes its pending state before returning, even without a user or assistant turn. Await this before an admitted potentially effectful canvas open or other non-chat operation. Retention survives stop and cold resume, is idempotent, and is never rolled back on later operation failure or cancellation. Does not run a prompt, grant permissions, or prevent explicit session deletion. Unsupported for remote sessions.
+-     *
+-     * @experimental
+-     */
+-    retain: async () => connection.sendRequest("session.retain", { sessionId }),
+     /**
+      * Suspends the session while preserving persisted state for later resume.
+      *
+diff --git a/dist/generated/session-events.d.ts b/dist/generated/session-events.d.ts
+index 1d703ba..104be67 100644
+--- a/dist/generated/session-events.d.ts
++++ b/dist/generated/session-events.d.ts
+@@ -9,7 +9,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | {
+ /**
+  * Union of all session event variants emitted by the Copilot CLI runtime.
+  */
+-export type SessionEvent = StartEvent | ResumeEvent | RemoteSteerableChangedEvent | ErrorEvent | IdleEvent | TitleChangedEvent | ScheduleCreatedEvent | ScheduleCancelledEvent | ScheduleRearmedEvent | AutopilotObjectiveChangedEvent | RetainedEvent | InfoEvent | WarningEvent | ModelChangeEvent | AutoTierSwitchFailedEvent | ModeChangedEvent | ModeNoticeDeliveredEvent | SessionLimitsChangedEvent | PermissionsChangedEvent | PlanChangedEvent | TodosChangedEvent | WorkspaceFileChangedEvent | HandoffEvent | TruncationEvent | SnapshotRewindEvent | ShutdownEvent | UsageCheckpointEvent | ContextChangedEvent | UsageInfoEvent | ContextClearedEvent | CompactionStartEvent | CompactionCompleteEvent | TaskCompleteEvent | CompletionReceiptEvent | FusionRouteStartedEvent | FusionRouteFailedEvent | FusionResolvedEvent | FusionCompletedEvent | UserMessageEvent | PendingMessagesModifiedEvent | AssistantTurnStartEvent | AssistantIntentEvent | AssistantFusionPhaseStartedEvent | AssistantFusionPhaseActivityEvent | AssistantFusionPhaseCompletedEvent | AssistantFusionPhaseFailedEvent | AssistantServerToolProgressEvent | AssistantReasoningEvent | AssistantReasoningDeltaEvent | AssistantToolCallDeltaEvent | AssistantStreamingDeltaEvent | AssistantMessageEvent | AssistantMessageStartEvent | AssistantMessageDeltaEvent | AssistantTurnEndEvent | AssistantIdleEvent | AssistantUsageEvent | ModelCallFailureEvent | ModelCallFinishedEvent | AbortEvent | ToolUserRequestedEvent | ToolExecutionStartEvent | ToolExecutionPartialResultEvent | ToolExecutionProgressEvent | ToolExecutionCompleteEvent | ToolSearchActivatedEvent | SkillInvokedEvent | SubagentStartedEvent | SubagentConfiguredEvent | SubagentCompletedEvent | SubagentFailedEvent | SubagentSelectedEvent | SubagentDeselectedEvent | HookStartEvent | HookEndEvent | HookProgressEvent | BinaryAssetEvent | SystemMessageEvent | SystemNotificationEvent | PermissionRequestedEvent | PermissionCompletedEvent | UserInputRequestedEvent | UserInputCompletedEvent | ElicitationRequestedEvent | ElicitationCompletedEvent | SamplingRequestedEvent | SamplingCompletedEvent | McpOauthRequiredEvent | McpOauthCompletedEvent | McpHeadersRefreshRequiredEvent | McpHeadersRefreshCompletedEvent | CustomNotificationEvent | UIEphemeralQueryEvent | ExternalToolRequestedEvent | ExternalToolCompletedEvent | CommandQueuedEvent | CommandExecuteEvent | CommandCompletedEvent | AutoModeSwitchRequestedEvent | AutoModeSwitchCompletedEvent | SessionLimitsExhaustedRequestedEvent | SessionLimitsExhaustedCompletedEvent | AutoModeResolvedEvent | ManagedSettingsResolvedEvent | ManagedSettingsEnforcedEvent | CommandsChangedEvent | CapabilitiesChangedEvent | ExitPlanModeRequestedEvent | ExitPlanModeCompletedEvent | ToolsUpdatedEvent | BackgroundTasksChangedEvent | FactoryRunUpdatedEvent | FactoryRunStartedEvent | FactoryRunSettledEvent | SkillsLoadedEvent | CustomAgentsUpdatedEvent | McpServersLoadedEvent | McpServerStatusChangedEvent | McpServerRemovedEvent | McpServerNeedsReconnectEvent | McpToolsListChangedEvent | McpResourcesListChangedEvent | McpPromptsListChangedEvent | ExtensionsLoadedEvent | CanvasOpenedEvent | CanvasRegistryChangedEvent | CanvasClosedEvent | CanvasUnavailableEvent | CanvasRecordedEvent | CanvasRemovedEvent | ExtensionsAttachmentsPushedEvent | McpAppToolCallCompleteEvent;
++export type SessionEvent = StartEvent | ResumeEvent | RemoteSteerableChangedEvent | ErrorEvent | IdleEvent | TitleChangedEvent | ScheduleCreatedEvent | ScheduleCancelledEvent | ScheduleRearmedEvent | AutopilotObjectiveChangedEvent | InfoEvent | WarningEvent | ModelChangeEvent | AutoTierSwitchFailedEvent | ModeChangedEvent | ModeNoticeDeliveredEvent | SessionLimitsChangedEvent | PermissionsChangedEvent | PlanChangedEvent | TodosChangedEvent | WorkspaceFileChangedEvent | HandoffEvent | TruncationEvent | SnapshotRewindEvent | ShutdownEvent | UsageCheckpointEvent | ContextChangedEvent | UsageInfoEvent | ContextClearedEvent | CompactionStartEvent | CompactionCompleteEvent | TaskCompleteEvent | CompletionReceiptEvent | FusionRouteStartedEvent | FusionRouteFailedEvent | FusionResolvedEvent | FusionCompletedEvent | UserMessageEvent | PendingMessagesModifiedEvent | AssistantTurnStartEvent | AssistantIntentEvent | AssistantFusionPhaseStartedEvent | AssistantFusionPhaseActivityEvent | AssistantFusionPhaseCompletedEvent | AssistantFusionPhaseFailedEvent | AssistantServerToolProgressEvent | AssistantReasoningEvent | AssistantReasoningDeltaEvent | AssistantToolCallDeltaEvent | AssistantStreamingDeltaEvent | AssistantMessageEvent | AssistantMessageStartEvent | AssistantMessageDeltaEvent | AssistantTurnEndEvent | AssistantIdleEvent | AssistantUsageEvent | ModelCallFailureEvent | ModelCallFinishedEvent | AbortEvent | ToolUserRequestedEvent | ToolExecutionStartEvent | ToolExecutionPartialResultEvent | ToolExecutionProgressEvent | ToolExecutionCompleteEvent | ToolSearchActivatedEvent | SkillInvokedEvent | SubagentStartedEvent | SubagentConfiguredEvent | SubagentCompletedEvent | SubagentFailedEvent | SubagentSelectedEvent | SubagentDeselectedEvent | HookStartEvent | HookEndEvent | HookProgressEvent | BinaryAssetEvent | SystemMessageEvent | SystemNotificationEvent | PermissionRequestedEvent | PermissionCompletedEvent | UserInputRequestedEvent | UserInputCompletedEvent | ElicitationRequestedEvent | ElicitationCompletedEvent | SamplingRequestedEvent | SamplingCompletedEvent | McpOauthRequiredEvent | McpOauthCompletedEvent | McpHeadersRefreshRequiredEvent | McpHeadersRefreshCompletedEvent | CustomNotificationEvent | UIEphemeralQueryEvent | ExternalToolRequestedEvent | ExternalToolCompletedEvent | CommandQueuedEvent | CommandExecuteEvent | CommandCompletedEvent | AutoModeSwitchRequestedEvent | AutoModeSwitchCompletedEvent | SessionLimitsExhaustedRequestedEvent | SessionLimitsExhaustedCompletedEvent | AutoModeResolvedEvent | ManagedSettingsResolvedEvent | ManagedSettingsEnforcedEvent | CommandsChangedEvent | CapabilitiesChangedEvent | ExitPlanModeRequestedEvent | ExitPlanModeCompletedEvent | ToolsUpdatedEvent | BackgroundTasksChangedEvent | FactoryRunUpdatedEvent | FactoryRunStartedEvent | FactoryRunSettledEvent | SkillsLoadedEvent | CustomAgentsUpdatedEvent | McpServersLoadedEvent | McpServerStatusChangedEvent | McpServerRemovedEvent | McpServerNeedsReconnectEvent | McpToolsListChangedEvent | McpResourcesListChangedEvent | McpPromptsListChangedEvent | ExtensionsLoadedEvent | CanvasOpenedEvent | CanvasRegistryChangedEvent | CanvasClosedEvent | CanvasUnavailableEvent | CanvasRecordedEvent | CanvasRemovedEvent | ExtensionsAttachmentsPushedEvent | McpAppToolCallCompleteEvent;
+ /**
+  * Routing preference used when the session model is `auto`.
+  */
+@@ -1564,43 +1564,6 @@ export interface AutopilotObjectiveChangedData {
+     operation: AutopilotObjectiveChangedOperation;
+     status?: AutopilotObjectiveChangedStatus;
+ }
+-/**
+- * Session event "session.retained". Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+- */
+-/** @experimental */
+-export interface RetainedEvent {
+-    /**
+-     * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+-     */
+-    agentId?: string;
+-    data: RetainedData;
+-    /**
+-     * When true, the event is transient and not persisted to the session event log on disk
+-     */
+-    ephemeral?: boolean;
+-    /**
+-     * Unique event identifier (UUID v4), generated when the event is emitted
+-     */
+-    id: string;
+-    /**
+-     * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+-     */
+-    parentId: string | null;
+-    /**
+-     * ISO 8601 timestamp when the event was created
+-     */
+-    timestamp: string;
+-    /**
+-     * Type discriminator. Always "session.retained".
+-     */
+-    type: "session.retained";
+-}
+-/**
+- * Explicit host intent to persist this local session independently of conversation turns. Emitted by session.retain before a potentially effectful non-chat operation; not a user or assistant message.
+- */
+-/** @experimental */
+-export interface RetainedData {
+-}
+ /**
+  * Session event "session.info". Informational message for timeline display with categorization
+  */
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 9fbbcda..d2918a6 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -11,5 +11,5 @@ export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./facto
+ export { Canvas, CanvasError, createCanvas, type CanvasAction, type CanvasDeclaration, type CanvasHostContext, type CanvasHostContextCapabilities, type CanvasJsonSchema, type CanvasOptions, } from "./canvas.js";
+ export { defineTool, approveAll, createAttributedPermissionResult, convertMcpCallToolResult, createSessionFsAdapter, CopilotRequestHandler, CopilotWebSocketHandler, CopilotWebSocketCloseStatus, CopilotWebSocketForwarder, SessionFsSqliteTransactionFailure, SYSTEM_MESSAGE_SECTIONS, } from "./types.js";
+ export type * from "./generated/session-events.js";
+-export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionInfo, ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, MessageOptions, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionRetainRequest, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
++export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionInfo, ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, MessageOptions, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
+ export type { RunOptions, ResumeOptions, FactoryResumeErrorCode, SessionFactoryApi, FactoryAgentOptions, FactoryContext, FactoryDefinition, FactoryHandle, FactoryJsonSchema, JsonValue, FactoryPipelineStage, FactoryStepOptions, FactoryRunResult, FactoryRunStatus, FactoryRunSummary, FactoryListRunsOptions, FactoryRunsPage, FactoryRunDetail, FactoryProgressPage, FactoryProgressLine, FactoryPhaseObservation, FactoryPhaseStatus, FactoryAgentSummary, } from "./factory.js";
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 3f1d81e..77cb6f4 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -11,7 +11,7 @@ import type { ExtensionLaunchProviderHandler, GitHubTokenAcquireRequest, GitHubT
+ import type { ToolSet } from "./toolSet.js";
+ export type { RemoteSessionMode } from "./generated/rpc.js";
+ export type { CurrentToolMetadata } from "./generated/rpc.js";
+-export type { ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, SessionRetainRequest, } from "./generated/rpc.js";
++export type { ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, } from "./generated/rpc.js";
+ export type { GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, } from "./generated/rpc.js";
+ /**
+  * Arguments passed to a session's {@link GitHubTokenProvider}.
+@@ -381,9 +381,10 @@ export interface CopilotClientOptions {
+      * startup; they never opt back into the runtime's legacy launcher.
+      *
+      * Each resolve receives the original source identity and optional runtime
+-     * session/default-launch context. Return `defaultLaunch` unchanged only
+-     * after approving the source and completing any required retention through
+-     * `client.rpc.session.retain({ sessionId })`. An absent or null launch denies
++     * session/default-launch context. For canvas admission, the caller must
++     * already have a durable session and approve the source before returning
++     * `defaultLaunch` unchanged. This API does not persist a new or zero-turn
++     * chat. An absent or null launch denies
+      * execution. The optional cancellation token is cancelled on request
+      * cancellation, disconnect, or stop; late results are not reused.
+      *

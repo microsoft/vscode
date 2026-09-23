@@ -76,7 +76,7 @@ export interface IAgentCanvases {
 	getTrust(chat: string, source: CanvasSource): CanvasTrustState;
 	/** Resolves only after the exact backing's initial registry is observable. */
 	initializeChat(chat: string, operation: IAgentCanvasOperation): Promise<void>;
-	/** Explicitly effectful canvas-first initialization, only from an open/restart request. */
+	/** Explicitly effectful provider preparation for an existing conversation. */
 	prepare?(identity: CanvasIdentityKey, operation: IAgentCanvasOperation): Promise<void>;
 	open(params: OpenCanvasParams, operation: IAgentCanvasOperation): Promise<IAgentCanvasInstance>;
 	invoke(state: CanvasState, params: InvokeCanvasActionParams, operation: IAgentCanvasOperation): Promise<unknown>;

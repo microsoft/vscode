@@ -316,7 +316,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getSessionCanvases(sessionResource: URI, chatResource: URI): ISessionCanvases | undefined {
 		const session = this.getSession(sessionResource, { includeDrafts: true });
-		if (!session || !session.chats.get().some(chat => this.uriIdentityService.extUri.isEqual(chat.resource, chatResource))) {
+		const chat = session?.chats.get().find(chat => this.uriIdentityService.extUri.isEqual(chat.resource, chatResource));
+		if (!session || session.status.get() === SessionStatus.Untitled || !chat || chat.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
 		return this._getProvider(session)?.getSessionCanvases?.(session.sessionId, chatResource);

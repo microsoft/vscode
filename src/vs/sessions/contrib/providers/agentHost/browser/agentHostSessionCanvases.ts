@@ -49,7 +49,6 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		entries: IObservable<readonly CanvasEntry[] | undefined>,
 		private readonly canExecute: () => Promise<boolean>,
 		private readonly keepAlive: () => void,
-		private readonly waitForSession?: () => Promise<void>,
 	) {
 		super();
 		this.entries = derived(this, reader => entries.read(reader)?.filter(entry => entry.identity.chat === chat.toString()) ?? []);
@@ -98,7 +97,7 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		this.initializing.set(true, undefined);
 		let dispatched = false;
 		try {
-			await this.prepareExecutableSession(operation.token);
+			await this.ensureExecutionAllowed(operation.token);
 			this.keepAlive();
 			dispatched = true;
 			await raceCancellationError(connection.initializeCanvasChat({
@@ -125,15 +124,6 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 		if (!await raceCancellationError(this.canExecute(), token)) {
 			throw new CancellationError();
 		}
-	}
-
-	private async prepareExecutableSession(token: CancellationToken = CancellationToken.None): Promise<void> {
-		await this.ensureExecutionAllowed(token);
-		if (!this.waitForSession) {
-			return;
-		}
-		await raceCancellationError(this.waitForSession(), token);
-		await this.ensureExecutionAllowed(token);
 	}
 
 	private currentConnection(): IAgentHostCanvasBinding['connection'] {
@@ -232,7 +222,7 @@ export class AgentHostSessionCanvases extends Disposable implements ISessionCanv
 	async open(options: SessionCanvasOpenOptions): Promise<CanvasEntry> {
 		const connection = this.currentConnection();
 		const generation = this.generation.get();
-		await this.prepareExecutableSession();
+		await this.ensureExecutionAllowed();
 		if (generation !== this.generation.get()) {
 			throw new Error(localize('canvas.openOwnerChanged', "The canvas owner or connection changed before opening the canvas."));
 		}

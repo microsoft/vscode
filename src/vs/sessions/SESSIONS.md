@@ -152,9 +152,9 @@ A provider that must establish backend state before presenting a session may imp
 
 ### Drafts
 
-`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. A canvas-capable provider may also commit a draft when its backend publishes a ready session with durable canvas membership or retained execution intent, without a conversation turn. Explicit provider initialization can retain an owner before any canvas is opened; an empty catalog alone cannot. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
 
-Replacing a pending draft with a committed facade releases the management service's draft pointer without discarding the backend owner. The visible session and its working set follow the ordinary replacement lifecycle, including same-resource canvas-first promotion.
+Replacing a pending draft with a committed facade releases the management service's draft pointer without discarding the backend owner. The visible session and its working set follow the ordinary replacement lifecycle.
 
 Within a committed session, authoritative canvas membership likewise makes its owning chat non-empty. Providers must not continue advertising that chat as an untitled draft eligible for reuse.
 

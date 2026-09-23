@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -37,10 +37,9 @@ import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionCo
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
-import { isCanvasSessionRetained } from '../../../../../platform/agentHost/common/meta/agentCanvasSessionMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionLifecycle, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1315,9 +1314,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			} else {
 				entry.update(summary);
 			}
-			if (state.lifecycle === SessionLifecycle.Ready && state.canvases?.some(canvas => canvas.identity.chat === summary.resource)) {
-				this.markChatAsCreated(chatId);
-			}
 			ordered.push(entry.chat);
 		}
 
@@ -2220,7 +2216,7 @@ class NewSession extends Disposable {
 			chats,
 			capabilities: derived(this, reader => ({
 				supportsMultipleChats: false, supportsRename: true, supportsDelete: true,
-				supportsCanvases: this.agentProvider === 'copilotcli' && (this._options.canvasSupported?.(this.sessionId, reader) ?? false),
+				supportsCanvases: false,
 			})),
 		};
 		this.sessionId = this.session.sessionId;
@@ -2901,8 +2897,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessionCanvases(sessionId: string, chat: URI): ISessionCanvases | undefined {
 		const session = this.getKnownSessions().find(session => session.sessionId === sessionId);
+		const ownedChat = session?.chats.get().find(candidate => isEqual(candidate.resource, chat));
 		const backendSession = this._getBackendSessionUri(sessionId);
-		if (!this._canvasEnabled.get() || !this._isCanvasExecutionSupported(sessionId) || !session || session.sessionType !== 'copilotcli' || !backendSession || !session.chats.get().some(candidate => isEqual(candidate.resource, chat))) {
+		if (!this._canvasEnabled.get() || !this._isCanvasExecutionSupported(sessionId) || !session || session.status.get() === SessionStatus.Untitled
+			|| session.sessionType !== 'copilotcli' || !backendSession || !ownedChat || ownedChat.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
 		const backendChat = this._resolveBackendSourceChatUri(sessionId, backendSession, chat);
@@ -2923,7 +2921,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const enabled = derived(this, reader => this._canvasEnabled.read(reader) && this._isCanvasExecutionSupported(sessionId, reader));
 			collection = new AgentHostSessionCanvases(backendSession, backendChat, this._canvasBinding, enabled, entries,
 				() => this._canExecuteCanvasSession(sessionId),
-				() => this._keepSessionStateAlive(sessionId), () => this._waitForCanvasSession(sessionId));
+				() => this._keepSessionStateAlive(sessionId));
 			collections.set(key, collection);
 		}
 		return collection;
@@ -2942,47 +2940,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return false;
 		}
 		return this._sessionsService.canExecuteSession(session);
-	}
-
-	private async _waitForCanvasSession(sessionId: string): Promise<void> {
-		const draft = this._getNewSession(sessionId);
-		if (!draft) {
-			return;
-		}
-		await waitForState(this.authenticationPending, pending => !pending, undefined, draft.cancellationToken);
-		await draft.waitForConfigurationReady();
-		await draft.waitForEagerCreate();
-	}
-
-	private _tryPromoteCanvasSession(sessionId: string): void {
-		const draft = this._getNewSession(sessionId);
-		const state = this._lastSessionStates.get(sessionId);
-		if (!draft || draft.agentProvider !== 'copilotcli' || draft.session.status.get() !== SessionStatus.Untitled
-			|| draft.session.isNewSessionRequestInProgress?.get() || state?.lifecycle !== SessionLifecycle.Ready
-			|| (!isCanvasSessionRetained(state) && !state.canvases?.some(canvas => state.chats.some(chat => chat.resource === canvas.identity.chat)))) {
-			return;
-		}
-		const committed = this._sessionCache.get(AgentSession.id(draft.backendUri));
-		if (!committed || !isEqual(committed.backendUri, draft.backendUri)) {
-			return;
-		}
-
-		// Acquire the running lease before releasing the draft's subscription.
-		this._keepSessionStateAlive(sessionId);
-		this._preserveNewSessionConfig(draft, committed.sessionId);
-		const modelId = draft.getSelectedModelId();
-		if (modelId) {
-			committed.setChatModelId(committed.resource, modelId, draft.session.mainChat.get().modelSource?.get() ?? ChatModelSource.Chosen);
-		}
-		const agent = draft.getSelectedAgent();
-		if (agent) {
-			committed.setChatAgent(committed.resource, agent);
-		}
-		draft.graduate();
-		this._newSessions.deleteAndDispose(sessionId);
-		this._onDidChangeDraftSessions.fire();
-		this._onDidReplaceSession.fire({ from: draft.session, to: committed });
-		this._syncActiveClient();
 	}
 
 	private _updateCanvasEntries(sessionId: string, state: SessionState): void {
@@ -3705,7 +3662,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession) {
 			throw new Error('Cannot start a session that is no longer pending.');
 		}
-		return combinedDisposable(newSession.startRequest(activity), toDisposable(() => this._tryPromoteCanvasSession(sessionId)));
+		return newSession.startRequest(activity);
 	}
 
 	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
@@ -5914,7 +5871,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._lastSessionStates.set(sessionId, state);
 		this._updateCanvasEntries(sessionId, state);
 		this._newSessions.get(sessionId)?.applySessionMeta(state._meta);
-		this._tryPromoteCanvasSession(sessionId);
 		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
@@ -6179,10 +6135,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					this._sessionCache.set(rawId, cached);
 					added.push(cached);
 				}
-				const cached = this._sessionCache.get(rawId);
-				if (cached) {
-					this._tryPromoteCanvasSession(cached.sessionId);
-				}
 			}
 
 			const removed: ISession[] = [];
@@ -6430,14 +6382,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (this.updateAdapter(existing, meta)) {
 				this._onDidChangeSessionsFromNotifications.fire({ added: [], removed: [], changed: [existing] });
 			}
-			this._tryPromoteCanvasSession(existing.sessionId);
 			this._syncActiveClient();
 			return;
 		}
 
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
-		this._tryPromoteCanvasSession(cached.sessionId);
 		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
 		this._syncActiveClient();
 	}

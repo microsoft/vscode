@@ -20,7 +20,7 @@ Copilot project extensions require the host's synchronized Workspace Trust to co
 
 Canvas initialize, open, action, and provider restart re-enter the owning session's normal execution admission before any provider materialization or effect dispatch. This check applies even when the session is already active, so later Workspace Trust revocation cannot be bypassed through a no-turn canvas path. Catalog/source reads remain non-starting, and logical close remains available for cleanup. Workspaceless sessions and workspaces that do not require trust preserve their existing exemptions.
 
-Automatically authorized launches recheck trust and the entrypoint after session retention and before returning the launch recipe. Revocation during that wait prevents the launch. This does not terminate already-running extension programs or replace their ordinary lifetime and cleanup.
+Automatically authorized launches recheck trust and the entrypoint immediately before returning the launch recipe. This does not terminate already-running extension programs or replace their ordinary lifetime and cleanup.
 
 ## Logical editors and native leases
 
@@ -59,13 +59,11 @@ Command identifiers:
 
 Session controls capture `ISessionContext` or an explicit session/chat pair before asynchronous work. Editor controls capture their logical input. Restart confirmation retains the entry observed before the dialog. Native tool publication can reveal new members for the current visible owner with conversation focus preserved; publication for background owners does not switch sessions. Their members remain available for an explicit later reveal.
 
-### Canvas-first owners
+### Persisted owners
 
-The ordinary `ISessionsService.openNewSession` route creates and presents a real provider draft. `ISessionCanvasService.getTarget` captures that session and its exact chat; `open` accepts canonical `SessionCanvasOpenOptions`, including a known source/type identity when the live catalog is cold. This is the same six-route transport used by the picker, not a synthetic-owner command or a model turn. Pure catalog refresh does not initialize missing providers.
+The initial preview supports canvases only in committed sessions and committed chats. The user sends a normal first request before the canvas facet is exposed. Untitled session and peer-chat drafts do not advertise a canvas target, and the Agent Host rejects executable initialization/open/action/restart commands for an unused draft.
 
-Open and explicit provider initialization wait for eager AHP owner creation. A ready backend session with authoritative canvas membership or retained execution intent and an actual published session summary graduates through the normal session-replacement lifecycle. Explicit initialization can retain an owner without opening a member; dismissing the picker or navigating away must not discard that owner. The same logical references and collection survive, the pending-draft pointer is released without discarding the owner, and subsequent navigation uses real session working sets. Pending or selected Dev Container execution remains unsupported and does not retain a local canvas-opening capability.
-
-A previously untitled peer chat also adopts its backend status once ready state publishes its own canvas membership. It is no longer an empty composer that can be reused for a different conversation.
+Initial session creation does not request extension startup. Explicit canvas initialization can start extensions on the existing resident session after its first request has persisted the conversation; a cold resume can request them during resume. Persisted canvas membership still restores as metadata and obtains a fresh source when shown. Opening a canvas before the first request, retaining a zero-turn owner, and promoting a draft solely from canvas membership are deferred. Pure catalog refresh remains read-only and does not initialize missing providers.
 
 ## Native isolation and guest behavior
 

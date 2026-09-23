@@ -69,7 +69,6 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostCanvases, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { TestCanvases } from './agentHostCanvasTestUtils.js';
-import { isCanvasSessionRetained } from '../../common/meta/agentCanvasSessionMeta.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -10282,40 +10281,6 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- createChat (multi-chat) ----------------------------------------
 
 	suite('createChat', () => {
-		test('no-turn retained canvas intent survives picker abandonment and empty-draft garbage collection', async () => {
-			const canvases = getTestAgentHostCanvases(service);
-			const facet = disposables.add(new TestCanvases());
-			const agent = new class extends MockAgent { readonly canvases = facet; }('copilot');
-			registerTestAgentProvider(service, agent);
-			const session = await service.createSession({ provider: 'copilot' });
-			const chat = buildDefaultChatUri(session);
-			facet.snapshot = { ...facet.snapshot, chat };
-			facet.initialized = false;
-			facet.onInitialize = (chat, operation) => canvases.retainChat(chat, operation.token);
-			const connection = disposables.add(canvases.connect('owner'));
-			await connection.initializeCanvasChat({ channel: chat, requestId: 'initialize' });
-			const before = getStateManager(service).getSessionState(session.toString())!;
-			assert.deepStrictEqual({
-				retained: isCanvasSessionRetained(getStateManager(service).getSessionSummary(session.toString())),
-				unused: getStateManager(service).isUnusedDraft(session.toString()),
-				turns: before.turns, active: before.activeTurn, members: getStateManager(service).getChatCanvasStates(chat),
-			}, { retained: true, unused: false, turns: [], active: undefined, members: [] });
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.addSubscriber(session, 'owner');
-				service.unsubscribe(session, 'owner');
-				connection.dispose();
-				await timeout(30_000);
-			});
-			await service.restoreSession(session);
-			await timeout(0);
-			assert.deepStrictEqual({
-				disposed: agent.disposeSessionCalls,
-				retained: isCanvasSessionRetained(getStateManager(service).getSessionSummary(session.toString())),
-				registered: (await service.getRegisteredSessions()).some(candidate => candidate.toString() === session.toString()),
-				initialized: facet.calls,
-			}, { disposed: [], retained: true, registered: true, initialized: ['initialize'] });
-		});
-
 		for (const kind of ['main', 'peer', 'fork'] as const) {
 			test(`canvas ${kind} creation ingests native turns before publishing the real chat`, async () => {
 				const canvases = getTestAgentHostCanvases(service);

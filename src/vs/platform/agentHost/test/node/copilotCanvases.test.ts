@@ -21,7 +21,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCanvasOperation } from '../../common/agentHostCanvases.js';
 import { AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
-import { isCanvasSessionRetained } from '../../common/meta/agentCanvasSessionMeta.js';
 import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import type { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
@@ -55,8 +54,6 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 	const approvals: Array<{ chat: string; message: string; clientId: string | undefined }> = [];
 	const attachments: Array<{ chat: string; count: number }> = [];
 	let approve = async () => true;
-	let retainGate = Promise.resolve();
-	let retainResponse = 'null';
 	let listGate = Promise.resolve();
 	let listOpenGate = Promise.resolve();
 	let openGate = Promise.resolve();
@@ -67,6 +64,7 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 	let busy = false;
 	let onPrepare = async () => { };
 	let onRecover = async () => { };
+	let onReload = async () => { };
 	let workingDirectory: URI | undefined = testWorkspace;
 	const configuration = store.add(new AgentConfigurationService(store.add(new AgentHostStateManager(new NullLogService())), new NullLogService()));
 	configuration.publishRootTransientValues({ [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } });
@@ -87,6 +85,12 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 			close: async () => { calls.push('close'); await closeGate; },
 			action: { invoke: async () => { calls.push('invoke'); return { count: 1 }; } },
 		};
+		override readonly extensions = new class extends mock<CopilotSession['rpc']['extensions']>() {
+			override readonly reload = async (): Promise<void> => {
+				calls.push('reload');
+				await onReload();
+			};
+		}();
 	}();
 	const session = new class extends mock<CopilotSession>() {
 		override readonly sessionId = 'native-session';
@@ -101,21 +105,12 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 		}
 		override async disconnect(): Promise<void> { calls.push('disconnect'); }
 	}();
-	const clientRpc = new class extends mock<CopilotClient['rpc']>() {
-		override readonly session = new class extends mock<CopilotClient['rpc']['session']>() {
-			override retain = async (params: Parameters<CopilotClient['rpc']['session']['retain']>[0]): Promise<null> => {
-				calls.push(`retain:${params.sessionId}`);
-				await retainGate;
-				return JSON.parse(retainResponse);
-			};
-		}();
-	}();
 	const client = new class extends mock<CopilotClient>() {
-		override get rpc() {
+		override get rpc(): CopilotClient['rpc'] {
 			if (!connected) {
 				throw new Error('Client is not connected.');
 			}
-			return clientRpc;
+			return new class extends mock<CopilotClient['rpc']>() { }();
 		}
 	}();
 	const host: ICopilotCanvasHost = {
@@ -157,8 +152,6 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 		setWorkingDirectory: (value: URI | undefined) => { workingDirectory = value; },
 		setWorkspaceTrust: (value: IAgentHostWorkspaceTrust | undefined) => configuration.publishRootTransientValues({ [AgentHostWorkspaceTrustConfigKey]: value }),
 		setApproval: (value: () => Promise<boolean>) => { approve = value; },
-		setRetainGate: (value: Promise<void>) => { retainGate = value; },
-		setRetainResponse: (value: string) => { retainResponse = value; },
 		setListGate: (value: Promise<void>) => { listGate = value; },
 		setListOpenGate: (value: Promise<void>) => { listOpenGate = value; },
 		setOpenGate: (value: Promise<void>) => { openGate = value; },
@@ -170,6 +163,7 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 		setBusy: (value: boolean) => { busy = value; },
 		setPrepare: (value: () => Promise<void>) => { onPrepare = value; },
 		setRecover: (value: () => Promise<void>) => { onRecover = value; },
+		setReload: (value: () => Promise<void>) => { onReload = value; },
 	};
 }
 
@@ -185,7 +179,7 @@ suite('Copilot canvases', () => {
 	});
 
 	for (const field of ['sessionId', 'defaultLaunch'] as const) {
-		test(`a launch without ${field} is denied without approval or retention`, async () => {
+		test(`a launch without ${field} is denied without approval`, async () => {
 			const f = createFixture(store);
 			f.start();
 			f.bind();
@@ -200,48 +194,34 @@ suite('Copilot canvases', () => {
 		});
 	}
 
-	test('explicit source admission binds the exact chat and retains before returning the original recipe', async () => {
+	test('explicit source admission binds the exact chat before returning the original recipe', async () => {
 		const f = createFixture(store);
 		f.request.source = 'user';
 		f.request.id = userExtensionId;
 		f.setApproval(async () => true);
 		f.start();
 		f.bind();
-		const retained = new DeferredPromise<void>();
-		f.setRetainGate(retained.p);
-		let settled = false;
-		const result = f.admit().then(value => { settled = true; return value; });
-		while (!f.calls.length) {
-			await timeout(0);
-		}
-		assert.deepStrictEqual([settled, f.calls, f.approvals[0].chat], [false, ['retain:native-session'], canvasChat]);
-		await retained.complete();
-		assert.strictEqual((await result).launch, f.request.defaultLaunch);
+		assert.strictEqual((await f.admit()).launch, f.request.defaultLaunch);
+		assert.deepStrictEqual(f.calls, []);
+		assert.strictEqual(f.approvals[0].chat, canvasChat);
 		assert.match(f.approvals[0].message, /mutable-directory trust.*unsandboxed.*separate from Workspace Trust/);
 	});
 
-	test('trusted workspace sources skip the extra prompt but still retain before launch', async () => {
+	test('trusted workspace sources skip the extra prompt', async () => {
 		const f = createFixture(store);
 		f.setWorkspaceTrust({ enabled: true, trustedUris: [testWorkspace.toString(), URI.file(await realpath(testWorkspace.fsPath)).toString()] });
 		f.setApproval(async () => false);
 		f.start();
 		f.bind();
-		const retained = new DeferredPromise<void>();
-		f.setRetainGate(retained.p);
-		let settled = false;
-		const pending = f.admit().then(result => { settled = true; return result; });
-		while (!f.calls.length) {
-			await timeout(0);
-		}
-		const beforeRetention = { settled, approvals: [...f.approvals], calls: [...f.calls] };
-		await retained.complete();
 		assert.deepStrictEqual({
-			beforeRetention,
-			result: await pending,
+			result: await f.admit(),
+			approvals: f.approvals,
+			calls: f.calls,
 			trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
 		}, {
-			beforeRetention: { settled: false, approvals: [], calls: ['retain:native-session'] },
 			result: { launch: f.request.defaultLaunch },
+			approvals: [],
+			calls: [],
 			trust: { status: CanvasTrustStatus.Trusted },
 		});
 	});
@@ -255,7 +235,7 @@ suite('Copilot canvases', () => {
 		{ name: 'missing working directory', workingDirectory: undefined, trust: { enabled: false, trustedUris: [] } },
 		{ name: 'non-file working directory', workingDirectory: URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+example', path: '/workspace' }), trust: { enabled: false, trustedUris: [] } },
 	]) {
-		test(`${name} rejects a project source before approval or retention`, async () => {
+		test(`${name} rejects a project source before approval`, async () => {
 			const f = createFixture(store);
 			f.setWorkspaceTrust(trust);
 			f.setWorkingDirectory(workingDirectory);
@@ -280,7 +260,7 @@ suite('Copilot canvases', () => {
 		assert.deepStrictEqual({
 			rejected, admitted, approvals: f.approvals, calls: f.calls,
 		}, {
-			rejected: { launch: null }, admitted: { launch: f.request.defaultLaunch }, approvals: [], calls: ['retain:native-session'],
+			rejected: { launch: null }, admitted: { launch: f.request.defaultLaunch }, approvals: [], calls: [],
 		});
 	});
 
@@ -311,106 +291,10 @@ suite('Copilot canvases', () => {
 		f.bind();
 		assert.deepStrictEqual({
 			result: await f.admit(), approvals: f.approvals, calls: f.calls,
-		}, { result: { launch: f.request.defaultLaunch }, approvals: [], calls: ['retain:native-session'] });
+		}, { result: { launch: f.request.defaultLaunch }, approvals: [], calls: [] });
 	});
 
-	test('workspace trust revoked while retention waits cannot authorize a late launch', async () => {
-		const f = createFixture(store);
-		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
-		f.start();
-		f.bind();
-		const retained = new DeferredPromise<void>();
-		f.setRetainGate(retained.p);
-		const pending = f.admit();
-		while (!f.calls.length) {
-			await timeout(0);
-		}
-		f.setWorkspaceTrust({ enabled: true, trustedUris: [] });
-		await retained.complete();
-		assert.deepStrictEqual({
-			result: await pending, approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
-		}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
-	});
-
-	test('trusted workspace sources still reject invalid retention acknowledgements', async () => {
-		const f = createFixture(store);
-		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
-		f.setRetainResponse('true');
-		f.start();
-		f.bind();
-		assert.deepStrictEqual({
-			result: await f.admit(), approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
-		}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
-	});
-
-	for (const message of ['Session persistence is not available', 'Session persistence write failed', 'Remote sessions cannot be retained locally']) {
-		test(`retention RPC failure is preserved without admitting the source: ${message}`, async () => {
-			const f = createFixture(store);
-			f.start();
-			f.bind();
-			const retained = new DeferredPromise<void>();
-			f.setRetainGate(retained.p);
-			const failure = new Error(message);
-			const rejected = assert.rejects(f.admit(), error => error === failure);
-			while (!f.calls.length) {
-				await timeout(0);
-			}
-			await retained.error(failure);
-			await rejected;
-			assert.deepStrictEqual({
-				approvals: f.approvals, calls: f.calls, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
-			}, {
-				approvals: [], calls: ['retain:native-session'], trust: { status: CanvasTrustStatus.Pending },
-			});
-		});
-	}
-
-	test('retention failure permits an explicit retry without replacing the owning session', async () => {
-		const f = createFixture(store);
-		f.start();
-		f.bind();
-		const retained = new DeferredPromise<void>();
-		f.setRetainGate(retained.p);
-		const failure = new Error('Session persistence write failed');
-		const rejected = assert.rejects(f.admit(), error => error === failure);
-		while (!f.calls.length) {
-			await timeout(0);
-		}
-		await retained.error(failure);
-		await rejected;
-		const failedTrust = f.adapter.getTrust(canvasChat, canvasIdentity.source);
-		f.setRetainGate(Promise.resolve());
-		assert.deepStrictEqual({
-			failedTrust, retry: await f.admit(), calls: f.calls,
-			trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
-		}, {
-			failedTrust: { status: CanvasTrustStatus.Pending }, retry: { launch: f.request.defaultLaunch },
-			calls: ['retain:native-session', 'retain:native-session'], trust: { status: CanvasTrustStatus.Trusted },
-		});
-	});
-
-	test('cancellation while retention is pending rejects a late successful acknowledgement', async () => {
-		const f = createFixture(store);
-		f.start();
-		f.bind();
-		const retained = new DeferredPromise<void>();
-		f.setRetainGate(retained.p);
-		const cancellation = store.add(new CancellationTokenSource());
-		const rejected = assert.rejects(f.adapter.launchProvider.resolve(f.request, cancellation.token), isCancellationError);
-		while (!f.calls.length) {
-			await timeout(0);
-		}
-		cancellation.cancel();
-		await rejected;
-		await retained.complete();
-		assert.deepStrictEqual({
-			approvals: f.approvals, calls: f.calls, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
-		}, {
-			approvals: [], calls: ['retain:native-session'], trust: { status: CanvasTrustStatus.Pending },
-		});
-	});
-
-	test('a cancelled trusted-workspace launch cannot start retention', async () => {
+	test('a cancelled trusted-workspace launch cannot start', async () => {
 		const f = createFixture(store);
 		f.setWorkspaceTrust({ enabled: false, trustedUris: [] });
 		f.start();
@@ -420,7 +304,7 @@ suite('Copilot canvases', () => {
 		}, { result: { launch: null }, approvals: [], calls: [] });
 	});
 
-	test('a project source symlink outside trusted folders is rejected before approval or retention', async () => {
+	test('a project source symlink outside trusted folders is rejected before approval', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-canvas-trust-'));
 		try {
 			const f = createFixture(store);
@@ -441,7 +325,7 @@ suite('Copilot canvases', () => {
 		}
 	});
 
-	test('changing the source symlink during retention cannot launch a different entrypoint', async () => {
+	test('changing the source symlink during approval cannot launch a different entrypoint', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-canvas-source-'));
 		try {
 			const workspace = URI.file(await realpath(directory));
@@ -455,22 +339,25 @@ suite('Copilot canvases', () => {
 			await symlink(first, linked, 'junction');
 			const f = createFixture(store);
 			f.request.modulePath = join(linked, 'extension.mjs');
+			f.request.source = 'user';
+			f.request.id = userExtensionId;
 			f.setWorkingDirectory(workspace);
-			f.setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
+			const entered = new DeferredPromise<void>();
+			const approved = new DeferredPromise<boolean>();
+			f.setApproval(async () => {
+				await entered.complete();
+				return approved.p;
+			});
 			f.start();
 			f.bind();
-			const retained = new DeferredPromise<void>();
-			f.setRetainGate(retained.p);
 			const pending = f.admit();
-			while (!f.calls.length) {
-				await timeout(0);
-			}
+			await entered.p;
 			await rm(linked, { recursive: true, force: true });
 			await symlink(second, linked, 'junction');
-			await retained.complete();
+			await approved.complete(true);
 			assert.deepStrictEqual({
-				result: await pending, approvals: f.approvals, trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
-			}, { result: { launch: null }, approvals: [], trust: { status: CanvasTrustStatus.Pending } });
+				result: await pending, approvals: f.approvals.map(approval => approval.chat), trust: f.adapter.getTrust(canvasChat, canvasIdentity.source),
+			}, { result: { launch: null }, approvals: [canvasChat], trust: { status: CanvasTrustStatus.Pending } });
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
@@ -491,6 +378,32 @@ suite('Copilot canvases', () => {
 		await f.adapter.initializeChat(canvasChat, f.operation);
 		await f.adapter.initializeChat(canvasChat, f.operation);
 		assert.deepStrictEqual({ calls: f.calls, types: f.adapter.getSnapshot(canvasChat)?.types.length }, { calls: effects, types: 1 });
+	});
+
+	test('an existing resident session starts extensions only during explicit initialization', async () => {
+		const f = createFixture(store);
+		f.start();
+		const launch = f.bind('pending');
+		await f.admit();
+		await launch.attach(f.wrapper, false);
+		const reloading = new DeferredPromise<void>();
+		f.setReload(async () => reloading.complete());
+		const initializing = f.adapter.initializeChat(canvasChat, f.operation);
+		await reloading.p;
+		const beforeReady = { snapshot: f.adapter.getSnapshot(canvasChat), calls: [...f.calls] };
+		launch.onEvent(nativeEvent('session.extensions_loaded', {
+			extensions: [{ id: f.request.id, name: f.request.name, source: f.request.source, status: 'running' }],
+		}));
+		await initializing;
+		assert.deepStrictEqual({
+			beforeReady,
+			types: f.adapter.getSnapshot(canvasChat)?.types.length,
+			calls: f.calls,
+		}, {
+			beforeReady: { snapshot: undefined, calls: ['effect', 'prepare', 'effect', 'reload'] },
+			types: 1,
+			calls: ['effect', 'prepare', 'effect', 'reload', 'list', 'listOpen'],
+		});
 	});
 
 	for (const query of ['list', 'listOpen'] as const) {
@@ -519,8 +432,8 @@ suite('Copilot canvases', () => {
 			assert.deepStrictEqual({
 				beforeStartup, duringQuery, settled, types: f.adapter.getSnapshot(canvasChat)?.types.length,
 			}, {
-				beforeStartup: { settled: false, snapshot: undefined, calls: ['retain:native-session'] },
-				duringQuery: { settled: false, snapshot: undefined, calls: ['retain:native-session', 'list', 'listOpen'] },
+				beforeStartup: { settled: false, snapshot: undefined, calls: [] },
+				duringQuery: { settled: false, snapshot: undefined, calls: ['list', 'listOpen'] },
 				settled: true, types: 1,
 			});
 		});
@@ -577,6 +490,7 @@ suite('Copilot canvases', () => {
 				readonly canvases = f.adapter;
 			}('copilot'));
 			createCanvasSession(services.state);
+			services.state.markSessionUsed(canvasSession);
 			store.add(services.connections.registerSource({
 				hasSeenClient: () => true, isClientConnected: () => true,
 				getConnectedClientTransportCounts: () => new Map([['owner', 1]]), getSubscribedClients: () => ['owner'],
@@ -628,12 +542,12 @@ suite('Copilot canvases', () => {
 			const session = services.state.getSessionState(canvasSession)!;
 			const observer = store.add(services.service.connect('reader'));
 			assert.deepStrictEqual({
-				early, granted, settled, retained: isCanvasSessionRetained(session),
+				early, granted, settled,
 				turns: session.turns, members: services.state.getChatCanvasStates(canvasChat).length,
 				types: (await observer.listCanvasTypes({ channel: canvasChat })).types.length,
 				initializing: services.service.isChatInitializing(canvasChat),
 			}, {
-				early: { snapshot: undefined, initializing: true }, granted: true, settled: 'complete', retained: true,
+				early: { snapshot: undefined, initializing: true }, granted: true, settled: 'complete',
 				turns: [], members: command === 'open' ? 1 : 0, types: 1, initializing: false,
 			});
 		});
@@ -675,18 +589,6 @@ suite('Copilot canvases', () => {
 		}, { source: { url: `${canonical}?view=two#counter` }, identitySource: canvasIdentity.source, calls });
 	});
 
-	test('non-null retention responses cannot authorize top-level execution', async () => {
-		const f = createFixture(store);
-		f.start();
-		f.bind();
-		const launches = [];
-		for (const response of ['false', '{}', '[]', '0', '""']) {
-			f.setRetainResponse(response);
-			launches.push((await f.admit()).launch);
-		}
-		assert.deepStrictEqual(launches, [null, null, null, null, null]);
-	});
-
 	test('denial, wrong session, relative source, namespace mismatch and racing IDs cannot launch', async () => {
 		const f = createFixture(store);
 		f.request.source = 'user';
@@ -708,7 +610,7 @@ suite('Copilot canvases', () => {
 		]);
 	});
 
-	test('SDK cancellation prevents late consent and retention', async () => {
+	test('SDK cancellation prevents late consent', async () => {
 		const f = createFixture(store);
 		f.request.source = 'user';
 		f.request.id = userExtensionId;
@@ -727,7 +629,7 @@ suite('Copilot canvases', () => {
 		assert.deepStrictEqual(f.calls, []);
 	});
 
-	test('canvas-first cancellation retires pending source admission without a synthetic turn', async () => {
+	test('initialization cancellation retires pending source admission without a synthetic turn', async () => {
 		const f = createFixture(store);
 		f.request.source = 'user';
 		f.request.id = userExtensionId;
@@ -780,7 +682,7 @@ suite('Copilot canvases', () => {
 		const state = f.state();
 		const source = await f.adapter.resolve(state, 'client', CancellationToken.None);
 		assert.deepStrictEqual([state.availability, source, f.calls], [
-			{ status: CanvasAvailabilityStatus.Ready, actions: [{ id: 'increment' }] }, { url: endpoint }, ['retain:native-session', 'list', 'listOpen'],
+			{ status: CanvasAvailabilityStatus.Ready, actions: [{ id: 'increment' }] }, { url: endpoint }, ['list', 'listOpen'],
 		]);
 		assert.ok(!JSON.stringify(f.adapter.getSnapshot(canvasChat)).includes(endpoint));
 	});
@@ -871,7 +773,7 @@ suite('Copilot canvases', () => {
 		const state = f.state();
 		f.setConnected(false);
 		const source = await f.adapter.resolve(state, 'client', CancellationToken.None);
-		assert.deepStrictEqual([f.adapter.available, f.adapter.authorityLost, source, f.calls], [false, true, undefined, ['retain:native-session', 'list', 'listOpen']]);
+		assert.deepStrictEqual([f.adapter.available, f.adapter.authorityLost, source, f.calls], [false, true, undefined, ['list', 'listOpen']]);
 		assert.throws(() => f.adapter.clientStarting(f.client), /Explicit owned-runtime recovery/);
 	});
 
@@ -950,7 +852,7 @@ suite('Copilot canvases', () => {
 			await replacement.attach(f.wrapper);
 		});
 		await f.adapter.restart(state, f.operation);
-		assert.deepStrictEqual([f.adapter.available, f.calls], [true, ['effect', 'recover', 'effect', 'prepare', 'retain:native-session', 'list', 'listOpen']]);
+		assert.deepStrictEqual([f.adapter.available, f.calls], [true, ['effect', 'recover', 'effect', 'prepare', 'list', 'listOpen']]);
 		assert.match(f.approvals[1].message, /disconnects 1 resident chats.*No canvas action or model turn will be replayed/);
 	});
 

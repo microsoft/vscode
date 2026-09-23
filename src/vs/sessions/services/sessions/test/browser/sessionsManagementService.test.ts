@@ -312,8 +312,14 @@ suite('SessionsManagementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getSessionCanvases routes exact peers to their provider and never falls back to the main chat', () => {
-		const peer = { ...stubChat, resource: URI.parse('test:/owned#peer') };
-		const session = stubSession({ sessionId: 'canvases', providerId: 'test', chats: constObservable([stubChat, peer]) });
+		const peer = { ...stubChat, resource: URI.parse('test:/owned#peer'), status: constObservable(SessionStatus.Completed) };
+		const draftPeer = { ...stubChat, resource: URI.parse('test:/owned#draft'), status: constObservable(SessionStatus.Untitled) };
+		const session = stubSession({
+			sessionId: 'canvases',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats: constObservable([stubChat, peer, draftPeer]),
+		});
 		const collection = new class extends mock<ISessionCanvases>() { }();
 		const calls: { session: string; chat: string }[] = [];
 		const provider = new class extends TestSessionsProvider {
@@ -324,10 +330,12 @@ suite('SessionsManagementService', () => {
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
 		const found = service.getSessionCanvases(session.resource, peer.resource);
+		const draftChat = service.getSessionCanvases(session.resource, draftPeer.resource);
 		const unknownChat = service.getSessionCanvases(session.resource, URI.parse('test:/other#peer'));
 		const unknownSession = service.getSessionCanvases(URI.parse('test:/unknown'), peer.resource);
-		assert.deepStrictEqual({ found: found === collection, unknownChat, unknownSession, calls }, {
-			found: true, unknownChat: undefined, unknownSession: undefined, calls: [{ session: session.sessionId, chat: peer.resource.toString() }],
+		assert.deepStrictEqual({ found: found === collection, draftChat, unknownChat, unknownSession, calls }, {
+			found: true, draftChat: undefined, unknownChat: undefined, unknownSession: undefined,
+			calls: [{ session: session.sessionId, chat: peer.resource.toString() }],
 		});
 	});
 
@@ -337,7 +345,7 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(service.getSessionCanvases(session.resource, stubChat.resource), undefined);
 	});
 
-	test('getSessionCanvases resolves the real composer draft before its first turn', async () => {
+	test('getSessionCanvases does not expose the composer draft before its first turn', async () => {
 		const draft = stubSession({
 			sessionId: 'canvas-draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
 			chats: constObservable([stubChat]),
@@ -362,12 +370,12 @@ suite('SessionsManagementService', () => {
 			listed: service.getSessions(),
 			defaultLookup: service.getSession(draft.resource),
 			draftLookup: service.getSession(draft.resource, { includeDrafts: true }) === draft,
-			canvases: service.getSessionCanvases(draft.resource, stubChat.resource) === collection,
+			canvases: service.getSessionCanvases(draft.resource, stubChat.resource),
 			otherChat: service.getSessionCanvases(draft.resource, URI.parse('test:///other-chat')),
 			calls,
 		}, {
 			active: true, listed: [], defaultLookup: undefined, draftLookup: true,
-			canvases: true, otherChat: undefined, calls: [`${draft.sessionId}/${stubChat.resource.toString()}`],
+			canvases: undefined, otherChat: undefined, calls: [],
 		});
 	});
 
@@ -3594,8 +3602,8 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.resource.toString(), after.resource.toString());
 	});
 
-	test('canvas-first replacement clears the pending draft without discarding the committed owner', async () => {
-		const draft = stubSession({ sessionId: 'canvas-first', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+	test('provider replacement clears the pending draft without discarding the committed owner', async () => {
+		const draft = stubSession({ sessionId: 'replacement', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
 		const committed = { ...draft, status: constObservable(SessionStatus.Completed) };
 		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const discarded: string[] = [];

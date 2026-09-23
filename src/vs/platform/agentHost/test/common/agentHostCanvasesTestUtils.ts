@@ -23,7 +23,6 @@ export const unavailableCanvases = {
 	cancelChatInitialization: () => { },
 	cancelSessionInitialization: () => { },
 	assertChatInitialization: () => { },
-	retainChat: async () => { },
 	needsTurnInitialization: () => false,
 	prepareForTurn: async () => { },
 	beginTurnPreparation: () => { throw new Error('No canvas turn preparation in this test.'); },

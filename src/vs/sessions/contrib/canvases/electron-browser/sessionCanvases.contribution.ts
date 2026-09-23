@@ -27,7 +27,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../../wo
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionSupportsCanvasesContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionSupportsCanvasesContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { SessionCanvasesEnabledSettingId, SessionCanvasUri, type ISessionCanvasReference } from '../../../services/sessions/common/sessionCanvases.js';
 import { ISessionCanvasService, SessionCanvasInput, SessionCanvasSerializer } from '../common/sessionCanvas.js';
@@ -83,10 +83,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SessionCanvasCommands.manage, title: localize2('canvas.manage', "Canvases…"), category: SessionsCategories.Sessions, icon: Codicon.preview, f1: true,
-			precondition: ContextKeyExpr.and(enabled, SessionSupportsCanvasesContext),
+			precondition: ContextKeyExpr.and(enabled, IsNewChatSessionContext.negate(), SessionSupportsCanvasesContext),
 			menu: [
-				{ id: Menus.SessionBarToolbar, group: 'navigation', order: 30, when: ContextKeyExpr.and(enabled, SessionSupportsCanvasesContext) },
-				{ id: Menus.SessionsEditorTabsBarAddTab, group: 'navigation', order: 4, when: ContextKeyExpr.and(enabled, IsTopRightEditorGroupContext, SessionSupportsCanvasesContext) },
+				{ id: Menus.SessionBarToolbar, group: 'navigation', order: 30, when: ContextKeyExpr.and(enabled, IsNewChatSessionContext.negate(), SessionSupportsCanvasesContext) },
+				{ id: Menus.SessionsEditorTabsBarAddTab, group: 'navigation', order: 4, when: ContextKeyExpr.and(enabled, IsNewChatSessionContext.negate(), IsTopRightEditorGroupContext, SessionSupportsCanvasesContext) },
 			],
 		});
 	}

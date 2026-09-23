@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, ReasoningSummary, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,6 +38,7 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import type { CopilotCanvases, ICopilotCanvasLaunch } from '../../node/copilot/copilotCanvases.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
@@ -104,7 +106,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, canvases?: CopilotCanvases): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
 		getSessionConfigValues: () => undefined,
@@ -112,7 +114,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		setSessionSandboxPolicy: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
-		undefined,
+		canvases,
 		configurationService,
 		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
@@ -527,6 +529,67 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('loads canvas extensions only after the session is persisted', async () => {
+		const configs: ResumeSessionConfig[] = [];
+		const waits: boolean[] = [];
+		const raw = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: ResumeSessionConfig) => {
+				configs.push(config);
+				reportManagedSettings(config);
+				return raw;
+			},
+			resumeSession: async (_sessionId: string, config: ResumeSessionConfig) => {
+				configs.push(config);
+				reportManagedSettings(config);
+				return raw;
+			},
+		} as unknown as CopilotClient;
+		const canvases = new class extends mock<CopilotCanvases>() {
+			override beginLaunch(): ICopilotCanvasLaunch {
+				return {
+					token: CancellationToken.None,
+					onEvent: () => { },
+					permission: async () => undefined,
+					attach: async (_wrapper, waitForExtensions = true) => { waits.push(waitForExtensions); },
+					dispose: () => { },
+				};
+			}
+		}();
+		const launcher = createTestLauncher(undefined, {}, new NullLogService(), noopSessionOpenTelemetry, undefined, canvases);
+		const shared = {
+			client,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+		};
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch({ ...shared, kind: 'create', model: undefined }, testRuntime));
+			sessions.add(await launcher.launch({ ...shared, kind: 'resume', fallback: { model: undefined } }, testRuntime));
+			assert.deepStrictEqual({
+				requestExtensions: configs.map(config => config.requestExtensions),
+				requestCanvasRenderer: configs.map(config => config.requestCanvasRenderer),
+				waits,
+			}, {
+				requestExtensions: [false, true],
+				requestCanvasRenderer: [true, true],
+				waits: [false, true],
+			});
+		} finally {
+			sessions.dispose();
+		}
+	});
 
 	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {
 		const pluginDir = URI.file('/tmp/plugin');

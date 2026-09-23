@@ -18,6 +18,13 @@ export interface CopilotSdkCanvasPatchManifest {
 	readonly patchSha256: string;
 	readonly before: Readonly<Record<string, string>>;
 	readonly after: Readonly<Record<string, string>>;
+	readonly transitions?: readonly CopilotSdkCanvasPatchTransition[];
+}
+
+export interface CopilotSdkCanvasPatchTransition {
+	readonly patchFile: string;
+	readonly patchSha256: string;
+	readonly before: Readonly<Record<string, string>>;
 }
 
 export interface CopilotSdkCanvasPatchOptions {
@@ -28,12 +35,18 @@ export interface CopilotSdkCanvasPatchOptions {
 
 interface PackageState {
 	readonly directory: string;
-	readonly state: 'before' | 'after';
+	readonly route?: CopilotSdkCanvasPatchRoute;
 }
 
 interface PatchResult {
 	readonly directory: string;
 	readonly status: 'applied' | 'verified';
+}
+
+interface CopilotSdkCanvasPatchRoute {
+	readonly patchFile: string;
+	readonly patchSha256: string;
+	readonly before: Readonly<Record<string, string>>;
 }
 
 const hashPattern = /^[a-f0-9]{64}$/;
@@ -57,6 +70,17 @@ function isHashVector(value: unknown): value is Readonly<Record<string, string>>
 		&& new Set(Object.keys(value).map(file => file.toLowerCase())).size === Object.keys(value).length;
 }
 
+function isPatchFile(value: unknown): value is string {
+	return typeof value === 'string' && /^[A-Za-z0-9._-]+\.patch$/.test(value);
+}
+
+function isPatchRoute(value: unknown): value is CopilotSdkCanvasPatchRoute {
+	return isRecord(value)
+		&& isPatchFile(value.patchFile)
+		&& typeof value.patchSha256 === 'string' && hashPattern.test(value.patchSha256)
+		&& isHashVector(value.before);
+}
+
 function isManifest(value: unknown): value is CopilotSdkCanvasPatchManifest {
 	return isRecord(value)
 		&& value.schemaVersion === 1
@@ -64,7 +88,8 @@ function isManifest(value: unknown): value is CopilotSdkCanvasPatchManifest {
 		&& value.packageVersion === '1.0.13'
 		&& value.patchFile === 'copilot-sdk-canvas.patch'
 		&& typeof value.patchSha256 === 'string' && hashPattern.test(value.patchSha256)
-		&& isHashVector(value.before) && isHashVector(value.after);
+		&& isHashVector(value.before) && isHashVector(value.after)
+		&& (value.transitions === undefined || Array.isArray(value.transitions) && value.transitions.every(isPatchRoute));
 }
 
 function readManifest(manifestPath: string): CopilotSdkCanvasPatchManifest {
@@ -72,19 +97,29 @@ function readManifest(manifestPath: string): CopilotSdkCanvasPatchManifest {
 	if (!isManifest(value)) {
 		throw new Error('Invalid Copilot SDK canvas backport manifest.');
 	}
-	if (!Object.hasOwn(value.before, 'package.json')) {
-		throw new Error('The SDK backport must bind the published package metadata.');
+	const routes = [{ patchFile: value.patchFile, patchSha256: value.patchSha256, before: value.before }, ...(value.transitions ?? [])];
+	if (new Set(routes.map(route => route.patchFile)).size !== routes.length) {
+		throw new Error('The SDK backport patch routes must use distinct patch files.');
 	}
-	for (const file of Object.keys(value.before)) {
-		if (!Object.hasOwn(value.after, file)) {
-			throw new Error(`The SDK backport cannot remove a published file: ${file}`);
+	for (const route of routes) {
+		if (!Object.hasOwn(route.before, 'package.json')) {
+			throw new Error('The SDK backport must bind package metadata for every supported input.');
+		}
+		for (const file of Object.keys(route.before)) {
+			if (!Object.hasOwn(value.after, file)) {
+				throw new Error(`The SDK backport cannot remove an input file: ${file}`);
+			}
+		}
+		const changed = Object.keys(value.after).filter(file => route.before[file] !== value.after[file]);
+		if (changed.length === 0 || changed.some(file => !file.startsWith('dist/'))) {
+			throw new Error('Every SDK backport route must change emitted files only and preserve published package metadata.');
 		}
 	}
-	const changed = Object.keys(value.after).filter(file => value.before[file] !== value.after[file]);
-	if (changed.length === 0 || changed.some(file => !file.startsWith('dist/'))) {
-		throw new Error('The SDK backport must change emitted files only and preserve published package metadata.');
-	}
 	return value;
+}
+
+function patchRoutes(manifest: CopilotSdkCanvasPatchManifest): readonly CopilotSdkCanvasPatchRoute[] {
+	return [{ patchFile: manifest.patchFile, patchSha256: manifest.patchSha256, before: manifest.before }, ...(manifest.transitions ?? [])];
 }
 
 function assertRealDirectory(directory: string): void {
@@ -138,10 +173,12 @@ function matches(actual: Readonly<Record<string, string>>, expected: Readonly<Re
 function inspectPackage(directory: string, manifest: CopilotSdkCanvasPatchManifest): PackageState {
 	const hashes = packageHashes(directory);
 	if (matches(hashes, manifest.after)) {
-		return { directory, state: 'after' };
+		return { directory };
 	}
-	if (matches(hashes, manifest.before)) {
-		return { directory, state: 'before' };
+	for (const route of patchRoutes(manifest)) {
+		if (matches(hashes, route.before)) {
+			return { directory, route };
+		}
 	}
 	throw new Error(`Unexpected or partially patched Copilot SDK at ${directory}. The canvas backport requires the exact 1.0.13 package; restore it with npm ci.`);
 }
@@ -168,11 +205,11 @@ function gitApply(directory: string, args: readonly string[], patch: Buffer): st
 	return result.stdout;
 }
 
-function validateDelta(directory: string, manifest: CopilotSdkCanvasPatchManifest, patch: Buffer): void {
+function validateDelta(directory: string, before: Readonly<Record<string, string>>, after: Readonly<Record<string, string>>, patch: Buffer): void {
 	if (/^(?:(?:new file mode|old mode|new mode) (?:120000|160000)|(?:rename|copy) (?:from|to) )/m.test(patch.toString('utf8'))) {
 		throw new Error('SDK backport deltas cannot contain symlinks, submodules, renames or copies.');
 	}
-	const expected = new Set(Object.keys(manifest.after).filter(file => manifest.before[file] !== manifest.after[file]));
+	const expected = new Set(Object.keys(after).filter(file => before[file] !== after[file]));
 	const records = gitApply(directory, ['--numstat', '-z'], patch).split('\0');
 	if (records.pop() !== '') {
 		throw new Error('Invalid SDK backport file statistics.');
@@ -199,7 +236,7 @@ function cleanUpAndThrow(directory: string, error: unknown, fileOperations: Pick
 	throw error;
 }
 
-function patchPackage(directory: string, manifest: CopilotSdkCanvasPatchManifest, patch: Buffer, fileOperations: Pick<typeof fs, 'renameSync' | 'rmSync'>): void {
+function patchPackage(directory: string, before: Readonly<Record<string, string>>, after: Readonly<Record<string, string>>, patch: Buffer, fileOperations: Pick<typeof fs, 'renameSync' | 'rmSync'>): void {
 	const staging = fs.mkdtempSync(path.join(path.dirname(directory), '.copilot-sdk-canvas-'));
 	const candidate = path.join(staging, 'package');
 	const backup = path.join(staging, 'original');
@@ -207,14 +244,14 @@ function patchPackage(directory: string, manifest: CopilotSdkCanvasPatchManifest
 	try {
 		fs.cpSync(directory, candidate, { recursive: true, dereference: false, verbatimSymlinks: true, force: false, errorOnExist: true });
 		assertRealDirectory(candidate);
-		if (!matches(packageHashes(candidate), manifest.before)) {
+		if (!matches(packageHashes(candidate), before)) {
 			throw new Error('The SDK package changed while it was being copied.');
 		}
 		gitApply(candidate, [], patch);
-		if (!matches(packageHashes(candidate), manifest.after)) {
+		if (!matches(packageHashes(candidate), after)) {
 			throw new Error('The generated SDK delta did not produce the expected complete package.');
 		}
-		if (!matches(packageHashes(directory), manifest.before)) {
+		if (!matches(packageHashes(directory), before)) {
 			throw new Error('The SDK package changed while the backport was being prepared.');
 		}
 		fileOperations.renameSync(directory, backup);
@@ -258,24 +295,28 @@ export function ensureCopilotSdkCanvasPatch(
 	const canonicalRoot = fs.realpathSync.native(repositoryRoot);
 	const manifestPath = options.manifestPath ?? path.join(canonicalRoot, 'build', 'npm', 'copilot-sdk-canvas.json');
 	const manifest = readManifest(manifestPath);
-	const patch = fs.readFileSync(path.join(path.dirname(manifestPath), manifest.patchFile));
-	if (sha256(patch) !== manifest.patchSha256) {
-		throw new Error('The Copilot SDK canvas delta does not match its recorded SHA-256.');
+	const patches = new Map<string, Buffer>();
+	for (const route of patchRoutes(manifest)) {
+		const patch = fs.readFileSync(path.join(path.dirname(manifestPath), route.patchFile));
+		if (sha256(patch) !== route.patchSha256) {
+			throw new Error(`The Copilot SDK canvas delta ${route.patchFile} does not match its recorded SHA-256.`);
+		}
+		validateDelta(canonicalRoot, route.before, manifest.after, patch);
+		patches.set(route.patchFile, patch);
 	}
-	validateDelta(canonicalRoot, manifest, patch);
 	const scopes = ['', 'remote'];
 	if (hasDistroRemote(canonicalRoot)) {
 		scopes.push('.build/distro/npm/remote');
 	}
 	const packages = scopes.map(scope => inspectPackage(packageDirectory(canonicalRoot, scope), manifest));
-	if (options.checkOnly && packages.some(item => item.state !== 'after')) {
+	if (options.checkOnly && packages.some(item => item.route !== undefined)) {
 		throw new Error('The Copilot SDK canvas backport is not installed. Run npm run copilot:patch-sdk.');
 	}
 	return packages.map((item): PatchResult => {
-		if (item.state === 'after') {
+		if (!item.route) {
 			return { directory: item.directory, status: 'verified' };
 		}
-		patchPackage(item.directory, manifest, patch, options.fileOperations ?? fs);
+		patchPackage(item.directory, item.route.before, manifest.after, patches.get(item.route.patchFile)!, options.fileOperations ?? fs);
 		return { directory: item.directory, status: 'applied' };
 	});
 }
