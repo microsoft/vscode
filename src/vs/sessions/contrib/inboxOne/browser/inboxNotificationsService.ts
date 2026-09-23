@@ -543,10 +543,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 
 		// Surface a Completed entry only when the finished session has nothing else
-		// needing attention (e.g. no open pull request notifications), and keep it
-		// regardless of read state so it stays actionable until it is dismissed.
+		// needing attention (e.g. no open pull request notifications). Key it by the
+		// completing turn (the latest response) rather than a per-session id, so once a
+		// completed item is dismissed a *new* turn that finishes without needing input
+		// surfaces as a fresh low-priority item instead of inheriting the dismissal.
 		if (status === SessionStatus.Completed && itemsById.size === sizeBeforePullRequests) {
-			const id = `${session.sessionId}:completed`;
+			const turnId = this.getLatestResponseRequestId(session, reader) ?? `${updatedAt}`;
+			const id = `${session.sessionId}:completed:${turnId}`;
 			itemsById.set(id, {
 				id,
 				kind: InboxNotificationKind.Completed,
@@ -1045,6 +1048,21 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const description = session.description.read(reader);
 		const descriptionText = description ? this.normalizeResponsePreviewText(renderAsPlaintext(description, { useLinkFormatter: true })) : undefined;
 		return descriptionText || localize('inboxNotifications.completed.description', "Review this completed session or mark it done.");
+	}
+
+	private getLatestResponseRequestId(session: ISession, reader: IReader): string | undefined {
+		const chatResource = session.mainChat.read(reader).resource;
+		const chatModel = this.chatService.getSession(chatResource);
+		if (!chatModel) {
+			return undefined;
+		}
+		for (const request of chatModel.getRequests().toReversed()) {
+			const requestId = request.response?.requestId;
+			if (requestId) {
+				return requestId;
+			}
+		}
+		return undefined;
 	}
 
 	private getCompletedSessionResponsePreview(session: ISession, reader: IReader): string | undefined {

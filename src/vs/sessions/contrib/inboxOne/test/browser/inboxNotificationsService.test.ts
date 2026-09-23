@@ -286,6 +286,29 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('a re-completed session after dismissal surfaces as a fresh low-priority item', () => {
+		const chatResource = URI.parse('test:///chat/recompleted');
+		const chatService = new TestChatService();
+		chatService.setCompletedResponse(chatResource, { requestId: 'turn-1', markdown: 'First result.' });
+		const fixture = createFixture([
+			createSession({ id: 'recompleted', status: SessionStatus.Completed, updatedAt: 200, isRead: false, chatResource }),
+		], undefined, undefined, chatService);
+
+		const firstId = fixture.service.notifications.get()[0].id;
+		assert.strictEqual(fixture.service.notifications.get()[0].kind, InboxNotificationKind.Completed);
+		fixture.service.dismissNotification(firstId);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+
+		// The session is messaged again and finishes another turn without needing input.
+		chatService.setCompletedResponse(chatResource, { requestId: 'turn-2', markdown: 'Second result.' });
+
+		const active = fixture.service.notifications.get();
+		assert.strictEqual(active.length, 1);
+		assert.strictEqual(active[0].kind, InboxNotificationKind.Completed);
+		assert.strictEqual(active[0].priority, InboxNotificationPriority.Low);
+		assert.notStrictEqual(active[0].id, firstId);
+	});
+
 	test('includes pending question carousel data for needs-input notifications', () => {
 		const chatResource = URI.parse('test:///chat/pending-question');
 		const chatService = new TestChatService();
