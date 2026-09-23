@@ -65,6 +65,8 @@ export interface IActionListItemHover {
 	 * time the panel opens, for content that is expensive to construct.
 	 */
 	readonly content?: string | IMarkdownString | HTMLElement | (() => HTMLElement);
+	/** Releases an HTMLElement created by {@link content} when a preservation probe does not use it. */
+	readonly disposeContent?: (content: HTMLElement) => void;
 	/** Actions rendered in the standard hover footer below the content. */
 	readonly actions?: readonly IHoverAction[];
 	/**
@@ -1702,6 +1704,9 @@ export class ActionListWidget<T> extends Disposable {
 		const preserveHover = !this._currentSubmenuWidget && dom.isHTMLElement(preservedContent) && this._submenuContainer.contains(preservedContent);
 		const preserveSubmenu = !!this._currentSubmenuWidget && !!preservedItem?.submenuActions?.length;
 		const preservePanel = preserveHover || preserveSubmenu;
+		if (!preservePanel && typeof content === 'function' && dom.isHTMLElement(preservedContent)) {
+			preservedItem?.hover?.disposeContent?.(preservedContent);
+		}
 		const previousRow = options?.animateItemMove && preservePanel && this._currentSubmenuElement
 			? this._getRowElement(this._list.indexOf(this._currentSubmenuElement))?.getBoundingClientRect()
 			: undefined;

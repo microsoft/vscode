@@ -8,7 +8,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -124,15 +124,26 @@ suite('AgentHostSessionInputPills', () => {
 		}));
 		return instantiationService;
 	};
-	const createRichGitHubService = (disposed: string[]) => upcastPartial<IGitHubService>({
+	const createRichGitHubService = (disposed: string[], options?: {
+		readonly credentialState?: { fail: boolean; calls: number };
+		readonly pullRequestSnapshots?: Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>;
+	}) => upcastPartial<IGitHubService>({
 		credentials: upcastPartial<IGitHubService['credentials']>({
 			onDidInvalidate: Event.None,
-			getCredential: async signal => ({
-				account: { host: 'github.com', accountId: 'test' },
-				token: 'token',
-				generation: 1,
-				signal,
-			}),
+			getCredential: async signal => {
+				if (options?.credentialState) {
+					options.credentialState.calls++;
+					if (options.credentialState.fail) {
+						throw new Error('offline');
+					}
+				}
+				return {
+					account: { host: 'github.com', accountId: 'test' },
+					token: 'token',
+					generation: 1,
+					signal,
+				};
+			},
 		}),
 		query: upcastPartial<IGitHubService['query']>({
 			subscribeIssue: ref => upcastPartial({
@@ -162,40 +173,44 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 		}),
 		pullRequests: upcastPartial<IGitHubService['pullRequests']>({
-			subscribePullRequest: (ref): ReturnType<IGitHubService['pullRequests']['subscribePullRequest']> => upcastPartial({
-				resource: upcastPartial({
-					ref,
-					snapshot: constObservable(upcastPartial<PullRequestSnapshot>({
-						core: {
-							status: 'ready',
-							complete: true,
-							value: {
-								repositoryNameWithOwner: `${ref.owner}/${ref.repo}`,
-								number: ref.number,
-								title: `Live pull request ${ref.number}`,
-								body: 'Live pull request body',
-								url: `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`,
-								state: ref.number === 335387 ? 'merged' : 'open',
-								draft: false,
-								headSha: 'head',
-								headRef: 'feature',
-								baseSha: 'base',
-								baseRef: 'main',
-								author: { login: 'pr-author' },
-								createdAt: '2026-09-01T12:00:00Z',
-							},
+			subscribePullRequest: (ref): ReturnType<IGitHubService['pullRequests']['subscribePullRequest']> => {
+				const snapshot = observableValue<PullRequestSnapshot>(`pullRequestSnapshot.${ref.number}`, upcastPartial<PullRequestSnapshot>({
+					core: {
+						status: 'ready',
+						complete: true,
+						value: {
+							repositoryNameWithOwner: `${ref.owner}/${ref.repo}`,
+							number: ref.number,
+							title: `Live pull request ${ref.number}`,
+							body: 'Live pull request body',
+							url: `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`,
+							state: ref.number === 335387 ? 'merged' : 'open',
+							draft: false,
+							headSha: 'head',
+							headRef: 'feature',
+							baseSha: 'base',
+							baseRef: 'main',
+							author: { login: 'pr-author' },
+							createdAt: '2026-09-01T12:00:00Z',
 						},
-						checks: {
-							status: 'ready',
-							complete: true,
-							value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
-						},
-					})),
-				}),
-				update: () => { },
-				refresh: async () => { },
-				dispose: () => disposed.push(`pullRequest:${ref.number}`),
-			}),
+					},
+					checks: {
+						status: 'ready',
+						complete: true,
+						value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
+					},
+				}));
+				options?.pullRequestSnapshots?.set(ref.number, snapshot);
+				return upcastPartial({
+					resource: upcastPartial({
+						ref,
+						snapshot,
+					}),
+					update: () => { },
+					refresh: async () => { },
+					dispose: () => disposed.push(`pullRequest:${ref.number}`),
+				});
+			},
 		}),
 	});
 
@@ -421,7 +436,9 @@ suite('AgentHostSessionInputPills', () => {
 	test('renders rich GitHub metadata in editor session pills', async () => {
 		const instantiationService = createInstantiationService();
 		const disposedSubscriptions: string[] = [];
-		instantiationService.stub(IGitHubService, createRichGitHubService(disposedSubscriptions));
+		const credentialState = { fail: false, calls: 0 };
+		const pullRequestSnapshots = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
+		instantiationService.stub(IGitHubService, createRichGitHubService(disposedSubscriptions, { credentialState, pullRequestSnapshots }));
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
@@ -490,7 +507,9 @@ suite('AgentHostSessionInputPills', () => {
 				dropdownItems = items as readonly IActionListItem<object>[];
 			},
 			hide: () => { },
-			updateItems: () => { },
+			updateItems: items => {
+				dropdownItems = items as readonly IActionListItem<object>[];
+			},
 			focusItemById: () => { },
 		}));
 		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
@@ -519,12 +538,60 @@ suite('AgentHostSessionInputPills', () => {
 
 		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
 		const [pullRequestButton, issueButton] = buttons;
+		const pullRequestSnapshot = pullRequestSnapshots.get(332982)!;
+		const currentSnapshot = pullRequestSnapshot.get();
+		pullRequestSnapshot.set({
+			...currentSnapshot,
+			checks: {
+				status: 'ready',
+				complete: true,
+				value: {
+					headSha: 'head',
+					checks: [{ id: 'check', type: 'checkRun', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+					requirednessComplete: true,
+					expectedSuites: [],
+					expectedSuitesComplete: true,
+				},
+			},
+		}, undefined);
+		await timeout(0);
 		pullRequestButton?.click();
+		const checksDescription = dropdownItems.find(item => item.item && (item.item as { id?: string }).id?.endsWith('/332982'))?.ariaDescription;
+		pullRequestSnapshot.set({
+			...pullRequestSnapshot.get(),
+			core: {
+				...pullRequestSnapshot.get().core,
+				value: {
+					...pullRequestSnapshot.get().core.value!,
+					headSha: 'new-head',
+				},
+			},
+		}, undefined);
+		await timeout(0);
+		const staleChecksDescription = dropdownItems.find(item => item.item && (item.item as { id?: string }).id?.endsWith('/332982'))?.ariaDescription;
 		const pullRequestDropdownItems = dropdownItems;
-		const pullRequestHover = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function')?.hover?.content;
+		const pullRequestHoverItem = pullRequestDropdownItems.find(item => typeof item.hover?.content === 'function');
+		const pullRequestHover = pullRequestHoverItem?.hover?.content;
 		const pullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
+		if (pullRequestHoverElement instanceof HTMLElement) {
+			document.body.appendChild(pullRequestHoverElement);
+			store.add(toDisposable(() => pullRequestHoverElement.remove()));
+		}
+		const focusedControl = pullRequestHoverItem?.hover?.getTabbableElements?.()[0];
+		focusedControl?.focus();
+		const refreshedPullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
+		const refreshedFocusedControl = pullRequestHoverItem?.hover?.getTabbableElements?.()[0];
 		const pullRequestHoverCache = Reflect.get(pills, '_pullRequestHoverCache') as ReadonlyMap<string, object>;
 		const cachedHoverCount = pullRequestHoverCache.size;
+		const gitHubReferenceResolver = Reflect.get(pills, '_gitHubReferenceResolver') as {
+			getIssue(target: { owner: string; repo: string; number: number }): IObservable<{ title: string } | undefined>;
+		};
+		credentialState.fail = true;
+		const recoveredIssue = gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 999 });
+		await timeout(0);
+		credentialState.fail = false;
+		gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 999 });
+		await timeout(0);
 		issueButton?.click();
 		const removePullRequest = pullRequestDropdownItems.flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Remove '));
 		await removePullRequest?.run();
@@ -557,6 +624,17 @@ suite('AgentHostSessionInputPills', () => {
 			disposedSubscriptions: disposedSubscriptions.sort(),
 			cachedHoverCount,
 			retainedHoverCount: pullRequestHoverCache.size,
+			checksDescription,
+			staleChecksDescription,
+			credentialRecovery: {
+				calls: credentialState.calls,
+				title: recoveredIssue.get()?.title,
+			},
+			hoverRefresh: {
+				rootPreserved: refreshedPullRequestHoverElement === pullRequestHoverElement,
+				controlReplaced: refreshedFocusedControl !== focusedControl,
+				focusPreserved: document.activeElement === refreshedFocusedControl,
+			},
 		}, {
 			pullRequests: {
 				label: '2 Pull Requests',
@@ -569,10 +647,10 @@ suite('AgentHostSessionInputPills', () => {
 				hoverClassName: 'sessions-pr-hover compact',
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
-					'Copy pull request URL',
-					'Remove Chat: unify Agent Host status pills across chat surfaces from session',
-					'Copy pull request URL',
-					'Remove sessions: preserve recorded issue titles in pills from session',
+					'Copy Pull Request URL',
+					'Remove Chat: unify Agent Host status pills across chat surfaces from Session',
+					'Copy Pull Request URL',
+					'Remove sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
 			issue: {
@@ -585,9 +663,20 @@ suite('AgentHostSessionInputPills', () => {
 				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
 			}],
 			removed: [{ session: backendSession.toString(), artifactId: 'second-pr' }],
-			disposedSubscriptions: ['issue:335383', 'pullRequest:332982', 'pullRequest:335387'],
+			disposedSubscriptions: ['issue:335383', 'issue:999', 'pullRequest:332982', 'pullRequest:335387'],
 			cachedHoverCount: 1,
 			retainedHoverCount: 0,
+			checksDescription: `Open. Checks passed. ${secondPullRequestUrl}`,
+			staleChecksDescription: `Open. ${secondPullRequestUrl}`,
+			credentialRecovery: {
+				calls: 5,
+				title: 'Live issue title',
+			},
+			hoverRefresh: {
+				rootPreserved: true,
+				controlReplaced: true,
+				focusPreserved: true,
+			},
 		});
 	});
 
@@ -1153,7 +1242,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied.push(await clipboardService.readText());
 		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label === 'Remove Preview from session')?.run();
+		await dropdownActions.find(action => action.label === 'Remove Preview from Session')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -1167,16 +1256,16 @@ suite('AgentHostSessionInputPills', () => {
 			pills: ['4 References'],
 			empty: false,
 			dropdownActionLabels: [
-				'Copy commit URL',
-				'Remove Commit from session',
-				'Copy website URL',
-				'Remove Preview from session',
-				'Copy path',
-				'Remove README from session',
+				'Copy Commit URL',
+				'Remove Commit from Session',
+				'Copy Website URL',
+				'Remove Preview from Session',
+				'Copy Path',
+				'Remove README from Session',
 				'Copy URI',
-				'Remove Chat settings from session',
+				'Remove Chat settings from Session',
 			],
-			dropdownFooterActionLabels: ['Copy hash', 'Copy relative path'],
+			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
 			copied: [
 				'https://github.com/microsoft/vscode/commit/abc123',
 				website.toString(true),

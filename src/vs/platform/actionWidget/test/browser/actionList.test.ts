@@ -3111,6 +3111,47 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('the initially focused row opens its interactive hover and tabs to the footer action', () => {
+		const content = document.createElement('div');
+		const runs: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('image'),
+				hover: {
+					content,
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					actions: [{ commandId: 'copyRelativePath', label: 'Copy relative path', run: () => runs.push('copy') }],
+				},
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const footerAction = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container')!;
+		const arrowRightFocused = document.activeElement === footerAction;
+		footerAction.click();
+		footerAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const reopenedFooterAction = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container')!;
+		const tabFocused = document.activeElement === reopenedFooterAction;
+		reopenedFooterAction.click();
+
+		assert.deepStrictEqual({
+			panelVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+			arrowRightFocused,
+			tabFocused,
+			runs,
+		}, {
+			panelVisible: true,
+			arrowRightFocused: true,
+			tabFocused: true,
+			runs: ['copy', 'copy'],
+		});
+	});
+
 	test('refresh does not reopen a dismissed tab-through hover', () => {
 		const content = document.createElement('div');
 		const control = document.createElement('button');
@@ -3134,6 +3175,42 @@ suite('ActionListWidget', () => {
 		}, {
 			focused: 'active',
 			panelVisible: false,
+		});
+	});
+
+	test('refresh disposes a rejected hover preservation candidate', () => {
+		const currentContent = document.createElement('div');
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('active'), hover: { content: currentContent, expandable: true } }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		let disposeCount = 0;
+		let descriptorDisposeCount = 0;
+		const replacementContent = document.createElement('div');
+
+		widget.updateItems([{
+			...action('active'),
+			hover: {
+				content: () => replacementContent,
+				disposeContent: content => {
+					assert.strictEqual(content, replacementContent);
+					disposeCount++;
+				},
+				disposable: { dispose: () => descriptorDisposeCount++ },
+				expandable: true,
+			},
+		}], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			disposeCount,
+			descriptorDisposeCount,
+			replacementConnected: replacementContent.isConnected,
+		}, {
+			disposeCount: 1,
+			descriptorDisposeCount: 0,
+			replacementConnected: false,
 		});
 	});
 
