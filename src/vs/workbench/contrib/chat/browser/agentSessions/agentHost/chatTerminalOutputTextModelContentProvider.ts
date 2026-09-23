@@ -20,6 +20,7 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import type { TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { localize } from '../../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -137,7 +138,12 @@ export class ChatTerminalOutputTextModelService extends Disposable implements IC
 			store.add(subscription);
 			store.add(subscription.object.onDidChange(next => updateModel(model, getTerminalText(next))));
 			if (subscription.object.onDidError) {
-				store.add(subscription.object.onDidError(error => this._logService.error(`[ChatTerminalOutputTextModelService] Terminal subscription failed: ${error.message}`)));
+				store.add(subscription.object.onDidError(error => {
+					this._logService.error(`[ChatTerminalOutputTextModelService] Terminal subscription failed: ${error.message}`);
+					if (model.getValueLength() === 0) {
+						updateModel(model, localize('chatTerminalOutputUnavailable', "Terminal output is unavailable: {0}", error.message));
+					}
+				}));
 			}
 			const latest = subscription.object.value;
 			if (latest && !(latest instanceof Error)) {

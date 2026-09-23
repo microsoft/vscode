@@ -174,4 +174,38 @@ suite('ChatTerminalOutputTextModelService', () => {
 			releases: 2,
 		});
 	});
+
+	test('shows late errors in an empty model without replacing existing output', async () => {
+		const emptyFixture = createService({
+			title: 'Bash',
+			content: [],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		const emptyModel = await emptyFixture.service.provideTextContent(modelResource);
+		assert.ok(emptyModel);
+		store.add(emptyModel);
+		emptyFixture.subscription.setError(new Error('connection lost'));
+
+		const populatedFixture = createService({
+			title: 'Bash',
+			content: [{ type: 'unclassified', value: 'retained output' }],
+			lifecycle: { status: TerminalLifecycleStatus.Running },
+			claim,
+			isPty: false,
+		});
+		const populatedModel = await populatedFixture.service.provideTextContent(modelResource);
+		assert.ok(populatedModel);
+		store.add(populatedModel);
+		populatedFixture.subscription.setError(new Error('connection lost'));
+
+		assert.deepStrictEqual({
+			empty: emptyModel.getValue(),
+			populated: populatedModel.getValue(),
+		}, {
+			empty: 'Terminal output is unavailable: connection lost',
+			populated: 'retained output',
+		});
+	});
 });
