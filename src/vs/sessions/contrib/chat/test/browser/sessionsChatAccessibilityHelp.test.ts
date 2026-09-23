@@ -466,7 +466,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				'Best result.',
 				'',
 				'Attempt time and token usage',
-				'Attempt 1 (Codex): Total time 3s; Total tokens 42',
+				'Attempt 1 (Codex): Total time 3s; Tokens used 42',
 			].join('\n'),
 			focusRestored: true,
 		});
