@@ -17,6 +17,7 @@ import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
 import { TabbedActionListWidget } from '../../browser/tabbedActionListWidget.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS } from '../../browser/actionWidgetMotion.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
@@ -165,6 +166,42 @@ suite('TabbedActionListWidget', () => {
 
 		widget.hide();
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('animates fresh popups without replaying the entrance on tab changes', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('button');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const options = {
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			widgetClassNames: () => ['custom-picker', ACTION_WIDGET_DROPDOWN_MOTION_CLASS],
+			createActionList: () => ({ items: [action('item')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		};
+		const read = () => {
+			const popup = contextView.getContextViewElement().querySelector('.action-widget')!;
+			return {
+				animated: popup.classList.contains(ACTION_WIDGET_ANIMATED_CLASS),
+				dropdown: popup.classList.contains(ACTION_WIDGET_DROPDOWN_MOTION_CLASS),
+				custom: popup.classList.contains('custom-picker'),
+			};
+		};
+		widget.show<ITestItem>(options);
+		const initial = read();
+		widget.show<ITestItem>({ ...options, initialTab: 'Remote' });
+		const swapped = read();
+		widget.hide();
+		widget.show<ITestItem>(options);
+		assert.deepStrictEqual({ initial, swapped, reopened: read() }, {
+			initial: { animated: true, dropdown: true, custom: true },
+			swapped: { animated: false, dropdown: false, custom: true },
+			reopened: { animated: true, dropdown: true, custom: true },
+		});
+		widget.hide();
 	});
 
 	test('items receive pointer input immediately after opening', () => {
@@ -501,8 +538,8 @@ suite('TabbedActionListWidget', () => {
 		assert.deepStrictEqual(
 			{ onShow, afterRefresh, afterTabSwitch },
 			{
-				onShow: ['picker', 'tab-Local'],
-				afterRefresh: ['dimmed', 'picker', 'tab-Local'],
+				onShow: [ACTION_WIDGET_ANIMATED_CLASS, 'picker', 'tab-Local'],
+				afterRefresh: [ACTION_WIDGET_ANIMATED_CLASS, 'dimmed', 'picker', 'tab-Local'],
 				afterTabSwitch: ['dimmed', 'picker', 'tab-Remote'],
 			},
 		);

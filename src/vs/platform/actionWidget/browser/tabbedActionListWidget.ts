@@ -14,6 +14,7 @@ import { IAccessibilityService } from '../../accessibility/common/accessibility.
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from './actionList.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
@@ -222,8 +223,10 @@ export class TabbedActionListWidget extends Disposable {
 					widget.style.width = `${options.width}px`;
 				}
 				let widgetClassNames: readonly string[] = [];
+				let hasRendered = false;
 				const applyWidgetClassNames = () => {
-					const next = options.widgetClassNames?.(activeTab) ?? [];
+					const next = (options.widgetClassNames?.(activeTab) ?? []).filter(className =>
+						className !== ACTION_WIDGET_DROPDOWN_MOTION_CLASS || (hasRendered && !isSwap));
 					const removed = widgetClassNames.filter(name => !next.includes(name));
 					const added = next.filter(name => !widgetClassNames.includes(name));
 					if (removed.length) {
@@ -326,6 +329,7 @@ export class TabbedActionListWidget extends Disposable {
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
 				this._refreshActiveList = refreshOptions => {
+					finishActionWidgetOpeningAnimation(widget);
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
 					applyWidgetClassNames();
 					const sizing = sizingTab !== undefined
@@ -492,6 +496,11 @@ export class TabbedActionListWidget extends Disposable {
 					hide();
 				}));
 
+				hasRendered = true;
+				applyWidgetClassNames();
+				if (!isSwap) {
+					widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
+				}
 				return renderDisposables;
 			},
 			onHide: () => {

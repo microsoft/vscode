@@ -26,6 +26,7 @@ import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
 import { ActionWidgetService, IActionWidgetService } from '../../browser/actionWidget.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS } from '../../browser/actionWidgetMotion.js';
 
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +77,19 @@ suite('ActionWidgetService', () => {
 		assert.ok(input);
 		return { service, input, selected, cancelled };
 	}
+
+	test('opts plain popups into shared motion without a caller-provided dropdown class', () => {
+		const { service, input } = showWidget(true);
+		const widget = input.closest('.action-widget')!;
+		assert.deepStrictEqual({
+			animated: widget.classList.contains(ACTION_WIDGET_ANIMATED_CLASS),
+			callerDropdown: widget.classList.contains(ACTION_WIDGET_DROPDOWN_MOTION_CLASS),
+		}, {
+			animated: true,
+			callerDropdown: false,
+		});
+		service.hide();
+	});
 
 	for (const filterAsCombobox of [undefined, true]) {
 		test(`only combobox popups handle Escape before the shared keybindings: ${filterAsCombobox}`, () => {

@@ -71,11 +71,13 @@ export const CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION = 150;
 export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'] as const;
 export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-view-close-animation-duration';
 export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
+/** Inherited while an opacity animation isolates descendant menu backdrops. */
+export const CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-backdrop-opacity';
 const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
-const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-context-view-menu-motion-close-start-transform';
+export const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-context-view-menu-motion-close-start-transform';
 
-const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;
-const CONTEXT_VIEW_MENU_MOTION_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
+export const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;
+export const CONTEXT_VIEW_MENU_MOTION_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
 export const contextViewMenuCloseAnimation: IContextViewCloseAnimation = {
 	className: CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS,
@@ -116,6 +118,10 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	@keyframes context-view-menu-motion-open {
+		from, to {
+			${CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE}: 100%;
+		}
+
 		0% {
 			opacity: 0;
 			transform: scale(0.97);
@@ -128,6 +134,10 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	@keyframes context-view-menu-motion-close {
+		from, to {
+			${CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE}: 100%;
+		}
+
 		0% {
 			opacity: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE}, 1);
 			transform: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE}, scale(1));

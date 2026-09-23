@@ -195,6 +195,9 @@ import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
 
+// Modern UI
+import './contrib/modernUI/electron-browser/frostedGlass.contribution.js';
+
 // Emergency Alert
 import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js';
 

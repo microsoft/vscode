@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Details, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -149,6 +149,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
+			this.onDidChangeGPUCompositing = Event.any(
+				Event.map(Event.fromNodeEventEmitter(app, 'gpu-info-update'), () => app.getGPUFeatureStatus().gpu_compositing === 'enabled'),
+				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'child-process-gone', (_event: Electron.Event, details: Details) => details.type), type => type === 'GPU'), () => false)
+			);
+
 			this.onDidChangeDisplay = Event.debounce(Event.any(
 				Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
 					// Electron will emit 'display-metrics-changed' events even when actually
@@ -205,6 +210,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
 
 	//#endregion
 
@@ -877,6 +883,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async getOSVirtualMachineHint(): Promise<number> {
 		return virtualMachineHint.value();
+	}
+
+	async isGPUCompositingEnabled(): Promise<boolean> {
+		return app.getGPUFeatureStatus().gpu_compositing === 'enabled';
 	}
 
 	async getOSColorScheme(): Promise<IColorScheme> {

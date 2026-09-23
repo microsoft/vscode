@@ -38,6 +38,7 @@ import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -2423,6 +2424,10 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 
+		const parentWidget = this.domNode.closest<HTMLElement>('.action-widget');
+		if (parentWidget) {
+			finishActionWidgetOpeningAnimation(parentWidget);
+		}
 		this._currentSubmenuElement = element;
 		this._clearSubmenuContainer();
 
@@ -2613,6 +2618,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (!currentElement || this._layoutSubmenu !== layout) {
 				return;
 			}
+			finishActionWidgetOpeningAnimation(this._submenuContainer);
 			// Width measurement and virtualization can replace or recycle the original row.
 			const index = this._list.indexOf(currentElement);
 			const row = index >= 0 ? this._getRowElement(index) : null;
@@ -2680,6 +2686,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 
 			this._submenuContainer.style.left = `${left / zoom}px`;
+			this._submenuContainer.style.transformOrigin = showRight ? 'top left' : 'top right';
 
 			const panelHeight = panelRect.height;
 			if (preserveVerticalPosition) {
@@ -2730,6 +2737,7 @@ export class ActionListWidget<T> extends Disposable {
 		};
 		this._layoutSubmenu = layout;
 		layout();
+		this._submenuContainer.classList.toggle(ACTION_WIDGET_ANIMATED_CLASS, hasSubmenuActions);
 		// tabThroughPanel content (e.g. a GitHub reference hover) can grow when
 		// focus reveals bounded text, in which case the panel must reposition
 		// itself, not just the row that measured it before the content changed.
@@ -2837,6 +2845,7 @@ export class ActionListWidget<T> extends Disposable {
 	 */
 	private _clearSubmenuContainer(): void {
 		this._layoutSubmenu = undefined;
+		this._submenuContainer.classList.remove(ACTION_WIDGET_ANIMATED_CLASS);
 		this._resetSubmenuPointer();
 		if (this._submenuContainer.contains(dom.getActiveElement())) {
 			this._list.domFocus();

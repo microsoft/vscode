@@ -30,6 +30,84 @@ Connected tabs use `tab.inactiveForeground` rather than dimming the general fore
 
 In high contrast, the connected boundary uses `focusBorder` for the active editor group and `contrastBorder` for other groups. It follows the selected tab and continues around the breadcrumbs and document body, rather than outlining only the tab. With multiple tabs, the surrounding editor-area card stroke is transparent in HC, including compact-layout corner strokes, so it does not create a second frame. Single and hidden-tab modes retain their original editor-card outline. Keyboard focus and multi-selection indicators remain visible. The same one-stroke geometry is present in all themes: the body frame is transparent in standard themes, and its inside paint layer does not change editor dimensions when switching themes or active groups.
 
+## Frosted glass overlays
+
+`workbench.modernUIFrostedGlass` is enabled by default in desktop editor and Agents
+windows. Editor windows require `workbench.experimental.modernUI`; the Agents
+window already uses its own modern design. The treatment applies to quick input
+(including the Command Palette), custom menus and pickers, hovers, custom dialogs,
+the notification center, and settled notification toasts. It also applies in
+auxiliary editor windows. Native OS menus/dialogs, rich quick-input overlays,
+editor backgrounds, panels, session cards, chat inputs, and web windows are unchanged.
+
+`workbench.modernUIFrostedGlassOpacity` controls the background tint
+as a percentage from **50 to 100**, with the existing **92** as the default.
+Lower values reveal more of the blurred backdrop; **100** retains the full theme
+background color. Changes apply immediately across all supported overlays,
+including shadow-root menus and auxiliary editor windows, without fading text
+or controls. The Agents window uses the same preferences and fallbacks, keeping
+its existing panel-derived colors for menus and pickers. For a more visible
+effect, try:
+
+```json
+{
+	"workbench.experimental.modernUI": true,
+	"workbench.modernUIFrostedGlass": true,
+	"workbench.modernUIFrostedGlassOpacity": 75
+}
+```
+
+The minimum retains a background tint, but lower values can reduce contrast over
+busy content. Increase opacity if needed. This setting does not override any
+accessibility or GPU fallback.
+
+Both settings use the existing configuration telemetry: explicitly configured
+values and their configuration source are reported at workbench startup, subject
+to the normal telemetry controls, including application preferences shared with
+non-default profiles. Defaults are not reported as explicit choices.
+Desktop windows migrate existing preferences from the former experimental setting
+names; values explicitly set using the new names take precedence. Web windows
+leave the legacy preferences unchanged because these settings are desktop-only.
+
+The normal theme backgrounds remain the fallback. Glass is enabled only after
+Electron reports hardware-accelerated GPU compositing, and only where CSS supports
+both backdrop filtering and color mixing. Pending, failed, disabled, or software
+compositing checks retain solid surfaces; GPU information updates and GPU-process
+exits update the treatment without reloading. The effect does not bypass
+Chromium's GPU blocklist or change native window transparency.
+
+High-contrast themes, forced colors, OS reduced transparency, and
+`workbench.reduceTransparency: "on"` retain the normal backgrounds. OS reduced
+transparency is respected even when the workbench setting is `"off"`.
+Set `workbench.modernUIFrostedGlass` to `false` to immediately restore
+the original presentation if a driver reports acceleration but still renders
+incorrectly or performs poorly. Capability reporting cannot detect every driver
+or compositor defect.
+
+Each surface uses its existing theme color with the configured tint over one
+decorative blur layer. Blur is not applied to the interactive container,
+so it does not introduce a containing block for fixed-position child widgets.
+Menus install their material through the shared menu stylesheet, including
+menus hosted in shadow roots. Context menus, dropdowns, and submenus scale their
+glass background, shadow, and contents together without fading. This keeps the selected
+tint and real backdrop blur continuous from the first visible frame, including
+in nested submenus. Opening a submenu completes any active glass entrance before
+positioning it, so the submenu does not jump when the scale animation ends.
+Action-list dropdowns use the same scale-only entrance in both window types,
+including plain, tabbed, and submenu popups. Their shared renderers enable motion
+after measuring the popup, without requiring each trigger to opt in. Updating
+items or switching tabs does not replay the entrance. This covers task, provider,
+agent, model, workspace, branch, and permission pickers.
+The glass layer also follows the closing scale without fading. Submenus use the
+full theme tint while an ancestor's closing fade isolates their backdrops;
+closing pickers use the same fallback. Glass menus do not
+retain opacity compositor hints after motion finishes.
+Controls, selection/focus indicators, sticky headings, and embedded
+editor backgrounds stay solid. Quick input opens and dismisses without its opacity
+animation in glass mode because that animation isolates the backdrop; toasts retain their
+animation and switch to glass only after it finishes. With reduced motion,
+toasts apply glass immediately without waiting for a transition event.
+
 ## Colors
 
 | Color ID | Purpose | Default |
