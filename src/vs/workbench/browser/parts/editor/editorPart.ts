@@ -260,7 +260,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			return;
 		}
 
-		for (const group of this.groupViews.values()) {
+		// Iterate only groups that are actually installed in the current grid.
+		// During grid reconstruction (state restore, layout apply) `groupViews`
+		// can transiently contain new group views that are not yet part of
+		// `gridWidget`; a re-entrant active editor change event can call in here
+		// before `doSetGridWidget` runs, and querying the grid for such a group
+		// would throw "View not found".
+		for (const group of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 			if (!(group instanceof EditorGroupView)) {
 				continue;
 			}
