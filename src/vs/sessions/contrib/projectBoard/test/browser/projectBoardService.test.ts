@@ -33,6 +33,7 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../se
 import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
+import { IProjectBoardNewSessionOptions, ProjectBoardNewSessionDialog } from '../../browser/projectBoardNewSessionDialog.js';
 import { getProjectBoardCardId, getProjectBoardSessionKey, IProjectBoardCard } from '../../common/projectBoardModel.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
@@ -41,7 +42,8 @@ import { ProjectBoardPreviewPool } from '../../browser/projectBoardPreviewPool.j
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IProjectBoardInputConfiguration, IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IProjectBoardPendingActions } from '../../common/projectBoardActions.js';
 import { ProjectBoardChatActions } from '../../browser/projectBoardChatActions.js';
 import { ProjectBoardWindow } from '../../browser/projectBoardWindow.js';
@@ -72,6 +74,22 @@ class TestChat extends mock<IChat>() {
 	constructor(private readonly name: string) { super(); }
 }
 
+class TestBoardSession extends mock<ISession>() {
+	override readonly sessionId = `test-${this.name}`;
+	override readonly resource = URI.parse(`test-session:${this.name}`);
+	override readonly providerId = 'test';
+	override readonly title = observableValue('session-title', 'Owning session');
+	override readonly chats = observableValue<readonly IChat[]>('chats', this.initialChats);
+	override readonly mainChat = constObservable(this.initialChats[0]);
+	override readonly isArchived = observableValue('archived', false);
+	override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
+	override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
+	override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
+	override readonly capabilities = observableValue('capabilities', { supportsMultipleChats: true, supportsDelete: true });
+
+	constructor(private readonly initialChats: readonly IChat[], private readonly name = 'session') { super(); }
+}
+
 suite('ProjectBoardService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -89,18 +107,7 @@ suite('ProjectBoardService', () => {
 		const container = mainWindow.document.createElement('div');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
-		const session = new class extends mock<ISession>() {
-			override readonly sessionId = 'test-session';
-			override readonly resource = URI.parse('test-session:session');
-			override readonly providerId = 'test';
-			override readonly title = observableValue('session-title', 'Owning session');
-			override readonly chats = observableValue<readonly IChat[]>('chats', chats);
-			override readonly isArchived = observableValue('archived', false);
-			override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
-			override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
-			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
-			override readonly capabilities = observableValue('capabilities', { supportsMultipleChats: true, supportsDelete: true });
-		}();
+		const session = new TestBoardSession(chats);
 		const initialSessions: ISession[] = chats.length ? [session] : [];
 		const state = {
 			focusCount: 0,
@@ -108,6 +115,11 @@ suite('ProjectBoardService', () => {
 			openCount: 0,
 			disposeCount: 0,
 			createdCount: 0,
+			createdSession: new TestBoardSession([new TestChat('new-session')], 'new-session') as ISession | undefined,
+			creationOptions: undefined as IProjectBoardNewSessionOptions | undefined,
+			creationPlacement: undefined as { rowId: string; columnId: string } | undefined,
+			creationBarrier: undefined as DeferredPromise<void> | undefined,
+			sidePanelCloseCount: 0,
 			sessions: initialSessions,
 			navigationError: undefined as Error | undefined,
 			deletionError: undefined as Error | undefined,
@@ -116,6 +128,10 @@ suite('ProjectBoardService', () => {
 			deletedDrafts: [] as string[],
 			renameError: undefined as Error | undefined,
 			renamedChats: [] as { session: ISession; resource: URI; title: string }[],
+			archiveAttempts: [] as ISession[],
+			archiveErrors: new Set<string>(),
+			archiveBarrier: undefined as DeferredPromise<void> | undefined,
+			providerAvailable: true,
 		};
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
@@ -162,7 +178,19 @@ suite('ProjectBoardService', () => {
 		const actions = observableValue<IProjectBoardPendingActions | undefined>('actions', undefined);
 		const includeCredits = sinon.spy();
 		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, configuration, actions, setIncludeConfiguration() { }, setIncludeCredits: includeCredits, dispose() { } });
-		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
+		const providersChanged = store.add(new Emitter<ISessionsProvidersChangeEvent>());
+		const provider: ISessionsProvider = new class extends mock<ISessionsProvider>() {
+			override readonly id = 'test';
+			override readonly sessionTypes = [];
+			override readonly onDidChangeModels = Event.None;
+			override getModelsSnapshot() { return { models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: undefined }; }
+		}();
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = providersChanged.event;
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return (state.providerAvailable ? provider : undefined) as T | undefined;
+			}
+		}());
 		const openedContext: string[] = [];
 		instantiationService.stub(IOpenerService, {
 			open: async (resource, options) => {
@@ -191,7 +219,6 @@ suite('ProjectBoardService', () => {
 			drafts,
 			dispose() { },
 			async closeActiveSession() { return state.closedResource; },
-			async createNewSession() { state.createdCount++; return URI.parse('test-draft:/new-session'); },
 			async openDraft(id: string): Promise<void> {
 				if (state.navigationError) {
 					throw state.navigationError;
@@ -211,6 +238,20 @@ suite('ProjectBoardService', () => {
 				onOpened.fire(card.chat.resource);
 			}
 		});
+		instantiationService.stubInstance(ProjectBoardNewSessionDialog, {
+			async show(options) {
+				state.createdCount++;
+				state.creationOptions = options;
+				if (state.creationBarrier) {
+					await state.creationBarrier.p;
+				}
+				if (state.createdSession) {
+					options.onDidCreate(state.createdSession, state.creationPlacement);
+				}
+				return state.createdSession;
+			},
+			dispose() { },
+		});
 		instantiationService.stubInstance(ProjectBoardChatSidePanel, {
 			dispose() { },
 			async open(card: IProjectBoardCard, onClose: () => void): Promise<void> {
@@ -222,6 +263,7 @@ suite('ProjectBoardService', () => {
 				onOpened.fire(card.chat.resource);
 			},
 			close(): void {
+				state.sidePanelCloseCount++;
 				const restore = sidePanelFocusRestorer;
 				sidePanelFocusRestorer = undefined;
 				restore?.();
@@ -262,6 +304,16 @@ suite('ProjectBoardService', () => {
 				override readonly onDidChangeSessions = sessionsChanged.event;
 				override readonly newSession = newSession;
 				override getSessions() { return state.sessions; }
+				override async archiveSession(archived: ISession): Promise<void> {
+					state.archiveAttempts.push(archived);
+					await state.archiveBarrier?.p;
+					if (state.archiveErrors.has(archived.sessionId)) {
+						throw new Error('Archive failed');
+					}
+					assert.ok(archived instanceof TestBoardSession);
+					archived.isArchived.set(true, undefined);
+					sessionsChanged.fire({ added: [], removed: [], changed: [archived] });
+				}
 				override async deleteSession(deleted: ISession): Promise<void> {
 					if (state.deletionError) {
 						throw state.deletionError;
@@ -304,7 +356,7 @@ suite('ProjectBoardService', () => {
 			instantiationService.get(ICustomViewService),
 		));
 		return {
-			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
+			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, providersChanged, provider, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -332,6 +384,366 @@ suite('ProjectBoardService', () => {
 		await service.open();
 		assert.strictEqual(state.openCount, 1);
 		assert.ok(state.focusCount > firstFocusCount);
+	});
+
+	suite('Mark as Done', () => {
+		function card(container: HTMLElement, chat: IChat): HTMLElement {
+			return [...container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+		}
+
+		function checkbox(container: HTMLElement, chat: IChat): HTMLElement {
+			return card(container, chat).querySelector<HTMLElement>('.project-board-card-select')!;
+		}
+
+		function select(container: HTMLElement, chat: IChat): void {
+			checkbox(container, chat).click();
+		}
+
+		function count(container: HTMLElement): string | null | undefined {
+			return container.querySelector('.project-board-selection-count')?.textContent;
+		}
+
+		function done(container: HTMLElement): HTMLElement {
+			return container.querySelector<HTMLElement>('[data-board-control="mark-done"]')!;
+		}
+
+		test('archives multiple selected conversations once per session without deleting, moving or marking read', async () => {
+			const chats = [new TestChat('First'), new TestChat('Selected sibling'), new TestChat('Unselected sibling'), new TestChat('Other session')];
+			const h = createBoard(mainWindow.document, chats.slice(0, 3));
+			const other = new TestBoardSession([chats[3]], 'other');
+			h.state.sessions.push(other);
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration,
+				placements: [{ cardId: getProjectBoardCardId(h.session, chats[0]), rowId: 'general', columnId: 'p1' }],
+			}));
+			await h.service.open();
+			const configuration = h.catalog.boards.get();
+			for (const chat of [chats[0], chats[1], chats[3]]) {
+				select(h.container, chat);
+			}
+			assert.deepStrictEqual({
+				count: count(h.container), selected: h.container.querySelectorAll('.project-board-card-selected').length,
+				enabled: done(h.container).getAttribute('aria-disabled'), opened: h.opened, read: chats.map(chat => chat.isRead.get()),
+			}, { count: '3 conversations selected', selected: 3, enabled: 'false', opened: [], read: [false, false, false, false] });
+			done(h.container).click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				attempts: h.state.archiveAttempts, archived: [h.session.isArchived.get(), other.isArchived.get()],
+				count: count(h.container), cards: h.container.querySelectorAll('[data-chat-resource]').length,
+				deleted: h.state.deletedSessions, configuration: h.catalog.boards.get(), read: chats.map(chat => chat.isRead.get()),
+			}, {
+				attempts: [h.session, other], archived: [true, true], count: '0 conversations selected', cards: 0,
+				deleted: [], configuration, read: [false, false, false, false],
+			});
+			h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			assert.deepStrictEqual({
+				cards: h.container.querySelectorAll('[data-chat-resource]').length,
+				selectable: h.container.querySelectorAll('.project-board-card-select').length,
+			}, { cards: 4, selectable: 0 });
+		});
+
+		test('checkboxes expose selection and session scope accessibly without opening or dragging chats', async () => {
+			const chat = new TestChat('Keyboard selection');
+			const h = createBoard(mainWindow.document, [chat]);
+			await h.service.open();
+			const control = checkbox(h.container, chat);
+			control.focus();
+			control.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true, cancelable: true }));
+			control.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, repeat: true, bubbles: true, cancelable: true }));
+			control.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			const drag = new mainWindow.DragEvent('dragstart', { bubbles: true, cancelable: true });
+			control.dispatchEvent(drag);
+			const describedBy = done(h.container).getAttribute('aria-describedby')!;
+			assert.deepStrictEqual({
+				role: control.getAttribute('role'), label: control.getAttribute('aria-label'), checked: control.getAttribute('aria-checked'),
+				cardRole: card(h.container, chat).getAttribute('role'), focus: mainWindow.document.activeElement === control,
+				countRole: h.container.querySelector('.project-board-selection-count')?.getAttribute('role'),
+				description: mainWindow.document.getElementById(describedBy)?.textContent,
+				help: card(h.container, chat).getAttribute('aria-description')?.includes('Tab to the conversation checkbox'),
+				content: h.service.getAccessibleContent().includes('1 conversation selected') && h.service.getAccessibleContent().includes('  Selected'),
+				drag: drag.defaultPrevented, opened: h.opened, read: chat.isRead.get(),
+			}, {
+				role: 'checkbox', label: 'Select Keyboard selection', checked: 'true', cardRole: 'group', focus: true,
+				countRole: 'status', description: 'Archives the selected conversations\' sessions, including their other chats. No conversations are deleted.',
+				help: true, content: true, drag: true, opened: [], read: false,
+			});
+			control.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(done(h.container).getAttribute('aria-disabled'), 'true');
+		});
+
+		test('nested form controls keep their interaction and never select, open or show the card menu', async () => {
+			const chat = new TestChat('Nested controls');
+			const h = createBoard(mainWindow.document, [chat]);
+			await h.service.open();
+			select(h.container, chat);
+			const element = card(h.container, chat);
+			for (const tag of ['input', 'textarea', 'select', 'button', 'a']) {
+				const control = mainWindow.document.createElement(tag);
+				element.appendChild(control);
+				control.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+				const key = new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true, cancelable: true });
+				control.dispatchEvent(key);
+				const menu = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+				control.dispatchEvent(menu);
+				const drag = new mainWindow.DragEvent('dragstart', { bubbles: true, cancelable: true });
+				control.dispatchEvent(drag);
+				assert.deepStrictEqual({ tag, key: key.defaultPrevented, menu: menu.defaultPrevented, drag: drag.defaultPrevented },
+					{ tag, key: false, menu: false, drag: true });
+			}
+			assert.deepStrictEqual({ selected: count(h.container), opened: h.opened, menu: h.contextMenu.delegate },
+				{ selected: '1 conversation selected', opened: [], menu: undefined });
+		});
+
+		test('partial failure leaves only failed conversations selected and retries without duplicate operations', async () => {
+			const failed = new TestChat('Failed');
+			const success = new TestChat('Success');
+			const h = createBoard(mainWindow.document, [failed]);
+			const other = new TestBoardSession([success], 'success');
+			h.state.sessions.push(other);
+			h.state.archiveErrors.add(h.session.sessionId);
+			const barrier = h.state.archiveBarrier = new DeferredPromise<void>();
+			const errors: string[] = [];
+			store.add(h.errors.event(error => errors.push(error)));
+			await h.service.open();
+			select(h.container, failed);
+			select(h.container, success);
+			done(h.container).click();
+			done(h.container).click();
+			select(h.container, failed);
+			h.container.querySelector<HTMLElement>('[data-board-control="clear-selection"]')!.click();
+			card(h.container, failed).dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.card.markDone')!;
+			assert.strictEqual(action.enabled, false);
+			await action.run();
+			assert.deepStrictEqual({
+				attempts: h.state.archiveAttempts, count: count(h.container), disabled: done(h.container).getAttribute('aria-disabled'),
+				checked: checkbox(h.container, failed).getAttribute('aria-checked'), checkboxDisabled: checkbox(h.container, failed).getAttribute('aria-disabled'),
+			}, { attempts: [h.session], count: 'Marking conversations as done…', disabled: 'true', checked: 'true', checkboxDisabled: 'true' });
+			await barrier.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				attempts: h.state.archiveAttempts, selected: count(h.container), checked: checkbox(h.container, failed).getAttribute('aria-checked'),
+				archived: other.isArchived.get(), errors,
+			}, {
+				attempts: [h.session, other], selected: '1 conversation selected', checked: 'true', archived: true,
+				errors: ['1 of 2 sessions could not be marked as done. The remaining selected conversations can be retried.'],
+			});
+			h.state.archiveErrors.clear();
+			done(h.container).click();
+			await timeout(0);
+			assert.deepStrictEqual({ attempts: h.state.archiveAttempts, selected: count(h.container), archived: h.session.isArchived.get() },
+				{ attempts: [h.session, other, h.session], selected: '0 conversations selected', archived: true });
+		});
+
+		test('selection and checkbox focus survive live rerenders, moves and collapsed groups', async () => {
+			const { document } = createBoardDocument();
+			const chat = new TestChat('Retained');
+			const h = createBoard(document, [chat]);
+			await h.service.open();
+			select(h.container, chat);
+			checkbox(h.container, chat).focus();
+			assert.strictEqual(document.activeElement, checkbox(h.container, chat));
+			chat.title.set('Renamed selection', undefined);
+			assert.strictEqual(document.activeElement, checkbox(h.container, chat));
+			assert.strictEqual(checkbox(h.container, chat).getAttribute('aria-label'), 'Select Renamed selection');
+			await h.moveViaPicker('General, P1', chat.resource);
+			const collapse = h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p1"]')!;
+			collapse.click();
+			chat.status.set(SessionStatus.Completed, undefined);
+			assert.deepStrictEqual({
+				count: count(h.container), checked: checkbox(h.container, chat).getAttribute('aria-checked'),
+				hidden: !!card(h.container, chat).closest('[hidden]'),
+			}, { count: '1 conversation selected', checked: 'true', hidden: true });
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p1"]')!.click();
+			assert.strictEqual(checkbox(h.container, chat).getAttribute('aria-checked'), 'true');
+			h.container.querySelector<HTMLElement>('[data-board-control="clear-selection"]')!.click();
+			assert.deepStrictEqual({
+				count: count(h.container), checked: checkbox(h.container, chat).getAttribute('aria-checked'), enabled: done(h.container).getAttribute('aria-disabled'),
+			}, { count: '0 conversations selected', checked: 'false', enabled: 'true' });
+		});
+
+		test('stale selections are removed for archived, hidden and removed chats and excluded placements', async () => {
+			const chats = [new TestChat('Archived externally'), new TestChat('Hidden'), new TestChat('Removed'), new TestChat('Excluded')];
+			const h = createBoard(mainWindow.document, chats);
+			await h.service.open();
+			chats.forEach(chat => select(h.container, chat));
+			chats[0].isArchived.set(true, undefined);
+			chats[1].interactivity.set(ChatInteractivity.Hidden, undefined);
+			h.session.chats.set([chats[0], chats[1], chats[3]], undefined);
+			assert.strictEqual(count(h.container), '1 conversation selected');
+			const toggleAutoInclude = async () => {
+				h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+				await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.autoIncludeSessions')!.run();
+			};
+			await toggleAutoInclude();
+			assert.strictEqual(count(h.container), '0 conversations selected');
+			await toggleAutoInclude();
+			h.session.chats.set(chats, undefined);
+			chats[0].isArchived.set(false, undefined);
+			chats[1].interactivity.set(ChatInteractivity.Full, undefined);
+			assert.deepStrictEqual({
+				checked: [...h.container.querySelectorAll('.project-board-card-select')].map(control => control.getAttribute('aria-checked')),
+				attempts: h.state.archiveAttempts,
+			}, { checked: ['false', 'false', 'false', 'false'], attempts: [] });
+		});
+
+		test('drafts and unavailable conversations cannot be selected and reconnecting never restores stale selection', async () => {
+			const chat = new TestChat('Available');
+			const untitled = new TestChat('Untitled');
+			untitled.status.set(SessionStatus.Untitled, undefined);
+			const h = createBoard(mainWindow.document, [chat, untitled]);
+			h.drafts.set([{ id: 'draft', resource: URI.parse('test-draft:/draft'), submitted: false, hasContent: true }], undefined);
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration,
+				placements: [{ cardId: 'missing', rowId: 'general', columnId: 'p1' }],
+			}));
+			await h.service.open();
+			assert.deepStrictEqual({
+				selectable: h.container.querySelectorAll('.project-board-card-select').length,
+				draft: h.container.querySelector('.project-board-card-draft .project-board-card-select'),
+				missing: h.container.querySelector('.project-board-card-unavailable .project-board-card-select'),
+			}, { selectable: 1, draft: null, missing: null });
+			select(h.container, chat);
+			h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(h.container.querySelectorAll('.project-board-card-select').length, 0);
+			h.session.remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+			select(h.container, chat);
+			h.state.providerAvailable = false;
+			h.providersChanged.fire({ added: [], removed: [h.provider] });
+			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(h.container.querySelectorAll('.project-board-card-select').length, 0);
+			h.state.providerAvailable = true;
+			h.providersChanged.fire({ added: [h.provider], removed: [] });
+			assert.strictEqual(checkbox(h.container, chat).getAttribute('aria-checked'), 'false');
+		});
+
+		test('context actions target the selection only when invoked on a selected card', async () => {
+			const first = new TestChat('Selected');
+			const second = new TestChat('Also selected');
+			const third = new TestChat('Not selected');
+			const h = createBoard(mainWindow.document, [first]);
+			const secondSession = new TestBoardSession([second], 'second');
+			const thirdSession = new TestBoardSession([third], 'third');
+			h.state.sessions.push(secondSession, thirdSession);
+			await h.service.open();
+			select(h.container, first);
+			select(h.container, second);
+			card(h.container, third).dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const single = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.card.markDone')!;
+			assert.strictEqual(single.label, 'Mark as Done');
+			await single.run();
+			assert.deepStrictEqual({ attempts: h.state.archiveAttempts, selected: count(h.container) },
+				{ attempts: [thirdSession], selected: '2 conversations selected' });
+			card(h.container, first).dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const multiple = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.card.markDone')!;
+			assert.strictEqual(multiple.label, 'Mark 2 Selected as Done');
+			await multiple.run();
+			assert.deepStrictEqual(h.state.archiveAttempts, [thirdSession, h.session, secondSession]);
+		});
+
+		test('selection is view-local, retained on board switches and discarded when the view closes', async () => {
+			const chat = new TestChat('Shared');
+			const h = createBoard(mainWindow.document, [chat]);
+			const other = h.catalog.createBoard('Other');
+			await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+			select(h.container, chat);
+			await h.service.open(other);
+			assert.strictEqual(count(h.currentContainer), '0 conversations selected');
+			select(h.currentContainer, chat);
+			h.currentContainer.querySelector<HTMLElement>('[data-board-control="clear-selection"]')!.click();
+			assert.strictEqual(count(h.container), '1 conversation selected');
+			h.closeBoard();
+			await h.service.open(other);
+			assert.strictEqual(count(h.currentContainer), '0 conversations selected');
+			const embedded = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(embedded);
+			store.add(toDisposable(() => embedded.remove()));
+			h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+			store.add(h.service.createView(embedded));
+			select(embedded, chat);
+			h.catalog.selectBoard(other);
+			assert.strictEqual(count(embedded.querySelector<HTMLElement>('.project-board-view-container:not([hidden])')!), '0 conversations selected');
+			h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+			assert.strictEqual(count(embedded.querySelector<HTMLElement>('.project-board-view-container:not([hidden])')!), '1 conversation selected');
+		});
+
+		test('an open context menu revalidates targets removed before activation', async () => {
+			const chat = new TestChat('Removed');
+			const h = createBoard(mainWindow.document, [chat]);
+			await h.service.open();
+			select(h.container, chat);
+			card(h.container, chat).dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.card.markDone')!;
+			h.state.sessions = [];
+			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+			await action.run();
+			assert.deepStrictEqual({ attempts: h.state.archiveAttempts, selected: count(h.container) },
+				{ attempts: [], selected: '0 conversations selected' });
+		});
+
+		test('closing a view during archiving does not start additional session operations', async () => {
+			const first = new TestChat('First');
+			const second = new TestChat('Second');
+			const h = createBoard(mainWindow.document, [first]);
+			h.state.sessions.push(new TestBoardSession([second], 'second'));
+			const barrier = h.state.archiveBarrier = new DeferredPromise<void>();
+			await h.service.open();
+			select(h.container, first);
+			select(h.container, second);
+			done(h.container).click();
+			h.closeBoard();
+			await barrier.complete();
+			await timeout(0);
+			assert.deepStrictEqual(h.state.archiveAttempts, [h.session]);
+		});
+
+		test('a queued target archived externally does not archive its remaining sibling chats', async () => {
+			const first = new TestChat('First');
+			const stale = new TestChat('Stale');
+			const sibling = new TestChat('Still active');
+			const h = createBoard(mainWindow.document, [first]);
+			const other = new TestBoardSession([stale, sibling], 'other');
+			h.state.sessions.push(other);
+			const barrier = h.state.archiveBarrier = new DeferredPromise<void>();
+			const errors: string[] = [];
+			store.add(h.errors.event(error => errors.push(error)));
+			await h.service.open();
+			select(h.container, first);
+			select(h.container, stale);
+			done(h.container).click();
+			stale.isArchived.set(true, undefined);
+			await barrier.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				attempts: h.state.archiveAttempts, otherArchived: other.isArchived.get(), selected: count(h.container), errors: errors.length,
+			}, { attempts: [h.session], otherArchived: false, selected: '0 conversations selected', errors: 1 });
+		});
+
+		test('concurrent views share a pending session archive and can retry a shared failure', async () => {
+			const chat = new TestChat('Shared pending archive');
+			const h = createBoard(mainWindow.document, [chat]);
+			const other = h.catalog.createBoard('Other');
+			const barrier = h.state.archiveBarrier = new DeferredPromise<void>();
+			h.state.archiveErrors.add(h.session.sessionId);
+			await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+			select(h.container, chat);
+			done(h.container).click();
+			await h.service.open(other);
+			select(h.currentContainer, chat);
+			done(h.currentContainer).click();
+			assert.deepStrictEqual(h.state.archiveAttempts, [h.session]);
+			await barrier.complete();
+			await timeout(0);
+			assert.deepStrictEqual([count(h.container), count(h.currentContainer)], ['1 conversation selected', '1 conversation selected']);
+			h.state.archiveErrors.clear();
+			done(h.currentContainer).click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				attempts: h.state.archiveAttempts, counts: [count(h.container), count(h.currentContainer)],
+			}, { attempts: [h.session, h.session], counts: ['0 conversations selected', '0 conversations selected'] });
+		});
 	});
 
 	test('multiple board windows share live chats but isolate placements, settings and selection', async () => {
@@ -576,6 +988,12 @@ suite('ProjectBoardService', () => {
 			assert.deepStrictEqual({ list, cards: h.container.querySelectorAll('.project-board-card').length }, {
 				list: { sessions: 1, groups: 0, nested: 1, cards: 0 }, cards: 2,
 			});
+			h.container.querySelector<HTMLElement>('.project-board-card-select')!.click();
+			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '1 conversation selected');
+			h.service.toggleDisplayOption('showSessionList');
+			assert.strictEqual(h.container.querySelector('.project-board-selection-tools'), null);
+			h.service.toggleDisplayOption('showSessionList');
+			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '0 conversations selected');
 		});
 
 		test('session drags move rather than copy, including collapsed cells and Unassigned', () => {
@@ -1250,14 +1668,14 @@ suite('ProjectBoardService', () => {
 		await h.service.open();
 		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 		h.container.querySelector('.project-board-card')!.dispatchEvent(event);
-		assert.strictEqual(h.contextMenu.delegate, undefined);
-		assert.strictEqual(event.defaultPrevented, false);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Mark as Done']);
+		assert.strictEqual(event.defaultPrevented, true);
+		h.contextMenu.delegate!.onHide?.(true);
 		for (const key of [{ keyCode: 121, shiftKey: true }, { keyCode: 93 }]) {
 			const event = new mainWindow.KeyboardEvent('keydown', { ...key, bubbles: true, cancelable: true });
 			h.container.querySelector('.project-board-card')!.dispatchEvent(event);
 			assert.strictEqual(event.defaultPrevented, false);
 		}
-		assert.strictEqual(h.contextMenu.delegate, undefined);
 		assert.strictEqual(h.pick.callCount, 0);
 		await h.moveViaPicker('General, P1');
 		assert.deepStrictEqual(h.quickInput.labels, ['Unassigned', 'General, P0', 'General, P1', 'General, P2', 'General, P3']);
@@ -1288,7 +1706,7 @@ suite('ProjectBoardService', () => {
 		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 		card.dispatchEvent(event);
 		assert.strictEqual(event.defaultPrevented, true);
-		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Rename...']);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Rename...', 'Mark as Done']);
 		await h.contextMenu.delegate!.getActions()[0].run();
 		const headings = () => [sibling, chat].map(chat => Array.from(h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')).find(element => element.dataset.chatResource === chat.resource.toString())?.querySelector('h4')?.textContent);
 		assert.deepStrictEqual({
@@ -1324,15 +1742,16 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelector('[data-chat-resource] h4')?.textContent, 'Renamed with F2');
 	});
 
-	test('card context menu is unavailable when the chat does not support renaming', async () => {
+	test('card context menu omits rename when the chat does not support it', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('No rename')]);
 		await h.service.open();
 		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
 		assert.strictEqual(card.getAttribute('aria-keyshortcuts')?.includes('F2') ?? false, false);
 		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 		card.dispatchEvent(event);
-		assert.strictEqual(event.defaultPrevented, false);
-		assert.strictEqual(h.contextMenu.delegate, undefined);
+		assert.strictEqual(event.defaultPrevented, true);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Mark as Done']);
+		h.contextMenu.delegate!.onHide?.(true);
 		const f2Event = new mainWindow.KeyboardEvent('keydown', { keyCode: 113, bubbles: true, cancelable: true });
 		card.dispatchEvent(f2Event);
 		assert.strictEqual(f2Event.defaultPrevented, false);
@@ -1702,7 +2121,105 @@ suite('ProjectBoardService', () => {
 		button.click();
 		assert.strictEqual(state.createdCount, 1);
 		assert.deepStrictEqual(opened, []);
+		await timeout(0);
+		assert.deepStrictEqual(opened, [state.createdSession!.mainChat.get().resource], 'Only standalone creation opens a chat window after sending');
 		assert.strictEqual(state.ownerFocusCount, 0);
+	});
+
+	test('PB-16 cancelling New Session does not record an open chat or report a navigation error', async () => {
+		const h = createBoard(mainWindow.document);
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		h.state.createdSession = undefined;
+		await h.service.open();
+		h.container.querySelector<HTMLElement>('[data-board-control="new-session"]')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			created: h.state.createdCount, opened: h.opened, errors,
+			enabled: h.container.querySelector('[data-board-control="new-session"]')?.getAttribute('aria-disabled'),
+		}, { created: 1, opened: [], errors: [], enabled: 'false' });
+		h.state.createdSession = new TestBoardSession([new TestChat('retry')], 'retry');
+		h.container.querySelector<HTMLElement>('[data-board-control="new-session"]')!.click();
+		await timeout(0);
+		assert.strictEqual(h.state.createdCount, 2, 'Cancellation must release the creation guard');
+	});
+
+	test('embedded creation immediately opens its running chat in the side panel without changing existing-card preferences', async () => {
+		const h = createBoard(mainWindow.document);
+		const origin = h.catalog.createBoard('Creation target');
+		h.catalog.selectBoard(origin);
+		const view = store.add(h.service.createView(h.container));
+		view.layout(1200, 800);
+		h.service.toggleAutoIncludeSessions();
+		h.state.creationPlacement = { rowId: 'general', columnId: 'p2' };
+		await h.service.createSession();
+		const session = h.state.createdSession!;
+		const expected = { cardId: getProjectBoardCardId(session, session.mainChat.get()), rowId: 'general', columnId: 'p2' };
+		assert.deepStrictEqual({
+			origin: h.state.creationOptions?.boardState.boardId,
+			windows: h.state.openCount,
+			opened: h.opened,
+			sidePanel: h.sidePanelOpened,
+			status: session.mainChat.get().status.get(),
+			existingCardPreference: h.catalog.boards.get().find(board => board.id === origin)!.configuration.openChatInSidePanel,
+			placements: h.catalog.boards.get().find(board => board.id === origin)!.configuration.placements,
+			sibling: h.catalog.boards.get().find(board => board.id === DEFAULT_PROJECT_BOARD_ID)!.configuration.placements,
+		}, { origin, windows: 0, opened: [], sidePanel: [session.mainChat.get().resource], status: SessionStatus.InProgress, existingCardPreference: undefined, placements: [expected], sibling: [] });
+		const closeCount = h.state.sidePanelCloseCount;
+		h.service.toggleDisplayOption('showCredits');
+		h.catalog.renameBoard(DEFAULT_PROJECT_BOARD_ID, 'Sibling renamed');
+		assert.strictEqual(h.state.sidePanelCloseCount, closeCount, 'The newly created chat remains open across unrelated catalog edits');
+		h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+		h.state.creationOptions!.onDidCreate(session, { rowId: 'general', columnId: 'p3' });
+		assert.deepStrictEqual(h.catalog.boards.get().find(board => board.id === origin)!.configuration.placements, [{ ...expected, columnId: 'p3' }], 'A delayed callback must never follow the globally selected board');
+	});
+
+	test('changing boards during creation retains the original placement without opening a panel on the wrong board', async () => {
+		const h = createBoard(mainWindow.document);
+		store.add(h.service.createView(h.container));
+		const barrier = new DeferredPromise<void>();
+		h.state.creationBarrier = barrier;
+		h.state.creationPlacement = { rowId: 'general', columnId: 'p1' };
+		const creating = h.service.createSession();
+		const other = h.catalog.createBoard('Other');
+		h.catalog.selectBoard(other);
+		await barrier.complete();
+		await creating;
+		assert.deepStrictEqual({
+			windows: h.opened, panels: h.sidePanelOpened,
+			sourcePlacements: h.catalog.boards.get().find(board => board.id === DEFAULT_PROJECT_BOARD_ID)!.configuration.placements.length,
+			selected: h.catalog.selectedBoardId.get(),
+		}, { windows: [], panels: [], sourcePlacements: 1, selected: other });
+	});
+
+	test('failed post-creation side-panel opening reports the error without a standalone fallback', async () => {
+		const h = createBoard(mainWindow.document);
+		store.add(h.service.createView(h.container));
+		h.state.navigationError = new Error('Panel unavailable');
+		const notification = Event.toPromise(h.errors.event);
+		await h.service.createSession();
+		assert.deepStrictEqual({ error: await notification, windows: h.opened, panels: h.sidePanelOpened, created: h.state.createdCount }, {
+			error: 'The new session could not be opened.', windows: [], panels: [], created: 1,
+		});
+	});
+
+	test('a completed submission does not recreate a deleted destination board or use its sibling', async () => {
+		const h = createBoard(mainWindow.document);
+		const origin = h.catalog.createBoard('Deleted destination');
+		h.catalog.selectBoard(origin);
+		store.add(h.service.createView(h.container));
+		await h.service.createSession();
+		const options = h.state.creationOptions!;
+		h.catalog.deleteBoard(origin);
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		options.onDidCreate(h.state.createdSession!, { rowId: 'general', columnId: 'p2' });
+		assert.deepStrictEqual({
+			boards: h.catalog.boards.get().map(board => ({ id: board.id, placements: board.configuration.placements })),
+			opened: h.opened,
+			deleted: h.state.deletedSessions,
+		}, { boards: [{ id: DEFAULT_PROJECT_BOARD_ID, placements: [] }], opened: [], deleted: [] });
+		assert.ok(errors.some(error => error.includes('session was created')), 'The committed conversation survives with an explicit placement failure');
 	});
 
 	test('PB-05 closing a session returns focus to its card but never reopens a closed board', async () => {
@@ -2040,7 +2557,7 @@ suite('ProjectBoardService', () => {
 		const { service, container, opened, state } = createBoard(mainWindow.document, [child]);
 		await service.open();
 		const card = container.querySelector<HTMLElement>('.project-board-card')!;
-		assert.strictEqual(card.getAttribute('role'), 'button');
+		assert.strictEqual(card.getAttribute('role'), 'group');
 		assert.strictEqual(card.tabIndex, 0);
 		card.focus();
 		for (const keyCode of [13, 32]) {
@@ -2171,6 +2688,12 @@ suite('ProjectBoardService', () => {
 		textarea.value = 'Calendar layout';
 		textarea.setSelectionRange(3, 7);
 		textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		h.container.querySelector<HTMLElement>('.project-board-card-select')!.click();
+		assert.deepStrictEqual({
+			sameInput: h.container.querySelector('textarea') === textarea, text: textarea.value,
+			selection: [textarea.selectionStart, textarea.selectionEnd],
+			selected: h.container.querySelector('.project-board-selection-count')?.textContent,
+		}, { sameInput: true, text: 'Calendar layout', selection: [3, 7], selected: '1 conversation selected' });
 		const collapse = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!;
 		collapse().focus();
 		collapse().click();
@@ -2191,7 +2714,8 @@ suite('ProjectBoardService', () => {
 			text: textarea.value,
 			selection: [textarea.selectionStart, textarea.selectionEnd],
 			submissions: h.submittedAnswers.length,
-		}, { sameInput: true, focused: true, text: 'Calendar layout', selection: [3, 7], submissions: 0 });
+			selected: h.container.querySelector('.project-board-selection-count')?.textContent,
+		}, { sameInput: true, focused: true, text: 'Calendar layout', selection: [3, 7], submissions: 0, selected: '1 conversation selected' });
 		textarea.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, ctrlKey: true, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual(h.submittedAnswers, [{ requestId: 'custom-request', resolveId: 'custom-layout', answers: { layout: { selectedValue: undefined, freeformValue: 'Calendar layout' } } }]);
 		assert.deepStrictEqual(h.opened, []);

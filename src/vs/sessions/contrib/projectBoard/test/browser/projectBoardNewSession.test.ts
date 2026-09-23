@@ -31,16 +31,18 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { ProjectBoardModel } from '../../common/projectBoardModel.js';
+import { IAgentHostNewSessionFolderService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
 suite('ProjectBoardNewSession', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,18 +76,24 @@ suite('ProjectBoardNewSession', () => {
 			override get hasRequests() { return state.submitted; }
 		}();
 		const widget = new class extends mock<ChatWidget>() {
-			override get attachmentModel() { return new class extends mock<ChatAttachmentModel>() {
-				override readonly onDidChange = Event.None;
-			}(); }
-			override get inputEditor() { return new class extends mock<ICodeEditor>() {
-				override readonly onDidChangeModelContent = Event.map(inputChanged.event, () => new class extends mock<IModelContentChangedEvent>() { }());
-			}(); }
+			override get attachmentModel() {
+				return new class extends mock<ChatAttachmentModel>() {
+					override readonly onDidChange = Event.None;
+				}();
+			}
+			override get inputEditor() {
+				return new class extends mock<ICodeEditor>() {
+					override readonly onDidChangeModelContent = Event.map(inputChanged.event, () => new class extends mock<IModelContentChangedEvent>() { }());
+				}();
+			}
 			override readonly onDidChangeViewModel = Event.None;
 			override readonly onDidSubmitAgent = Event.map(submitted.event, () => ({ agent: new class extends mock<IChatAgentData>() { }() }));
-			override get viewModel() { return new class extends mock<ChatViewModel>() {
-				override get model() { return model; }
-				override get sessionResource() { return resource; }
-			}(); }
+			override get viewModel() {
+				return new class extends mock<ChatViewModel>() {
+					override get model() { return model; }
+					override get sessionResource() { return resource; }
+				}();
+			}
 			override getInput() { return state.text; }
 			override getInputState() {
 				return { inputText: state.text, attachments: state.attachments, mode: { id: 'agent', kind: undefined }, selectedModel: undefined, selections: [], contrib: {} };
@@ -107,6 +115,12 @@ suite('ProjectBoardNewSession', () => {
 		Object.defineProperty(pane, 'group', { value: group });
 		pane.getId.returns(ChatEditorInput.EditorID);
 		const openEditor = sinon.stub().resolves(pane);
+		const folderUri = URI.file('/chosen/workspace');
+		const setFolder = sinon.stub();
+		const clearFolder = sinon.stub();
+		const trust = sinon.stub().resolves(true);
+		instantiation.stub(IAgentHostNewSessionFolderService, { setFolder, clear: clearFolder });
+		instantiation.stub(IWorkspaceTrustRequestService, { requestResourcesTrust: trust });
 		instantiation.stubInstance(ChatEditorInput, input);
 		instantiation.stub(IEditorService, { openEditor, findEditors: () => [], isOpened: () => true });
 		instantiation.stub(IEditorGroupsService, { groups: [], getGroup: id => id === group.id ? group : undefined });
@@ -123,10 +137,17 @@ suite('ProjectBoardNewSession', () => {
 					override readonly resource = state.published!;
 				}());
 			}()] : [],
-			getQuickChatSessionTypes: () => [{ providerId: 'test', sessionType: new class extends mock<ISessionType>() {
-				override readonly id = 'test-chat';
-				override readonly authRequirement = SessionTypeAuthRequirement.None;
-			}() }],
+			resolveWorkspace: () => ({
+				providerId: 'test', workspace: new class extends mock<ISessionWorkspace>() {
+					override readonly requiresWorkspaceTrust = true;
+				}()
+			}),
+			getSessionTypesForFolder: () => [{
+				providerId: 'test', sessionType: new class extends mock<ISessionType>() {
+					override readonly id = 'test-chat';
+					override readonly authRequirement = SessionTypeAuthRequirement.None;
+				}()
+			}],
 		});
 		instantiation.stub(ISessionsService, { activeSession: constObservable(undefined), canOpenSession: async () => true });
 		instantiation.stub(IChatSessionsService, { getMaterializedSessionResource: () => state.materialized });
@@ -134,23 +155,88 @@ suite('ProjectBoardNewSession', () => {
 			onDidChange: Event.None, get: () => state.provisional,
 			disposeSession: async () => { state.deletedProvisional++; },
 		});
-		instantiation.stub(IAgentHostConnectionsService, { resolveSessionResource: () => state.provisional
-			? { connectionAuthority: 'local', backendSession: state.provisional, connection: new class extends mock<IAgentConnection>() { }() }
-			: undefined });
+		instantiation.stub(IAgentHostConnectionsService, {
+			resolveSessionResource: () => state.provisional
+				? { connectionAuthority: 'local', backendSession: state.provisional, connection: new class extends mock<IAgentConnection>() { }() }
+				: undefined
+		});
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(INotificationService, { error: error => assert.fail(String(error)) });
-		instantiation.stub(IChatService, { onDidSubmitRequest: Event.None, acquireExistingSession: () => {
-			state.references++;
-			return { object: model, dispose: () => { state.references--; } };
-		} });
+		instantiation.stub(IChatService, {
+			onDidSubmitRequest: Event.None, acquireExistingSession: () => {
+				state.references++;
+				return { object: model, dispose: () => { state.references--; } };
+			}
+		});
 		const opener = store.add(instantiation.createInstance(ProjectBoardChatWindows));
-		return { opener, state, closing, inputChanged, submitted, openEditor, sessionsChanged, instantiation };
+		const createNewSession = () => opener.createNewSession({ folderUri, providerId: 'test', sessionTypeId: 'test-chat' });
+		return { opener, createNewSession, state, closing, inputChanged, submitted, openEditor, sessionsChanged, instantiation, folderUri, setFolder, clearFolder, trust };
 	}
+
+	test('a disposed owner creates no draft or editor and leaves the main composer untouched', async () => {
+		const h = setup();
+		h.opener.dispose();
+		assert.deepStrictEqual({
+			resource: await h.createNewSession(),
+			drafts: h.opener.drafts.get(),
+			opened: h.openEditor.callCount,
+			folders: h.setFolder.callCount,
+			trust: h.trust.callCount,
+		}, { resource: undefined, drafts: [], opened: 0, folders: 0, trust: 0 });
+	});
+
+	test('records the selected workspace for the exact draft before loading its standalone editor', async () => {
+		const h = setup();
+		const createInput = sinon.spy(h.instantiation, 'createInstance');
+		await h.createNewSession();
+		const draftResource = h.setFolder.firstCall.args[0];
+		assert.ok(URI.isUri(draftResource));
+		assert.ok(h.setFolder.calledBefore(h.openEditor));
+		assert.deepStrictEqual({
+			workspace: h.setFolder.firstCall.args[1],
+			trusted: h.trust.firstCall.args[0].uri,
+			draftId: h.opener.drafts.get()[0].id,
+		}, { workspace: h.folderUri, trusted: h.folderUri, draftId: draftResource.toString() });
+		assert.ok(createInput.calledWith(ChatEditorInput, draftResource, { title: { fallback: 'New Session' } }));
+		h.closing.fire();
+		await Promise.resolve();
+		assert.deepStrictEqual({ calls: h.clearFolder.callCount, resource: h.clearFolder.firstCall.args[0].toString() }, { calls: 1, resource: draftResource.toString() });
+	});
+
+	test('declining workspace trust creates no standalone session', async () => {
+		const h = setup();
+		h.trust.resolves(false);
+		assert.strictEqual(await h.createNewSession(), undefined);
+		assert.deepStrictEqual([h.openEditor.callCount, h.setFolder.callCount, h.opener.drafts.get().length], [0, 0, 0]);
+	});
+
+	test('provider removal while trust is pending reports failure instead of using another provider', async () => {
+		const h = setup();
+		const pendingTrust = new DeferredPromise<boolean>();
+		h.trust.returns(pendingTrust.p);
+		const creating = h.createNewSession();
+		await Promise.resolve();
+		sinon.stub(h.instantiation.invokeFunction(accessor => accessor.get(ISessionsManagementService)), 'getSessionTypesForFolder').returns([]);
+		await pendingTrust.complete(true);
+		await assert.rejects(creating, /No available provider/);
+		assert.deepStrictEqual([h.openEditor.callCount, h.setFolder.callCount], [0, 0]);
+	});
+
+	test('disposal while awaiting workspace trust prevents late draft creation', async () => {
+		const h = setup();
+		const choosing = new DeferredPromise<boolean>();
+		h.trust.returns(choosing.p);
+		const creating = h.createNewSession();
+		h.opener.dispose();
+		await choosing.complete(true);
+		assert.strictEqual(await creating, undefined);
+		assert.deepStrictEqual([h.openEditor.callCount, h.setFolder.callCount], [0, 0]);
+	});
 
 	test('explicit draft deletion closes its editor and disposes the backend exactly once', async () => {
 		const h = setup();
 		h.state.provisional = URI.parse('agent-host:/owned-draft');
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		const id = h.opener.drafts.get()[0].id;
 		h.state.closeAllowed = false;
 		assert.strictEqual(await h.opener.deleteDraft(id), false);
@@ -167,7 +253,7 @@ suite('ProjectBoardNewSession', () => {
 	test('failed editor closure reports draft deletion failure without removing the draft', async () => {
 		const h = setup();
 		h.state.provisional = URI.parse('agent-host:/owned-draft');
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		const notifications: string[] = [];
 		sinon.stub(h.instantiation.invokeFunction(accessor => accessor.get(INotificationService)), 'error').callsFake(error => notifications.push(String(error)));
 		const pane = await h.openEditor.lastCall.returnValue;
@@ -180,7 +266,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-03/PB-05 send hi, close, move to General/P1 and reopen retains the published chat identity and title', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.state.text = 'hi';
 		h.inputChanged.fire();
 		h.state.submitted = true;
@@ -225,7 +311,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-16 creates a provisional card and standalone composer without sending', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		assert.strictEqual(h.opener.drafts.get().length, 1);
 		assert.strictEqual(h.openEditor.firstCall.args[2], AUX_WINDOW_GROUP);
 		assert.strictEqual(h.opener.drafts.get()[0].submitted, false);
@@ -233,7 +319,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-17 closing an untouched composer removes only its draft and releases its model', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.closing.fire();
 		assert.deepStrictEqual(h.opener.drafts.get(), []);
 		assert.strictEqual(h.state.references, 0);
@@ -241,7 +327,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-17 closing after typing preserves and restores the unsent input', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.state.text = 'Keep my draft';
 		h.inputChanged.fire();
 		h.closing.fire();
@@ -254,7 +340,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-17 a submitted or failed request is never discarded as an untouched draft', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.state.submitted = true;
 		h.submitted.fire();
 		h.closing.fire();
@@ -264,7 +350,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-16 materialized publication replaces the provisional card without duplicates', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.submitted.fire();
 		h.state.materialized = URI.parse('test-chat:/committed');
 		h.state.published = h.state.materialized;
@@ -275,7 +361,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-17 attachments count as user content even with empty text', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.state.attachments = [{ kind: 'generic', id: 'context', name: 'Context', value: 'Keep this attachment' }];
 		h.inputChanged.fire();
 		h.closing.fire();
@@ -284,7 +370,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-17 clearing previously typed text does not make the draft untouched again', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.state.text = 'Previously typed';
 		h.inputChanged.fire();
 		h.state.text = '';
@@ -295,7 +381,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-16 opaque provider provisional identity resolves to one published card', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.submitted.fire();
 		h.state.provisional = URI.parse('backend:/opaque-id');
 		h.state.published = URI.parse('test-chat:/published-id');
@@ -306,7 +392,7 @@ suite('ProjectBoardNewSession', () => {
 
 	test('PB-17 untouched provider provisional state is discarded on close', async () => {
 		const h = setup();
-		await h.opener.createNewSession();
+		await h.createNewSession();
 		h.state.provisional = URI.parse('backend:/owned-empty');
 		h.closing.fire();
 		await Promise.resolve();
@@ -318,8 +404,13 @@ suite('ProjectBoardNewSession', () => {
 	test('PB-17 closing before the composer finishes loading leaves no draft or false open failure', async () => {
 		const h = setup();
 		const pending = new DeferredPromise<ChatEditor>();
-		h.openEditor.callsFake(() => pending.p);
-		const creating = h.opener.createNewSession();
+		const opening = new DeferredPromise<void>();
+		h.openEditor.callsFake(() => {
+			void opening.complete();
+			return pending.p;
+		});
+		const creating = h.createNewSession();
+		await opening.p;
 		h.closing.fire();
 		await pending.error(new Error('Editor was closed during load'));
 		await creating;

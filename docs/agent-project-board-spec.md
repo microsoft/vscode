@@ -102,6 +102,7 @@ Moving a card changes only its placement on the current board. The same conversa
 - Expanded content grows the row; do not add cell-internal scrolling.
 - Compute overflow after archive filtering. Cell attention counts include hidden Needs Input cards without changing recency ordering.
 - Hide chats archived individually or through their owning session by default. Preserve their placements; Show Archived/unarchive restores them.
+- Select multiple live cards and use **Mark as Done** to archive their backing sessions together without deleting conversations or placements. Archiving a session also archives its other chats, including unselected siblings; selecting multiple siblings archives the session only once. Selection is local to the board view, does not mark conversations read, and excludes drafts, unavailable cards and already archived chats. Failed archive operations remain visible and retryable.
 
 ### Display settings
 
@@ -137,8 +138,12 @@ Moving a card changes only its placement on the current board. The same conversa
 
 ### Creation and draft lifecycle
 
-- A top-right New Session button opens a standalone composer without selecting another main Agents chat.
-- Board-owned drafts appear in Unassigned and can reopen their composer.
+- New Session hosts the actual Agents `NewChatWidget` in a modal, including workspace, provider, model, configuration, attachments and prompt controls. The workspace picker supplies the selected folder; workspace trust and provider availability are checked before creating an isolated draft.
+- The board placement picker is labeled **Project Path**; the workspace is chosen separately in the shared composer. There is no bottom Cancel button. The close control and Escape dismiss the modal while no submission is pending.
+- As soon as submission starts the conversation, embedded Hub creation opens that exact chat in the side panel, without opening a native window or replacing the main Agents draft. This creation handoff is independent of the existing-card **Open Chat in Side Panel** preference. Creation from a standalone board opens the submitted conversation in its standalone chat window. Neither route waits for the agent's response to finish.
+- The modal carries the original board ID and selected destination independently of global board selection. On successful submission, persist placement using the canonical provider/session/chat identity. Unassigned is the default when auto-inclusion is enabled; otherwise require an explicit cell so the created card remains visible. Placement is local board state, not provider metadata or prompt text.
+- Modal drafts have independent input storage per board and embedded/standalone surface. Dismissal preserves unsent input for reopening but disposes only the owned provisional session; submission failures retain input and surface an error. Changing workspace, canceling trust or removing a provider must never submit to a stale prior target.
+- Previously opened standalone drafts remain in Unassigned and can reopen their composer.
 - The regular Agents window's current unsent draft appears immediately as a passive preview. Enter its first message in Agents; the board does not create a second composer or take cleanup ownership.
 - Independently discovered chats arrive without reopening the board. Publication reconciles previews to live cards without duplicates.
 - Discarding/replacing an Agents-owned draft removes only its borrowed preview. Automation-dialog drafts are outside this integration.
@@ -198,11 +203,11 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-06:** Persistence, Editor-to-Agents handoff, singleton behavior and corrupt-state recovery.
 - **PB-07:** Genuine prompt recency and honest missing/historical metadata.
 - **PB-08:** Eight-card expansion: 3 + 5 hidden, then 6 + 2 hidden, then 8; correct attention counts.
-- **PB-09:** Chat-level and session-level archive filtering without lost placements.
+- **PB-09:** Chat-level and session-level archive filtering without lost placements; multi-card selection, bulk Mark as Done, stale selection and partial-failure retry.
 - **PB-10:** Stable editable axes, confirmed deletion and archived-placement accounting.
 - **PB-11:** Accurate shared context, keyboard accessibility, non-color state and reachable content.
 - **PB-15:** Interactive Ask User, custom answers, validation, exactly-once submission and refresh-safe input.
-- **PB-16:** Standalone creation, passive Agents draft discovery and publication without duplicates.
+- **PB-16:** Shared New Session composer with Project Path and no footer action, isolated modal workspace/configuration/draft state, dismissal and trust, immediate embedded side-panel/standalone-window handoff after submission, original-board canonical placement, passive Agents draft discovery and publication without duplicates.
 - **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
 - **PB-18:** Independent persisted display toggles, including default-visible Last Prompt and migration of the old Description preference; bottom status-bar layout and transparent metrics; state-duration transitions and lower bounds; reported zero versus unavailable credits; timer updates preserve focus/scroll and release on close.
 - **PB-19:** Independent model/permission rows; exact chat/session configuration, bounded observation, no global-setting or sibling-chat substitution, live updates, and explicit unknown values.

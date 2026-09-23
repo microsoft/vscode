@@ -635,6 +635,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			loading: IObservable<boolean>;
 			useExperimentalLayout?: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
+			draftStorageKey?: string;
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSendButton?: boolean;
@@ -645,6 +646,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			modelPickerComparison?: IModelPickerComparison;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
+			renderChatPet?: boolean;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
 			onDidChangeChatPetPlatform?: Event<void>;
 			/**
@@ -877,7 +879,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.chatPetWidgetService.register(this, {
+		this._register(this.options.renderChatPet === false ? Disposable.None : this.chatPetWidgetService.register(this, {
 			parent: chatInputContainer,
 			dragBounds: inputArea,
 			movementBounds: root,
@@ -1944,7 +1946,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _getDraftState(): IChatDraft | undefined {
 		try {
-			return readNewChatDraftState(this.storageService);
+			return readNewChatDraftState(this.storageService, this.options?.draftStorageKey);
 		} catch {
 			this.logService.warn('[NewChatInput] Could not restore the saved draft');
 			return undefined;
@@ -1953,12 +1955,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
-		writeNewChatDraftState(this.storageService, this._draftState);
+		writeNewChatDraftState(this.storageService, this._draftState, this.options?.draftStorageKey);
 	}
 
 	saveState(): void {
 		if (this._draftState) {
-			writeNewChatDraftState(this.storageService, this._draftState);
+			writeNewChatDraftState(this.storageService, this._draftState, this.options?.draftStorageKey);
 		}
 	}
 
