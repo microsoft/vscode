@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -165,6 +165,7 @@ suite('InboxNotificationsService', () => {
 			effectiveStorageService,
 			upcastPartial<ILanguageModelsService>({
 				selectLanguageModels: async () => [],
+				onDidChangeLanguageModels: Event.None,
 			}),
 		));
 		return {

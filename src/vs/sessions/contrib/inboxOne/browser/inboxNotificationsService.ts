@@ -7,6 +7,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Limiter } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -315,6 +316,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _detailSummaryCache = new LRUCache<string, IInboxDetailSummary>(DETAIL_CACHE_SIZE);
 	private readonly _detailSummaryInFlight = new Set<string>();
 
+	/** Bounds concurrent utility-model calls (previews + evidence packs) to avoid bursts. */
+	private readonly _utilityLimiter = new Limiter<unknown>(3);
+
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 
@@ -433,16 +437,29 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
 
-		// Generate a preview for every item as soon as it lands, without waiting for the
-		// user to focus the Inbox. Fires for active and completed/dismissed items alike.
-		this._register(autorun(reader => {
-			for (const item of allItems.read(reader)) {
-				this.ensurePreview(item);
-			}
-		}));
+		// Card previews are generated on demand as cards become visible (see requestPreview),
+		// so hidden or dismissed items don't fan out utility-model traffic before the Inbox
+		// is even opened. When language models (re)appear, drop transient-empty detail
+		// summaries so a re-render retries them.
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.invalidateEmptyDetailSummaries()));
 	}
 
-	private ensurePreview(item: IInboxNotificationItem): void {
+	private invalidateEmptyDetailSummaries(): void {
+		const current = this._detailSummaries.get();
+		let changed = false;
+		const next = new Map(current);
+		for (const [key, summary] of current) {
+			if (summary === EMPTY_DETAIL_SUMMARY) {
+				next.delete(key);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._detailSummaries.set(next, undefined);
+		}
+	}
+
+	requestPreview(item: IInboxNotificationItem): void {
 		const signature = item.previewSignature;
 		const inputText = item.previewInputText;
 		if (!signature || !inputText) {
@@ -474,7 +491,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const cts = new CancellationTokenSource();
 		this._previewCancellationSources.add(cts);
 		try {
-			const preview = await this.invokePreviewModel(inputText, cts.token);
+			const preview = await this._utilityLimiter.queue(() => this.invokePreviewModel(inputText, cts.token)) as string | undefined;
 			if (preview && !cts.token.isCancellationRequested) {
 				this._previewCache.set(signature, preview);
 				this.publishPreview(signature, preview);
@@ -663,7 +680,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return;
 		}
 		const key = item.id;
-		if (this._detailSummaries.get().has(key) || this._detailSummaryInFlight.has(key)) {
+		const existing = this._detailSummaries.get().get(key);
+		// A transient empty result (deps not ready / model unavailable) is re-attemptable;
+		// only a real summary or an in-flight request should block regeneration.
+		if ((existing && existing !== EMPTY_DETAIL_SUMMARY) || this._detailSummaryInFlight.has(key)) {
 			return;
 		}
 		const cached = this._detailSummaryCache.get(key);
@@ -693,7 +713,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			const transcript = this.getSessionTranscript(item);
 			if (transcript) {
 				const artifacts = this.collectSessionArtifacts(item);
-				summary = await this.invokeDetailModel(item, transcript, artifacts, cts.token);
+				summary = await this._utilityLimiter.queue(() => this.invokeDetailModel(item, transcript, artifacts, cts.token)) as IInboxDetailSummary | undefined;
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -703,9 +723,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			cts.dispose();
 			this._detailSummaryInFlight.delete(key);
 			if (!cancelled) {
-				const result = summary ?? EMPTY_DETAIL_SUMMARY;
-				this._detailSummaryCache.set(key, result);
-				this.publishDetailSummary(key, result);
+				if (summary) {
+					this._detailSummaryCache.set(key, summary);
+					this.publishDetailSummary(key, summary);
+				} else {
+					// Deps not ready or nothing usable: show the fallback but keep it
+					// re-attemptable (do not persist), and let a later request retry.
+					this.publishDetailSummary(key, EMPTY_DETAIL_SUMMARY);
+				}
 			}
 		}
 	}
@@ -808,12 +833,18 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	private getSessionChatModel(item: IInboxNotificationItem) {
+		// A needs-input request may live in a secondary chat, and its part carries the exact
+		// chat resource; only fall back to the session's main chat for other item kinds.
+		const chatResource = item.needsInputPart?.chatResource ?? this.getMainChatResource(item);
+		return chatResource ? this.chatService.getSession(chatResource) : undefined;
+	}
+
+	private getMainChatResource(item: IInboxNotificationItem): URI | undefined {
 		if (!item.sessionResource) {
 			return undefined;
 		}
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
-		const chatResource = session?.mainChat.get().resource;
-		return chatResource ? this.chatService.getSession(chatResource) : undefined;
+		return session?.mainChat.get().resource;
 	}
 
 	publishExternalNotification(notification: IExternalInboxNotification): void {

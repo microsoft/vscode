@@ -50,6 +50,28 @@
 	display: none;
 }
 
+/* Narrow container: stack the list and detail panes vertically so the detail surface keeps a usable width. */
+.inbox-notifications-content.narrow {
+	flex-direction: column;
+}
+
+.inbox-notifications-content.narrow .inbox-notifications-list-pane,
+.inbox-notifications-content.narrow .inbox-notifications-detail-pane {
+	width: 100%;
+	height: auto;
+	flex: 1 1 0;
+	min-height: 0;
+}
+
+.inbox-notifications-content.narrow .inbox-notifications-detail-pane {
+	border-left: none;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.inbox-notifications-content.narrow > .monaco-sash {
+	display: none;
+}
+
 .inbox-notifications-detail-scrollable {
 	height: 100%;
 	min-height: 0;
@@ -304,6 +326,13 @@
 	flex-direction: column;
 	gap: var(--vscode-spacing-size160);
 	padding-inline-end: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-section,
+.inbox-notifications-section-cards {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
 }
 
 .inbox-notifications-item {

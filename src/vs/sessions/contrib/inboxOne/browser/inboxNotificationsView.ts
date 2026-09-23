@@ -77,6 +77,8 @@ const LIST_PANE_WIDTH_STORAGE_KEY = 'sessions.inboxNotifications.listPaneWidth';
 const DEFAULT_LIST_PANE_WIDTH = 400;
 const MIN_LIST_PANE_WIDTH = 280;
 const MIN_DETAIL_PANE_WIDTH = 320;
+/** Below this the two panes can't both honor their minimums, so they stack vertically instead. */
+const NARROW_STACK_THRESHOLD = MIN_LIST_PANE_WIDTH + MIN_DETAIL_PANE_WIDTH;
 
 interface IInboxTierSpec {
 	readonly key: string;
@@ -267,7 +269,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
 			const prioritySelected = sortMode === InboxNotificationsSortMode.Priority;
 			sortByPriorityButton.element.classList.toggle('active', prioritySelected);
+			sortByPriorityButton.element.setAttribute('aria-pressed', String(prioritySelected));
 			sortByRecencyButton.element.classList.toggle('active', !prioritySelected);
+			sortByRecencyButton.element.setAttribute('aria-pressed', String(!prioritySelected));
 		}));
 
 		const toggleCompletedButton = this._register(new Button(toolbar, {
@@ -285,6 +289,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			toggleCompletedButton.element.setAttribute('aria-label', showing
 				? localize('inboxNotifications.hideCompletedAria', "Hide completed notifications")
 				: localize('inboxNotifications.showCompletedAria', "Show completed notifications"));
+			toggleCompletedButton.element.setAttribute('aria-pressed', String(showing));
 			toggleCompletedButton.element.classList.toggle('active', showing);
 		}));
 
@@ -301,7 +306,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		this.listPaneElement.appendChild(this.scrollableElement.getDomNode());
 		const list = this.listElement;
-		list.setAttribute('role', 'list');
+		list.setAttribute('role', 'group');
 		list.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
 		this.listContainer.set(list, undefined);
 		this._register(addDisposableListener(list, EventType.FOCUS_IN, event => this.onListFocusIn(event)));
@@ -450,8 +455,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 				this.renderSection(list, tier.key, getInboxNotificationPriorityLabel(tier.priority), tierItems, tier.priority);
 			}
 		} else {
+			const cards = list.appendChild($('.inbox-notifications-section-cards'));
+			cards.setAttribute('role', 'list');
+			cards.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
 			for (const item of items) {
-				this.appendCard(list, item);
+				this.appendCard(cards, item);
 			}
 		}
 
@@ -478,7 +486,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private renderSection(list: HTMLElement, key: string, label: string, items: readonly IInboxNotificationItem[], accentPriority: InboxNotificationPriority | undefined): void {
 		const collapsed = this.collapsedSections.has(key);
-		const header = list.appendChild($('button.inbox-notifications-section-header'));
+		const group = list.appendChild($('.inbox-notifications-section'));
+		group.setAttribute('role', 'group');
+		const header = group.appendChild($('button.inbox-notifications-section-header'));
+		header.id = `inbox-notifications-section-${key}`;
+		group.setAttribute('aria-labelledby', header.id);
 		header.setAttribute('type', 'button');
 		header.classList.toggle('collapsed', collapsed);
 		header.classList.add(accentPriority !== undefined ? `priority-${accentPriority}` : 'neutral');
@@ -493,8 +505,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (collapsed) {
 			return;
 		}
+		const cards = group.appendChild($('.inbox-notifications-section-cards'));
+		cards.setAttribute('role', 'list');
 		for (const item of items) {
-			this.appendCard(list, item);
+			this.appendCard(cards, item);
 		}
 	}
 
@@ -638,6 +652,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const descriptionEl = card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
 		if (item.previewSignature) {
+			this.inboxNotificationsService.requestPreview(item);
 			const signature = item.previewSignature;
 			this.renderedListDisposables.add(autorun(reader => {
 				const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
@@ -1268,9 +1283,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private updateSplit(hasItems: boolean): void {
 		this.hasSplit = hasItems;
 		this.contentElement.classList.toggle('no-detail', !hasItems);
-		if (this.detailSash) {
-			this.detailSash.state = hasItems ? SashState.Enabled : SashState.Disabled;
-		}
 		if (!hasItems && this.selectedItemId.get() !== undefined) {
 			this.selectedItemId.set(undefined, undefined);
 		}
@@ -1278,7 +1290,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private layoutPanes(): void {
-		this.listPaneElement.style.width = this.hasSplit ? `${this.clampListPaneWidth(this.listPaneWidth)}px` : '';
+		// When the container is too narrow to fit both minimum widths, stack the panes
+		// vertically instead of letting the detail surface collapse to an unusable width.
+		const narrow = this.hasSplit && this.layoutWidth > 0 && this.layoutWidth < NARROW_STACK_THRESHOLD;
+		this.contentElement.classList.toggle('narrow', narrow);
+		const sideBySide = this.hasSplit && !narrow;
+		if (this.detailSash) {
+			this.detailSash.state = sideBySide ? SashState.Enabled : SashState.Disabled;
+		}
+		this.listPaneElement.style.width = sideBySide ? `${this.clampListPaneWidth(this.listPaneWidth)}px` : '';
 		this.detailSash?.layout();
 		this.scrollableElement.scanDomNode();
 		this.detailScrollableElement.scanDomNode();
@@ -1326,8 +1346,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	/**
 	 * Identity + content that affects the rendered artifact. Re-rendering only when this
-	 * changes keeps unrelated inbox churn (and preview arrivals) from disposing and
-	 * recreating a live interactive widget while the user is answering it.
+	 * changes keeps unrelated inbox churn (and preview/summary arrivals) from tearing down
+	 * and rebuilding the detail content while the user is reading or scrolling it.
 	 */
 	private detailSignature(item: IInboxNotificationItem): string {
 		const part = item.needsInputPart;

@@ -168,6 +168,12 @@ export interface IInboxNotificationsService {
 	requestReveal(id: string): void;
 
 	/**
+	 * Trigger (once, then cached) generation of the one-line preview for an item. Called by the
+	 * view as cards become visible so hidden items don't fan out utility-model traffic.
+	 */
+	requestPreview(item: IInboxNotificationItem): void;
+
+	/**
 	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
 	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
 	 */
