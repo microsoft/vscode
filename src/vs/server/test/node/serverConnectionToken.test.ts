@@ -7,10 +7,11 @@ import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import { join } from '../../../base/common/path.js';
+import { connectionTokenCookieName, connectionTokenQueryName } from '../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
-import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
-import { ServerParsedArgs } from '../../node/serverEnvironmentService.js';
+import { MandatoryServerConnectionToken, parseServerConnectionToken, requestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
+import { getRedactedServerParsedArgs, ServerParsedArgs } from '../../node/serverEnvironmentService.js';
 
 suite('parseServerConnectionToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,4 +70,56 @@ suite('parseServerConnectionToken', () => {
 		assert.strictEqual(result.value, connectionToken);
 	});
 
+});
+
+suite('requestHasValidConnectionToken', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const connectionToken = new MandatoryServerConnectionToken('valid token');
+
+	test('validates a decoded query parameter', () => {
+		const searchParams = new URLSearchParams(`${connectionTokenQueryName}=valid+token`);
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers: {} }, searchParams), true);
+	});
+
+	test('rejects repeated query parameters', () => {
+		const searchParams = new URLSearchParams(`${connectionTokenQueryName}=valid+token&${connectionTokenQueryName}=valid+token`);
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers: {} }, searchParams), false);
+	});
+
+	test('falls back to a cookie', () => {
+		const headers = { cookie: `${connectionTokenCookieName}=valid%20token` };
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers }, new URLSearchParams()), true);
+	});
+});
+
+suite('getRedactedServerParsedArgs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('redacts connection tokens without changing the original arguments', () => {
+		const args = {
+			'connection-token': 'server-token',
+			'agent-host-bridge-connection-token': 'bridge-token',
+			'agent-host-bridge-port': '9000',
+		} as ServerParsedArgs;
+
+		assert.deepStrictEqual({
+			redactedArgs: getRedactedServerParsedArgs(args),
+			args,
+		}, {
+			redactedArgs: {
+				'connection-token': '<redacted>',
+				'agent-host-bridge-connection-token': '<redacted>',
+				'agent-host-bridge-port': '9000',
+			},
+			args: {
+				'connection-token': 'server-token',
+				'agent-host-bridge-connection-token': 'bridge-token',
+				'agent-host-bridge-port': '9000',
+			},
+		});
+	});
 });

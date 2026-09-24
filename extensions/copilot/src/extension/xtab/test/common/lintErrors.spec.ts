@@ -1019,6 +1019,7 @@ describe('LintErrors', () => {
 			return {
 				kind: 'visibleRanges',
 				docId,
+				ordinal: 0,
 				visibleRanges: [new OffsetRange(0, 100)],
 				documentContent: new StringText(''),
 			};

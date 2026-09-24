@@ -24,6 +24,12 @@ export interface IUpdateAllPluginsOptions {
 	 * updated, and error notifications are shown on failure.
 	 */
 	readonly silent?: boolean;
+
+	/** Restricts updates to plugins installed from these canonical marketplace IDs. */
+	readonly marketplaceIds?: ReadonlySet<string>;
+
+	/** Rechecks marketplace automatic-update policy before updating. */
+	readonly automatic?: boolean;
 }
 
 export interface IUpdateAllPluginsResult {
@@ -34,6 +40,8 @@ export interface IUpdateAllPluginsResult {
 }
 
 export interface IInstallPluginFromSourceOptions {
+	/** Install the single plugin at this repository-relative directory instead of scanning the marketplace. */
+	readonly path?: string;
 	/**
 	 * When set, targets a specific plugin by name within the marketplace
 	 * instead of installing all or prompting the user. The matched plugin
@@ -45,10 +53,7 @@ export interface IInstallPluginFromSourceOptions {
 export interface IInstallPluginFromSourceResult {
 	readonly success: boolean;
 	readonly message?: string;
-	/**
-	 * When {@link IInstallPluginFromSourceOptions.plugin} is set and the
-	 * plugin was found, this contains the discovered marketplace plugin.
-	 */
+	/** Contains the installed plugin when a name or repository subdirectory was targeted. */
 	readonly matchedPlugin?: IMarketplacePlugin;
 }
 
@@ -63,31 +68,27 @@ export interface IPluginInstallService {
 
 	/**
 	 * Installs a plugin directly from a source location string. Accepts
-	 * GitHub shorthand (`owner/repo`) or a full git clone URL. Clones the
-	 * repository, reads marketplace metadata to discover plugins, and
-	 * registers the selected plugin.
+	 * GitHub shorthand (`owner/repo`), a full git clone URL, or a local
+	 * folder path (`file://` URI, absolute path, or `~`-prefixed path).
+	 * For git sources, clones the repository, reads marketplace metadata to
+	 * discover plugins, and registers the selected plugin. For local folders,
+	 * detects whether the folder is a marketplace or a standalone plugin and
+	 * registers it under the appropriate configuration.
+	 * An explicit `path` installs only the manifest-backed plugin in that repository subdirectory.
 	 *
-	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
-	 * a specific plugin, installs it, and returns it.
+	 * Returns a result with an optional error message (e.g. invalid source or
+	 * no plugins found); callers are responsible for surfacing it. When
+	 * {@link IInstallPluginFromSourceOptions.plugin} is set, targets a specific
+	 * plugin, installs it, and returns it in
+	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
 	 */
-	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void>;
+	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
 
 	/**
 	 * Synchronously validates the format of a plugin source string.
 	 * Returns an error message if the format is invalid, or undefined if valid.
 	 */
 	validatePluginSource(source: string): string | undefined;
-
-	/**
-	 * Installs a plugin from an already-validated source string.
-	 * Handles trust, cloning, scanning, and registration. Returns a result
-	 * with an optional error message (e.g. no plugins found).
-	 *
-	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
-	 * a specific plugin, installs it, and returns it in
-	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
-	 */
-	installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
 
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.

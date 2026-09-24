@@ -5,13 +5,14 @@
 
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import {
-	CustomizationHarness,
 	CustomizationHarnessServiceBase,
 	ICustomizationHarnessService,
 	createVSCodeHarnessDescriptor,
+
 } from '../../common/customizationHarnessService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 /**
  * Core implementation of the customization harness service.
@@ -20,12 +21,27 @@ import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js
  * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
 class CustomizationHarnessService extends CustomizationHarnessServiceBase {
-	constructor() {
-		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
+	constructor(
+		@IPromptsService promptsService: IPromptsService,
+	) {
 		super(
-			[createVSCodeHarnessDescriptor(localExtras)],
-			CustomizationHarness.VSCode,
+			[createVSCodeHarnessDescriptor()],
+			SessionType.Local,
+			promptsService,
 		);
+	}
+
+	override getSessionResourceForHarness(sessionType: string): URI {
+		// const lastUsedSession = this.agentSessionsService.model.sessions
+		// 	.filter(session => session.providerType === sessionType)
+		// 	.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created))
+		// 	.at(0);
+
+		// if (lastUsedSession) {
+		// 	return lastUsedSession.resource;
+		// }
+
+		return super.getSessionResourceForHarness(sessionType);
 	}
 }
 

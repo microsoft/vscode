@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private sequence: number;
 	private pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
+	private pendingRequestTimers = new Map<number, Timeout>();
 	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
 	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
@@ -79,7 +80,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.internalSend('request', request);
 		if (typeof timeout === 'number') {
 			const timer = setTimeout(() => {
-				clearTimeout(timer);
+				this.pendingRequestTimers.delete(request.seq);
 				const clb = this.pendingRequests.get(request.seq);
 				if (clb) {
 					this.pendingRequests.delete(request.seq);
@@ -94,6 +95,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 					clb(err);
 				}
 			}, timeout);
+			this.pendingRequestTimers.set(request.seq, timer);
 		}
 		if (clb) {
 			// store callback for this request
@@ -165,6 +167,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 					const clb = this.pendingRequests.get(response.request_seq);
 					if (clb) {
 						this.pendingRequests.delete(response.request_seq);
+						this.clearPendingRequestTimer(response.request_seq);
 						clb(response);
 					}
 					break;
@@ -198,7 +201,13 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			};
 			callback(err);
 			this.pendingRequests.delete(request_seq);
+			this.clearPendingRequestTimer(request_seq);
 		});
+	}
+
+	private clearPendingRequestTimer(requestSeq: number): void {
+		clearTimeout(this.pendingRequestTimers.get(requestSeq));
+		this.pendingRequestTimers.delete(requestSeq);
 	}
 
 	getPendingRequestIds(): number[] {
@@ -206,6 +215,10 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	dispose(): void {
+		for (const timer of this.pendingRequestTimers.values()) {
+			clearTimeout(timer);
+		}
+		this.pendingRequestTimers.clear();
 		this._onError.dispose();
 		this._onExit.dispose();
 		this.queue = [];

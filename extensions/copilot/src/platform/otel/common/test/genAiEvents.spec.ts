@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, StdAttr } from '../genAiAttributes';
 import { emitAgentTurnEvent, emitEditFeedbackEvent, emitEditSurvivalEvent, emitInferenceDetailsEvent, emitSessionStartEvent, emitToolCallEvent } from '../genAiEvents';
 import { resolveOTelConfig } from '../otelConfig';
 import type { IOTelService } from '../otelService';
 
-function createMockOTel(captureContent = false): IOTelService & { emitLogRecord: ReturnType<typeof vi.fn> } {
+function createMockOTel(captureContent = false): IOTelService & { emitLogRecord: Mock } {
 	const config = resolveOTelConfig({
 		env: captureContent ? { 'COPILOT_OTEL_ENABLED': 'true', 'COPILOT_OTEL_CAPTURE_CONTENT': 'true' } : { 'COPILOT_OTEL_ENABLED': 'true' },
 		extensionVersion: '1.0.0',
@@ -73,7 +73,7 @@ describe('emitInferenceDetailsEvent', () => {
 
 	it('includes content attributes when captureContent is true', () => {
 		const otel = createMockOTel(true);
-		const messages = [{ role: 'user', text: 'hello' }];
+		const messages = [{ role: 'user', content: 'hello' }];
 		const systemMsg = 'You are helpful';
 		const tools = [{ name: 'readFile' }];
 
@@ -83,8 +83,10 @@ describe('emitInferenceDetailsEvent', () => {
 		);
 
 		const attrs = otel.emitLogRecord.mock.calls[0][1];
-		expect(attrs[GenAiAttr.INPUT_MESSAGES]).toBe(JSON.stringify(messages));
-		expect(attrs[GenAiAttr.SYSTEM_INSTRUCTIONS]).toBe(JSON.stringify(systemMsg));
+		// Messages should be normalized to OTel GenAI format
+		expect(attrs[GenAiAttr.INPUT_MESSAGES]).toBe(JSON.stringify([{ role: 'user', parts: [{ type: 'text', content: 'hello' }] }]));
+		// System instructions should be wrapped in OTel format
+		expect(attrs[GenAiAttr.SYSTEM_INSTRUCTIONS]).toBe(JSON.stringify([{ type: 'text', content: 'You are helpful' }]));
 		expect(attrs[GenAiAttr.TOOL_DEFINITIONS]).toBe(JSON.stringify(tools));
 	});
 

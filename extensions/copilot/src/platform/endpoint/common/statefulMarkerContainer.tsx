@@ -6,6 +6,11 @@
 import { BasePromptElementProps, PromptElement, Raw } from '@vscode/prompt-tsx';
 import { CustomDataPartMimeTypes } from './endpointTypes';
 
+export const MISSING_STATEFUL_TOOL_RESULT = JSON.stringify({
+	status: 'outcome_unknown',
+	message: 'No tool output was recorded. Verify the current state before retrying this tool if its result is still needed.',
+});
+
 /**
  * A type representing a stateful marker that can be stored in an opaque part in raw chat messages.
  */
@@ -14,7 +19,16 @@ interface IStatefulMarkerContainer {
 	value: StatefulMarkerWithModel;
 }
 
-type StatefulMarkerWithModel = { modelId: string; marker: string };
+export type StatefulMarkerWithModel = {
+	modelId: string;
+	marker: string;
+	/**
+	 * The local summary generation included when an extension-contributed/BYOK
+	 * response created this marker. Used only to filter stale markers before
+	 * crossing the `vscode.lm` boundary; first-party state is managed separately.
+	 */
+	summarizedAtRoundId?: string;
+};
 
 export interface IStatefulMarkerContainerProps extends BasePromptElementProps {
 	statefulMarker: StatefulMarkerWithModel;
@@ -79,6 +93,19 @@ export function getStatefulMarkerAndIndex(modelId: string, messages: readonly Ra
 	for (const marker of getAllStatefulMarkersAndIndicies(messages)) {
 		if (marker.statefulMarker.modelId === modelId) {
 			return { statefulMarker: marker.statefulMarker.marker, index: marker.index };
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Finds the message index of a specific stateful marker value in the message history.
+ * Returns the index if found, undefined otherwise.
+ */
+export function getIndexOfStatefulMarker(markerValue: string, messages: readonly Raw.ChatMessage[]): number | undefined {
+	for (const entry of getAllStatefulMarkersAndIndicies(messages)) {
+		if (entry.statefulMarker.marker === markerValue) {
+			return entry.index;
 		}
 	}
 	return undefined;

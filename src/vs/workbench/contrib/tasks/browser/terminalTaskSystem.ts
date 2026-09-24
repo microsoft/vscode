@@ -473,19 +473,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return new Promise<ITaskTerminateResponse>((resolve, reject) => {
-			const onDisposedListener = terminal.onDisposed(terminal => {
-				this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
-				onDisposedListener.dispose();
-			});
 			const onExit = terminal.onExit(() => {
-				const task = activeTerminal.task;
+				const terminatedTask = activeTerminal.task;
 				try {
 					onExit.dispose();
-					this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
+					this._fireTaskEvent(TaskEvent.terminated(terminatedTask, terminal.instanceId, terminal.exitReason));
 				} catch (error) {
 					// Do nothing.
 				}
-				resolve({ success: true, task: task });
+				resolve({ success: true, task: terminatedTask });
 			});
 			terminal.dispose();
 		});
@@ -603,12 +599,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return { exitCode: 0 };
 			});
 		}).finally(() => {
-			delete this._activeTasks[mapKey];
+			// Skip if a later run replaced our entry; wiping it would orphan the live task.
+			if (this._activeTasks[mapKey] === activeTask) {
+				delete this._activeTasks[mapKey];
+			}
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
 		count.count++;
-		const activeTask = { task, promise, count };
+		const activeTask: IActiveTerminalData = { task, promise, count };
 		this._activeTasks[mapKey] = activeTask;
 		return promise;
 	}
@@ -846,6 +845,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return Promise.reject(new Error('No task previously run'));
 		}
 		const workspaceFolder = this._currentTask.workspaceFolder = lastTask.workspaceFolder;
+		// Carry systemInfo forward, else a later rerun resolves the shell on the local host (#175118).
+		this._currentTask.systemInfo = lastTask.systemInfo;
 		const variables = new Set<string>();
 		this._collectTaskVariables(variables, task);
 
@@ -962,6 +963,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
+				const boundTerminal = terminal!;
 				const onExit = terminal!.onExit((terminalLaunchResult) => {
 					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
 					onData?.dispose();
@@ -970,7 +972,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (this._busyTasks[mapKey]) {
 						delete this._busyTasks[mapKey];
 					}
-					this._removeFromActiveTasks(task);
+					// Skip if a later run replaced the entry with a different terminal.
+					const cur = this._activeTasks[key];
+					if (cur && cur.terminal === boundTerminal) {
+						this._removeFromActiveTasks(task);
+					}
 					this._fireTaskEvent(TaskEvent.changed());
 					if (terminalLaunchResult !== undefined) {
 						// Only keep a reference to the terminal if it is not being disposed.
@@ -1080,11 +1086,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				startStopProblemMatcher.processLine(line);
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
+				const boundTerminal = terminal!;
 				const onExit = terminal!.onExit((terminalLaunchResult) => {
 					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
 					onExit.dispose();
 					const key = task.getMapKey();
-					this._removeFromActiveTasks(task);
+					// Skip if a later run replaced the entry with a different terminal.
+					const cur = this._activeTasks[key];
+					if (cur && cur.terminal === boundTerminal) {
+						this._removeFromActiveTasks(task);
+					}
 					this._fireTaskEvent(TaskEvent.changed());
 					if (terminalLaunchResult !== undefined) {
 						// Only keep a reference to the terminal if it is not being disposed.
@@ -1495,7 +1506,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// For correct terminal re-use, the task needs to be deleted immediately.
 		// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
 		const mapKey = terminalData.lastTask;
-		this._removeFromActiveTasks(mapKey);
+		// Skip if a later run replaced the entry with a different terminal.
+		const cur = this._activeTasks[mapKey];
+		if (cur && cur.terminal === terminal) {
+			this._removeFromActiveTasks(mapKey);
+		}
 		if (this._busyTasks[mapKey]) {
 			delete this._busyTasks[mapKey];
 		}

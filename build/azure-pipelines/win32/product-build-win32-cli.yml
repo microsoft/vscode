@@ -6,12 +6,15 @@ parameters:
     default: false
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-windows-2022-x64
 
 jobs:
   - job: WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}
     displayName: Windows CLI (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
-      name: 1es-windows-2022-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows
     timeoutInMinutes: 90
     variables:
@@ -34,6 +37,13 @@ jobs:
         inputs:
           versionSource: fromFile
           versionFilePath: .nvmrc
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - template: ../cli/cli-apply-patches.yml@self
 
@@ -95,7 +105,7 @@ jobs:
           inputs:
             version: 6.x
 
-        - task: EsrpCodeSigning@5
+        - task: EsrpCodeSigning@6
           inputs:
             UseMSIAuthentication: true
             ConnectedServiceName: vscode-esrp

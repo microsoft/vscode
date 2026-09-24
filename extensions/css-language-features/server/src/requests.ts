@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType, Connection } from 'vscode-languageserver';
-import { RuntimeEnvironment } from './cssServer';
+import { RuntimeEnvironment } from './cssServer.js';
 
 export namespace FsContentRequest {
 	export const type: RequestType<{ uri: string; encoding?: string }, string, any> = new RequestType('fs/content');

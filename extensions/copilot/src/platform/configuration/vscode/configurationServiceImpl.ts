@@ -8,8 +8,7 @@ import * as vscode from 'vscode';
 import { distinct } from '../../../util/vs/base/common/arrays';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../env/common/packagejson';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { AbstractConfigurationService, BaseConfig, Config, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from '../common/configurationService';
+import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from '../common/configurationService';
 
 // Helper to avoid JSON.stringify quoting strings
 function stringOrStringify(value: any) {
@@ -57,7 +56,9 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		const config = scope === undefined ? this.config : vscode.workspace.getConfiguration(CopilotConfigPrefix, scope);
 
 		let configuredValue: T | undefined;
-		if (key.advancedSubKey) {
+		if (key.options?.userScopeOnly) {
+			configuredValue = this._getUserScopeValue(config, key);
+		} else if (key.advancedSubKey) {
 			// This is a `github.copilot.advanced.*` setting
 
 			// First, let's try to read it using the flat style
@@ -102,6 +103,33 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		}
 
 		return value.content;
+	}
+
+	private _getUserScopeValue<T>(config: WorkspaceConfiguration, key: Config<T>): T | undefined {
+		if (key.advancedSubKey) {
+			// Flat style: e.g., "github.copilot.advanced.debug.overrideCapiUrl": "..."
+			const flatInspect = config.inspect<T>(key.id);
+			if (flatInspect?.globalValue !== undefined) {
+				return flatInspect.globalValue;
+			}
+			// Object style: e.g., "github.copilot.advanced": { "debug.overrideCapiUrl": "..." }
+			const advancedInspect = config.inspect<Record<string, any>>('advanced');
+			return advancedInspect?.globalValue?.[key.advancedSubKey];
+		}
+
+		const inspected = config.inspect<T>(key.id);
+		if (inspected?.globalValue !== undefined) {
+			return inspected.globalValue;
+		}
+
+		if (key.oldId) {
+			const oldInspected = config.inspect<T>(key.oldId);
+			if (oldInspected?.globalValue !== undefined) {
+				return oldInspected.globalValue;
+			}
+		}
+
+		return undefined;
 	}
 
 	inspectConfig<T>(key: BaseConfig<T>, scope?: vscode.ConfigurationScope): InspectConfigResult<T> | undefined {
@@ -154,7 +182,18 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		return target;
 	}
 
-	async setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	private _toVSCodeConfigurationTarget(target: ConfigTarget): vscode.ConfigurationTarget {
+		switch (target) {
+			case ConfigTarget.Global:
+				return vscode.ConfigurationTarget.Global;
+			case ConfigTarget.Workspace:
+				return vscode.ConfigurationTarget.Workspace;
+			case ConfigTarget.WorkspaceFolder:
+				return vscode.ConfigurationTarget.WorkspaceFolder;
+		}
+	}
+
+	async setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Promise<void> {
 		if (key.advancedSubKey) {
 			// This is a `github.copilot.advanced.*` setting
 
@@ -188,11 +227,15 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 			} else {
 				currentValue[key.advancedSubKey] = value;
 			}
-			return this.config.update('advanced', currentValue, this._getTargetFromInspect(this.config.inspect('advanced')));
+			return this.config.update('advanced', currentValue, target === undefined ? this._getTargetFromInspect(this.config.inspect('advanced')) : this._toVSCodeConfigurationTarget(target));
 		}
 
 		const inspect = this.config.inspect(key.id);
 		if (value === undefined) {
+			if (target !== undefined) {
+				return this.config.update(key.id, value, this._toVSCodeConfigurationTarget(target));
+			}
+
 			if (!inspect) {
 				return this.config.update(key.id, value, vscode.ConfigurationTarget.Global);
 			}
@@ -212,51 +255,10 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 			return;
 		}
 
-		return this.config.update(key.id, value, this._getTargetFromInspect(inspect));
+		return this.config.update(key.id, value, target === undefined ? this._getTargetFromInspect(inspect) : this._toVSCodeConfigurationTarget(target));
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: vscode.ConfigurationScope): T {
-		const configuredValue = this._getUserConfiguredValueForExperimentBasedConfig(key, scope);
-		if (configuredValue !== undefined) {
-			return configuredValue;
-		}
-
-		if (key.experimentName) {
-			const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(key.experimentName);
-			if (expValue !== undefined) {
-				return expValue;
-			}
-		}
-
-		// This is the pattern we've been using for a while now. We need to maintain it for older experiments.
-		const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.id}`);
-		if (expValue !== undefined) {
-			return expValue;
-		}
-
-		// This is the pattern vscode uses for settings using the `onExp` tag. But vscode only supports it for
-		// settings defined in package.json, so this is why we're also reading the value from exp here.
-		const expValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedId}`);
-		if (expValue2 !== undefined) {
-			return expValue2;
-		}
-
-		if (key.fullyQualifiedOldId) {
-			const oldExpValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.oldId}`);
-			if (oldExpValue !== undefined) {
-				return oldExpValue;
-			}
-
-			const oldExpValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedOldId}`);
-			if (oldExpValue2 !== undefined) {
-				return oldExpValue2;
-			}
-		}
-
-		return this.getDefaultValue(key);
-	}
-
-	private _getUserConfiguredValueForExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: vscode.ConfigurationScope): T | undefined {
+	protected override _getUserConfiguredExperimentBasedValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: vscode.ConfigurationScope): T | undefined {
 		if (key.options?.valueIgnoredForExternals && !this._isInternal) {
 			// If the setting is restricted to internal users and the user is not internal, we return the default value
 			return undefined;
@@ -309,16 +311,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 
 		// Fire simulated event which checks if a configuration is affected in the treatments
 		this._onDidChangeConfiguration.fire({
-			affectsConfiguration: (section: string, _scope?: vscode.ConfigurationScope) => {
-				if (treatments.some(t => t.startsWith(`config.${section}`))) {
-					return true;
-				}
-				const oldId = globalConfigRegistry.configs.get(section)?.fullyQualifiedOldId;
-				if (oldId && treatments.some(t => t.startsWith(`config.${oldId}`))) {
-					return true;
-				}
-				return false;
-			}
+			affectsConfiguration: (section: string, _scope?: vscode.ConfigurationScope) => this._treatmentsAffectConfiguration(treatments, section)
 		});
 	}
 

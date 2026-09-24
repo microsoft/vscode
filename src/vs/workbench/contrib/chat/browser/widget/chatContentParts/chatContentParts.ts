@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions } from '../../chat.js';
 import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
@@ -43,12 +43,48 @@ export interface IChatContentPart extends IDisposable {
 	addDisposable?(disposable: IDisposable): void;
 }
 
+/** Diff resource emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffResource {
+	readonly resource: URI;
+	readonly originalURI: URI | undefined;
+	readonly modifiedURI: URI | undefined;
+}
+
+/** Aggregated diff data emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffData {
+	readonly added: number;
+	readonly removed: number;
+	readonly resources: readonly IChatContentPartDiffResource[];
+}
+
+/**
+ * A content part whose edits contribute to aggregated statistics. Consumers read `diffData`
+ * when they attach, because the change event may already have fired during construction
+ * (for example when an editing session restores finalized diffs synchronously).
+ */
+export interface IChatContentPartDiffSource {
+	readonly onDidChangeDiff: Event<IChatContentPartDiffData>;
+	readonly diffData: IChatContentPartDiffData | undefined;
+}
+
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
+	readonly readOnly?: boolean;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;
 	readonly contentIndex: number;
+	/** Whether the response-level progress indicator owns progress animation for this render. */
+	readonly suppressProgressShimmer?: boolean;
+	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
+	readonly onWillCollapse?: (target: HTMLElement) => void;
+	/** A tool group, separate from reasoning, in the persistent progress layout. */
+	readonly isToolChain?: boolean;
+	/**
+	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a
+	 * transcript row, so it renders the confirmation that transcript copies defer to it.
+	 */
+	readonly inToolConfirmationCarousel?: boolean;
 	readonly editorPool: EditorPool;
 	readonly codeBlockStartIndex: number;
 	readonly treeStartIndex: number;

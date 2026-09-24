@@ -80,6 +80,12 @@ export async function generateTerminalFixes(instantiationService: IInstantiation
 				}
 			}
 			r(picks);
+		}, err => {
+			// Generating terminal fixes is best-effort: a failed model request rejects here.
+			// Surface it as "No fixes found" instead of leaving an unhandled rejection that
+			// also strands the quick pick on "Generating…".
+			instantiationService.invokeFunction(accessor => accessor.get(ILogService)).error(err);
+			r([]);
 		});
 	});
 	picksPromise.then(picks => {
@@ -158,7 +164,7 @@ class TerminalQuickFixGenerator {
 			}
 		}
 
-		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const promptRenderer = PromptRenderer.create(this._instantiationService, endpoint, TerminalQuickFixPrompt, {
 			commandLine: commandMatchResult.commandLine,
@@ -216,7 +222,7 @@ class TerminalQuickFixGenerator {
 	}
 
 	private async _generateTerminalQuickFixFileContext(commandMatchResult: vscode.TerminalCommandMatchResult, token: CancellationToken) {
-		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const promptRenderer = PromptRenderer.create(this._instantiationService, endpoint, TerminalQuickFixFileContextPrompt, {
 			commandLine: commandMatchResult.commandLine,

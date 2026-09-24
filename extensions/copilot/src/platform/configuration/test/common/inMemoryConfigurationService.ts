@@ -5,7 +5,7 @@
 
 import type { ConfigurationScope } from 'vscode';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
-import { AbstractConfigurationService, BaseConfig, Config, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService, InspectConfigResult } from '../../common/configurationService';
+import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService, InspectConfigResult } from '../../common/configurationService';
 
 /**
  * A IConfigurationService that allows overriding of config values.
@@ -44,7 +44,7 @@ export class InMemoryConfigurationService extends AbstractConfigurationService {
 		return this.nonExtensionOverrides.get(configKey) ?? this.baseConfigurationService.getNonExtensionConfig(configKey);
 	}
 
-	override setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	override setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
 		this.overrides.set(key, value);
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (section: string) => section === key.fullyQualifiedId || key.fullyQualifiedId.startsWith(section + '.')
@@ -65,7 +65,16 @@ export class InMemoryConfigurationService extends AbstractConfigurationService {
 		if (override !== undefined) {
 			return override as T;
 		}
-		return this.baseConfigurationService.getExperimentBasedConfig(key, experimentationService);
+		return this.baseConfigurationService.getExperimentBasedConfig(key, experimentationService, scope);
+	}
+
+	override getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined {
+		// An override stands in for a user setting, so it reads as explicitly set.
+		const override = this.overrides.get(key);
+		if (override !== undefined) {
+			return override as T;
+		}
+		return this.baseConfigurationService.getExperimentBasedConfigIfSet(key, experimentationService, scope);
 	}
 
 	dumpConfig(): { [key: string]: string } {

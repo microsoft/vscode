@@ -5,7 +5,7 @@
 
 import { illegalArgument } from './errors.js';
 import { escapeIcons } from './iconLabels.js';
-import { Schemas } from './network.js';
+import { matchesSomeScheme, Schemas } from './network.js';
 import { isEqual } from './resources.js';
 import { escapeRegExpCharacters } from './strings.js';
 import { URI, UriComponents } from './uri.js';
@@ -152,7 +152,21 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 
 export function escapeMarkdownSyntaxTokens(text: string): string {
 	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&'); // CodeQL [SM02383] Backslash is escaped in the character class
+	return text
+		.replace(/[\\`*_{}[\]()#+!~]/g, '\\$&') // CodeQL [SM02383] Backslash is escaped in the character class
+		.replace(/^([ \t]*)-/gm, '$1\\-'); // CodeQL [SM02383] Backslash is escaped in the character class
+}
+
+/**
+ * Escapes only the characters that would break out of markdown link text
+ * (`[label](url)`) syntax: `\` and `]`. Use this when the escaped string is
+ * displayed as the visible label of a link, since renderers that extract the
+ * link text without re-parsing markdown (e.g. the chat inline anchor / skill
+ * pill) would otherwise show full `escapeMarkdownSyntaxTokens` backslashes
+ * (`\-`, `\.`, ...) verbatim.
+ */
+export function escapeMarkdownLinkLabel(text: string): string {
+	return text.replace(/[\\\]]/g, '\\$&');
 }
 
 /**
@@ -171,6 +185,23 @@ export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string
 		code,
 		`${'`'.repeat(desiredFenceLength)}`,
 	].join('\n');
+}
+
+/**
+ * Wraps arbitrary text in a markdown inline code span using a backtick fence
+ * long enough to safely contain any backtick sequences present in the text.
+ *
+ * Backticks inside an inline code span cannot be backslash-escaped per the
+ * CommonMark spec — the only safe way is to choose a delimiter run longer
+ * than any run of backticks in the content (and pad with spaces if the
+ * content begins or ends with a backtick).
+ */
+export function appendEscapedMarkdownInlineCode(text: string): string {
+	const longestBacktickRun = Math.max(0, ...(text.match(/`+/g) ?? []).map(m => m.length));
+	const fence = '`'.repeat(longestBacktickRun + 1);
+	const needsSpace = text.startsWith('`') || text.endsWith('`');
+	const content = needsSpace ? ` ${text} ` : text;
+	return `${fence}${content}${fence}`;
 }
 
 export function escapeDoubleQuotes(input: string) {
@@ -221,4 +252,36 @@ export function createCommandUri(commandId: string, ...commandArgs: unknown[]): 
 		path: commandId,
 		query: commandArgs.length ? encodeURIComponent(JSON.stringify(commandArgs)) : undefined,
 	});
+}
+
+/**
+ * VS Code addresses some content with placeholder `http` URLs whose authority is wrapped in
+ * underscores, such as `http://_vscodecontentref_/0`. Underscores are illegal in hostnames, so
+ * no real site collides with this shape.
+ */
+const placeholderAuthority = /^https?:\/\/_[^/?#]*_(?:[/?#]|$)/i;
+
+/**
+ * Paths naming a location on this machine. Hand-rolled rather than reusing `extpath`, whose
+ * drive-letter handling follows the host platform: a Windows path must still be recognized
+ * when the copy happens on macOS.
+ */
+const absolutePath = /^(?:[/\\]|[a-z]:[/\\])/i;
+
+/** Whether a target still resolves once content is copied into another application. */
+export function isPortableLinkTarget(target: string): boolean {
+	const trimmed = target.trim();
+	return matchesSomeScheme(trimmed, Schemas.http, Schemas.https, Schemas.mailto)
+		&& !placeholderAuthority.test(trimmed);
+}
+
+/**
+ * Whether a markdown target is worth keeping when the markdown itself is shared. Wider than
+ * {@link isPortableLinkTarget}: document-relative targets such as `#section` name no machine,
+ * so they stay meaningful in whatever document the markdown lands in.
+ */
+export function isPortableMarkdownTarget(target: string): boolean {
+	const trimmed = target.trim();
+	return isPortableLinkTarget(trimmed)
+		|| (!!trimmed && !/^[a-z][a-z0-9.+-]*:/i.test(trimmed) && !absolutePath.test(trimmed));
 }

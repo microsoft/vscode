@@ -15,6 +15,7 @@ import { escapeRegExpCharacters } from '../../../util/vs/base/common/strings';
 import { isUriComponents, URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { PromptReference } from '../../prompt/common/conversation';
+import { extractQualifiedSymbolParts, extractSymbolNamesInCode } from './findSymbol';
 
 /**
  * How the word was resolved.
@@ -41,6 +42,149 @@ interface ResolvedWordLocation {
 interface FindWordOptions {
 	readonly symbolMatchesOnly?: boolean;
 	readonly maxResultCount?: number;
+}
+
+export interface FileSymbol {
+	readonly identifier: string;
+	readonly location: vscode.Location;
+}
+
+export interface FileSymbols {
+	readonly declarations: readonly FileSymbol[];
+	readonly getGenericSymbols: () => Promise<readonly FileSymbol[]>;
+}
+
+export type SymbolFileCache = Map<string, Promise<FileSymbols>>;
+
+export async function findSymbolLocationInFile(
+	parserService: IParserService,
+	uri: vscode.Uri,
+	symbolText: string,
+	token: CancellationToken,
+	cache?: SymbolFileCache
+): Promise<vscode.Location | undefined> {
+	if (token.isCancellationRequested) {
+		return;
+	}
+
+	const symbols = await getCachedFileSymbols(parserService, uri, token, cache);
+	if (token.isCancellationRequested) {
+		return;
+	}
+
+	const exactMatch = findExactSymbol(symbols.declarations, symbolText);
+	if (exactMatch) {
+		return exactMatch.location;
+	}
+
+	const symbolParts = extractSymbolNamesInCode(symbolText);
+	if (symbolParts.length) {
+		const declarationMatch = findBestSymbolPart(symbols.declarations, symbolParts);
+		if (declarationMatch) {
+			return declarationMatch.location;
+		}
+	}
+
+	const genericSymbols = await symbols.getGenericSymbols();
+	if (token.isCancellationRequested) {
+		return;
+	}
+
+	return findExactSymbol(genericSymbols, symbolText)?.location
+		?? (symbolParts.length ? findBestSymbolPart(genericSymbols, symbolParts)?.location : undefined);
+}
+
+function findExactSymbol(symbols: readonly FileSymbol[], symbolText: string): FileSymbol | undefined {
+	return symbols.find(symbol => symbol.identifier === symbolText);
+}
+
+function findBestSymbolPart(symbols: readonly FileSymbol[], symbolParts: readonly string[]): FileSymbol | undefined {
+	let bestMatch: { symbol: FileSymbol; matchIndex: number } | undefined;
+	for (const symbol of symbols) {
+		const matchIndex = symbolParts.indexOf(symbol.identifier);
+		if (matchIndex !== -1 && (!bestMatch || matchIndex > bestMatch.matchIndex)) {
+			bestMatch = { symbol, matchIndex };
+		}
+	}
+
+	return bestMatch?.symbol;
+}
+
+async function getCachedFileSymbols(
+	parserService: IParserService,
+	uri: vscode.Uri,
+	token: CancellationToken,
+	cache: SymbolFileCache | undefined
+): Promise<FileSymbols> {
+	const key = uri.toString();
+	const existing = cache?.get(key);
+	if (existing) {
+		return existing;
+	}
+
+	const pending = doGetFileSymbols(parserService, uri, token);
+	cache?.set(key, pending);
+	return pending;
+}
+
+async function doGetFileSymbols(parserService: IParserService, uri: vscode.Uri, token: CancellationToken): Promise<FileSymbols> {
+	const languageId = getLanguageForResource(uri).languageId;
+	const wasmLanguage = getWasmLanguage(languageId);
+	if (!wasmLanguage) {
+		return emptyFileSymbols();
+	}
+
+	const doc = await openDocument(uri);
+	if (!doc || token.isCancellationRequested) {
+		return emptyFileSymbols();
+	}
+
+	try {
+		const text = doc.getText();
+		const ast = parserService.getTreeSitterASTForWASMLanguage(wasmLanguage, text);
+		const [classDeclarations, functionDefinitions, typeDeclarations] = await Promise.all([
+			ast.getClassDeclarations(),
+			ast.getFunctionDefinitions(),
+			ast.getTypeDeclarations(),
+		]);
+		let genericSymbols: Promise<readonly FileSymbol[]> | undefined;
+		return {
+			declarations: toFileSymbols(uri, doc, [
+				...classDeclarations,
+				...functionDefinitions,
+				...typeDeclarations,
+			]),
+			getGenericSymbols: () => {
+				if (token.isCancellationRequested) {
+					return Promise.resolve([]);
+				}
+				genericSymbols ??= (async () => {
+					const symbols = await ast.getSymbols({
+						startIndex: 0,
+						endIndex: text.length,
+					});
+					return toFileSymbols(uri, doc, symbols);
+				})().catch(() => []);
+				return genericSymbols;
+			},
+		};
+	} catch {
+		return emptyFileSymbols();
+	}
+}
+
+function toFileSymbols(uri: vscode.Uri, doc: SimpleTextDocument, symbols: readonly TreeSitterExpressionInfo[]): readonly FileSymbol[] {
+	return symbols.map(symbol => ({
+		identifier: symbol.identifier,
+		location: new vscode.Location(uri, doc.positionAt(symbol.startIndex))
+	}));
+}
+
+function emptyFileSymbols(): FileSymbols {
+	return {
+		declarations: [],
+		getGenericSymbols: async () => []
+	};
 }
 
 export async function findWordInReferences(
@@ -245,42 +389,25 @@ export class ReferencesSymbolResolver {
 
 		// But then try breaking up inline code into symbol parts
 		if (!wordMatches.length) {
-			// Extract all symbol parts from the code text
+			// Only text that really is a qualified name may be decomposed. Splitting arbitrary
+			// inline code links things like `mx:text` to an unrelated `text` declaration.
 			// For example: `TextModel.undo()` -> ['TextModel', 'undo']
-			const symbolParts = Array.from(codeText.matchAll(/[#\w$][\w\d$]*/g), x => x[0]);
+			const symbolParts = extractQualifiedSymbolParts(codeText);
 
 			if (symbolParts.length >= 2) {
-				// For qualified names like `Class.method()`, search for both parts together
-				// This helps disambiguate when there are multiple methods with the same name
-				const firstPart = symbolParts[0];
-				const lastPart = symbolParts[symbolParts.length - 1];
-
-				// First, try to find the class
-				const classMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, firstPart, {
+				// Resolve the qualifier, e.g. the class. Click-time resolution narrows to the
+				// member. Without the qualifier there is nothing to disambiguate the member
+				// against, so a bare member match would be a guess.
+				wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, symbolParts[0], {
 					symbolMatchesOnly: true,
 					maxResultCount: this.findWordOptions.maxResultCount,
 				}, token, this.documentCache));
-
-				// If we found the class, we'll rely on the click-time resolution to find the method
-				if (classMatches.length) {
-					wordMatches = classMatches;
-				} else {
-					// If no class found, try just the method name as fallback
-					wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, lastPart, {
-						symbolMatchesOnly: true,
-						maxResultCount: this.findWordOptions.maxResultCount,
-					}, token));
-				}
-			} else if (symbolParts.length > 0) {
-				// For single names like `undo`, try to find the method directly
-				const lastPart = symbolParts[symbolParts.length - 1];
-
-				if (lastPart && lastPart !== codeText) {
-					wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, lastPart, {
-						symbolMatchesOnly: true,
-						maxResultCount: this.findWordOptions.maxResultCount,
-					}, token, this.documentCache));
-				}
+			} else if (symbolParts.length === 1 && symbolParts[0] !== codeText) {
+				// For names carrying a signature, like `undo()`, search the bare name.
+				wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, symbolParts[0], {
+					symbolMatchesOnly: true,
+					maxResultCount: this.findWordOptions.maxResultCount,
+				}, token, this.documentCache));
 			}
 		}
 

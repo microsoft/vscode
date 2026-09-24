@@ -22,7 +22,7 @@ import * as JSONC from 'jsonc-parser';
 import type { LanguageModelChat } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes.js';
 import { ObjectJsonSchema } from '../../../platform/configuration/common/jsonSchema.js';
-import { isHiddenModelF } from '../../../platform/endpoint/common/chatModelCapabilities.js';
+import { isGeminiFamily, isHiddenModelF } from '../../../platform/endpoint/common/chatModelCapabilities.js';
 import { IChatEndpoint } from '../../../platform/networking/common/networking.js';
 import { extractCodeBlocks } from '../../../util/common/markdown.js';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation.js';
@@ -72,7 +72,7 @@ export async function healReplaceStringParams(
 	token: CancellationToken,
 ): Promise<CorrectedEditResult> {
 	let finalNewString = originalParams.newString!;
-	const unescapeStringForGeminiBug = model?.family.toLowerCase().includes('gemini') || (model && isHiddenModelF(model)) ? _unescapeStringForGeminiBug : (s: string) => s;
+	const unescapeStringForGeminiBug = (model && (isGeminiFamily(model) || isHiddenModelF(model))) ? _unescapeStringForGeminiBug : (s: string) => s;
 	const newStringPotentiallyEscaped =
 		unescapeStringForGeminiBug(originalParams.newString!) !==
 		originalParams.newString;
@@ -385,18 +385,6 @@ Return ONLY the corrected string in the specified JSON format with the key 'corr
 	}
 }
 
-const CORRECT_STRING_ESCAPING_SCHEMA: ObjectJsonSchema = {
-	type: 'object',
-	properties: {
-		corrected_string_escaping: {
-			type: 'string',
-			description:
-				'The string with corrected escaping, ensuring it is valid, specially considering potential over-escaping issues from previous LLM generations.',
-		},
-	},
-	required: ['corrected_string_escaping'],
-};
-
 async function getJsonResponse(endpoint: IChatEndpoint, prompt: string, schema: ObjectJsonSchema, example: object, token: CancellationToken) {
 	prompt += `\n\nYour response must follow the JSON format:
 
@@ -435,45 +423,6 @@ For example: ${JSON.stringify(example)}
 
 	const idx = result.value.indexOf('{');
 	return JSONC.parse(result.value.slice(idx)) || undefined;
-}
-
-export async function correctStringEscaping(
-	potentiallyProblematicString: string,
-	endpoint: IChatEndpoint,
-	token: CancellationToken,
-): Promise<string> {
-	const prompt = `
-Context: An LLM has just generated potentially_problematic_string and the text might have been improperly escaped (e.g. too many backslashes for newlines like \\n instead of \n, or unnecessarily quotes like \\"Hello\\" instead of "Hello").
-
-potentially_problematic_string (this text MIGHT have bad escaping, or might be entirely correct):
-\`\`\`
-${potentiallyProblematicString}
-\`\`\`
-
-Task: Analyze the potentially_problematic_string. If it's syntactically invalid due to incorrect escaping (e.g., "\n", "\t", "\\", "\\'", "\\""), correct the invalid syntax. The goal is to ensure the text will be a valid and correctly interpreted.
-
-For example, if potentially_problematic_string is "bar\\nbaz", the corrected_newString_escaping should be "bar\nbaz".
-If potentially_problematic_string is console.log(\\"Hello World\\"), it should be console.log("Hello World").
-
-Return ONLY the corrected string in the specified JSON format with the key 'corrected_string_escaping'. If no escaping correction is needed, return the original potentially_problematic_string.
-  `.trim();
-
-
-	try {
-		const result = await getJsonResponse(endpoint, prompt, CORRECT_STRING_ESCAPING_SCHEMA, { corrected_string_escaping: '<corrected string here>' }, token);
-
-		if (
-			result &&
-			typeof result.corrected_string_escaping === 'string' &&
-			result.corrected_string_escaping.length > 0
-		) {
-			return result.corrected_string_escaping;
-		} else {
-			return potentiallyProblematicString;
-		}
-	} catch (error) {
-		return potentiallyProblematicString;
-	}
 }
 
 function trimPairIfPossible(

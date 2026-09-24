@@ -11,7 +11,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../../util/
 import { LlmNESTelemetryBuilder } from '../../../../../inlineEdits/node/nextEditProviderTelemetry';
 import { isInlineSuggestionFromTextAfterCursor } from '../../../../../xtab/common/inlineSuggestion';
 import { GhostTextLogContext } from '../../../../common/ghostTextContext';
-import { initializeTokenizers } from '../../../prompt/src/tokenization';
+import { ensureTokenizersLoaded } from '../../../prompt/src/tokenization';
 import { CancellationTokenSource, CancellationToken as ICancellationToken } from '../../../types/src';
 import { ICompletionsNotifierService } from '../completionNotifier';
 import { CompletionState } from '../completionState';
@@ -148,6 +148,7 @@ export class GhostTextComputer {
 		parentLogger: ILogger,
 	): Promise<GhostTextResultWithTelemetry<[CompletionResult[], ResultType]>> {
 		const id = generateUuid();
+		telemetryBuilder.setHeaderRequestId(id);
 		const logger = parentLogger.createSubLogger(['GhostTextComputer#getGhostText']);
 		this.currentGhostText.currentRequestId = id;
 		const telemetryData = await this.instantiationService.invokeFunction(createTelemetryWithExp, completionState.textDocument, id, options);
@@ -155,7 +156,7 @@ export class GhostTextComputer {
 		// means we can't use `initialize` to actually initialize anything expensive.  This the primary user of the
 		// tokenizer, so settle for initializing here instead.  We don't use waitForTokenizers() because in the event of a
 		// tokenizer load failure, that would spam handleException() on every request.
-		await initializeTokenizers.catch(() => { });
+		await ensureTokenizersLoaded().catch(() => { });
 		try {
 			this.contextProviderBridge.schedule(
 				completionState,
@@ -644,6 +645,11 @@ export class GhostTextComputer {
 				// Update the current ghost text with the new response before returning for the "typing as suggested" UX
 				this.currentGhostText.setGhostText(prefix, prompt.prompt.suffix, postProcessedChoicesArray, resultType);
 			}
+
+			// Overwrite the early fallback `headerRequestId` (set to `id` at the top) with the
+			// winning choice's actual `headerRequestId`. They differ when the result came from
+			// a local cache hit or an in-flight async request produced by a different invocation.
+			telemetryBuilder.setHeaderRequestId(postProcessedChoicesArray[0]?.requestId.headerRequestId ?? ourRequestId);
 
 			recordPerformance('complete');
 			logger.trace(`Ghost text computation complete, returning ${results.length} results`);

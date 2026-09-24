@@ -76,11 +76,12 @@ import { ParserServiceImpl } from '../../parser/node/parserServiceImpl';
 import { IPromptPathRepresentationService, TestPromptPathRepresentationService } from '../../prompts/common/promptPathRepresentationService';
 import { BasicCodeSearchAuthenticationService, ICodeSearchAuthenticationService } from '../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { NullRequestLogger } from '../../requestLogger/node/nullRequestLogger';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IScopeSelector } from '../../scopeSelection/common/scopeSelection';
 import { ISearchService } from '../../search/common/searchService';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../simulationTestContext/common/simulationTestContext';
 import { ISnippyService, NullSnippyService } from '../../snippy/common/snippyService';
+import { IChatWebSocketManager, NullChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { ISurveyService, NullSurveyService } from '../../survey/common/surveyService';
 import { ITabsAndEditorsService } from '../../tabs/common/tabsAndEditorsService';
 import { ITasksService } from '../../tasks/common/tasksService';
@@ -99,6 +100,8 @@ import { SnapshotSearchService, TestingTabsAndEditorsService } from './simulatio
 import { TestChatAgentService } from './testChatAgentService';
 import { TestWorkbenchService } from './testWorkbenchService';
 import { TestWorkspaceService } from './testWorkspaceService';
+import { IGrepResultService, NullGrepResultService } from '../../../extension/tools/node/grepResultService';
+import { IRegionContextProviderService, NullRegionContextProviderService } from '../../languageContextProvider/common/regionContextProvider';
 
 /**
  * Collects descriptors for services to use in testing.
@@ -266,6 +269,8 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 	testingServiceCollection.define(IImageService, nullImageService);
 	testingServiceCollection.define(ILanguageContextService, NullLanguageContextService);
 	testingServiceCollection.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
+	testingServiceCollection.define(IGrepResultService, new SyncDescriptor(NullGrepResultService));
+	testingServiceCollection.define(IRegionContextProviderService, new SyncDescriptor(NullRegionContextProviderService));
 	testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
 	testingServiceCollection.define(IPromptPathRepresentationService, new SyncDescriptor(TestPromptPathRepresentationService));
 	testingServiceCollection.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
@@ -278,6 +283,7 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 		}
 	}));
 	testingServiceCollection.define(ISnippyService, new SyncDescriptor(NullSnippyService));
+	testingServiceCollection.define(IChatWebSocketManager, new SyncDescriptor(NullChatWebSocketManager));
 	testingServiceCollection.define(IInteractiveSessionService, new SyncDescriptor(class implements IInteractiveSessionService {
 		_serviceBrand: undefined;
 		async transferActiveChat(workspaceUri: Uri): Promise<void> {

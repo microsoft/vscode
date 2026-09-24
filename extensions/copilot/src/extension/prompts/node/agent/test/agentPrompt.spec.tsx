@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
@@ -18,6 +19,7 @@ import { createTextDocumentData } from '../../../../../util/common/test/shims/te
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import type { LanguageModelToolInformation } from 'vscode';
 import { ChatRequestEditedFileEventKind, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { addCacheBreakpoints } from '../../../../intents/node/cacheBreakpoints';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
@@ -48,6 +50,59 @@ const testFamilies = [
 	'gemini-2.0-flash',
 	'grok-code-fast-1'
 ];
+
+test.each([
+	{ summarization: false, systemInstructions: true },
+	{ summarization: false, systemInstructions: false },
+	{ summarization: true, systemInstructions: true },
+	{ summarization: true, systemInstructions: false },
+])('Responses cache boundaries in rendered history (summarization=$summarization, systemInstructions=$systemInstructions)', async ({ summarization, systemInstructions }) => {
+	const services = createExtensionUnitTestingServices();
+	const accessor = services.createTestingAccessor();
+	try {
+		const configuration = accessor.get(IConfigurationService);
+		configuration.setConfig(ConfigKey.CustomInstructionsInSystemMessage, systemInstructions);
+		configuration.setConfig(ConfigKey.CodeGenerationInstructions, [{ text: 'Use descriptive variable names.' }]);
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = instantiationService.createInstance(MockEndpoint, 'gpt-5.6-sol');
+		const history = Array.from({ length: 22 }, (_, index) => {
+			const turn = new Turn(`turn-${index}`, { type: 'user', message: `cache-query-${index}!` });
+			turn.setResponse(TurnStatus.Success, { type: 'user', message: `answer-${index}` }, `response-${index}`, undefined);
+			return turn;
+		});
+		const currentTurn = new Turn('current-turn', { type: 'user', message: 'cache-query-22!' });
+		const promptContext: IBuildPromptContext = {
+			chatVariables: new ChatVariablesCollection(),
+			conversation: new Conversation('cache-test', [...history, currentTurn]),
+			history,
+			query: 'cache-query-22!',
+			tools: { availableTools: [], toolInvocationToken: null as never, toolReferences: [] },
+		};
+		const renderer = PromptRenderer.create(instantiationService, endpoint, AgentPrompt, {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext,
+			customizations: await PromptRegistry.resolveAllCustomizations(instantiationService, endpoint),
+			enableSummarization: summarization,
+			enableCacheBreakpoints: summarization,
+		});
+		const { messages } = await renderer.render();
+
+		addCacheBreakpoints(messages, 'responses');
+
+		const marked = messages.filter(message => message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint));
+		expect(marked).toHaveLength(22);
+		expect(marked.filter(message => message.role === Raw.ChatRole.System)).toHaveLength(1);
+		expect(marked.filter(message => messageToMarkdown(message).includes('<environment_info>'))).toHaveLength(1);
+		for (let index = 0; index < 23; index++) {
+			expect(marked.some(message => messageToMarkdown(message).includes(`cache-query-${index}!`)), `query ${index}`).toBe(index >= 3);
+		}
+	} finally {
+		accessor.dispose();
+		services.dispose();
+	}
+});
 
 testFamilies.forEach(family => {
 	suite(`AgentPrompt - ${family}`, () => {
@@ -89,13 +144,32 @@ testFamilies.forEach(family => {
 			accessor.dispose();
 		});
 
-		async function agentPromptToString(accessor: ITestingServicesAccessor, promptContext: IBuildPromptContext, otherProps?: Partial<AgentPromptProps>): Promise<string> {
+		async function agentPromptToString(accessor: ITestingServicesAccessor, promptContext: IBuildPromptContext, otherProps?: Partial<AgentPromptProps>, includeMemoryTool = true): Promise<string> {
 			const instaService = accessor.get(IInstantiationService);
 			const endpoint = family === 'default'
 				? instaService.createInstance(MockEndpoint, undefined)
 				: instaService.createInstance(MockEndpoint, family);
+			const isMessagesApi = family.startsWith('claude-');
 			if (!promptContext.conversation) {
 				promptContext = { ...promptContext, conversation };
+			}
+
+			// Real agent requests always advertise the non-deferred memory tool, which gates
+			// the memory instructions/context blocks. Advertise it here so scenarios that don't
+			// otherwise pass tools still exercise the memory-enabled prompt by default; the
+			// `memory tool disabled` test opts out to cover the gated-off behavior.
+			if (includeMemoryTool && !promptContext.tools?.availableTools.some(t => t.name === ToolName.Memory)) {
+				const memoryTool = accessor.get(IToolsService).tools.find(t => t.name === ToolName.Memory);
+				if (memoryTool) {
+					promptContext = {
+						...promptContext,
+						tools: {
+							toolInvocationToken: promptContext.tools?.toolInvocationToken ?? (null as never),
+							toolReferences: promptContext.tools?.toolReferences ?? [],
+							availableTools: [...(promptContext.tools?.availableTools ?? []), memoryTool],
+						}
+					};
+				}
 			}
 
 			const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
@@ -112,7 +186,9 @@ testFamilies.forEach(family => {
 			const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
 
 			const r = await renderer.render();
-			addCacheBreakpoints(r.messages);
+			if (!isMessagesApi) {
+				addCacheBreakpoints(r.messages, 'chatCompletions');
+			}
 			return r.messages
 				.map(m => messageToMarkdown(m))
 				.join('\n\n')
@@ -146,6 +222,35 @@ testFamilies.forEach(family => {
 			}, undefined)).toMatchFileSnapshot(getSnapshotFile('simple_case'));
 		});
 
+		if (family === 'default') {
+			test('voice progress guidance appears only for top-level voice requests', async () => {
+				const promptContext = {
+					chatVariables: new ChatVariablesCollection(),
+					history: [],
+					query: 'hello',
+				};
+				const topLevelVoicePrompt = await agentPromptToString(accessor, {
+					...promptContext,
+					request: { isVoiceModeInput: true } as IBuildPromptContext['request'],
+				});
+				const subagentVoicePrompt = await agentPromptToString(accessor, {
+					...promptContext,
+					request: { isVoiceModeInput: true, subAgentInvocationId: 'subagent' } as IBuildPromptContext['request'],
+				});
+				const typedPrompt = await agentPromptToString(accessor, promptContext);
+
+				expect({
+					topLevelVoice: topLevelVoicePrompt.includes('You MUST call the report_voice_progress tool in the same response as your first real work tool calls'),
+					subagentVoice: subagentVoicePrompt.includes('You MUST call the report_voice_progress tool in the same response as your first real work tool calls'),
+					typed: typedPrompt.includes('You MUST call the report_voice_progress tool in the same response as your first real work tool calls'),
+				}).toEqual({
+					topLevelVoice: true,
+					subagentVoice: false,
+					typed: false,
+				});
+			});
+		}
+
 		test('all tools', async () => {
 			const toolsService = accessor.get(IToolsService);
 			await expect(await agentPromptToString(accessor, {
@@ -173,6 +278,24 @@ testFamilies.forEach(family => {
 					toolReferences: [],
 				}
 			}, undefined)).toMatchFileSnapshot(getSnapshotFile('all_non_edit_tools'));
+		});
+
+		test('memory tool disabled omits memory instructions and context', async () => {
+			const toolsService = accessor.get(IToolsService);
+			const rendered = await agentPromptToString(accessor, {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				tools: {
+					availableTools: toolsService.tools.filter(t => t.name !== ToolName.Memory),
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				}
+			}, undefined, /* includeMemoryTool */ false);
+			expect(rendered).not.toContain('memoryInstructions');
+			expect(rendered).not.toContain('userMemory');
+			expect(rendered).not.toContain('sessionMemory');
+			expect(rendered).not.toContain('repoMemory');
 		});
 
 		test('one attachment', async () => {
@@ -213,6 +336,7 @@ testFamilies.forEach(family => {
 					query: 'edit this file',
 				},
 				{
+					enableSummarization: true,
 					enableCacheBreakpoints: true,
 				})).toMatchFileSnapshot(getSnapshotFile('cache_BPs'));
 		});
@@ -257,8 +381,27 @@ testFamilies.forEach(family => {
 					tools,
 				},
 				{
+					enableSummarization: true,
 					enableCacheBreakpoints: true,
 				})).toMatchFileSnapshot(getSnapshotFile('cache_BPs_multi_round'));
+		});
+
+		// The Messages API path uses summarization without prompt-tsx breakpoints
+		// — placement is owned downstream by messagesApi.ts. This pins the
+		// rendered shape so a regression in the AgentPrompt branch (currently
+		// at line 144: `if (this.props.enableSummarization)`) is caught here.
+		test('summarization without cache breakpoints (Messages API config)', async () => {
+			await expect(await agentPromptToString(
+				accessor,
+				{
+					chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
+					history: [],
+					query: 'edit this file',
+				},
+				{
+					enableSummarization: true,
+					enableCacheBreakpoints: false,
+				})).toMatchFileSnapshot(getSnapshotFile('summarization_no_cache_bps'));
 		});
 
 		test('custom instructions not in system message', async () => {
@@ -295,5 +438,92 @@ testFamilies.forEach(family => {
 				],
 			}, undefined))).toMatchFileSnapshot(getSnapshotFile('edited_file_events_grouped_by_kind'));
 		});
+	});
+});
+
+suite('AgentPrompt - Gemini Flash prompt additions experiment', () => {
+	let accessor: ITestingServicesAccessor;
+
+	beforeAll(() => {
+		const services = createExtensionUnitTestingServices();
+		services.define(IWorkspaceService, new SyncDescriptor(TestWorkspaceService, [[URI.file('/workspace')]]));
+		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
+		accessor = services.createTestingAccessor();
+	});
+
+	afterAll(() => {
+		accessor.dispose();
+	});
+
+	async function renderForFamily(family: string, includeToolSpecificTools = true): Promise<string> {
+		const instaService = accessor.get(IInstantiationService);
+		const endpoint = instaService.createInstance(MockEndpoint, family);
+		const toolsService = accessor.get(IToolsService);
+		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
+		const conversation = new Conversation('sessionId', [turn]);
+		const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
+		const syntheticTool = (name: ToolName): LanguageModelToolInformation => ({
+			name,
+			description: '',
+			inputSchema: undefined,
+			tags: [],
+			source: undefined,
+		});
+		const availableTools = includeToolSpecificTools
+			? [...toolsService.tools, syntheticTool(ToolName.CoreRunInTerminal), syntheticTool(ToolName.FindTextInFiles)]
+			: toolsService.tools.filter(t => t.name !== ToolName.CoreRunInTerminal && t.name !== ToolName.FindTextInFiles);
+		const props: AgentPromptProps = {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				conversation,
+				tools: {
+					availableTools,
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				},
+			},
+			customizations,
+		};
+		const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
+		const r = await renderer.render();
+		return r.messages.map(m => messageToMarkdown(m)).join('\n\n');
+	}
+
+	function assertAdditions(rendered: string, expected: { readAst: boolean; toolBatching: boolean; searchPrecision: boolean }) {
+		expect({
+			readAst: rendered.includes('Read ast/definitions first'),
+			toolBatching: rendered.includes('**Tool Batching**'),
+			searchPrecision: rendered.includes('**Search Precision**'),
+		}).toEqual(expected);
+	}
+
+	test('additions appear for Gemini Flash 3.6 when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.6-flash'), { readAst: true, toolBatching: true, searchPrecision: true });
+	});
+
+	test('additions appear for Gemini Flash 3.7 when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.7-flash'), { readAst: true, toolBatching: true, searchPrecision: true });
+	});
+
+	test('tool-specific additions are gated on tool availability', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.6-flash', /* includeToolSpecificTools */ false), { readAst: true, toolBatching: false, searchPrecision: false });
+	});
+
+	test('additions are omitted for Gemini Flash 3.6 when experiment is disabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, false);
+		assertAdditions(await renderForFamily('gemini-3.6-flash'), { readAst: false, toolBatching: false, searchPrecision: false });
+	});
+
+	test('additions are omitted for other Gemini families even when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-2.0-flash'), { readAst: false, toolBatching: false, searchPrecision: false });
 	});
 });

@@ -22,6 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
 
 suite('EditorGroupsService', () => {
 
@@ -62,6 +63,13 @@ suite('EditorGroupsService', () => {
 
 	function createTestFileEditorInput(resource: URI, typeId: string): TestFileEditorInput {
 		return disposables.add(new TestFileEditorInput(resource, typeId));
+	}
+
+	function createCannotCloseTestFileEditorInput(resource: URI, typeId: string): TestFileEditorInput {
+		const input = createTestFileEditorInput(resource, typeId);
+		input.capabilities = EditorInputCapabilities.CannotClose;
+
+		return input;
 	}
 
 	test('groups basics', async function () {
@@ -693,6 +701,26 @@ suite('EditorGroupsService', () => {
 		assert.ok(input.gotDisposed);
 	});
 
+	test('closeEditor - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createCannotCloseTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input);
+
+		const closed = await group.closeEditor(input);
+		assert.strictEqual(closed, false);
+		assert.strictEqual(group.count, 1);
+		assert.strictEqual(group.activeEditor, input);
+		assert.ok(!input.gotDisposed);
+
+		const forceClosed = await group.closeEditor(input, { force: true });
+		assert.strictEqual(forceClosed, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input.gotDisposed);
+	});
+
 	test('closeEditors - dirty editor handling', async () => {
 		const [part, instantiationService] = await createPart();
 
@@ -748,6 +776,30 @@ suite('EditorGroupsService', () => {
 		await group.closeEditors({ except: input2 });
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.getEditorByIndex(0), input2);
+	});
+
+	test('closeEditors - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input1 = createTestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = createCannotCloseTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([
+			{ editor: input1, options: { pinned: true } },
+			{ editor: input2, options: { pinned: true } }
+		]);
+
+		const closeResult = await group.closeEditors([input1, input2]);
+		assert.strictEqual(closeResult, true);
+		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [input2]);
+		assert.ok(input1.gotDisposed);
+		assert.ok(!input2.gotDisposed);
+
+		const forceCloseResult = await group.closeEditors([input2], { force: true });
+		assert.strictEqual(forceCloseResult, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input2.gotDisposed);
 	});
 
 	test('closeEditors (except one, sticky editor)', async () => {
@@ -1039,6 +1091,39 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isEmpty, true);
 	});
 
+	test('closeAllEditors - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input1 = createTestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = createCannotCloseTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([
+			{ editor: input1, options: { pinned: true } },
+			{ editor: input2, options: { pinned: true } }
+		]);
+
+		const closeResult = await group.closeAllEditors();
+		assert.strictEqual(closeResult, true);
+		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [input2]);
+		assert.ok(input1.gotDisposed);
+		assert.ok(!input2.gotDisposed);
+	});
+
+	test('closeAllEditors - force closes cannot close editors', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createCannotCloseTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input);
+
+		const closeResult = await group.closeAllEditors({ force: true });
+		assert.strictEqual(closeResult, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input.gotDisposed);
+	});
+
 	test('moveEditor (same group)', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
@@ -1294,6 +1379,20 @@ suite('EditorGroupsService', () => {
 		await group.replaceEditors([{ editor: sideBySideInput, replacement: input }]);
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.getEditorByIndex(0), input);
+	});
+
+	test('replaceEditors - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createCannotCloseTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const replacement = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input);
+		await group.replaceEditors([{ editor: input, replacement }]);
+
+		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [replacement]);
+		assert.ok(input.gotDisposed);
 	});
 
 	test('find editors', async () => {
@@ -1828,6 +1927,26 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rightGroup.isLocked, true);
 	});
 
+	test('closeAllGroups action - cannot close editor handling', async () => {
+		const [part, instantiationService] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		const rootInput = createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID);
+		const rightInput = createCannotCloseTestFileEditorInput(URI.file('foo/right'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(rootInput);
+		await rightGroup.openEditor(rightInput);
+
+		await instantiationService.invokeFunction(accessor => new CloseAllEditorGroupsAction().run(accessor));
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.activeGroup, rightGroup);
+		assert.deepStrictEqual(rightGroup.getEditors(EditorsOrder.SEQUENTIAL), [rightInput]);
+		assert.ok(rootInput.gotDisposed);
+		assert.ok(!rightInput.gotDisposed);
+	});
+
 	test('locked groups - auto locking via setting', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -2038,6 +2157,42 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(part.count, 1);
 		assert.strictEqual(part.activeGroup.isEmpty, true);
+	});
+
+	test('working sets - apply state when the part has never been laid out does not throw and registers restored groups', async function () {
+		const [part] = await createPart();
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await part.activeGroup.openEditor(input, { pinned: true });
+		await part.sideGroup.openEditor(input2, { pinned: true });
+
+		const state = part.createState();
+
+		for (const group of part.groups) {
+			await group.closeAllEditors();
+		}
+
+		// Simulate an editor part that has never been laid out (e.g. it stayed
+		// hidden since the window opened, like the Agents window editor area
+		// after a reload with the side pane closed). In that state
+		// `_contentDimension` is still undefined and laying out during the
+		// restore would throw, aborting before the `onDidAddGroup` events fire.
+		(part as unknown as { _contentDimension: unknown })._contentDimension = undefined;
+
+		let addedGroups = 0;
+		const listener = part.onDidAddGroup(() => addedGroups++);
+
+		// Must not throw, must restore the groups, and must fire `onDidAddGroup`
+		// for them so listeners (e.g. the editor service) register them.
+		await part.applyState(state);
+		listener.dispose();
+
+		assert.strictEqual(part.count, 2);
+		assert.strictEqual(part.groups[0].contains(input), true);
+		assert.strictEqual(part.groups[1].contains(input2), true);
+		assert.strictEqual(addedGroups, 2, `expected exactly 2 onDidAddGroup events, got ${addedGroups}`);
 	});
 
 	test('context key provider', async function () {

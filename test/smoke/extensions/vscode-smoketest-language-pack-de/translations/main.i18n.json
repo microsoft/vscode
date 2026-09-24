@@ -1,0 +1,10 @@
+{
+	"version": "1.0.0",
+	"contents": {
+		"vs/platform/languagePacks/common/localizedStrings": {
+			"open": "öffnen",
+			"close": "schließen",
+			"find": "finden"
+		}
+	}
+}

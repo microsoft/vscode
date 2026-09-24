@@ -10,7 +10,7 @@ description: '**WORKFLOW SKILL** — Create, update, review, fix, or debug VS Co
 
 | Primitive | When to Use |
 |-----------|-------------|
-| Workspace Instructions | Always-on, applies everywhere in the project |
+| agent instructions | Always-on, applies everywhere in the project |
 | File Instructions | Explicit via `applyTo` patterns, or on-demand via `description` |
 | MCP | Integrates external systems, APIs, or data |
 | Hooks | Deterministic shell commands at agent lifecycle points (block tools, auto-format, inject context) |
@@ -24,7 +24,7 @@ Consult the reference docs for templates, domain examples, advanced frontmatter 
 
 | Type | File | Location | Reference |
 |------|------|----------|-----------|
-| Workspace Instructions | `copilot-instructions.md`, `AGENTS.md` | `.github/` or root | [Link](./references/workspace-instructions.md) |
+| agent instructions | `copilot-instructions.md`, `AGENTS.md` | `.github/` or root | [Link](./references/agent-instructions.md) |
 | File Instructions | `*.instructions.md` | `.github/instructions/` | [Link](./references/instructions.md) |
 | Prompts | `*.prompt.md` | `.github/prompts/` | [Link](./references/prompts.md) |
 | Hooks | `*.json` | `.github/hooks/` | [Link](./references/hooks.md) |
@@ -72,7 +72,7 @@ After creating:
 
 **Skill vs Custom Agent?** Same capabilities for all steps → Skill. Need context isolation (subagent returns single output) or different tool restrictions per stage → Custom Agent.
 
-**Hooks vs Instructions?** Instructions *guide* agent behavior (non-deterministic). Hooks *enforce* behavior via shell commands at lifecycle events like `PreToolUse` or `PostToolUse` — they can block operations, require approval, or run formatters deterministically. See [hooks reference](./references/hooks.md).
+**Hooks vs Instructions?** Instructions *guide* agent behavior (non-deterministic). Hooks *enforce* behavior via shell commands at lifecycle events like `PreToolUse` or `PostToolUse` — they can block operations, require approval, or run formatters deterministically. Hooks can be defined in standalone `.json` files (see [hooks reference](./references/hooks.md)) or inline in custom agent frontmatter via the `hooks` attribute (see [agents reference](./references/agents.md)).
 
 ## Common Pitfalls
 

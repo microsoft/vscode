@@ -46,6 +46,7 @@ async function main(): Promise<void> {
 		},
 	};
 	const request1 = await fetch(REQUEST1_URL, requestOptions);
+	// eslint-disable-next-line local/code-no-any-casts
 	const response1 = (await request1.json()) as any;
 	console.log(`Copy this code: ${response1.user_code}`);
 	console.log('Then press any key to launch the authorization page, paste the code in and approve the access.');
@@ -69,6 +70,7 @@ async function main(): Promise<void> {
 				'Content-Type': 'application/json',
 			},
 		};
+		// eslint-disable-next-line local/code-no-any-casts
 		const response2 = (await (await fetch(REQUEST2_URL, requestOptions)).json()) as any;
 		expiresIn -= response1.interval;
 		await new Promise(resolve => setTimeout(resolve, 1000 * response1.interval));

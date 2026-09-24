@@ -5,6 +5,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAuthenticationChallenge, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -13,9 +14,19 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
  */
 export const INTERNAL_AUTH_PROVIDER_PREFIX = '__';
 
+/**
+ * Setting that controls whether the profile image (avatar) of a signed-in account
+ * is shown in account related UI.
+ */
+export const ACCOUNTS_AVATAR_SETTING = 'workbench.accounts.showAvatar';
+
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
+	/**
+	 * An optional icon for the account. This is typically a URI to a profile image/avatar.
+	 */
+	icon?: URI;
 }
 
 export interface AuthenticationSession {
@@ -24,6 +35,7 @@ export interface AuthenticationSession {
 	account: AuthenticationSessionAccount;
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
+	expiresAfter?: number;
 }
 
 export interface AuthenticationSessionsChangeEvent {
@@ -41,25 +53,8 @@ export interface AuthenticationProviderInformation {
 /**
  * Options for creating an authentication session via the service.
  */
-export interface IAuthenticationCreateSessionOptions {
+export interface IAuthenticationCreateSessionOptions extends IAuthenticationProviderSessionOptions {
 	activateImmediate?: boolean;
-	/**
-	 * The account that is being asked about. If this is passed in, the provider should
-	 * attempt to return the sessions that are only related to this account.
-	 */
-	account?: AuthenticationSessionAccount;
-	/**
-	 * The authorization server URI to use for this creation request. If passed in, first we validate that
-	 * the provider can use this authorization server, then it is passed down to the auth provider.
-	 */
-	authorizationServer?: URI;
-	/**
-	 * Allows the authentication provider to take in additional parameters.
-	 * It is up to the provider to define what these parameters are and handle them.
-	 * This is useful for passing in additional information that is specific to the provider
-	 * and not part of the standard authentication flow.
-	 */
-	[key: string]: any;
 }
 
 export interface IAuthenticationWwwAuthenticateRequest {
@@ -105,25 +100,7 @@ export interface IAuthenticationConstraint {
 /**
  * Options for getting authentication sessions via the service.
  */
-export interface IAuthenticationGetSessionsOptions {
-	/**
-	 * The account that is being asked about. If this is passed in, the provider should
-	 * attempt to return the sessions that are only related to this account.
-	 */
-	account?: AuthenticationSessionAccount;
-	/**
-	 * The authorization server URI to use for this request. If passed in, first we validate that
-	 * the provider can use this authorization server, then it is passed down to the auth provider.
-	 */
-	authorizationServer?: URI;
-	/**
-	 * Allows the authentication provider to take in additional parameters.
-	 * It is up to the provider to define what these parameters are and handle them.
-	 * This is useful for passing in additional information that is specific to the provider
-	 * and not part of the standard authentication flow.
-	 */
-	[key: string]: any;
-}
+export type IAuthenticationGetSessionsOptions = IAuthenticationProviderSessionOptions;
 
 export interface AllowedExtension {
 	id: string;
@@ -142,7 +119,16 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<string>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<string>;
+	/**
+	 * Creates an XAA (enterprise-managed, ID-JAG) authentication provider for the given SSO issuer.
+	 * The returned string is the provider id.
+	 */
+	createXaa?(issuer: URI): Promise<string>;
+}
+
+export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined): string {
+	return resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -271,7 +257,16 @@ export interface IAuthenticationService {
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
-	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined>;
+
+	/**
+	 * Gets or creates a built-in XAA (enterprise-managed, ID-JAG) authentication provider for the given
+	 * SSO issuer. Subsequent calls with the same issuer return the existing provider. The returned id
+	 * can be used with {@link getSessions}/{@link createSession} just like any other provider.
+	 *
+	 * @param issuer The OAuth/OIDC issuer URL (typically read from `mcp.enterpriseManagedAuth.idp`).
+	 */
+	createOrGetXaaProvider(issuer: URI): Promise<string | undefined>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
@@ -356,16 +351,20 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
-	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
-	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions): Promise<void>;
+	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): Promise<void>;
 }
 
 /**
  * Options passed to the authentication provider when asking for sessions.
  */
 export interface IAuthenticationProviderSessionOptions {
+	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.
@@ -377,12 +376,46 @@ export interface IAuthenticationProviderSessionOptions {
 	 */
 	authorizationServer?: URI;
 	/**
+	 * The OAuth client identifier to use instead of the provider's default client.
+	 */
+	clientId?: string;
+	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
+	/**
+	 * The audience for the requested access token. Primarily used for OAuth Identity Assertion
+	 * Authorization Grant (ID-JAG, defined in `draft-ietf-oauth-identity-assertion-authz-grant` using RFC 8693 token-exchange semantics) flows where the audience identifies the authorization server of the resource that
+	 * will redeem the assertion (typically the resource's authorization server URL). Providers that do not understand audience-bound tokens should
+	 * ignore this option.
+	 */
+	audience?: string;
+	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.
 	 * This is useful for passing in additional information that is specific to the provider
 	 * and not part of the standard authentication flow.
 	 */
 	[key: string]: any;
+}
+
+/** Builds a value-sensitive request key without splitting opaque provider scope strings. */
+export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions = {}): string {
+	const request = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
+		? { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined }
+		: [...scopeListOrRequest].sort();
+	const keyOptions = {
+		...options,
+		account: options.account?.id,
+		authorizationServer: options.authorizationServer?.toString(true)
+	};
+	return JSON.stringify([
+		request,
+		Object.entries(keyOptions)
+			.filter(([, value]) => value !== undefined)
+			.sort(([first], [second]) => compare(first, second))
+	]);
 }
 
 /**

@@ -61,7 +61,7 @@ export class OpenFolderAction extends Action2 {
 			title: localize2('openFolder', 'Open Folder...'),
 			category: Categories.File,
 			f1: true,
-			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext, IsSessionsWindowContext.negate()),
+			precondition: OpenFolderWorkspaceSupportContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: undefined,
@@ -97,7 +97,7 @@ export class OpenFolderViaWorkspaceAction extends Action2 {
 			title: localize2('openFolder', 'Open Folder...'),
 			category: Categories.File,
 			f1: true,
-			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace'), IsSessionsWindowContext.negate()),
+			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace')),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyO
@@ -123,7 +123,7 @@ export class OpenFileFolderAction extends Action2 {
 			title: OpenFileFolderAction.LABEL,
 			category: Categories.File,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext, IsSessionsWindowContext.negate()),
+			precondition: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyO
@@ -148,7 +148,7 @@ class OpenWorkspaceAction extends Action2 {
 			title: localize2('openWorkspaceAction', 'Open Workspace from File...'),
 			category: Categories.File,
 			f1: true,
-			precondition: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
+			precondition: EnterMultiRootWorkspaceSupportContext
 		});
 	}
 
@@ -195,7 +195,7 @@ class OpenWorkspaceConfigFileAction extends Action2 {
 			title: localize2('openWorkspaceConfigFile', 'Open Workspace Configuration File'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -241,7 +241,7 @@ export class RemoveRootFolderAction extends Action2 {
 			title: localize2('globalRemoveFolderFromWorkspace', 'Remove Folder from Workspace...'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
+			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -353,7 +353,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
 	},
 	order: 2,
-	when: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext, IsSessionsWindowContext.negate())
+	when: OpenFolderWorkspaceSupportContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -363,7 +363,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
 	},
 	order: 2,
-	when: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace'), IsSessionsWindowContext.negate())
+	when: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -373,7 +373,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
 	},
 	order: 1,
-	when: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext, IsSessionsWindowContext.negate())
+	when: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -383,7 +383,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace from File...")
 	},
 	order: 3,
-	when: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
+	when: EnterMultiRootWorkspaceSupportContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

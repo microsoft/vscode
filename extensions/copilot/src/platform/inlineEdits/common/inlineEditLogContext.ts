@@ -11,9 +11,11 @@ import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { ThemeIcon } from '../../../util/vs/base/common/themables';
 import { SerializedLineEdit } from '../../../util/vs/editor/common/core/edits/lineEdit';
+import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { SerializedEdit } from './dataTypes/editUtils';
 import { FetchCancellationError } from './dataTypes/fetchCancellationError';
 import { LanguageContextResponse, SerializedContextResponse, serializeLanguageContext } from './dataTypes/languageContext';
+import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
 import { RootedLineEdit } from './dataTypes/rootedLineEdit';
 import { DebugRecorderBookmark } from './debugRecorderBookmark';
 import { ISerializedNextEditRequest, StatelessNextEditRequest } from './statelessNextEditProvider';
@@ -35,8 +37,9 @@ export interface MarkdownLoggable {
  * - `skipped`: request was skipped or fetch-cancelled
  * - `cancelled`: request was cancelled via CancellationToken (shown as skipped)
  * - `errored`: an error occurred
+ * - `previouslyRejected`: result matches a suggestion that was previously rejected
  */
-type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'skipped' | 'cancelled' | 'errored';
+type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'reusedInFlight' | 'skipped' | 'cancelled' | 'errored' | 'previouslyRejected';
 
 export class InlineEditRequestLogContext {
 
@@ -94,6 +97,7 @@ export class InlineEditRequestLogContext {
 		lines.push(`- ${Icon.lightbulbFull.svg} - model had suggestions\n`);
 		lines.push(`- ${Icon.circleSlash.svg} - model had NO suggestions\n`);
 		lines.push(`- ${Icon.database.svg} - response is from cache\n`);
+		lines.push(`- ${Icon.gitMerge.svg} - joined an in-flight request (async or speculative reuse)\n`);
 		lines.push(`- ${Icon.error.svg} - error happened\n`);
 		lines.push(`- ${Icon.skipped.svg} - fetching started but got cancelled\n`);
 		lines.push('</details>\n');
@@ -171,6 +175,31 @@ export class InlineEditRequestLogContext {
 			lines.push('```');
 			lines.push(yaml.stringify(this._responseResults, null, '\t'));
 			lines.push('```');
+			lines.push('\n</details>\n');
+		}
+
+		if (this._promptSectionTokens) {
+			const t = this._promptSectionTokens;
+			lines.push(`## Prompt section tokens ${fromCacheStatus}`);
+			lines.push('<details><summary>Click to view</summary>\n');
+			lines.push('Approximate (char/4) token counts per prompt section.\n');
+			lines.push('Indented `↳` rows break down `recently_viewed_code_snippets` by source; they do not sum exactly to the section total (section tags and inter-snippet newline glue are excluded).\n');
+			lines.push('| Section | Tokens |');
+			lines.push('| --- | --- |');
+			lines.push(`| system_prompt | ${t.systemPrompt} |`);
+			lines.push(`| recently_viewed_code_snippets | ${t.recentlyViewed} |`);
+			lines.push(`| &nbsp;&nbsp;↳ recently viewed files (xtab history) | ${t.recentlyViewedSubsections.recentlyViewedFiles} |`);
+			lines.push(`| &nbsp;&nbsp;↳ language context | ${t.recentlyViewedSubsections.languageContext} |`);
+			lines.push(`| &nbsp;&nbsp;↳ neighbor files | ${t.recentlyViewedSubsections.neighborFiles} |`);
+			lines.push(`| current_file_content | ${t.currentFile} |`);
+			lines.push(`| lint_errors | ${t.lintErrors} |`);
+			lines.push(`| edit_diff_history | ${t.editHistory} |`);
+			lines.push(`| area_around_code_to_edit | ${t.areaAroundCodeToEdit} |`);
+			lines.push(`| cursor_location | ${t.cursorLocation} |`);
+			lines.push(`| related_information | ${t.relatedInformation} |`);
+			lines.push(`| post_script | ${t.postScript} |`);
+			lines.push(`| overhead (newlines / backticks / trim) | ${t.overhead} |`);
+			lines.push(`| **user_prompt_total** | **${t.userPromptTotal}** |`);
 			lines.push('\n</details>\n');
 		}
 
@@ -299,6 +328,7 @@ export class InlineEditRequestLogContext {
 		if (logContextOfCachedEdit._prompt) {
 			this._prompt = logContextOfCachedEdit._prompt;
 		}
+		this._promptSectionTokens = logContextOfCachedEdit._promptSectionTokens ?? this._promptSectionTokens;
 		this.response = logContextOfCachedEdit.response ?? this.response;
 		this._responseResults = logContextOfCachedEdit._responseResults ?? this._responseResults;
 		if (logContextOfCachedEdit.fullResponsePromise) {
@@ -308,6 +338,36 @@ export class InlineEditRequestLogContext {
 
 		this._isVisible = true;
 		this._outcome = 'cached';
+		this.fireDidChange();
+	}
+
+	/**
+	 * Marks this log context as having joined an already in-flight request
+	 * (async pending or speculative). The icon shows git-merge to distinguish
+	 * from a true cache hit.
+	 */
+	setIsReusedInFlightResult(logContextOfReusedRequest: InlineEditRequestLogContext): void {
+		this._logContextOfCachedEdit = logContextOfReusedRequest;
+
+		this.recordingBookmark = logContextOfReusedRequest.recordingBookmark;
+		this._nextEditRequest = logContextOfReusedRequest._nextEditRequest ?? this._nextEditRequest;
+		this._resultEdit = logContextOfReusedRequest._resultEdit ?? this._resultEdit;
+		this._diagnosticsResultEdit = logContextOfReusedRequest._diagnosticsResultEdit ?? this._diagnosticsResultEdit;
+		this._endpointInfo = logContextOfReusedRequest._endpointInfo ?? this._endpointInfo;
+		this._headerRequestId = logContextOfReusedRequest._headerRequestId ?? this._headerRequestId;
+		if (logContextOfReusedRequest._prompt) {
+			this._prompt = logContextOfReusedRequest._prompt;
+		}
+		this._promptSectionTokens = logContextOfReusedRequest._promptSectionTokens ?? this._promptSectionTokens;
+		this.response = logContextOfReusedRequest.response ?? this.response;
+		this._responseResults = logContextOfReusedRequest._responseResults ?? this._responseResults;
+		if (logContextOfReusedRequest.fullResponsePromise) {
+			this.setFullResponse(logContextOfReusedRequest.fullResponsePromise);
+		}
+		this._error = logContextOfReusedRequest._error ?? this._error;
+
+		this._isVisible = true;
+		this._outcome = 'reusedInFlight';
 		this.fireDidChange();
 	}
 
@@ -333,6 +393,7 @@ export class InlineEditRequestLogContext {
 
 	public _prompt: string | undefined = undefined;
 	private _rawMessages: Raw.ChatMessage[] | undefined = undefined;
+	public _promptSectionTokens: PromptSectionTokenCounts | undefined = undefined;
 
 	get prompt(): string | undefined {
 		return this._prompt;
@@ -353,17 +414,39 @@ export class InlineEditRequestLogContext {
 		this.fireDidChange();
 	}
 
-	private _outcome: LogContextOutcome = 'pending';
+	setPromptSectionTokens(counts: PromptSectionTokenCounts) {
+		this._promptSectionTokens = counts;
+		this.fireDidChange();
+	}
 
 	/**
-	 * Sets the outcome, warning if already set (i.e., not `pending`).
-	 * Use direct `this._outcome = ...` assignment to bypass the guard
-	 * (e.g., in `setIsCachedResult` which intentionally overrides any inherited outcome).
+	 * Raw chat messages used to construct the cursor-jump (next-cursor-line
+	 * prediction) prompt, and the document-line offset range the model can
+	 * reference in its response. Stored here so in-process debug / datagen
+	 * tooling can read them back via the same log-context vehicle as the
+	 * xtab prompt (`rawMessages`). Never emitted to telemetry sinks — the
+	 * `rawMessages` can contain full prompt content (source code).
 	 */
+	private _cursorJumpRawMessages: Raw.ChatMessage[] | undefined = undefined;
+	private _cursorJumpKeptRange: OffsetRange | undefined = undefined;
+
+	get cursorJumpRawMessages(): Raw.ChatMessage[] | undefined {
+		return this._cursorJumpRawMessages;
+	}
+
+	get cursorJumpKeptRange(): OffsetRange | undefined {
+		return this._cursorJumpKeptRange;
+	}
+
+	setCursorJumpPrompt(messages: Raw.ChatMessage[], keptRange: OffsetRange) {
+		this._cursorJumpRawMessages = messages;
+		this._cursorJumpKeptRange = keptRange;
+		this.fireDidChange();
+	}
+
+	private _outcome: LogContextOutcome = 'pending';
+
 	private _setOutcome(outcome: LogContextOutcome): void {
-		if (this._outcome !== 'pending') {
-			console.warn(`[InlineEditRequestLogContext] outcome transition from '${this._outcome}' to '${outcome}' (request #${this.requestId})`);
-		}
 		this._outcome = outcome;
 	}
 
@@ -374,9 +457,11 @@ export class InlineEditRequestLogContext {
 			case 'noSuggestions': return Icon.circleSlash;
 			case 'cached':
 			case 'cachedFromGhostText': return Icon.database;
+			case 'reusedInFlight': return Icon.gitMerge;
 			case 'skipped':
 			case 'cancelled': return Icon.skipped;
 			case 'errored': return Icon.error;
+			case 'previouslyRejected': return Icon.thumbsdown;
 		}
 	}
 
@@ -398,6 +483,12 @@ export class InlineEditRequestLogContext {
 
 	public markAsNoSuggestions() {
 		this._setOutcome('noSuggestions');
+		this._isVisible = true;
+		this.fireDidChange();
+	}
+
+	public markAsPreviouslyRejected() {
+		this._setOutcome('previouslyRejected');
 		this._isVisible = true;
 		this.fireDidChange();
 	}

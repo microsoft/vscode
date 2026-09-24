@@ -17,11 +17,19 @@ description: "<required>"    # For agent picker and subagent discovery
 name: "Agent Name"           # Optional, defaults to filename
 tools: [search, web]         # Optional: aliases, MCP (<server>/*), extension tools
 model: "Claude Sonnet 4"     # Optional, uses picker default; supports array for fallback
+reasoning-effort: "high"     # Optional: low, medium, high, xhigh, or max
 argument-hint: "Task..."     # Optional, input guidance
 agents: [agent1, agent2]     # Optional, restrict allowed subagents by name (omit = all, [] = none)
 user-invocable: true         # Optional, show in agent picker (default: true)
 disable-model-invocation: false  # Optional, prevent subagent invocation (default: false)
 handoffs: [...]              # Optional, transitions to other agents
+hooks:                       # Optional, inline hooks for this agent's lifecycle events
+  PreToolUse:
+    - type: command
+      command: "./scripts/validate.sh"
+  PostToolUse:
+    - type: command
+      command: "./scripts/format.sh"
 ---
 ```
 
@@ -37,6 +45,16 @@ handoffs: [...]              # Optional, transitions to other agents
 ```yaml
 model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']  # First available model is used
 ```
+
+### Reasoning Effort
+
+Use `reasoning-effort` to set the reasoning level for the custom agent's model:
+
+```yaml
+reasoning-effort: high  # low, medium, high, xhigh, or max
+```
+
+The selected model must support the configured level. If omitted, the runtime resolves the effort from the model configuration and, when applicable, the parent agent.
 
 ## Tools
 
@@ -109,3 +127,30 @@ You are a specialist at {specific task}. Your job is to {clear purpose}.
 - **Vague descriptions**: "A helpful agent" doesn't guide delegation—be specific
 - **Role confusion**: Description doesn't match body persona
 - **Circular handoffs**: A → B → A without progress criteria
+
+## Inline Hooks
+
+Custom agents support inline `hooks` in frontmatter. These hooks execute shell commands at agent lifecycle points and are scoped to this agent only. The format matches standalone hook files (see [hooks reference](../hooks.md)).
+
+### Supported Events
+
+`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`, `SubagentStop`, `Stop`
+
+### Example
+
+```yaml
+---
+description: "Secure code reviewer that blocks dangerous commands"
+tools: [read, search, execute]
+hooks:
+  PreToolUse:
+    - type: command
+      command: "./scripts/block-dangerous-cmds.sh"
+      timeout: 10
+  PostToolUse:
+    - type: command
+      command: "./scripts/auto-lint.sh"
+---
+```
+
+Each hook command supports: `type` (must be `command`), `command`, platform overrides (`windows`, `linux`, `osx`), `cwd`, `env`, `timeout`.

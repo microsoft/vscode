@@ -10,11 +10,16 @@ import { ChatDebugFileLoggerContribution } from '../../chat/vscode-node/chatDebu
 import { ChatQuotaContribution } from '../../chat/vscode-node/chatQuota.contribution';
 import { ChatSessionContextContribution } from '../../chatSessionContext/vscode-node/chatSessionContextProvider';
 import { ChatSessionsContrib } from '../../chatSessions/vscode-node/chatSessions';
+import { SessionStoreTracker } from '../../chronicle/vscode-node/sessionStoreTracker';
+import * as sessionSyncContribution from '../../chronicle/vscode-node/sessionSync.contribution';
 import * as chatBlockLanguageContribution from '../../codeBlocks/vscode-node/chatBlockLanguageFeatures.contribution';
 import { IExtensionContributionFactory, asContributionFactory } from '../../common/contributions';
+import { CompletionsCoreContribution } from '../../completions/vscode-node/completionsCoreContribution';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
+import { InternalConfigurationInformationCommandContribution } from '../../configuration/vscode-node/internalConfigurationInformationCommand';
 import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKeys.contribution';
+import { ByokUtilityModelNotificationContribution } from '../../chatInputNotification/vscode-node/byokUtilityModel.contribution';
 import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEditsContrib';
 import { ConversationFeature } from '../../conversation/vscode-node/conversationFeature';
 import { FeedbackCommandContribution } from '../../conversation/vscode-node/feedbackContribution';
@@ -28,7 +33,7 @@ import * as newWorkspaceContribution from '../../getting-started/vscode-node/new
 import { ScmContextProviderContribution } from '../../git/vscode/scmContextprovider';
 import { GitHubMcpContrib } from '../../githubMcp/vscode-node/githubMcp.contribution';
 import { IgnoredFileProviderContribution } from '../../ignore/vscode-node/ignoreProvider';
-import { JointCompletionsProviderContribution } from '../../inlineEdits/vscode-node/jointInlineCompletionProvider';
+import { InlineEditProviderFeatureContribution } from '../../inlineEdits/vscode-node/inlineEditProviderFeature';
 import { FixTestFailureContribution } from '../../intents/vscode-node/fixTestFailureContributions';
 import { ExtensionStateCommandContribution } from '../../log/vscode-node/extensionStateCommand';
 import { FetcherTelemetryContribution, LoggingActionsContrib } from '../../log/vscode-node/loggingActions';
@@ -72,15 +77,15 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(FetcherTelemetryContribution),
 	asContributionFactory(PowerStateLogger),
 	asContributionFactory(ContextKeysContribution),
+	asContributionFactory(ByokUtilityModelNotificationContribution),
 	asContributionFactory(CopilotDebugCommandContribution),
 	asContributionFactory(DebugCommandsContribution),
 	asContributionFactory(LanguageModelAccess),
 	asContributionFactory(WalkthroughCommandContribution),
-	asContributionFactory(JointCompletionsProviderContribution),
-	// replaced by JointCompletionsProviderContribution
-	// asContributionFactory(InlineEditProviderFeatureContribution),
-	// asContributionFactory(CompletionsCoreContribution),
+	asContributionFactory(InlineEditProviderFeatureContribution),
+	asContributionFactory(CompletionsCoreContribution),
 	asContributionFactory(SettingsSchemaFeature),
+	asContributionFactory(InternalConfigurationInformationCommandContribution),
 	asContributionFactory(WorkspaceRecorderFeature),
 	asContributionFactory(SurveyCommandContribution),
 	asContributionFactory(FeedbackCommandContribution),
@@ -98,6 +103,9 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(ChatSessionsContrib),
 	asContributionFactory(GitHubMcpContrib),
 	asContributionFactory(OTelContrib),
+	asContributionFactory(SessionStoreTracker),
+	sessionSyncContribution,
+	asContributionFactory(BYOKContrib),
 ];
 
 /**
@@ -118,7 +126,6 @@ export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(SetupTestsContribution),
 	asContributionFactory(FixTestFailureContribution),
 	asContributionFactory(IgnoredFileProviderContribution),
-	asContributionFactory(BYOKContrib),
 	asContributionFactory(McpSetupCommands),
 	asContributionFactory(LanguageModelProxyContrib),
 	asContributionFactory(PromptFileContribution),

@@ -5,22 +5,30 @@
 
 // This should be the only place that is allowed to import from @vscode/component-explorer
 // eslint-disable-next-line local/code-import-patterns
-import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { defineFixture, defineFixtureGroup, defineFixtureVariants, FixtureInputControlOptions } from '@vscode/component-explorer';
+// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
+import { z } from 'zod';
+import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
+// Import auxiliaryBarPart.css here (before any contrib/chat CSS) so the cascade
+// matches the product: chat.css loads later and overrides the auxiliarybar
+// rules where applicable. Fixtures that wrap content in `.part.auxiliarybar`
+// rely on these rules to recolor inline editors with `--vscode-sideBar-background`.
+import '../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService, IThemingRegistry, Extensions as ThemingExtensions } from '../../../../platform/theme/common/themeService.js';
-import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { IColorTheme, IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { FileIconThemeData, FileIconThemeLoader } from '../../../services/themes/browser/fileIconThemeData.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
-import { COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../../../services/themes/common/workbenchThemeService.js';
+import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
+import { ensureGlobalStylesInstalled, getStylesheetDocumentFiles, overrideStylesheetOrder, ReverseStylesheetsOption } from './fixtureUtilsCss.js';
 
 // Instantiation
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -45,6 +53,7 @@ import { ModelService } from '../../../../editor/common/services/modelService.js
 import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ICodeLensCache } from '../../../../editor/contrib/codelens/browser/codeLensCache.js';
+import { IOutlineModelService, OutlineModelService } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { TestCodeEditorService, TestCommandService } from '../../../../editor/test/browser/editorTestServices.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { TestEditorWorkerService } from '../../../../editor/test/common/services/testEditorWorkerService.js';
@@ -53,6 +62,9 @@ import { TestTreeSitterLibraryService } from '../../../../editor/test/common/ser
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IChatPasteTargetService } from '../../../contrib/chat/browser/chat.js';
+import { ChatPasteTargetService } from '../../../contrib/chat/browser/attachments/chatPasteTargetService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -61,8 +73,9 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -74,40 +87,86 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
-import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
+import { applyFixtureFocus, createFixtureUserInteractionService } from './fixtureFocus.js';
+import { registerFixtureLanguages, registerFixtureSyntaxHighlighting } from './fixtureSyntaxHighlighting.js';
+
+export { applyFixtureFocus, createFixtureUserInteractionService };
 
 import './fixtures.css';
 
 // Import color registrations to ensure colors are available
 import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
-import { AsyncSchedulerProcessor, TimeTravelScheduler } from '../../../../base/test/common/timeTravelScheduler.js';
+import { buildHistoryFromTasks, renderSwimlanes } from '../../../../base/test/common/executionGraph.js';
+import { pushRandomOverwrite } from '../../../../base/test/common/randomOverwrite.js';
+import {
+	captureGlobalTimeApi,
+	createLoggingTimeApi,
+	createTraceRoot,
+	createVirtualTimeApi,
+	drainMicrotasksEmbedding,
+	nextMacrotask,
+	pushGlobalTimeApi,
+	TraceContext,
+	untilTime,
+	VirtualClock,
+	VirtualTimeProcessor,
+} from '../../../../base/test/common/virtualScheduling/index.js';
 import '../../../../platform/theme/common/colors/baseColors.js';
 import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
 import '../../../../platform/theme/common/colors/miscColors.js';
 import '../../../common/theme.js';
+
+// eslint-disable-next-line local/code-import-patterns
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install({
+	environment: 'browser',
+	handleUncaughtExceptions: false,
+	retrieveSourceMap: (source: string) => {
+		const mapUrl = source + '.map';
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', mapUrl, false);
+			xhr.send();
+			if (xhr.status === 200) {
+				return { url: null as never, map: xhr.responseText };
+			}
+		} catch { }
+		return null;
+	},
+});
 
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
@@ -121,6 +180,7 @@ class NullStorageService implements IStorageService {
 	onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
 	onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
 	onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.APPLICATION_SHARED, key: string | undefined, disposable: DisposableStore): Event<IApplicationSharedStorageValueChangeEvent>;
 	onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
 		return Event.filter(this._onDidChangeValue.event, e => e.scope === scope && (key === undefined || e.key === key), disposable);
 	}
@@ -201,99 +261,263 @@ class NullStorageService implements IStorageService {
 // Themes
 // ============================================================================
 
-const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
-const mockEnvironmentService: IEnvironmentService = Object.create(null);
+// Eagerly bundle the built-in color theme JSON files so they can be served
+// through the IExtensionResourceLoaderService code path. The
+// rspack config maps these JSON files to `asset/source`, so they are imported
+// as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
+// comments and trailing commas the way it does in the real product.
+/* eslint-disable local/code-import-patterns */
+import dark_2026 from '../../../../../../extensions/theme-defaults/themes/2026-dark.json' with { type: 'json' };
+import dark_modern from '../../../../../../extensions/theme-defaults/themes/dark_modern.json' with { type: 'json' };
+import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_plus.json' with { type: 'json' };
+import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
+import hc_black from '../../../../../../extensions/theme-defaults/themes/hc_black.json' with { type: 'json' };
+import hc_light from '../../../../../../extensions/theme-defaults/themes/hc_light.json' with { type: 'json' };
+import light_2026 from '../../../../../../extensions/theme-defaults/themes/2026-light.json' with { type: 'json' };
+import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
+import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
+import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
+import abyss from '../../../../../../extensions/theme-abyss/themes/abyss-color-theme.json' with { type: 'json' };
+import monokai from '../../../../../../extensions/theme-monokai/themes/monokai-color-theme.json' with { type: 'json' };
+import quietlight from '../../../../../../extensions/theme-quietlight/themes/quietlight-color-theme.json' with { type: 'json' };
+import solarized_dark from '../../../../../../extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json' with { type: 'json' };
+import solarized_light from '../../../../../../extensions/theme-solarized-light/themes/solarized-light-color-theme.json' with { type: 'json' };
+/* eslint-enable local/code-import-patterns */
 
-export const darkTheme = ColorThemeData.createUnloadedThemeForThemeType(
-	ColorScheme.DARK,
-	COLOR_THEME_DARK_INITIAL_COLORS
-);
+function toThemeJsonText(theme: string | object): string {
+	return typeof theme === 'string' ? theme : JSON.stringify(theme);
+}
 
-export const lightTheme = ColorThemeData.createUnloadedThemeForThemeType(
-	ColorScheme.LIGHT,
-	COLOR_THEME_LIGHT_INITIAL_COLORS
-);
+export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal';
+type BuiltInComponentFixtureFileIconTheme = Exclude<ComponentFixtureFileIconTheme, 'none'>;
 
-let globalStyleSheet: CSSStyleSheet | undefined;
-let iconsStyleSheetCache: CSSStyleSheet | undefined;
-let darkThemeStyleSheet: CSSStyleSheet | undefined;
-let lightThemeStyleSheet: CSSStyleSheet | undefined;
+const fileIconThemeResources = {
+	'vs-seti': URI.parse(new URL('./extensions/theme-seti/icons/vs-seti-icon-theme.json', document.baseURI).href),
+	'vs-minimal': URI.parse(new URL('./extensions/theme-defaults/fileicons/vs_minimal-icon-theme.json', document.baseURI).href),
+} satisfies Record<BuiltInComponentFixtureFileIconTheme, URI>;
+const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
-function getGlobalStyleSheet(): CSSStyleSheet {
-	if (!globalStyleSheet) {
-		globalStyleSheet = new CSSStyleSheet();
-		const globalRules: string[] = [];
-		for (const sheet of Array.from(document.styleSheets)) {
-			try {
-				for (const rule of Array.from(sheet.cssRules)) {
-					globalRules.push(rule.cssText);
-				}
-			} catch {
-				// Cross-origin stylesheets can't be read
-			}
+const themeJsonModules: Record<string, string> = {
+	'/extensions/theme-defaults/themes/2026-dark.json': toThemeJsonText(dark_2026),
+	'/extensions/theme-defaults/themes/2026-light.json': toThemeJsonText(light_2026),
+	'/extensions/theme-defaults/themes/dark_modern.json': toThemeJsonText(dark_modern),
+	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
+	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
+	'/extensions/theme-defaults/themes/hc_black.json': toThemeJsonText(hc_black),
+	'/extensions/theme-defaults/themes/hc_light.json': toThemeJsonText(hc_light),
+	'/extensions/theme-defaults/themes/light_modern.json': toThemeJsonText(light_modern),
+	'/extensions/theme-defaults/themes/light_plus.json': toThemeJsonText(light_plus),
+	'/extensions/theme-defaults/themes/light_vs.json': toThemeJsonText(light_vs),
+	'/extensions/theme-abyss/themes/abyss-color-theme.json': toThemeJsonText(abyss),
+	'/extensions/theme-monokai/themes/monokai-color-theme.json': toThemeJsonText(monokai),
+	'/extensions/theme-quietlight/themes/quietlight-color-theme.json': toThemeJsonText(quietlight),
+	'/extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json': toThemeJsonText(solarized_dark),
+	'/extensions/theme-solarized-light/themes/solarized-light-color-theme.json': toThemeJsonText(solarized_light),
+};
+
+const fixtureExtensionResourceLoaderService = new class implements IExtensionResourceLoaderService {
+	declare readonly _serviceBrand: undefined;
+	async readExtensionResource(uri: URI): Promise<string> {
+		const content = themeJsonModules[uri.path];
+		if (content !== undefined) {
+			return content;
 		}
-		globalStyleSheet.replaceSync(globalRules.join('\n'));
-	}
-	return globalStyleSheet;
-}
 
-function getIconsStyleSheetCached(): CSSStyleSheet {
-	if (!iconsStyleSheetCache) {
-		iconsStyleSheetCache = new CSSStyleSheet();
-		const iconsSheet = getIconsStyleSheet(undefined);
-		iconsStyleSheetCache.replaceSync(iconsSheet.getCSS() as string);
-		iconsSheet.dispose();
-	}
-	return iconsStyleSheetCache;
-}
+		const resourceUrl = uri.toString(true);
+		if (fileIconThemeResourceUrls.has(resourceUrl)) {
+			const response = await fetch(resourceUrl);
+			if (!response.ok) {
+				throw new Error(`Failed to load fixture file icon theme ${resourceUrl}: ${response.status} ${response.statusText}`);
+			}
+			return response.text();
+		}
 
-function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
-	const isDark = theme.type === ColorScheme.DARK;
-	if (isDark && darkThemeStyleSheet) {
-		return darkThemeStyleSheet;
+		throw new Error(`Fixture extension resource not found: ${uri.toString()}`);
 	}
-	if (!isDark && lightThemeStyleSheet) {
-		return lightThemeStyleSheet;
-	}
+	supportsExtensionGalleryResources(): Promise<boolean> { return Promise.resolve(false); }
+	isExtensionGalleryResource(): Promise<boolean> { return Promise.resolve(false); }
+	getExtensionGalleryResourceURL(): Promise<URI | undefined> { return Promise.resolve(undefined); }
+};
 
-	const scopeSelector = '.' + theme.classNames[0];
-	const sheet = new CSSStyleSheet();
-	const css = generateColorThemeCSS(
-		theme,
-		scopeSelector,
-		themingRegistry.getThemingParticipants(),
-		mockEnvironmentService
+function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector, extensionName = 'theme-defaults'): ColorThemeData {
+	const location = URI.parse(`file://${themePath}`);
+	return ColorThemeData.fromExtensionTheme(
+		{ id: themePath, path: themePath, uiTheme, _watch: false },
+		location,
+		ExtensionData.fromName('vscode', extensionName, true)
 	);
-	sheet.replaceSync(css.code);
+}
 
-	if (isDark) {
-		darkThemeStyleSheet = sheet;
-	} else {
-		lightThemeStyleSheet = sheet;
+export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/2026-dark.json', ThemeTypeSelector.VS_DARK);
+export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
+const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
+const lightHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_light.json', ThemeTypeSelector.HC_LIGHT);
+
+function createBuiltInFileIconTheme(id: BuiltInComponentFixtureFileIconTheme, extensionName: string): FileIconThemeData {
+	const location = fileIconThemeResources[id];
+	return FileIconThemeData.fromExtensionTheme(
+		{ id, path: location.path, _watch: false },
+		location,
+		ExtensionData.fromName('vscode', extensionName, true)
+	);
+}
+
+const fileIconThemes = {
+	none: FileIconThemeData.noIconTheme,
+	'vs-seti': createBuiltInFileIconTheme('vs-seti', 'vscode-theme-seti'),
+	'vs-minimal': createBuiltInFileIconTheme('vs-minimal', 'theme-defaults'),
+} satisfies Record<ComponentFixtureFileIconTheme, FileIconThemeData>;
+const defaultFileIconTheme = fileIconThemes['vs-seti'];
+
+type ComponentFixtureThemeVariant = {
+	readonly label: string;
+	readonly background: 'dark' | 'light';
+	readonly theme: ColorThemeData;
+};
+
+const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme } as const satisfies ComponentFixtureThemeVariant;
+const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme } as const satisfies ComponentFixtureThemeVariant;
+const additionalThemeVariants = {
+	darkModern: { label: 'DarkModern', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK) },
+	light2026: { label: 'Light2026', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/2026-light.json', ThemeTypeSelector.VS) },
+	darkPlus: { label: 'DarkPlus', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_plus.json', ThemeTypeSelector.VS_DARK) },
+	lightPlus: { label: 'LightPlus', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/light_plus.json', ThemeTypeSelector.VS) },
+	visualStudioDark: { label: 'VisualStudioDark', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_vs.json', ThemeTypeSelector.VS_DARK) },
+	visualStudioLight: { label: 'VisualStudioLight', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/light_vs.json', ThemeTypeSelector.VS) },
+	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme },
+	lightHighContrast: { label: 'LightHighContrast', background: 'light', theme: lightHighContrastTheme },
+	abyss: { label: 'Abyss', background: 'dark', theme: createBuiltInTheme('/extensions/theme-abyss/themes/abyss-color-theme.json', ThemeTypeSelector.VS_DARK, 'theme-abyss') },
+	monokai: { label: 'Monokai', background: 'dark', theme: createBuiltInTheme('/extensions/theme-monokai/themes/monokai-color-theme.json', ThemeTypeSelector.VS_DARK, 'theme-monokai') },
+	quietLight: { label: 'QuietLight', background: 'light', theme: createBuiltInTheme('/extensions/theme-quietlight/themes/quietlight-color-theme.json', ThemeTypeSelector.VS, 'theme-quietlight') },
+	solarizedDark: { label: 'SolarizedDark', background: 'dark', theme: createBuiltInTheme('/extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json', ThemeTypeSelector.VS_DARK, 'theme-solarized-dark') },
+	solarizedLight: { label: 'SolarizedLight', background: 'light', theme: createBuiltInTheme('/extensions/theme-solarized-light/themes/solarized-light-color-theme.json', ThemeTypeSelector.VS, 'theme-solarized-light') },
+} as const satisfies Record<string, ComponentFixtureThemeVariant>;
+export type ComponentFixtureAdditionalTheme = keyof typeof additionalThemeVariants;
+
+const themeLoadedPromises = new WeakMap<ColorThemeData, Promise<void>>();
+function ensureThemeLoaded(theme: ColorThemeData): Promise<void> {
+	let themeLoadedPromise = themeLoadedPromises.get(theme);
+	if (!themeLoadedPromise) {
+		themeLoadedPromise = theme.ensureLoaded(fixtureExtensionResourceLoaderService);
+		themeLoadedPromises.set(theme, themeLoadedPromise);
 	}
-	return sheet;
+	return themeLoadedPromise;
 }
 
-let globalStylesInstalled = false;
-
-function installGlobalStyles(): void {
-	if (globalStylesInstalled) {
-		return;
+const fileIconThemeLoadedPromises = new WeakMap<FileIconThemeData, Promise<string | undefined>>();
+function ensureFileIconThemeLoaded(theme: FileIconThemeData): Promise<string | undefined> {
+	let fileIconThemeLoadedPromise = fileIconThemeLoadedPromises.get(theme);
+	if (!fileIconThemeLoadedPromise) {
+		fileIconThemeLoadedPromise = (async () => {
+			if (theme.isLoaded) {
+				return theme.styleSheetContent;
+			}
+			const languageService = new LanguageService();
+			try {
+				return await theme.ensureLoaded(new FileIconThemeLoader(fixtureExtensionResourceLoaderService, languageService));
+			} finally {
+				languageService.dispose();
+			}
+		})();
+		fileIconThemeLoadedPromises.set(theme, fileIconThemeLoadedPromise);
 	}
-	globalStylesInstalled = true;
-	document.adoptedStyleSheets = [
-		...document.adoptedStyleSheets,
-		getGlobalStyleSheet(),
-		getIconsStyleSheetCached(),
-		getThemeStyleSheet(darkTheme),
-		getThemeStyleSheet(lightTheme),
-	];
+	return fileIconThemeLoadedPromise;
 }
 
-export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
-	installGlobalStyles();
-	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+export async function setupTheme(
+	container: HTMLElement,
+	theme: ColorThemeData,
+	fileIconThemeId: ComponentFixtureFileIconTheme = 'vs-seti',
+	fileIconThemeScope: HTMLElement = container
+): Promise<IFileIconTheme> {
+	const fileIconTheme = fileIconThemes[fileIconThemeId];
+	const [, fileIconThemeStyleSheetContent] = await Promise.all([
+		ensureThemeLoaded(theme),
+		ensureFileIconThemeLoaded(fileIconTheme),
+	]);
+	const fileIconThemeClassName = fileIconThemeId === 'none' ? undefined : `component-fixture-file-icon-theme-${fileIconThemeId}`;
+	if (fileIconThemeClassName && fileIconThemeStyleSheetContent === undefined) {
+		throw new Error(`Fixture file icon theme '${fileIconThemeId}' did not produce a stylesheet.`);
+	}
+
+	await ensureGlobalStylesInstalled(theme, fileIconThemeClassName && fileIconThemeStyleSheetContent !== undefined ? {
+		scopeSelector: `.${fileIconThemeClassName}`,
+		styleSheetContent: fileIconThemeStyleSheetContent,
+	} : undefined);
+	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-seti', fileIconThemeId === 'vs-seti');
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-minimal', fileIconThemeId === 'vs-minimal');
+	if (fileIconThemeClassName) {
+		container.classList.add('file-icons-enabled');
+	}
+	return fileIconTheme;
 }
+
+/**
+ * The recognized fields of the per-render `input` (passed via the CLI `--input`
+ * flag), parsed once into a typed shape by {@link parseFixtureInput}.
+ */
+interface FixtureRenderInput {
+	/** Whether all stylesheet documents should be reversed. */
+	readonly reverseStylesheets: boolean;
+	/** The stylesheet document range to reverse, when set. */
+	readonly reverseStylesheetsRange: Exclude<ReverseStylesheetsOption, boolean> | undefined;
+	/** Whether CSS animations and transitions are enabled. */
+	readonly enableAnimations: boolean;
+	/** Whether fixture-provided focus state and initial focus are enabled. */
+	readonly overrideFocus: boolean;
+	/** Whether the render should return its virtual-time trace as `output`. */
+	readonly outputTimeTrace: boolean;
+	/** Whether the render should return the bundled stylesheet files as `output`. */
+	readonly outputStylesheetFiles: boolean;
+}
+
+/**
+ * Parses the untyped render `input` into the recognized {@link FixtureRenderInput}
+ * fields. Unknown/extra fields are ignored; missing fields default to off.
+ */
+function parseFixtureInput(input: unknown): FixtureRenderInput {
+	if (!input || typeof input !== 'object') {
+		return { reverseStylesheets: false, reverseStylesheetsRange: undefined, enableAnimations: false, overrideFocus: true, outputTimeTrace: false, outputStylesheetFiles: false };
+	}
+	const record = input as Record<string, unknown>;
+	return {
+		reverseStylesheets: record.reverseStylesheets === true,
+		reverseStylesheetsRange: parseReverseStylesheetsRange(record.reverseStylesheetsRange),
+		enableAnimations: record.enableAnimations === true,
+		overrideFocus: record.overrideFocus !== false,
+		outputTimeTrace: !!record.outputTimeTrace,
+		outputStylesheetFiles: !!record.outputStylesheetFiles,
+	};
+}
+
+function parseReverseStylesheetsRange(value: unknown): Exclude<ReverseStylesheetsOption, boolean> | undefined {
+	if (value && typeof value === 'object') {
+		const range = value as Record<string, unknown>;
+		if (typeof range.fromIndex === 'number' && typeof range.toIndex === 'number') {
+			return { fromIndex: range.fromIndex, toIndex: range.toIndex };
+		}
+	}
+	return undefined;
+}
+
+function getReverseStylesheetsOption(input: unknown): ReverseStylesheetsOption {
+	const parsedInput = parseFixtureInput(input);
+	return parsedInput.reverseStylesheetsRange ?? parsedInput.reverseStylesheets;
+}
+
+/** Inputs exposed as Component Explorer controls. */
+const fixtureInputSchema = z.object({
+	reverseStylesheets: z.boolean().default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+	reverseStylesheetsRange: z.object({
+		fromIndex: z.number(),
+		toIndex: z.number(),
+	}).optional().describe('Reverse the bundled CSS documents in this half-open index range.'),
+	enableAnimations: z.boolean().default(false).describe('Enable CSS animations and transitions.'),
+	overrideFocus: z.boolean().default(true).describe('Override focus for deterministic screenshots. Turn off to use natural browser and DOM focus while exploring interactively.'),
+	outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
+	outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
+});
 
 function getPlatformClass(): string {
 	const alwaysUseMac = true;
@@ -329,9 +553,74 @@ export interface CreateServicesOptions {
 	 */
 	colorTheme?: IColorTheme;
 	/**
+	 * The file icon theme to use for the theme service.
+	 */
+	fileIconTheme?: IFileIconTheme;
+	/**
 	 * Additional services to register after the base editor services.
 	 */
 	additionalServices?: (registration: ServiceRegistration) => void;
+}
+
+class FixtureDisposableStore extends DisposableStore {
+	constructor(readonly overrideFocus: boolean) {
+		super();
+	}
+}
+
+/**
+ * `ILogService` for fixtures that forwards `warn`, `error`, and `critical`
+ * to the browser console so that errors logged during render (e.g. from
+ * `try/catch` blocks that swallow errors into the log) become visible in
+ * the component-explorer console panel.
+ */
+export class FixtureLogService extends NullLogService {
+	override warn(message: string, ...args: unknown[]): void {
+		console.warn(message, ...args);
+	}
+	override error(message: string | Error, ...args: unknown[]): void {
+		console.error(message, ...args);
+	}
+	override critical(message: string | Error, ...args: unknown[]): void {
+		console.error(message, ...args);
+	}
+}
+
+/**
+ * `ModelService` for fixtures that disposes all owned text models when the
+ * service itself is disposed. This is safe because `TestInstantiationService`
+ * is the first item added to the fixture's `DisposableStore`, so it disposes
+ * last (LIFO) — after all widgets have already torn down.
+ */
+export class FixtureModelService extends ModelService {
+	override dispose(): void {
+		for (const model of this.getModels()) {
+			if (!model.isDisposed()) {
+				model.dispose();
+			}
+		}
+		super.dispose();
+	}
+}
+
+/**
+ * `ITextModelService` for fixtures that resolves URIs against `IModelService`.
+ * Models created via `createTextModel` (which uses `IModelService.createModel`)
+ * are automatically resolvable. URIs without a backing model fail loudly so
+ * that callers don't silently receive a null `textEditorModel`.
+ */
+export class FixtureTextModelService extends InMemoryTextModelService {
+	constructor(@IModelService private readonly _modelService: IModelService) {
+		super(_modelService);
+	}
+
+	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+		const model = this._modelService.getModel(resource);
+		if (!model) {
+			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
+		}
+		return super.createModelReference(resource);
+	}
 }
 
 /**
@@ -371,18 +660,16 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	define(INotificationService, TestNotificationService);
 	define(IDialogService, TestDialogService);
 	define(IUndoRedoService, UndoRedoService);
-	define(ILanguageService, LanguageService);
+	const languageService = disposables.add(new LanguageService());
+	registerFixtureLanguages(disposables, languageService);
+	defineInstance(ILanguageService, languageService);
 	define(ILanguageConfigurationService, TestLanguageConfigurationService);
 	define(IConfigurationService, TestConfigurationService);
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
 	defineInstance(IStorageService, new NullStorageService());
-	if (options?.colorTheme) {
-		defineInstance(IThemeService, new TestThemeService(options.colorTheme));
-	} else {
-		define(IThemeService, TestThemeService);
-	}
-	define(ILogService, NullLogService);
-	define(IModelService, ModelService);
+	defineInstance(IThemeService, new TestThemeService(options?.colorTheme, options?.fileIconTheme ?? defaultFileIconTheme));
+	define(ILogService, FixtureLogService);
+	define(IModelService, FixtureModelService);
 	define(ICodeEditorService, TestCodeEditorService);
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
@@ -396,6 +683,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
+	define(IOutlineModelService, OutlineModelService);
 	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
 	define(IInlineCompletionsService, InlineCompletionsService);
 	defineInstance(ICodeLensCache, {
@@ -406,6 +694,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	});
 	defineInstance(IHoverService, {
 		_serviceBrand: undefined,
+		getStickyHover: () => undefined,
 		showDelayedHover: () => undefined,
 		setupDelayedHover: () => ({ dispose: () => { } }),
 		setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
@@ -420,18 +709,34 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeDefaultAccount: new Emitter<null>().event,
 		onDidChangePolicyData: new Emitter<null>().event,
 		policyData: null,
+		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
+		managedSettingsFetchStatus: null,
+		managedSettingsFetchedAt: null,
+		managedSettingsRawResponse: null,
+		managedSettingsCompatibilityError: null,
+		onDidChangeManagedSettingsCompatibilityError: Event.None,
+		managedSettingsFreshness: MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
+		onDidChangeManagedSettingsFreshness: Event.None,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
+		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
 		setDefaultAccountProvider: () => { },
 		refresh: async () => null,
 		signIn: async () => null,
 		signOut: async () => { },
 	});
 
-	// User interaction service with focus simulation enabled (all elements appear focused in fixtures)
-	defineInstance(IUserInteractionService, new MockUserInteractionService(true, false));
+	const overrideFocus = disposables instanceof FixtureDisposableStore ? disposables.overrideFocus : true;
+	defineInstance(IUserInteractionService, createFixtureUserInteractionService(overrideFocus));
+
+	definePartialInstance(IActionWidgetService, {
+		_serviceBrand: undefined,
+		show: () => { },
+		hide: () => { },
+		get isVisible() { return false; },
+	});
 
 	defineInstance(IAccessibilitySignalService, {
 		_serviceBrand: undefined,
@@ -446,22 +751,36 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onSoundEnabledChanged: () => Event.None,
 	});
 
-	definePartialInstance(ITextModelService, {
-		_serviceBrand: undefined,
-		registerTextModelContentProvider: () => ({ dispose: () => { } }),
-		canHandleResource: () => false,
-		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-		createModelReference: async () => ({ object: { textEditorModel: null }, dispose() { } } as any),
-	});
+	define(ITextModelService, FixtureTextModelService);
 
 	defineInstance(IAgentFeedbackService, {
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
+		onDidChangeFeedbackVisibility: Event.None,
 		onDidChangeNavigation: Event.None,
+		onDidChangeFeedbackScope: Event.None,
+		activeFeedbackSessionResource: constObservable(AGENT_FEEDBACK_NEW_SESSION_RESOURCE),
+		onDidAddFeedback: Event.None,
+		onDidConvertFeedback: Event.None,
+		onDidAddReply: Event.None,
+		onDidSubmitFeedback: Event.None,
+		onDidRevealSessionComment: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		updateFeedbackSourcePullRequest: () => { },
+		acceptFeedback: () => { },
+		addReply: () => { },
 		getFeedback: () => [],
+		isAgentHostSession: () => false,
+		showFeedbackInEditor: () => { },
+		hideFeedbackInEditor: () => { },
+		getVisibleResolvedFeedbackIds: () => new Set(),
+		hasLoadedFeedback: () => true,
+		getSessionForFile: () => undefined,
+		getChatChanges: () => [],
+		getFeedbackSessionResource: () => undefined,
+		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
 		revealSessionComment: async () => { },
@@ -470,7 +789,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		setNavigationAnchor: () => { },
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
+		markFeedbackSubmitted: () => { },
+		submitFeedback: async () => false,
 		addFeedbackAndSubmit: async () => { },
+		setFeedbackResolved: async () => { },
 	});
 
 	definePartialInstance(IChatEditingService, {
@@ -482,22 +804,29 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsManagementService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
 		getSession: () => undefined,
 		getSessions: () => [],
 	});
 
+	definePartialInstance(ISessionsService, {
+		_serviceBrand: undefined,
+		activeSession: constObservable(undefined),
+	});
+
+	// The real cache: it only reads and writes the (null) storage service, and
+	// the changes pill it feeds reads it directly.
+	define(ISessionChangesStatsCache, SessionChangesStatsCache);
+
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
-		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
-		hasReview: () => false,
-		requestReview: () => { },
-		removeComment: () => { },
-		updateComment: () => { },
-		dismissReview: () => { },
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
+	});
+
+	definePartialInstance(IPreferencesService, {
+		_serviceBrand: undefined,
+		openSettings: async () => undefined,
 	});
 
 	// Allow additional services to override defaults
@@ -517,7 +846,16 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		},
 	});
 
-	const instantiationService = disposables.add(new TestInstantiationService(services, true));
+	// Pass `_properDispose: true` so the underlying `InstantiationService`'s
+	// dispose runs, which disposes services it instantiated lazily from
+	// `SyncDescriptor`s (e.g. MenuService, ContextKeyService). Without this,
+	// production services with internal Disposables leak past the fixture.
+	//
+	// Don't add TestInstantiationService to disposables immediately — it must
+	// dispose runs, which disposes services it instantiated lazily from
+	// `SyncDescriptor`s (e.g. MenuService, ContextKeyService). Without this,
+	// production services with internal Disposables leak past the fixture.
+	const instantiationService = disposables.add(new TestInstantiationService(services, true, undefined, true));
 
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
@@ -536,6 +874,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
  * Use with createEditorServices additionalServices option.
  */
 export function registerWorkbenchServices(registration: ServiceRegistration): void {
+	registration.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),
@@ -560,13 +899,45 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
 		onDidChangeFormatters: () => ({ dispose: () => { } }),
+		getUriHome: () => undefined,
 		registerCachedFormatter: () => ({ dispose: () => { } }),
 		_serviceBrand: undefined,
 		getHostTooltip: () => '',
 	});
 
+	// A single-folder workspace, so components that render paths relative to a
+	// workspace folder have one to resolve against.
+	registration.define(IWorkspaceContextService, TestContextService);
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
+
+	// No-op phone presenter so chat-input fixtures don't crash on
+	// `chatPhoneInputPresenter.enabled.get()`. The real impl is in
+	// `vs/sessions` and only attaches in the agents window — desktop
+	// fixtures see the no-op (`enabled === false`, sheet calls resolve
+	// immediately) which matches desktop runtime behavior.
+	registration.defineInstance(IChatPhoneInputPresenter, {
+		_serviceBrand: undefined,
+		enabled: constObservable(false),
+		showCombinedModeAndModelSheet: () => Promise.resolve(),
+		setImpl: () => ({ dispose: () => { } }),
+	});
+
+	// Workspace trust stubs so chat-input fixtures can instantiate the model
+	// picker (ModelPickerWidget reads workspace trust to detect Restricted Mode).
+	// Reports the workspace as trusted so the picker renders normally.
+	registration.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override onDidChangeTrust = Event.None;
+		override readonly workspaceTrustInitialized = Promise.resolve();
+		override isWorkspaceTrusted() { return true; }
+	}());
+	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
+		override async requestWorkspaceTrust() { return true; }
+	}());
+
+	// Chat inputs register themselves as paste targets while rendering; the real
+	// service is a plain registry with no dependencies, so use it directly.
+	registration.defineInstance(IChatPasteTargetService, new ChatPasteTargetService());
 }
 
 
@@ -586,7 +957,9 @@ export function createTextModel(
 	const modelService = instantiationService.get(IModelService);
 	const languageService = instantiationService.get(ILanguageService);
 	const languageSelection = languageId ? languageService.createById(languageId) : null;
-	return modelService.createModel(text, languageSelection, uri);
+	const model = modelService.createModel(text, languageSelection, uri);
+	model.tokenization.forceTokenization(model.getLineCount());
+	return model;
 }
 
 
@@ -596,7 +969,7 @@ export function createTextModel(
 
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
-	readonly blocksCi?: true;
+	readonly blocksCi?: boolean;
 	readonly flaky?: true;
 }
 
@@ -616,21 +989,77 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 	return result;
 }
 
+export class DisposableStackStore implements IDisposable {
+	private readonly _items: IDisposable[] = [];
+	private _isDisposed = false;
+
+	add<T extends IDisposable>(item: T): T {
+		if (this._isDisposed) {
+			item.dispose();
+			console.warn('Adding to a disposed DisposableStackStore');
+		} else {
+			this._items.push(item);
+		}
+		return item;
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
+		while (this._items.length > 0) {
+			this._items.pop()!.dispose();
+		}
+	}
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
+	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
+	fileIconTheme: IFileIconTheme;
+	/** Input including schema defaults; parse with the fixture's schema to narrow its type. */
+	readonly input: unknown;
+	/** Whether deterministic fixture focus overrides natural browser focus. */
+	readonly overrideFocus: boolean;
+	/** Applies initial focus only while deterministic fixture focus is enabled. */
+	focus(target: { focus(): void }): void;
 }
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	/** Reveal headless fixtures only after async setup and virtual-time layout have completed. */
+	deferPaint?: boolean;
 	labels?: ThemedFixtureGroupLabels;
+	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
+	/** Base color themes to render; defaults to both dark and light. */
+	themes?: readonly ['dark' | 'light', ...('dark' | 'light')[]];
+	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
+	fileIconTheme?: ComponentFixtureFileIconTheme;
+	expectedVisualDescriptions?: readonly string[];
+	/** Additional input fields; unobserved input changes remount the fixture. */
+	inputSchema?: z.ZodObject;
+	inputControls?: Record<string, FixtureInputControlOptions>;
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
 
+// Permanent logging layer that detects real timer API usage.
+// Includes handler source for identification since bundled stack traces are not useful.
+const realTimeApi = captureGlobalTimeApi();
+const logOutsideTime = false;
+if (logOutsideTime) {
+	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
+		const handlerStr = typeof handler === 'function' ? handler.toString().slice(0, 500) : String(handler);
+		console.warn(`[ComponentFixture] Real ${name} called outside of virtual time.\nHandler: ${handlerStr}\nStack: ${stack}`);
+	});
+	pushGlobalTimeApi(loggingTimeApi);
+}
+
+let fixtureRenderCounter = 0;
+let sourceMapsInitialized = false;
+
 /**
- * Creates Dark and Light fixture variants from a single render function.
+ * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
  * The render function receives a context with container and disposableStore.
  *
  * Note: If render returns a Promise, the async work will run in background.
@@ -638,64 +1067,258 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
  * which should be sufficient for most async setup, but timing is not guaranteed.
  */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
-	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
+	const createFixture = (themeVariant: ComponentFixtureThemeVariant) => defineFixture({
 		isolation: 'none',
 		displayMode: { type: 'component' },
-		background: theme === darkTheme ? 'dark' : 'light',
-		render: async (container: HTMLElement) => {
-			const disposableStore = new DisposableStore();
+		background: themeVariant.background,
+		expectedVisualDescriptions: options.expectedVisualDescriptions,
+		inputSchema: fixtureInputSchema.extend(options.inputSchema?.shape ?? {}),
+		inputControls: {
+			reverseStylesheets: { placement: 'sidebar', label: 'Reverse Stylesheets' },
+			enableAnimations: { placement: 'sidebar', label: 'Enable Animations' },
+			overrideFocus: { placement: 'sidebar', label: 'Override Focus' },
+			...options.inputControls,
+		},
+		render: async (fixtureHost: HTMLElement, context) => {
+			const container = $('.component-fixture-container');
+			fixtureHost.appendChild(container);
+			const input = parseFixtureInput(context.input);
+			const disposableStore = new FixtureDisposableStore(input.overrideFocus);
+			const { label: themeLabel, theme } = themeVariant;
 
-			const schedulerStore = disposableStore.add(new DisposableStore());
-			const scheduler = new TimeTravelScheduler(Date.now());
-			const p = schedulerStore.add(new AsyncSchedulerProcessor(scheduler, {
-				maxTaskCount: 100,
-			}));
+			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
+			disposableStore.add(pushRandomOverwrite(42));
 
-			async function actualRender() {
-
-				setupTheme(container, theme);
-
-				// Temporarily disable TimeTravelScheduler, as this needs a component explorer update
-				// schedulerStore.add(scheduler.installGlobally());
-				disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
-					return scheduler.schedule({
-						time: scheduler.now,
-						run: () => {
-							const deadline: IdleDeadline = {
-								didTimeout: true,
-								timeRemaining: () => 50,
-							};
-							callback(deadline);
-						},
-						source: {
-							toString() { return 'runWhenIdle'; },
-							stackTrace: undefined,
-						},
-					});
-				}));
-
-				const result = options.render({ container, disposableStore, theme });
-
-				const p2 = p.waitFor(1000);
-
-				await Promise.all([
-					result instanceof Promise ? result : Promise.resolve(),
-					p2,
-				]);
+			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
+			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
+			// Detect disposable leaks the same way unit tests do (`ensureNoDisposablesAreLeakedInTestSuite`).
+			// The tracker is global and therefore unsafe when fixtures render in parallel,
+			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
+			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			if (leakDetectionEnabled && !sourceMapsInitialized) {
+				// Initialize source maps before async render timeouts start, not on the first fixture error.
+				void new Error().stack;
+				sourceMapsInitialized = true;
+			}
+			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
+			// starts so its long-lived `DisposableStore` (created on first
+			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
+			// the first fixture that uses a menu toolbar.
+			if (leakDetectionEnabled) {
+				ModifierKeyEmitter.getInstance();
+			}
+			const tracker = leakDetectionEnabled ? new DisposableTracker() : undefined;
+			if (tracker) {
+				setDisposableTracker(tracker);
 			}
 
-			await actualRender();
+			// Virtual time infrastructure lives across the whole fixture
+			// lifetime (render + dispose). This lets us advance virtual time
+			// during dispose to drain async cleanup work (e.g. `Promise.race`
+			// guards behind `timeout(1000)` that hold references until they
+			// settle) before the leak tracker checks for undisposed objects.
+			//
+			// Seed the clock with a fixed wall-clock time so any code under
+			// test that reads `Date.now()` / `new Date()` produces the same
+			// values run after run. Real time would otherwise leak in
+			// through this seed and make screenshots that include
+			// time-derived labels (e.g. "1 hour ago", "Today") drift
+			// across days, hour boundaries, and DST changes.
+			const clock = new VirtualClock(new Date('2026-05-14T12:00:00Z').getTime());
+			const p = new VirtualTimeProcessor(
+				clock,
+				drainMicrotasksEmbedding(realTimeApi),
+				realTimeApi,
+				{ defaultMaxEvents: 100 },
+			);
+			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
+			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
 
-			schedulerStore.dispose();
+			// Single async dispose orchestrates teardown order:
+			//   1. dispose user disposables (synchronous part)
+			//   2. drain virtual time (so timers scheduled during dispose
+			//      — like `Promise.race([..., timeout(1000)])` — settle and
+			//      release their captured references)
+			//   3. tear down virtual time (uninstall global API, dispose `p`)
+			//   4. stop tracker and check for leaks
+			// All on one disposable so the steps run in order.
+			context.addDisposable({
+				dispose: async () => {
+					// Re-push virtual time so any `setTimeout`/`setInterval`
+					// calls made by `dispose()` of fixture-owned objects
+					// land in `p` and can be drained below. Render unpushes
+					// virtual time when it completes (so screenshot capture
+					// etc. can use real timers), so we have to push again.
+					let teardownTimeApi: IDisposable | undefined;
+					if (virtualTimeEnabled) {
+						teardownTimeApi = pushGlobalTimeApi(virtualTimeApi);
+					}
 
-			return disposableStore;
+					try {
+						disposableStore.dispose();
+					} catch (e) {
+						console.error(`[ComponentFixture] error disposing fixture: ${e instanceof Error ? e.stack : e}`);
+					}
+
+					if (virtualTimeEnabled) {
+						try {
+							await p.run({
+								until: untilTime(clock.now + teardownDrainMs),
+								maxEvents: 1000,
+							});
+						} catch (e) {
+							console.error(`[ComponentFixture] error draining virtual time during teardown: ${e instanceof Error ? e.stack : e}`);
+						}
+					}
+
+					teardownTimeApi?.dispose();
+					p.dispose();
+
+					if (tracker) {
+						setDisposableTracker(null);
+						const result = tracker.computeLeakingDisposables();
+						if (result) {
+							throw new Error(`There are ${result.leaks.length} undisposed disposables!${result.details}`);
+						}
+					}
+				},
+			});
+
+			async function actualRender() {
+				const [fileIconTheme] = await Promise.all([
+					setupTheme(container, theme, options.fileIconTheme, fixtureHost),
+					ensureThemeLoaded(darkTheme),
+				]);
+				await registerFixtureSyntaxHighlighting(disposableStore, fixtureHost, darkTheme, theme);
+
+				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
+				const updateStylesheetOrder = (input: unknown) => {
+					const option = getReverseStylesheetsOption(input);
+					stylesheetOrderOverride.clear();
+					if (option !== false) {
+						stylesheetOrderOverride.value = overrideStylesheetOrder(option);
+					}
+				};
+				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
+				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
+				context.watchInput('enableAnimations', value => {
+					container.classList.toggle('disable-animations', !value);
+				});
+
+				let renderTimeApi: IDisposable | undefined;
+				if (virtualTimeEnabled) {
+					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
+
+					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
+						const stackTrace = new Error();
+						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
+						return clock.schedule({
+							time: clock.now,
+							run: () => {
+								const deadline: IdleDeadline = {
+									didTimeout: true,
+									timeRemaining: () => 50,
+								};
+								callback(deadline);
+							},
+							source: {
+								toString() { return 'runWhenIdle'; },
+								get stackTrace() { return stackTrace.stack; },
+							},
+							trace,
+						});
+					}));
+				}
+
+				try {
+					const disposableStackStore = disposableStore.add(new DisposableStackStore());
+					const result = options.render({
+						container,
+						disposableStore,
+						disposableStackStore,
+						theme,
+						fileIconTheme,
+						input: context.input,
+						overrideFocus: input.overrideFocus,
+						focus: target => applyFixtureFocus(input.overrideFocus, target),
+					});
+
+					const p2 = virtualTimeEnabled
+						? p.run({
+							until: untilTime(clock.now + (options.virtualTime?.durationMs ?? 1000)),
+							maxEvents: 200,
+						})
+						: Promise.resolve();
+
+					await Promise.all([
+						result instanceof Promise ? result : Promise.resolve(),
+						p2,
+					]);
+				} catch (e) {
+					if (virtualTimeEnabled && p.history.length > 0) {
+						const startTime = p.history[0].time;
+						const history = buildHistoryFromTasks(p.history, startTime);
+						console.error(`[ComponentFixture] ${themeLabel} virtual-time history (${p.history.length} tasks):\n${renderSwimlanes(history)}`);
+					}
+					throw e;
+				} finally {
+					// Unpush virtual time so the post-render flow (screenshot
+					// capture, stability checks, …) runs with real timers.
+					renderTimeApi?.dispose();
+				}
+			}
+
+			// Every render gets its own trace root so that any diagnostics
+			// output by the scheduler / processor shows exactly which fixture
+			// caused each queued or historical timer, plus the full chain of
+			// setTimeout/rAF calls that led to it.
+			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
+
+			const deferPaint = options.deferPaint === true && context.host.kind === 'headless';
+			const originalOpacity = fixtureHost.style.opacity;
+			if (deferPaint) {
+				fixtureHost.style.opacity = '0';
+			}
+			try {
+				await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+					// Trace-reset escapes virtual time so it actually fires.
+					afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+				});
+			} finally {
+				if (deferPaint) {
+					fixtureHost.style.opacity = originalOpacity;
+				}
+			}
+
+			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
+				const startTime = p.history[0].time;
+				const history = buildHistoryFromTasks(p.history, startTime);
+				return { output: renderSwimlanes(history) };
+			}
+
+			// The order-dependency bisection driver asks for the list of bundled
+			// stylesheet documents so it can name a conflicting document by index
+			// without itself parsing the bundle. Keeping this knowledge in the
+			// runtime means the driver only deals in indices and image hashes.
+			if (input.outputStylesheetFiles) {
+				return { output: { stylesheetFiles: await getStylesheetDocumentFiles() } };
+			}
+			return undefined;
 		},
 	});
 
 	const labels = resolveLabels(options.labels);
+	const baseFixtures = Object.fromEntries((options.themes ?? ['dark', 'light']).map(theme => {
+		const themeVariant = theme === 'dark' ? darkThemeVariant : lightThemeVariant;
+		return [themeVariant.label, createFixture(themeVariant)];
+	}));
+	const additionalFixtures = Object.fromEntries((options.additionalThemes ?? []).map(additionalTheme => {
+		const themeVariant = additionalThemeVariants[additionalTheme];
+		return [themeVariant.label, createFixture(themeVariant)];
+	}));
 	return defineFixtureVariants(labels.length > 0 ? { labels } : {}, {
-		Dark: createFixture(darkTheme),
-		Light: createFixture(lightTheme),
+		...baseFixtures,
+		...additionalFixtures,
 	});
 }
 
@@ -704,7 +1327,7 @@ interface ThemedFixtureGroupOptions {
 	readonly labels?: ThemedFixtureGroupLabels;
 }
 
-type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures | ReturnType<typeof defineFixtureGroup>>;
 
 /**
  * Creates a nested fixture group from themed fixtures.

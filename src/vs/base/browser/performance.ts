@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { observableValue } from '../common/observable.js';
+
 export namespace inputLatency {
 
 	// Measurements are recorded as totals, the average is calculated when the final measurements
@@ -19,6 +21,12 @@ export namespace inputLatency {
 	let measurementsCount = 0;
 
 
+
+	/**
+	 * Observable that increments each time a new input latency sample is recorded.
+	 * Consumers can use `debouncedObservable` to batch-report after a period of inactivity.
+	 */
+	export const sampleCount = observableValue('inputLatency.sampleCount', 0);
 
 	// The state of each event, this helps ensure the integrity of the measurement and that
 	// something unexpected didn't happen that could skew the measurement.
@@ -178,6 +186,7 @@ export namespace inputLatency {
 			// );
 
 			measurementsCount++;
+			sampleCount.set(sampleCount.get() + 1, undefined);
 
 			reset();
 		}

@@ -16,6 +16,7 @@ import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Command } from '../../../../../editor/common/languages.js';
+import type { MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -51,6 +52,12 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
 	supportsCheckpoints?: boolean;
+	/**
+	 * The prefix (e.g. `!`) that marks a message in this
+	 * session type as a terminal command rather than a message to the agent.
+	 * Undefined when the session type has no terminal command support.
+	 */
+	terminalCommandPrefix?: string;
 }
 
 export interface IChatAgentData {
@@ -148,11 +155,22 @@ export interface IChatAgentRequest {
 	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
+	agentHostSessionConfig?: Record<string, unknown>;
+	/** Original actor when resending an Agent Host pending message. */
+	agentHostMessageOrigin?: MessageOrigin;
+	/** Provider-specific request metadata, separate from the prompt. */
+	metadata?: Record<string, unknown>;
 	userSelectedModelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	/**
+	 * The working directory URI for the session, if set.
+	 * In the agents window, each session can have its own working directory
+	 * that differs from the current workspace folders.
+	 */
+	workingDirectory?: URI;
 	/**
 	 * Collected hooks configuration for this request.
 	 * Contains all hooks defined in hooks .json files, organized by hook type.
@@ -162,6 +180,10 @@ export interface IChatAgentRequest {
 	 * Whether any hooks are enabled for this request.
 	 */
 	hasHooksEnabled?: boolean;
+	/**
+	 * Whether this request was submitted through Agents Voice Mode.
+	 */
+	isVoiceModeInput?: boolean;
 	/**
 	 * The permission level for tool auto-approval in this request.
 	 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
@@ -185,6 +207,8 @@ export interface IChatAgentRequest {
 	 * When true, this request was initiated by the system rather than the user.
 	 */
 	isSystemInitiated?: boolean;
+	/** Whether the request and response should be hidden from the transcript. */
+	hideFromTranscript?: boolean;
 }
 
 export interface IChatQuestion {
@@ -536,7 +560,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
+			return;
 		}
 
 		data.impl.setRequestTools?.(requestId, tools);

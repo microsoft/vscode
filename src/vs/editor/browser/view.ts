@@ -41,6 +41,7 @@ import { SelectionsOverlay } from './viewParts/selections/selections.js';
 import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
+import { WordWrapIndicatorOverlay } from './viewParts/wordWrapIndicator/wordWrapIndicator.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
 import { EditorOption } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
@@ -220,6 +221,7 @@ export class View extends ViewEventHandler {
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new WhitespaceOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new WordWrapIndicatorOverlay(this._context));
 
 		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
@@ -601,10 +603,6 @@ export class View extends ViewEventHandler {
 				inputLatency.onRenderStart();
 
 				if (!this.domNode.domNode.isConnected) {
-					const model = this._context.viewModel.model;
-					if (model.uri.scheme === 'vscode-chat-code-block') {
-						console.warn(`[EditorView] Render dropped: isConnected=false for ${model.uri.toString()}`);
-					}
 					return null;
 				}
 
@@ -612,10 +610,6 @@ export class View extends ViewEventHandler {
 				const viewLinesShouldRender = this._viewLines.shouldRender();
 				if (!viewLinesShouldRender && viewPartsToRender.length === 0) {
 					// Nothing to render
-					const model = this._context.viewModel.model;
-					if (model.uri.scheme === 'vscode-chat-code-block') {
-						console.warn(`[EditorView] Render dropped: nothing to render for ${model.uri.toString()}, viewLines.shouldRender=${viewLinesShouldRender}, viewParts=${viewPartsToRender.length}`);
-					}
 					return null;
 				}
 

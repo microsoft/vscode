@@ -145,6 +145,7 @@ import { IEnvironmentVariableService } from '../../contrib/terminal/common/envir
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
@@ -153,7 +154,7 @@ import { CustomEditorLabelService, ICustomEditorLabelService } from '../../servi
 import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
-import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
+import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, IVisibleEditorsChangeEvent, PreferredGroup } from '../../services/editor/common/editorService.js';
 import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -379,6 +380,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
 	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
@@ -658,6 +660,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
+	isFloatingPanelsEnabled(): boolean { return false; }
+	isModernUICompact(): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
@@ -674,6 +678,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setSideBarHidden(_hidden: boolean): Promise<void> { }
 	async setAuxiliaryBarHidden(_hidden: boolean): Promise<void> { }
 	async setPartHidden(_hidden: boolean, part: Parts): Promise<void> { }
+	isSecondarySideBarVisible(): boolean { return false; }
+	toggleSecondarySideBar(): void { }
 	isPanelHidden(): boolean { return false; }
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
@@ -1050,7 +1056,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidActiveEditorChange: Event<void> = Event.None;
-	readonly onDidVisibleEditorsChange: Event<void> = Event.None;
+	readonly onDidVisibleEditorsChange: Event<IVisibleEditorsChangeEvent> = Event.None;
 	readonly onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
 	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
@@ -1357,6 +1363,10 @@ export class TestHostService implements IHostService {
 		this._onDidChangeFocus.fire(this._hasFocus);
 	}
 
+	setActiveWindow(windowId: number) {
+		this._onDidChangeWindow.fire(windowId);
+	}
+
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
@@ -1650,6 +1660,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
+	floatingBorderWidth: number | undefined;
+
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
@@ -1658,6 +1670,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	testSaveState(): void {
 		return super.saveState();
+	}
+
+	protected override getFloatingBorderWidth(): number {
+		return this.floatingBorderWidth ?? super.getFloatingBorderWidth();
 	}
 
 	clearState(): void {
@@ -1819,7 +1835,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	onDidChangeInstances = Event.None;
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
 	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance> { throw new Error('Method not implemented.'); }
 	revealActiveEditor(preserveFocus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	resolveResource(instance: ITerminalInstance): URI { throw new Error('Method not implemented.'); }
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
@@ -1896,6 +1912,7 @@ export class TestTerminalProfileService implements ITerminalProfileService {
 	registerInternalContributedProfile(_profile: IExtensionTerminalProfile): IDisposable { return Disposable.None; }
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined { throw new Error('Method not implemented.'); }
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable { throw new Error('Method not implemented.'); }
+	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable { return Disposable.None; }
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
@@ -2145,6 +2162,8 @@ export class TestChatWidgetService implements IChatWidgetService {
 	lastFocusedWidget: IChatWidget | undefined;
 
 	onDidAddWidget = Event.None;
+	onDidRemoveWidget = Event.None;
+	onDidChangeWidgetVisibility = Event.None;
 	onDidBackgroundSession = Event.None;
 	onDidChangeFocusedWidget = Event.None;
 	onDidChangeFocusedSession = Event.None;

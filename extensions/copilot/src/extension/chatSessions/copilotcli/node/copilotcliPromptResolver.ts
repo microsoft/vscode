@@ -18,11 +18,13 @@ import { extUriBiasedIgnorePathCase, relativePath } from '../../../../util/vs/ba
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatReferenceBinaryData, ChatReferenceDiagnostic, FileType, Location } from '../../../../vscodeTypes';
-import { ChatVariablesCollection, isCustomizationsIndex, isInstructionFile, isPromptFile, PromptVariable } from '../../../prompt/common/chatVariablesCollection';
+import { ChatVariablesCollection, isCustomizationsIndex, isInstructionFile, isPromptFile } from '../../../prompt/common/chatVariablesCollection';
 import { generateUserPrompt } from '../../../prompts/node/agent/copilotCLIPrompt';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { ICopilotCLIImageSupport, isImageMimeType } from './copilotCLIImageSupport';
 import { ICopilotCLISkills } from './copilotCLISkills';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 
 export class CopilotCLIPromptResolver {
 	constructor(
@@ -33,6 +35,7 @@ export class CopilotCLIPromptResolver {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IIgnoreService private readonly ignoreService: IIgnoreService,
 		@ICopilotCLISkills private readonly skillsService: ICopilotCLISkills,
+		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 	) { }
 
 	/**
@@ -75,32 +78,40 @@ export class CopilotCLIPromptResolver {
 		const isolationEnabled = isIsolationEnabled(workspaceInfo) || additionalWorkspaces.some(ws => isIsolationEnabled(ws));
 		const folderToWorktreeMap = this.buildFolderToWorktreeMap(workspaceInfo, additionalWorkspaces);
 		const hasAnyWorkingDirectory = getWorkingDirectory(workspaceInfo) || additionalWorkspaces.some(ws => getWorkingDirectory(ws));
-		const knownSkillLocations = this.skillsService.getSkillsLocations();
+		const knownSkillLocations = await this.skillsService.getSkillsLocations(CancellationToken.None);
 		await Promise.all(Array.from(variables).map(async variable => {
+			const reference = variable.reference;
 			// Unsupported references: prompt instructions, instruction files, and the customizations index.
-			if (isInstructionFile(variable) || isCustomizationsIndex(variable)) {
+			if (isInstructionFile(reference) || isCustomizationsIndex(reference)) {
 				return;
 			}
 			// No need to include skill prompt files as an attachment if CLI already knows about them.
-			const promptFileUri = isPromptFile(variable) ? variable.value : undefined;
-			if (promptFileUri && knownSkillLocations.some(loc => extUriBiasedIgnorePathCase.isEqualOrParent(promptFileUri, loc))) {
-				return;
+			const promptFileUri = isPromptFile(reference) ? reference.value : undefined;
+			if (promptFileUri) {
+				if (knownSkillLocations.some(loc => extUriBiasedIgnorePathCase.isEqualOrParent(promptFileUri, loc))) {
+					return;
+				}
+				// Exclude plan prompt file from Core.
+				const directory = URI.file(path.dirname(promptFileUri.fsPath));
+				if (promptFileUri.fsPath.endsWith('plan.prompt.md') && path.basename(directory.fsPath) === 'prompts' && extUriBiasedIgnorePathCase.isEqualOrParent(this.extensionContext.extensionUri, directory)) {
+					return;
+				}
 			}
 			// GitHub pull request references
-			if (isGitHubPullRequestReference(variable.reference)) {
-				builtinSlashCommandReferences.push(variable.reference);
+			if (isGitHubPullRequestReference(reference)) {
+				builtinSlashCommandReferences.push(reference);
 				return;
 			}
 			// Git merge changes references
-			if (isGitMergeChangesReference(variable.reference)) {
-				builtinSlashCommandReferences.push(variable.reference);
+			if (isGitMergeChangesReference(reference)) {
+				builtinSlashCommandReferences.push(reference);
 				return;
 			}
 			// If isolation is enabled, and we have workspace repo information, skip it.
-			if (isolationEnabled && isWorkspaceRepoInformationItem(variable)) {
+			if (isolationEnabled && isWorkspaceRepoInformationItem(reference)) {
 				return;
 			}
-			const variableRef = (!isolationEnabled || !hasAnyWorkingDirectory) ? variable.reference : await this.translateWorkspaceRefToWorkingDirectoryRef(variable.reference, workspaceInfo, additionalWorkspaces, folderToWorktreeMap, token);
+			const variableRef = (!isolationEnabled || !hasAnyWorkingDirectory) ? reference : await this.translateWorkspaceRefToWorkingDirectoryRef(reference, workspaceInfo, additionalWorkspaces, folderToWorktreeMap, token);
 			// Images will be attached using regular attachments via Copilot CLI SDK.
 			if (variableRef.value instanceof ChatReferenceBinaryData) {
 				if (!isImageMimeType(variableRef.value.mimeType)) {
@@ -341,8 +352,7 @@ export class CopilotCLIPromptResolver {
  * This causes issues as the repository information will not match the worktree state.
  * https://github.com/microsoft/vscode/issues/279865
  */
-function isWorkspaceRepoInformationItem(variable: PromptVariable): boolean {
-	const ref = variable.reference;
+function isWorkspaceRepoInformationItem(ref: vscode.ChatPromptReference): boolean {
 	if (typeof ref.value !== 'string') {
 		return false;
 	}

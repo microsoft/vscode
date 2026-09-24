@@ -475,6 +475,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}
 		},
+		stickyScrollNodeSourceRangeProvider: options.stickyScrollNodeSourceRangeProvider && ((e, defaultRange) => options.stickyScrollNodeSourceRangeProvider!(e.element as T, defaultRange)),
 		sorter: undefined,
 		expandOnlyOnTwistieClick: typeof options.expandOnlyOnTwistieClick === 'undefined' ? undefined : (
 			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
@@ -837,7 +838,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	hasNode(element: TInput | T): boolean {
-		return element === this.root.element || this.nodes.has(element as T);
+		if (element === this.root.element) {
+			return true;
+		}
+
+		const node = this.nodes.get(element as T);
+
+		if (!node) {
+			return false;
+		}
+
+		return this.tree.hasElement(node);
 	}
 
 	// View

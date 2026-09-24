@@ -2,433 +2,433 @@
 	{
 		"name": "terminal (git) [panel] [bash] - add a git remote",
 		"requests": [
-			"bbe500fc855b9747a0acfc0e46887fb228210da050a034b5d883ea579feca8da"
+			"ec9ce4597d8718d5b17344f574ced5a56903e8004aecf1872a6fc5f2de367e35"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - add a git remote (strict)",
 		"requests": [
-			"bbe500fc855b9747a0acfc0e46887fb228210da050a034b5d883ea579feca8da"
+			"ec9ce4597d8718d5b17344f574ced5a56903e8004aecf1872a6fc5f2de367e35"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - checkout the foo branch",
 		"requests": [
-			"d2bf1e052250493749cc540a944a0d8b15bc3a0ba0f62fb334842ab42510ceee"
+			"72a63debadff759d26cd06dd22e09bee86a584c0778644b78a2209443478d9c6"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - checkout the foo branch (strict)",
 		"requests": [
-			"d2bf1e052250493749cc540a944a0d8b15bc3a0ba0f62fb334842ab42510ceee"
+			"72a63debadff759d26cd06dd22e09bee86a584c0778644b78a2209443478d9c6"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - create a git repo in this folder",
 		"requests": [
-			"06e7e98b14e9062bfd5fa26335eb87086c960db6bbb48c7d00f135ae8e8b7856"
+			"05accf55ba168566f0815edc550f7c4f12993ffdb43a30bdcc701ae49b87a9f2"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - create a git repo in this folder (strict)",
 		"requests": [
-			"06e7e98b14e9062bfd5fa26335eb87086c960db6bbb48c7d00f135ae8e8b7856"
+			"05accf55ba168566f0815edc550f7c4f12993ffdb43a30bdcc701ae49b87a9f2"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - create and checkout the foo branch",
 		"requests": [
-			"e1c4ef58e82f4687cd512a33714ee42199733ebce4689afa24b69866bfef33ef"
+			"4dd2bdb5c3758cde3efe11eb0fe05931c49d0c97eae010648fe7444069612884"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - create and checkout the foo branch (strict)",
 		"requests": [
-			"e1c4ef58e82f4687cd512a33714ee42199733ebce4689afa24b69866bfef33ef"
+			"4dd2bdb5c3758cde3efe11eb0fe05931c49d0c97eae010648fe7444069612884"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - delete the foo branch",
 		"requests": [
-			"5dd22a47a30ab06e9ddd8bccee52caa91eee4d1a3ba68f6f9322dfe9b4df12ee"
+			"109baf00e927fc9395ef557380181b962d29c2507100ceacb2fd19ad6b738af2"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - delete the foo branch (strict)",
 		"requests": [
-			"5dd22a47a30ab06e9ddd8bccee52caa91eee4d1a3ba68f6f9322dfe9b4df12ee"
+			"109baf00e927fc9395ef557380181b962d29c2507100ceacb2fd19ad6b738af2"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - enable colors in the git cli",
 		"requests": [
-			"7896b776ca2280df953f665c815000367430ad2122d54e412b9eaeb875e4d65d"
+			"c42cda5a935580966711c651463cc7e5ab7121f827a3e1550278333f565cc336"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - enable colors in the git cli (strict)",
 		"requests": [
-			"7896b776ca2280df953f665c815000367430ad2122d54e412b9eaeb875e4d65d"
+			"c42cda5a935580966711c651463cc7e5ab7121f827a3e1550278333f565cc336"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - list all git commits by Daniel",
 		"requests": [
-			"9dd4a577ad4396f5fe91abba04844d9cb40e26e00eb454d37ff0b147b205b9a3"
+			"08a79a9772b6bd44fb56a14795a420e19cecca54ad7e07e7289148bf14aaeeb4"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - list all git commits by Daniel (strict)",
 		"requests": [
-			"9dd4a577ad4396f5fe91abba04844d9cb40e26e00eb454d37ff0b147b205b9a3"
+			"08a79a9772b6bd44fb56a14795a420e19cecca54ad7e07e7289148bf14aaeeb4"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - merge the branch foo into this branch",
 		"requests": [
-			"48449c6568ea92e1bf3a58f32d55bc4e14f2ad4803dabde347fd5a1eb8e055cf"
+			"518f32378659f24374937b1d88c059c1d052e90e7152d78d87eee2db353b128d"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - merge the branch foo into this branch (strict)",
 		"requests": [
-			"48449c6568ea92e1bf3a58f32d55bc4e14f2ad4803dabde347fd5a1eb8e055cf"
+			"518f32378659f24374937b1d88c059c1d052e90e7152d78d87eee2db353b128d"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - show last git commit details",
 		"requests": [
-			"9c61d509098072451222666b5ed0a1d84d5a49192331a26a3099f565835e7b71"
+			"d2a9e696daf3d6eba55f5ae2a67181ebda5880bd9b429befc7288171a5db6953"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [bash] - show last git commit details (strict)",
 		"requests": [
-			"9c61d509098072451222666b5ed0a1d84d5a49192331a26a3099f565835e7b71"
+			"d2a9e696daf3d6eba55f5ae2a67181ebda5880bd9b429befc7288171a5db6953"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - add a git remote",
 		"requests": [
-			"0e79bfa0bff463cab43c819e01c84ecd5267a60da5631eccdf023520a85e6398"
+			"a03190247b42f0034d8338963b1960a6ac7fd06ec5c801f4007474b7a40fdc72"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - add a git remote (strict)",
 		"requests": [
-			"0e79bfa0bff463cab43c819e01c84ecd5267a60da5631eccdf023520a85e6398"
+			"a03190247b42f0034d8338963b1960a6ac7fd06ec5c801f4007474b7a40fdc72"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - checkout the foo branch",
 		"requests": [
-			"2e3da18c1ee103a863c92441d6c6a07bf26e932f5b972397f007de8aea0fd31d"
+			"3cb2e8feec6164a53dda957277cd48c00a7ce044637694675c241648176d08c4"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - checkout the foo branch (strict)",
 		"requests": [
-			"2e3da18c1ee103a863c92441d6c6a07bf26e932f5b972397f007de8aea0fd31d"
+			"3cb2e8feec6164a53dda957277cd48c00a7ce044637694675c241648176d08c4"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - create a git repo in this folder",
 		"requests": [
-			"45db37bc3773945c305893e41f2d98d52f9beef36d7c98558e0d1647a9008187"
+			"aebdfd6318bb2c01be50693234b6241f612899e6ca626d28a8f5d556c668a356"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - create a git repo in this folder (strict)",
 		"requests": [
-			"45db37bc3773945c305893e41f2d98d52f9beef36d7c98558e0d1647a9008187"
+			"aebdfd6318bb2c01be50693234b6241f612899e6ca626d28a8f5d556c668a356"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - create and checkout the foo branch",
 		"requests": [
-			"45be2987aa09ded1cf9704eedea217d0c42f50a2550039a48e740328093132c9"
+			"26fe8b849607f1129a7eee4da8cd0ae92f00d362f99d616e102c2adbaf2f6382"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - create and checkout the foo branch (strict)",
 		"requests": [
-			"45be2987aa09ded1cf9704eedea217d0c42f50a2550039a48e740328093132c9"
+			"26fe8b849607f1129a7eee4da8cd0ae92f00d362f99d616e102c2adbaf2f6382"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - delete the foo branch",
 		"requests": [
-			"7a001b8e84054f0a0cbd81d430eab1deadd5c18378c657b8864cddf8450ec54e"
+			"a51beee69f0a53e3a3cb48438b180982be8d6f6078033f415f92df194ee7d6f5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - delete the foo branch (strict)",
 		"requests": [
-			"7a001b8e84054f0a0cbd81d430eab1deadd5c18378c657b8864cddf8450ec54e"
+			"a51beee69f0a53e3a3cb48438b180982be8d6f6078033f415f92df194ee7d6f5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - enable colors in the git cli",
 		"requests": [
-			"3c4b0cac7f266117df425057c7554201636350490fdb5e047db5afb7b693e23c"
+			"a00ea453cc0485dbf6a0c7e805c43b8a6264862116b6615e0f1bcb6ab3465615"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - enable colors in the git cli (strict)",
 		"requests": [
-			"3c4b0cac7f266117df425057c7554201636350490fdb5e047db5afb7b693e23c"
+			"a00ea453cc0485dbf6a0c7e805c43b8a6264862116b6615e0f1bcb6ab3465615"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - list all git commits by Daniel",
 		"requests": [
-			"625035b1ef09727527f1189a88140e4f0680d6c650a757a6e2f42058959419db"
+			"306ecbf7c247d8fd17d591e71ecfd44b6ac5f8f983ff7ce8119ffa18cb9f90b5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - list all git commits by Daniel (strict)",
 		"requests": [
-			"625035b1ef09727527f1189a88140e4f0680d6c650a757a6e2f42058959419db"
+			"306ecbf7c247d8fd17d591e71ecfd44b6ac5f8f983ff7ce8119ffa18cb9f90b5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - merge the branch foo into this branch",
 		"requests": [
-			"77aad046f801a25e277355469fff8fa316d53b8d0e49f6b7ded6ac94d46939ba"
+			"dba3c7a385bbb86e20d36647553b972ab126d686ab80a29df1574f9e925d07a1"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - merge the branch foo into this branch (strict)",
 		"requests": [
-			"77aad046f801a25e277355469fff8fa316d53b8d0e49f6b7ded6ac94d46939ba"
+			"dba3c7a385bbb86e20d36647553b972ab126d686ab80a29df1574f9e925d07a1"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - show last git commit details",
 		"requests": [
-			"7b66150eb8cae940007f1c42d56b0a7ad96fed79637f3b7321baf013f5f740eb"
+			"27b6617ab12a74eed0fd5cf834e0b3bdba1b34b0dcec05f28a33437b9cb05908"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [fish] - show last git commit details (strict)",
 		"requests": [
-			"7b66150eb8cae940007f1c42d56b0a7ad96fed79637f3b7321baf013f5f740eb"
+			"27b6617ab12a74eed0fd5cf834e0b3bdba1b34b0dcec05f28a33437b9cb05908"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - add a git remote",
 		"requests": [
-			"e95fbdceedf8b266f80296649586733a3dfe5a06340cf1a6334494220e43ff19"
+			"efa8bf205e88ef3f203e6fdb671313dcd1f0e0ea664951990854e27908f02591"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - add a git remote (strict)",
 		"requests": [
-			"e95fbdceedf8b266f80296649586733a3dfe5a06340cf1a6334494220e43ff19"
+			"efa8bf205e88ef3f203e6fdb671313dcd1f0e0ea664951990854e27908f02591"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - checkout the foo branch",
 		"requests": [
-			"3a3f5f24e8b0c45aaec63ef660ada6dcc6f033dc37a0a21371ef5c43dc733a6b"
+			"c86f8c58fee39a29f48181c3e1a3485915ae2af8af85f0464720f6a4b75f922d"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - checkout the foo branch (strict)",
 		"requests": [
-			"3a3f5f24e8b0c45aaec63ef660ada6dcc6f033dc37a0a21371ef5c43dc733a6b"
+			"c86f8c58fee39a29f48181c3e1a3485915ae2af8af85f0464720f6a4b75f922d"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - create a git repo in this folder",
 		"requests": [
-			"8f752c93a2e4535960badcdc42228fd26cb86ecd15a4e70fcf6d21171fb761b7"
+			"31ccaf9a164fb3ba88151292791178ccc0539b3acb3a78b3da900c5ad3c60bc5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - create a git repo in this folder (strict)",
 		"requests": [
-			"8f752c93a2e4535960badcdc42228fd26cb86ecd15a4e70fcf6d21171fb761b7"
+			"31ccaf9a164fb3ba88151292791178ccc0539b3acb3a78b3da900c5ad3c60bc5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - create and checkout the foo branch",
 		"requests": [
-			"ca7dfeb0aa464b85fdb879bf454ad2c06d2b28e1df0a9246230d863fbd246846"
+			"308338b1e3983c764f5cc20219fd767522d16614605dc4b56147eb4aec09a70a"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - create and checkout the foo branch (strict)",
 		"requests": [
-			"ca7dfeb0aa464b85fdb879bf454ad2c06d2b28e1df0a9246230d863fbd246846"
+			"308338b1e3983c764f5cc20219fd767522d16614605dc4b56147eb4aec09a70a"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - delete the foo branch",
 		"requests": [
-			"90b2bd797e8eaddd097f91b08f964c28fd2659f6f276529057ef4d7ab1f83b6c"
+			"3b89317a33520fba4b08fb8435c1cbba67b453927bd8940139b2eee7f4689bff"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - delete the foo branch (strict)",
 		"requests": [
-			"90b2bd797e8eaddd097f91b08f964c28fd2659f6f276529057ef4d7ab1f83b6c"
+			"3b89317a33520fba4b08fb8435c1cbba67b453927bd8940139b2eee7f4689bff"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - enable colors in the git cli",
 		"requests": [
-			"93022fb753e2843b92f259d70661a64f370dd1ab19bccbd65f3efa182e9f677c"
+			"d8fe6d5a5c16ad32fa0071d1c44f1c9fdbbfcb5b4695974439762a3bcd4d5ca5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - enable colors in the git cli (strict)",
 		"requests": [
-			"93022fb753e2843b92f259d70661a64f370dd1ab19bccbd65f3efa182e9f677c"
+			"d8fe6d5a5c16ad32fa0071d1c44f1c9fdbbfcb5b4695974439762a3bcd4d5ca5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - list all git commits by Daniel",
 		"requests": [
-			"870a6a0406464e6383fcacc17ca5e9873d7513b72e38eb179a569e9a0a3b80f1"
+			"7dfc865054fe13843a166f83da6285e88b5aff0cdccc0290000d1ae7f0d83acd"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - list all git commits by Daniel (strict)",
 		"requests": [
-			"870a6a0406464e6383fcacc17ca5e9873d7513b72e38eb179a569e9a0a3b80f1"
+			"7dfc865054fe13843a166f83da6285e88b5aff0cdccc0290000d1ae7f0d83acd"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - merge the branch foo into this branch",
 		"requests": [
-			"311e15375243166fb4894539bcc889095063a67eef3c93cae535d5c121f6e302"
+			"f641c59e69709eece87e068cbb4e2d1b035d8acef6500fc29dff80523f04c0a6"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - merge the branch foo into this branch (strict)",
 		"requests": [
-			"311e15375243166fb4894539bcc889095063a67eef3c93cae535d5c121f6e302"
+			"f641c59e69709eece87e068cbb4e2d1b035d8acef6500fc29dff80523f04c0a6"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - show last git commit details",
 		"requests": [
-			"8ac553c921507c3b2c882d0ee48fea2e11d9539f3f0090c665b8e058baf440be"
+			"fc4dcb43437c007d61f673fd7948466367cd8232cc4fa917b0ff72b50ba3b2ff"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [powershell] - show last git commit details (strict)",
 		"requests": [
-			"8ac553c921507c3b2c882d0ee48fea2e11d9539f3f0090c665b8e058baf440be"
+			"fc4dcb43437c007d61f673fd7948466367cd8232cc4fa917b0ff72b50ba3b2ff"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - add a git remote",
 		"requests": [
-			"56732b30f8748e539464a3db2a49cdca8e56a6419b225f9c7d9b39d2e7b2cf3a"
+			"112c7a729c3b9ec99374b44974e8a9c29708c898ec26c823a2695a9d96d11f2b"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - add a git remote (strict)",
 		"requests": [
-			"56732b30f8748e539464a3db2a49cdca8e56a6419b225f9c7d9b39d2e7b2cf3a"
+			"112c7a729c3b9ec99374b44974e8a9c29708c898ec26c823a2695a9d96d11f2b"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - checkout the foo branch",
 		"requests": [
-			"ff88ebe9b37085dc5063e81cdefe97882bbc94fa89d856e38be1a17982635123"
+			"34f15f08ca12ca0d38c68fff1d8fd83c819a6f1b2d3df4a3321d5ccd4f08211d"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - checkout the foo branch (strict)",
 		"requests": [
-			"ff88ebe9b37085dc5063e81cdefe97882bbc94fa89d856e38be1a17982635123"
+			"34f15f08ca12ca0d38c68fff1d8fd83c819a6f1b2d3df4a3321d5ccd4f08211d"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - create a git repo in this folder",
 		"requests": [
-			"3964ea2989b40e2ad5e4fde7d98e42ede93198b29281b76c0e57d417642ed670"
+			"636bbacee502b9a231d76ae7cc83e9373f6b3eda59e26ed590c90f192c6a0d58"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - create a git repo in this folder (strict)",
 		"requests": [
-			"3964ea2989b40e2ad5e4fde7d98e42ede93198b29281b76c0e57d417642ed670"
+			"636bbacee502b9a231d76ae7cc83e9373f6b3eda59e26ed590c90f192c6a0d58"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - create and checkout the foo branch",
 		"requests": [
-			"0de3af70f974b84ac063a060b5bd7ed977581218ce6b940efabf04840bf84d58"
+			"b9260b448cafcd86336f23d6c55fa61a167135f0039ad88426f81f1f15e16864"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - create and checkout the foo branch (strict)",
 		"requests": [
-			"0de3af70f974b84ac063a060b5bd7ed977581218ce6b940efabf04840bf84d58"
+			"b9260b448cafcd86336f23d6c55fa61a167135f0039ad88426f81f1f15e16864"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - delete the foo branch",
 		"requests": [
-			"e88f0fe84196ba1fff00f67de3e329f0fcc24315217325f070e509783589344f"
+			"73614e79eabda1bbc6ab693ab8187624ea2955d4fdbba7a2399b00d77cb869b5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - delete the foo branch (strict)",
 		"requests": [
-			"e88f0fe84196ba1fff00f67de3e329f0fcc24315217325f070e509783589344f"
+			"73614e79eabda1bbc6ab693ab8187624ea2955d4fdbba7a2399b00d77cb869b5"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - enable colors in the git cli",
 		"requests": [
-			"aa664d8fedff7c34a2f68fa25ae3a6b9a89c3324bff8a8468aaf9699dc99fd28"
+			"666318ba246e4dadf604959fe228c2c89ebd54392e0701e360aa5ec29c478f46"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - enable colors in the git cli (strict)",
 		"requests": [
-			"aa664d8fedff7c34a2f68fa25ae3a6b9a89c3324bff8a8468aaf9699dc99fd28"
+			"666318ba246e4dadf604959fe228c2c89ebd54392e0701e360aa5ec29c478f46"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - list all git commits by Daniel",
 		"requests": [
-			"25cbed5ba256f055fc8ad2eaf906b90cc9141ac3f4cf7ef638425e2fdd8f87be"
+			"aba7b9b4db13f53b46f8b544ba049222153d5570ca55bfd27f10a05726b0ca87"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - list all git commits by Daniel (strict)",
 		"requests": [
-			"25cbed5ba256f055fc8ad2eaf906b90cc9141ac3f4cf7ef638425e2fdd8f87be"
+			"aba7b9b4db13f53b46f8b544ba049222153d5570ca55bfd27f10a05726b0ca87"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - merge the branch foo into this branch",
 		"requests": [
-			"efe5f209aa987b84694fc2fcb7e7515825d5598a96f208309d8f8bbf8fe6b4a3"
+			"05336380fa28b3788317e9807c986ba5c4a62760b29081dba5ceaba2b4cb844c"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - merge the branch foo into this branch (strict)",
 		"requests": [
-			"efe5f209aa987b84694fc2fcb7e7515825d5598a96f208309d8f8bbf8fe6b4a3"
+			"05336380fa28b3788317e9807c986ba5c4a62760b29081dba5ceaba2b4cb844c"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - show last git commit details",
 		"requests": [
-			"81630af8564550bf89a2e131dbe6884b8b12d12dbc5b52daf3edb513c5e87ddb"
+			"45c7d88f80d36ddbf1235854cb301398248eadc7907c9a29c25b37a53fc8bf2f"
 		]
 	},
 	{
 		"name": "terminal (git) [panel] [zsh] - show last git commit details (strict)",
 		"requests": [
-			"81630af8564550bf89a2e131dbe6884b8b12d12dbc5b52daf3edb513c5e87ddb"
+			"45c7d88f80d36ddbf1235854cb301398248eadc7907c9a29c25b37a53fc8bf2f"
 		]
 	}
 ]

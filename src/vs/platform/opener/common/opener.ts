@@ -11,6 +11,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
+export const defaultExternalUriOpenerId = 'default';
+
 export type OpenInternalOptions = {
 
 	/**
@@ -41,6 +43,10 @@ export type OpenInternalOptions = {
 export type OpenExternalOptions = {
 	readonly openExternal?: boolean;
 	readonly allowTunneling?: boolean;
+	/**
+	 * Allows contributed external URI openers. These openers are tried before validators,
+	 * which validate the resolved URI only when falling back to the default external opener.
+	 */
 	readonly allowContributedOpeners?: boolean | string;
 	readonly fromWorkspace?: boolean;
 	readonly skipValidation?: boolean;
@@ -82,7 +88,7 @@ export interface IOpenerService {
 
 	/**
 	 * Register a participant that can validate if the URI resource be opened.
-	 * Validators are run before openers.
+	 * Validators run before openers unless contributed external URI openers are enabled.
 	 */
 	registerValidator(validator: IValidator): IDisposable;
 

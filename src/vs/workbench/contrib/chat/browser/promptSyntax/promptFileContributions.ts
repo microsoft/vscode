@@ -70,10 +70,10 @@ class PromptValidatorContribution extends Disposable {
 		super();
 		this.validator = instantiationService.createInstance(PromptValidator);
 
-		this.updateRegistration();
+		void this.updateRegistration();
 	}
 
-	updateRegistration(): void {
+	async updateRegistration(): Promise<void> {
 		this.localDisposables.clear();
 		const trackers = new ResourceMap<ModelTracker>();
 		this.localDisposables.add(toDisposable(() => {
@@ -150,8 +150,9 @@ class PromptValidatorContribution extends Disposable {
 		}));
 
 		const validateAll = (): void => trackers.forEach(tracker => tracker.validate());
+		const localModes = await this.chatModeService.getLocalModes();
 		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
-		this.localDisposables.add(this.chatModeService.onDidChangeChatModes(() => validateAll()));
+		this.localDisposables.add(localModes.onDidChange(() => validateAll()));
 		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
 	}
 }

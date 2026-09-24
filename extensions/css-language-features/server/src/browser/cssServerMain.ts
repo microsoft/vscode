@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
-import { RuntimeEnvironment, startServer } from '../cssServer';
+import { RuntimeEnvironment, startServer } from '../cssServer.js';
 
 const messageReader = new BrowserMessageReader(self);
 const messageWriter = new BrowserMessageWriter(self);

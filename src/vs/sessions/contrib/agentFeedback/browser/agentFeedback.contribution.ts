@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './agentFeedbackEditorInputContribution.js';
+import { AGENTS_WINDOW_PR_COMMENTS_SETTING } from './agentFeedbackEditorInputContribution.js';
 import './agentFeedbackEditorWidgetContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -15,16 +16,21 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AgentFeedbackService, IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
+import { AgentEditorCommentsProviderContribution } from './agentEditorCommentsProvider.js';
+import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';
+import { AgentFeedbackPRReviewSeederContribution } from './agentFeedbackPRReviewSeeder.js';
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
+import { registerAgentFeedbackReviewCommands } from './agentFeedbackReviewCommands.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
  * currently active session has pending agent feedback items.
@@ -36,7 +42,7 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -45,24 +51,20 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 
 		const feedbackChanged = observableFromEvent(
 			this,
-			agentFeedbackService.onDidChangeFeedback,
+			Event.any(agentFeedbackService.onDidChangeFeedback, agentFeedbackService.onDidChangeFeedbackScope),
 			e => e,
 		);
 
 		this._register(autorun(reader => {
 			feedbackChanged.read(reader);
-			const activeSession = sessionManagementService.activeSession.read(reader);
 			menuRegistration.clear();
-			if (!activeSession) {
-				contextKey.set(false);
-				return;
-			}
-			const feedback = agentFeedbackService.getFeedback(activeSession.resource);
-			const count = feedback.length;
+			const sessionResource = agentFeedbackService.activeFeedbackSessionResource.read(reader);
+			const feedback = agentFeedbackService.getFeedback(sessionResource);
+			const count = feedback.filter(item => item.state === AgentFeedbackState.Accepted).length;
 			contextKey.set(count > 0);
 
 			if (count > 0) {
-				menuRegistration.value = MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionApplySubmenu, {
+				menuRegistration.value = MenuRegistry.appendMenuItem(MenuId.AgentsChangesPrimaryActionSubMenu, {
 					command: {
 						id: submitActiveSessionFeedbackActionId,
 						icon: Codicon.comment,
@@ -80,10 +82,29 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, ActiveSessionFeedbackContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentFeedbackPRThreadResolverContribution.ID, AgentFeedbackPRThreadResolverContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentFeedbackPRReviewSeederContribution.ID, AgentFeedbackPRReviewSeederContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentEditorCommentsProviderContribution.ID, AgentEditorCommentsProviderContribution, WorkbenchPhase.BlockRestore);
 
 registerAgentFeedbackEditorActions();
 
+registerAgentFeedbackReviewCommands();
+
 registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[AGENTS_WINDOW_PR_COMMENTS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('chat.experimental.agentsWindowPRComments', "Enables the PR Comment option when adding feedback in the Agents Window."),
+		},
+	},
+});
 
 // Register the custom attachment widget for agentFeedback attachments
 class AgentFeedbackAttachmentWidgetContribution {

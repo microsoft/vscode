@@ -115,7 +115,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		lastEnd = edit.end;
 	}
 	parts.push(code.substring(lastEnd));
-return { code: parts.join(''), classCount, fieldCount: fieldCount, editCount: edits.length, elapsed: Date.now() - t1, edits };
+	return { code: parts.join(''), classCount, fieldCount: fieldCount, editCount: edits.length, elapsed: Date.now() - t1, edits };
 
 	// --- AST walking ---
 
@@ -209,10 +209,15 @@ return { code: parts.join(''), classCount, fieldCount: fieldCount, editCount: ed
 			if (ts.isPrivateIdentifier(child)) {
 				const resolved = resolvePrivateName(child.text);
 				if (resolved !== undefined) {
+					const start = child.getStart(sourceFile);
 					edits.push({
-						start: child.getStart(sourceFile),
+						start,
 						end: child.getEnd(),
-						newText: resolved
+						// In minified code, `async#run()` has no space before `#`.
+						// The `#` naturally starts a new token, but `$` does not —
+						// `async$a` would fuse into one identifier. Insert a space
+						// when the preceding character is an identifier character.
+						newText: (start > 0 && isIdentifierChar(code.charCodeAt(start - 1))) ? ' ' + resolved : resolved
 					});
 				}
 				return;
@@ -232,6 +237,11 @@ return { code: parts.join(''), classCount, fieldCount: fieldCount, editCount: ed
 		}
 		return undefined;
 	}
+}
+
+function isIdentifierChar(ch: number): boolean {
+	// a-z, A-Z, 0-9, _, $
+	return (ch >= 97 && ch <= 122) || (ch >= 65 && ch <= 90) || (ch >= 48 && ch <= 57) || ch === 95 || ch === 36;
 }
 
 /**

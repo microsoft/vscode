@@ -30,6 +30,7 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
 		public readonly onHide?: () => void,
+		public readonly riskAssessment?: { toolId: string; parameters: unknown },
 	) {
 		if (reject) {
 			this.reject = async () => {

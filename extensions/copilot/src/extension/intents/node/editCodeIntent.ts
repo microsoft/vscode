@@ -123,7 +123,7 @@ export class EditCodeIntent implements IIntent {
 				const { references } = await renderPromptElement(this.instantiationService, endpoint, ToolCallResultWrapper, { toolCallResults }, undefined, token);
 				foundReferences.push(...toNewChatReferences(variables, references));
 				// TODO: how should we splice in the assistant message?
-				conversation = new Conversation(conversation.sessionId, [...conversation.turns.slice(0, -1), new Turn(latestTurn.id, latestTurn.request, undefined)]);
+				conversation = new Conversation(conversation.sessionId, [...conversation.turns.slice(0, -1), new Turn(latestTurn.id, latestTurn.request, undefined, [], undefined, undefined, false, latestTurn.modeInstructions)]);
 			}
 			return { conversation, request: { ...request, references: [...request.references, ...foundReferences], toolReferences: request.toolReferences.filter((r) => r.name !== CodebaseTool.toolName) } };
 		}
@@ -349,11 +349,12 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
-		let variables = promptContext.chatVariables;
+		const allReferences: vscode.ChatPromptReference[] = [];
+		allReferences.push(...promptContext.chatVariables.references);
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
-			toolReferences = toNewChatReferences(variables, codebase.references);
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences]);
+			toolReferences = toNewChatReferences(promptContext.chatVariables, codebase.references);
+			allReferences.push(...toolReferences);
 		}
 
 		if (this.request.location2 instanceof ChatRequestEditorData) {
@@ -362,10 +363,11 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 				name: this.request.location2.document.fileName,
 				value: new Location(this.request.location2.document.uri, this.request.location2.wholeRange)
 			};
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences, editorRequestReference]);
+			allReferences.push(editorRequestReference);
 		}
 
 
+		const variables = new ChatVariablesCollection(allReferences);
 
 		const tools = await this.getAvailableTools();
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;
@@ -421,7 +423,6 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 			// Don't report file references that came in via chat variables in an editing session, unless they have warnings,
 			// because they are already displayed as part of the working set
 			references: result.references.filter((ref) => this.shouldKeepReference(editCodeStep, ref, toolReferences, chatVariables)),
-			// telemetryData: result.metadata.getAll(DocumentToAstSelectionData)
 		};
 	}
 
@@ -473,7 +474,7 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 			return true;
 		}
 		const PROMPT_INSTRUCTION_ROOT_PREFIX = `${InstructionFileIdPrefix}.root`;
-		const promptInstruction = chatVariables.find((variable) => isInstructionFile(variable) && URI.isUri(variable.value) && isEqual(variable.value, uri));
+		const promptInstruction = chatVariables.find((variable) => isInstructionFile(variable.reference) && URI.isUri(variable.value) && isEqual(variable.value, uri));
 		if (promptInstruction) {
 			// Report references for root prompt instruction files and not their children
 			return promptInstruction.reference.id.startsWith(PROMPT_INSTRUCTION_ROOT_PREFIX);
@@ -499,13 +500,7 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 			}
 		}
 
-		const isReadonly = this.request.references.some(r => r.isReadonly && URI.isUri(r.value) && isEqual(r.value, uri));
-		if (isReadonly) {
-			return {
-				title: l10n.t`Allow edits to readonly file?`,
-				message: l10n.t`Do you want to allow edits to \`${this.workspaceService.asRelativePath(uri)}\`?`,
-			};
-		}
+		return undefined;
 	}
 
 	async processResponse?(context: IResponseProcessorContext, inputStream: AsyncIterable<IResponsePart>, outputStream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult> {

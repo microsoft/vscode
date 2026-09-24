@@ -11,19 +11,20 @@
 			"node",
 			"picomatch",
 			"sinon",
-			"tar",
-			"vscode"
+			"tar"
 		],
 		// Needed for tsx to run test files
 		"paths": {
-			"vscode": ["./src/util/common/test/shims/vscodeTypesShim.ts"]
+			"vscode": [
+				"./src/util/common/test/shims/vscodeTypesShim.ts"
+			]
 		}
 	},
 	"include": [
-		"vscodeTypes.ts",
-		"src",
-		"test",
-		".vscode/extensions/test-extension"
+		"./src",
+		"./test",
+		".vscode/extensions/test-extension",
+		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts"
 	],
 	"exclude": [
 		"test/scenarios/**/*",

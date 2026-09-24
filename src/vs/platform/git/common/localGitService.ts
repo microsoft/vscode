@@ -7,6 +7,10 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ILocalGitService = createDecorator<ILocalGitService>('localGitService');
 
+export interface IGitPullOptions {
+	readonly allowHardResetOnDivergence?: boolean;
+}
+
 /**
  * Low-level service for executing git commands on the local machine.
  * Used in the shared process where Node.js APIs are available.
@@ -16,8 +20,9 @@ export interface ILocalGitService {
 	readonly _serviceBrand: undefined;
 
 	clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string): Promise<void>;
-	pull(operationId: string, repoPath: string): Promise<boolean>;
+	pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean>;
 	checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void>;
+	checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void>;
 	revParse(repoPath: string, ref: string): Promise<string>;
 	fetch(operationId: string, repoPath: string): Promise<void>;
 	revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number>;

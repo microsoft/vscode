@@ -50,6 +50,10 @@ export class ParsedPromptFile {
 	}
 }
 
+export function isPromptFileTildePath(path: string): boolean {
+	return path === '~' || path.startsWith('~/');
+}
+
 export interface ParseError {
 	readonly message: string;
 	readonly range: Range;
@@ -68,6 +72,7 @@ export namespace PromptHeaderAttributes {
 	export const agent = 'agent';
 	export const mode = 'mode';
 	export const model = 'model';
+	export const reasoningEffort = 'reasoning-effort';
 	export const applyTo = 'applyTo';
 	export const paths = 'paths';
 	export const tools = 'tools';
@@ -84,6 +89,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
+	export const context = 'context';
 }
 
 export class PromptHeader {
@@ -316,6 +322,10 @@ export class PromptHeader {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
 	}
 
+	public get context(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.context);
+	}
+
 	/**
 	 * Gets the raw 'hooks' attribute value from the header.
 	 * Returns the YAML map value if present, or undefined. The caller is
@@ -518,9 +528,11 @@ export class PromptBody {
 		return this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
 	}
 
-	public resolveFilePath(path: string): URI | undefined {
+	public resolveFilePath(path: string, userHome?: URI): URI | undefined {
 		try {
-			if (path.startsWith('/')) {
+			if (userHome && isPromptFileTildePath(path)) {
+				return path === '~' ? userHome : joinPath(userHome, path.substring(2));
+			} else if (path.startsWith('/')) {
 				return this.uri.with({ path });
 			} else if (path.match(/^[a-zA-Z]+:\//)) {
 				return URI.parse(path);

@@ -39,7 +39,7 @@ export class WebviewProtocolProvider implements IDisposable {
 				const url = FileAccess.asFileUri(relativeResourcePath);
 
 				const content = await this._fileService.readFile(url);
-				return new Response(content.value.buffer.buffer as ArrayBuffer, {
+				return new Response(content.value.buffer as ArrayBufferView<ArrayBuffer>, {
 					headers: {
 						'Content-Type': entry.mime,
 						...COI.getHeadersFromQuery(request.url),

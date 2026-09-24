@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../util/vs/base/common/themables';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { getRequestId, RequestId } from '../../networking/common/fetch';
 import { FetchOptions, IFetcherService, IHeaders, Response } from '../../networking/common/fetcherService';
-import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
 import { Completion } from '../common/completionsAPI';
 import { Completions, ICompletionsFetchService } from '../common/completionsFetchService';
 import { ResponseStream } from '../common/responseStream';

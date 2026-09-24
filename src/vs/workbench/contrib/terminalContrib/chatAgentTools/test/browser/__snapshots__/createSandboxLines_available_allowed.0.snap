@@ -1,0 +1,36 @@
+{
+  "sandboxMode": "on-network-available",
+  "allowToRunUnsandboxedCommands": true,
+  "retryWithAllowNetworkRequests": false
+}
+----
+{
+  "requestUnsandboxedExecution": {
+    "type": "boolean",
+    "description": "Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed."
+  },
+  "requestUnsandboxedExecutionReason": {
+    "type": "string",
+    "description": "A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true."
+  },
+  "requestFileValidationCheck": {
+    "type": "array",
+    "description": "Sandbox write access checks to perform before running the command. Provide the file paths that the command needs to write.",
+    "items": {
+      "type": "string"
+    }
+  },
+  "requestFileValidationCheckReason": {
+    "type": "string",
+    "description": "A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty."
+  }
+}
+----
+
+Sandboxing:
+- Commands run inside a sandbox by default. The sandbox keeps the filesystem mostly read-only.
+- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.
+- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.
+- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.
+- To get more access (each prompts the user — never ask the user for permission yourself):
+  - Need filesystem or other access the sandbox blocks? Set requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. This grants full filesystem and network access by removing all sandbox protection, so use it only when the command truly needs it. Do this proactively when it clearly needs it (writing/deleting files outside the workspace and $TMPDIR like $HOME, /usr, /etc; installing to system locations; elevated privileges), or reactively after a sandbox failure (e.g. 'Operation not permitted').

@@ -493,6 +493,7 @@ export class AdditionalLinesWidget extends Disposable {
 				|| e.hasChanged(EditorOption.fontLigatures)
 				|| e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
+				|| e.hasChanged(EditorOption.effectiveFullwidthCharacterWidth)
 		));
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
 		this.onDidClick = this._onDidClick.event;
@@ -504,7 +505,7 @@ export class AdditionalLinesWidget extends Disposable {
 		this.hasBeenAccepted = false;
 
 		if (this._editor instanceof CodeEditorWidget && this._shouldKeepCursorStable) {
-			this._register(this._editor.onBeforeExecuteEdit(e => this.hasBeenAccepted = e.source === 'inlineSuggestion.accept'));
+			this._register(this._editor.onBeforeExecuteEdit(e => this.hasBeenAccepted = e.source === 'inlineCompletionAccept'));
 		}
 
 		this._register(autorun(reader => {
@@ -640,6 +641,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 	const fontLigatures = opts.get(EditorOption.fontLigatures);
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
+	const useTwoCellFullwidthCharacters = opts.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 	let classNames = 'suggest-preview-text';
 	if (isClickable) {
@@ -682,7 +684,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 			fontLigatures !== EditorFontLigatures.OFF,
 			null,
 			null,
-			0
+			0,
+			false,
+			useTwoCellFullwidthCharacters
 		), sb);
 
 		sb.appendString('</div>');

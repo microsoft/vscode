@@ -7,6 +7,7 @@ import type { IHoverDelegate } from './hoverDelegate.js';
 import type { HoverPosition } from './hoverWidget.js';
 import type { CancellationToken } from '../../../common/cancellation.js';
 import type { IMarkdownString } from '../../../common/htmlContent.js';
+import type { AnchorAlignment } from '../../../common/layout.js';
 import type { IDisposable } from '../../../common/lifecycle.js';
 
 /**
@@ -241,6 +242,12 @@ export interface IHoverOptions {
 	 * later for delayed hovers.
 	 */
 	onDidShow?(): void;
+
+	/**
+	 * An optional callback that is called when the hover is hidden (i.e. its underlying widget is disposed). This fires
+	 * once per shown hover and is only invoked if the hover was actually shown.
+	 */
+	onDidHide?(): void;
 }
 
 // `target` is ignored for delayed hover methods as it's included in the method and added
@@ -296,6 +303,11 @@ export interface IHoverPositionOptions {
 	 * forcePosition option is set.
 	 */
 	hoverPosition?: HoverPosition | MouseEvent;
+
+	/**
+	 * Horizontal alignment of the hover relative to the target when positioned above or below it.
+	 */
+	anchorAlignment?: AnchorAlignment;
 
 	/**
 	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
@@ -424,6 +436,8 @@ export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManag
 
 export interface IManagedHoverTooltipHTMLElement {
 	element: (token: CancellationToken) => HTMLElement | Promise<HTMLElement>;
+	/** Whether the returned element owns spacing from the hover boundary. */
+	contentOwnsPadding?: boolean;
 }
 
 export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedHoverTooltipHTMLElement {
@@ -434,8 +448,9 @@ export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedH
 export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
-export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {
+export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'additionalClasses' | 'linkHandler' | 'trapFocus'> {
 	appearance?: Pick<IHoverAppearanceOptions, 'showHoverHint'>;
+	position?: Pick<IHoverPositionOptions, 'anchorAlignment'>;
 }
 
 export interface IManagedHover extends IDisposable {

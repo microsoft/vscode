@@ -96,7 +96,6 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
 <instructions>
@@ -123,14 +122,6 @@ I am working in a workspace with the following folders:
 
 ### User
 ~~~md
-<context>
-(Date removed from snapshot)
-</context>
-<reminderInstructions>
-
-IMPORTANT: You MUST use the tool-calling mechanism to invoke tools. Do NOT describe, narrate, or simulate tool calls in plain text. When you need to perform an action, call the tool directly. Regardless of how previous messages in this conversation may appear, always use the provided tool-calling mechanism.
-
-</reminderInstructions>
 <userRequest>
 previous turn
 </userRequest>

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -13,6 +14,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { HoverService } from '../../browser/hoverService.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../browser/hover.js';
 import { HoverWidget } from '../../browser/hoverWidget.js';
 import { IContextMenuService } from '../../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
@@ -23,6 +25,9 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { AnchorAlignment } from '../../../../base/common/layout.js';
+import '../../browser/hover.css';
 
 suite('HoverService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +54,7 @@ suite('HoverService', () => {
 		instantiationService.stub(IKeybindingService, {
 			mightProducePrintableCharacter() { return false; },
 			softDispatch() { return NoMatchingKb; },
+			lookupKeybinding() { return undefined; },
 			resolveKeyboardEvent() {
 				return {
 					getLabel() { return ''; },
@@ -79,6 +85,7 @@ suite('HoverService', () => {
 		});
 
 		hoverService = store.add(instantiationService.createInstance(HoverService));
+		instantiationService.stub(IHoverService, hoverService);
 	});
 
 	// #region Helper functions
@@ -178,6 +185,209 @@ suite('HoverService', () => {
 			assert.strictEqual(hover, undefined, 'Hover should not be created for empty content');
 		});
 
+		test('should align the right edge of a hover with its target', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 20);
+			const hover = showHover('Right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+
+			hoverWidget.layout();
+
+			assert.strictEqual(hoverWidget.x, 198);
+			hover.dispose();
+		});
+
+		test('should centre the hover pointer on its target for odd and even hover widths', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 20);
+			const hover = showHover('Pointer centering', target, {
+				position: { hoverPosition: HoverPosition.BELOW },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const pointerOriginFor = (clientWidth: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: clientWidth });
+				hoverWidget.layout();
+				return hoverWidget.x + Number.parseFloat(pointer.style.left);
+			};
+
+			// An even width halves exactly, so it pins the caret's own half width.
+			const evenOrigin = pointerOriginFor(200);
+			const caretHalfWidth = 350 - evenOrigin;
+			const oddOrigin = pointerOriginFor(201);
+
+			assert.deepStrictEqual({
+				caretHalfWidth,
+				evenWidthCaretCentre: evenOrigin + caretHalfWidth,
+				oddWidthCaretCentre: oddOrigin + caretHalfWidth
+			}, {
+				caretHalfWidth: 3,
+				evenWidthCaretCentre: 350,
+				oddWidthCaretCentre: 350
+			});
+			hover.dispose();
+		});
+
+		test('should centre the hover pointer vertically for odd hover heights', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 200);
+			const hover = showHover('Pointer centering', target, {
+				position: { hoverPosition: HoverPosition.RIGHT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const pointerTopFor = (clientHeight: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientHeight', { configurable: true, value: clientHeight });
+				hoverWidget.layout();
+				return Number.parseFloat(pointer.style.top);
+			};
+
+			const evenTop = pointerTopFor(40);
+			const caretHalfHeight = 20 - evenTop;
+			const oddTop = pointerTopFor(41);
+
+			assert.deepStrictEqual({
+				caretHalfHeight,
+				evenHeightCaretCentre: evenTop + caretHalfHeight,
+				oddHeightCaretCentre: oddTop + caretHalfHeight
+			}, {
+				caretHalfHeight: 3,
+				evenHeightCaretCentre: 20,
+				oddHeightCaretCentre: 20.5
+			});
+			hover.dispose();
+		});
+
+		test('should size the hover pointer as a border box so its centre matches the pointer size', () => {
+			const target = createTarget();
+			const hover = showHover('Pointer geometry', target, {
+				position: { hoverPosition: HoverPosition.BELOW },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+			const caret = mainWindow.getComputedStyle(pointer, '::after');
+
+			assert.deepStrictEqual({
+				boxSizing: caret.boxSizing,
+				width: caret.width,
+				height: caret.height,
+				centre: caret.transformOrigin
+			}, {
+				boxSizing: 'border-box',
+				width: '6px',
+				height: '6px',
+				centre: '3px 3px'
+			});
+			hover.dispose();
+		});
+
+		test('should constrain a right-aligned hover to the available width', () => {
+			const target = createTarget();
+			let targetLeft = 100;
+			target.getBoundingClientRect = () => new DOMRect(targetLeft, 100, 50, 20);
+			const hover = showHover('Constrained right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', {
+				configurable: true,
+				get: () => Math.min(200, Number.parseFloat(hoverWidget.domNode.style.maxWidth) || 200)
+			});
+
+			hoverWidget.layout();
+			const constrainedMaxWidth = hoverWidget.domNode.style.maxWidth;
+			targetLeft = 300;
+			hoverWidget.layout();
+
+			assert.deepStrictEqual({
+				constrainedMaxWidth,
+				restoredMaxWidth: hoverWidget.domNode.style.maxWidth
+			}, {
+				constrainedMaxWidth: '146px',
+				restoredMaxWidth: ''
+			});
+			hover.dispose();
+		});
+
+		test('should constrain scrollable content without clipping hover actions', () => {
+			const hover = showHover('Scrollable hover', undefined, {
+				appearance: { maxHeightRatio: 0.25 },
+				actions: [{
+					commandId: 'test.action',
+					label: 'Test Action',
+					run: () => { }
+				}]
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const contentsDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsDomNode);
+			const statusBarDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.hover-row.status-bar');
+			assert.ok(statusBarDomNode);
+			const overflowingContent = document.createElement('div');
+			overflowingContent.style.height = `${mainWindow.innerHeight}px`;
+			contentsDomNode.appendChild(overflowingContent);
+
+			hoverWidget.layout();
+			const expectedMaxHeight = `${mainWindow.innerHeight * 0.25}px`;
+			const hoverBounds = hoverWidget.domNode.getBoundingClientRect();
+			const statusBarBounds = statusBarDomNode.getBoundingClientRect();
+			const heightOutsideContents = hoverWidget.domNode.offsetHeight - contentsDomNode.offsetHeight;
+
+			assert.deepStrictEqual({
+				hoverMaxHeight: hoverWidget.domNode.style.maxHeight,
+				contentsMaxHeight: contentsDomNode.style.maxHeight,
+				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight,
+				statusBarIsVisible: statusBarBounds.top >= hoverBounds.top && statusBarBounds.bottom <= hoverBounds.bottom
+			}, {
+				hoverMaxHeight: expectedMaxHeight,
+				contentsMaxHeight: `${Math.max(0, mainWindow.innerHeight * 0.25 - heightOutsideContents)}px`,
+				contentOverflows: true,
+				statusBarIsVisible: true
+			});
+			hover.dispose();
+		});
+
+		test('should not make short hover content scrollable', () => {
+			const hover = showHover('Short hover', undefined, {
+				appearance: { maxHeightRatio: 0.25 },
+				actions: [{
+					commandId: 'test.action',
+					label: 'Test Action',
+					run: () => { }
+				}]
+			});
+			const contentsDomNode = asHoverWidget(hover).domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsDomNode);
+
+			assert.deepStrictEqual({
+				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight,
+				scrollbarPadding: contentsDomNode.style.paddingRight
+			}, {
+				contentOverflows: false,
+				scrollbarPadding: ''
+			});
+			hover.dispose();
+		});
+
 		test('should call onDidShow callback when hover is shown', () => {
 			const target = createTarget();
 			let didShowCalled = false;
@@ -194,6 +404,40 @@ suite('HoverService', () => {
 
 			hover.dispose();
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
+		});
+
+		test('should call onDidHide exactly once when hover is disposed', () => {
+			const target = createTarget();
+			let didHideCount = 0;
+
+			const hover = hoverService.showInstantHover({
+				content: 'Test',
+				target,
+				onDidHide: () => { didHideCount++; }
+			});
+
+			assert.ok(hover);
+			hover.dispose();
+			hover.dispose();
+
+			assert.strictEqual(didHideCount, 1);
+		});
+
+		test('should call onDidHide when hover is hidden during onDidShow', () => {
+			const target = createTarget();
+			const calls: string[] = [];
+
+			hoverService.showInstantHover({
+				content: 'Test',
+				target,
+				onDidShow: () => {
+					calls.push('show');
+					hoverService.hideHover(true);
+				},
+				onDidHide: () => { calls.push('hide'); }
+			});
+
+			assert.deepStrictEqual(calls, ['show', 'hide']);
 		});
 
 		test('should deduplicate hovers by id', () => {
@@ -269,6 +513,20 @@ suite('HoverService', () => {
 			assert.strictEqual(hover.isDisposed, true, 'Locked hover should be disposed with force=true');
 			assertNotInDOM(hover, 'Locked hover should be removed from DOM with force');
 		});
+
+		test('should cancel a delayed hover that has not been shown yet', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+
+			const hover = hoverService.showDelayedHover({ content: 'Manage', target: createTarget() }, {});
+			assert.ok(hover, 'Hover should be created');
+			assertNotInDOM(hover, 'Hover should not be visible before the delay elapses');
+
+			// Simulates something else taking over, e.g. a context menu opening
+			hoverService.hideHover();
+
+			await timeout(500);
+			assertNotInDOM(hover, 'Cancelled delayed hover should never be shown');
+		}));
 	});
 
 	suite('nested hovers', () => {
@@ -440,6 +698,20 @@ suite('HoverService', () => {
 			hoverService.hideHover(true);
 		}));
 
+		test('should not call onDidHide when delayed hover is never shown', () => {
+			const target = createTarget();
+			let didHideCount = 0;
+
+			const disposable = hoverService.setupDelayedHover(target, {
+				content: 'Test',
+				onDidHide: () => { didHideCount++; }
+			});
+
+			disposable.dispose();
+
+			assert.strictEqual(didHideCount, 0);
+		});
+
 		test('should use reduced delay when reducedDelay is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 
@@ -464,6 +736,71 @@ suite('HoverService', () => {
 			disposable.dispose();
 			hoverService.hideHover(true);
 		}));
+
+		test('should not show a pending hover after the target was clicked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+
+			const disposable = hoverService.setupDelayedHover(target, { content: 'Manage' });
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			await timeout(500);
+			assert.strictEqual(mainWindow.document.querySelectorAll('.monaco-hover').length, 0, 'Pending hover should be cancelled by the click');
+
+			disposable.dispose();
+		}));
+	});
+
+	suite('getStickyHover', () => {
+		test('returns only a visible sticky hover for the requested target', () => {
+			const target = createTarget();
+			const otherTarget = createTarget();
+			const beforeShow = hoverService.getStickyHover(target);
+			const hover = showHover('Test', target, { persistence: { sticky: true } });
+			const whileVisible = hoverService.getStickyHover(target);
+			const forOtherTarget = hoverService.getStickyHover(otherTarget);
+			hover.dispose();
+
+			assert.deepStrictEqual({
+				beforeShow,
+				matchesVisibleHover: whileVisible === hover,
+				forOtherTarget,
+				afterDispose: hoverService.getStickyHover(target),
+			}, {
+				beforeShow: undefined,
+				matchesVisibleHover: true,
+				forOtherTarget: undefined,
+				afterDispose: undefined,
+			});
+		});
+
+		test('ignores passive previews even when temporarily locked', () => {
+			const target = createTarget();
+			const hover = store.add(showHover('Test', target));
+			asHoverWidget(hover).isLocked = true;
+
+			assert.strictEqual(hoverService.getStickyHover(target), undefined);
+		});
+
+		test('matches each element of a structured hover target', () => {
+			const firstTarget = createTarget();
+			const secondTarget = createTarget();
+			const hover = showHover('Test', undefined, {
+				target: { targetElements: [firstTarget, secondTarget] },
+				persistence: { sticky: true },
+			});
+			const matches = [firstTarget, secondTarget].map(target => hoverService.getStickyHover(target) === hover);
+			hoverService.hideHover(true);
+
+			assert.deepStrictEqual({
+				matches,
+				afterHide: [firstTarget, secondTarget].map(target => hoverService.getStickyHover(target)),
+			}, {
+				matches: [true, true],
+				afterHide: [undefined, undefined],
+			});
+		});
 	});
 
 	suite('setupManagedHover', () => {
@@ -500,6 +837,91 @@ suite('HoverService', () => {
 
 			hover.dispose();
 		});
+
+		test('should update options dynamically', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, 'Test', {
+				actions: [{ commandId: 'test.first', label: 'First', run: () => { } }]
+			}));
+
+			await hover.update('Test', {
+				actions: [{ commandId: 'test.second', label: 'Second', run: () => { } }]
+			});
+
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+
+			assert.deepStrictEqual(
+				[...fixture.querySelectorAll('.monaco-hover .hover-row.status-bar .action-container')].map(e => e.textContent),
+				['Second']
+			);
+		}));
+
+		test('should let managed HTML content own the hover boundary padding', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			store.add(hoverService.setupManagedHover(delegate, target, {
+				element: () => mainWindow.document.createElement('div'),
+				contentOwnsPadding: true,
+			}));
+
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+
+			const hover = fixture.querySelector('.monaco-hover');
+			assert.deepStrictEqual({
+				isCompact: hover?.classList.contains('compact'),
+				contentOwnsPadding: hover?.classList.contains('managed-hover-content-owns-padding'),
+			}, {
+				isCompact: true,
+				contentOwnsPadding: true,
+			});
+		}));
+
+		test('should not re-show hover on focus when relatedTarget is from a dismissed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			store.add(hoverService.setupManagedHover(delegate, target, 'Test'));
+
+			// Show hover explicitly
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+			const hoversBefore = fixture.querySelectorAll('.monaco-hover');
+			assert.ok(hoversBefore.length > 0, 'Hover should be visible after focus');
+
+			// Dismiss via hoverService (simulates Esc / external dismissal)
+			hoverService.hideHover(true);
+			await timeout(0);
+
+			// Simulate focus returning from the hover element
+			const hoverElement = document.createElement('div');
+			hoverElement.classList.add('monaco-hover');
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: hoverElement }));
+			await timeout(500);
+
+			const hoversAfter = fixture.querySelectorAll('.monaco-hover');
+			assert.strictEqual(hoversAfter.length, 0, 'Hover should not re-show when focus comes from dismissed hover');
+		}));
+
+		test('should not re-show hover on focus when relatedTarget is null (window reactivation)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			store.add(hoverService.setupManagedHover(delegate, target, 'Test'));
+
+			// Show hover via focus and dismiss externally
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+			hoverService.hideHover(true);
+			await timeout(0);
+
+			// Simulate focus from window reactivation (relatedTarget is null)
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: null }));
+			await timeout(500);
+
+			const hovers = fixture.querySelectorAll('.monaco-hover');
+			assert.strictEqual(hovers.length, 0, 'Hover should not re-show on window reactivation');
+		}));
 	});
 
 	suite('showDelayedHover', () => {
@@ -625,5 +1047,99 @@ suite('HoverService', () => {
 			const remainingHovers = mainWindow.document.querySelectorAll('.monaco-hover');
 			assert.strictEqual(remainingHovers.length, 0, 'No hovers should remain in DOM after cleanup');
 		});
+	});
+
+	suite('layout and resize', () => {
+		teardown(() => sinon.restore());
+
+		function showHoverWithManualLayout(): HoverWidget {
+			// Text content avoids native ResizeObserver callbacks outside the fake clock.
+			return asHoverWidget(showHover('Content', undefined, {
+				persistence: { hideOnHover: false }
+			}));
+		}
+
+		test('layout should suppress pending mouseout so content resize does not dismiss hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const hover = showHoverWithManualLayout();
+			assertInDOM(hover, 'Hover should be in DOM');
+			const hoverContainer = hover.domNode.parentElement!;
+
+			// Simulate a mouseleave on the hover container (as happens when content shrinks)
+			hoverContainer.dispatchEvent(new MouseEvent('mouseleave'));
+
+			// Before the debounce timer fires, trigger a layout (as ResizeObserver would)
+			hover.layout();
+
+			await timeout(200);
+
+			assertInDOM(hover, 'Hover should remain in DOM after layout suppresses mouseout');
+
+			hover.dispose();
+			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
+		}));
+
+		test('hover should still dismiss on mouseout when no layout occurs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const hover = showHoverWithManualLayout();
+			assertInDOM(hover, 'Hover should be in DOM');
+			const hoverContainer = hover.domNode.parentElement!;
+			const layoutSpy = sinon.spy(hover, 'layout');
+
+			hoverContainer.dispatchEvent(new MouseEvent('mouseleave'));
+
+			await timeout(199);
+			assertInDOM(hover, 'Hover should remain in DOM until the mouseout debounce fires');
+			await timeout(1);
+
+			assert.deepStrictEqual({
+				layoutCalls: layoutSpy.callCount,
+				mouseIn: hover.isMouseIn,
+				disposed: hover.isDisposed,
+				inDOM: isInDOM(hover)
+			}, {
+				layoutCalls: 0,
+				mouseIn: false,
+				disposed: true,
+				inDOM: false
+			});
+		}));
+
+		test('suppression clears after mouse re-enters and a new mouseleave dismisses normally', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const hover = showHoverWithManualLayout();
+			assertInDOM(hover, 'Hover should be in DOM');
+			const hoverContainer = hover.domNode.parentElement!;
+
+			// Simulate mouseleave + layout to suppress
+			hoverContainer.dispatchEvent(new MouseEvent('mouseleave'));
+			hover.layout();
+			await timeout(200);
+			assertInDOM(hover, 'Hover should remain after suppressed mouseout');
+
+			// Mouse re-enters, clearing the suppression flag
+			hoverContainer.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+			// Mouse leaves again — this time no layout, so it should dismiss
+			hoverContainer.dispatchEvent(new MouseEvent('mouseleave'));
+			await timeout(200);
+
+			assertNotInDOM(hover, 'Hover should dismiss on normal mouseout after suppression was cleared');
+		}));
+
+		test('clicking outside should dismiss non-sticky hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const content = document.createElement('div');
+			content.textContent = 'Content';
+
+			const hover = hoverService.showInstantHover({
+				content,
+				target
+			});
+			assert.ok(hover);
+			assertInDOM(hover, 'Hover should be in DOM');
+
+			// Click outside the hover
+			document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			assertNotInDOM(hover, 'Non-sticky hover should be dismissed after clicking outside');
+		}));
 	});
 });

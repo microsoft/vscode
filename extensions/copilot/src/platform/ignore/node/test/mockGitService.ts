@@ -10,7 +10,7 @@ import { IObservable } from '../../../../util/vs/base/common/observableInternal'
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IGitService, RepoContext } from '../../../git/common/gitService';
-import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, RepositoryAccessDetails } from '../../../git/vscode/git';
+import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../../../git/vscode/git';
 
 /**
  * A configurable mock implementation of IGitService for testing.
@@ -25,7 +25,9 @@ export class MockGitService implements IGitService {
 	private readonly _onDidCloseRepository = new Emitter<RepoContext>();
 	public readonly onDidCloseRepository: Event<RepoContext> = this._onDidCloseRepository.event;
 
-	public readonly onDidOpenRepository: Event<RepoContext> = Event.None;
+	private readonly _onDidOpenRepository = new Emitter<RepoContext>();
+	public readonly onDidOpenRepository: Event<RepoContext> = this._onDidOpenRepository.event;
+
 	public readonly onDidFinishInitialization: Event<void> = Event.None;
 	public readonly activeRepository: IObservable<RepoContext | undefined> = observableValue('test-git-activeRepo', undefined);
 	public repositories: RepoContext[] = [];
@@ -42,7 +44,7 @@ export class MockGitService implements IGitService {
 		return [];
 	}
 
-	initRepository(_uri: URI): Promise<RepoContext | undefined> {
+	initRepository(_uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -58,7 +60,22 @@ export class MockGitService implements IGitService {
 		this._onDidCloseRepository.fire(repo);
 	}
 
+	/**
+	 * Fires the onDidOpenRepository event with the given repository context.
+	 */
+	fireDidOpenRepository(repo: Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'>): void {
+		this._onDidOpenRepository.fire(repo as RepoContext);
+	}
+
 	getRepository(_uri: URI, _forceOpen?: boolean): Promise<RepoContext | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	getRepository2(_uri: URI): Promise<Repository | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	openRepository(_uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -114,7 +131,7 @@ export class MockGitService implements IGitService {
 		return Promise.resolve(undefined);
 	}
 
-	deleteWorktree(_uri: URI, _path: string, _options?: { force?: boolean }): Promise<void> {
+	deleteWorktree(_uri: URI, _path: string, _options?: { force?: boolean; label?: string }): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -172,5 +189,6 @@ export class MockGitService implements IGitService {
 
 	dispose(): void {
 		this._onDidCloseRepository.dispose();
+		this._onDidOpenRepository.dispose();
 	}
 }

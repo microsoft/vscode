@@ -334,7 +334,17 @@
 		document.body.classList.remove('loading');
 	});
 
-	image.src = settings.src;
+	if (settings.isGitLfs) {
+		hasLoadedImage = true;
+		document.body.classList.add('git-lfs');
+		document.body.classList.remove('loading');
+	} else if (settings.src === null) {
+		hasLoadedImage = true;
+		document.body.classList.add('error');
+		document.body.classList.remove('loading');
+	} else {
+		image.src = settings.src;
+	}
 
 	document.querySelector('.open-file-link')?.addEventListener('click', (e) => {
 		e.preventDefault();

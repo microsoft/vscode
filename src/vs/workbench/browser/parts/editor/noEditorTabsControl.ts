@@ -20,6 +20,13 @@ export class NoEditorTabsControl extends EditorTabsControl {
 		};
 	}
 
+	protected override prepareEditorLayoutActions(): IToolbarActions {
+		return {
+			primary: [],
+			secondary: []
+		};
+	}
+
 	openEditor(editor: EditorInput): boolean {
 		return this.handleOpenedEditors();
 	}
@@ -72,6 +79,8 @@ export class NoEditorTabsControl extends EditorTabsControl {
 	updateEditorSelections(): void { }
 
 	updateEditorLabel(editor: EditorInput): void { }
+
+	updateEditorCapabilities(editor: EditorInput): void { }
 
 	updateEditorDirty(editor: EditorInput): void { }
 

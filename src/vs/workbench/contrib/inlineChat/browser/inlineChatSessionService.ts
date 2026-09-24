@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,22 +12,24 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IChatEditingSession } from '../../chat/common/editing/chatEditingService.js';
+import { IChatEditReviewSession } from '../../chat/common/editing/chatEditingService.js';
 import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/model/chatModel.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
+import { ResolvedChatSessionsExtensionPoint } from '../../chat/common/chatSessionsService.js';
 
 
 export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
 
 export type InlineChatSessionTerminationState = string | IMarkdownString;
 
-export interface IInlineChatSession2 {
+export interface IInlineChatSession {
 	readonly initialPosition: Position;
 	readonly initialSelection: Selection;
 	readonly uri: URI;
 	readonly chatModel: IChatModel;
-	readonly editingSession: IChatEditingSession;
+	readonly editingSession: IChatEditReviewSession;
+	readonly lockToAgent: ResolvedChatSessionsExtensionPoint | undefined;
 	readonly terminationState: IObservable<InlineChatSessionTerminationState | undefined>;
 	setTerminationState(state: InlineChatSessionTerminationState | undefined): void;
 	dispose(): void;
@@ -38,36 +41,12 @@ export interface IInlineChatSessionService {
 	readonly onWillStartSession: Event<IActiveCodeEditor>;
 	readonly onDidChangeSessions: Event<this>;
 
-	dispose(): void;
-
-	createSession(editor: ICodeEditor): IInlineChatSession2;
-	getSessionByTextModel(uri: URI): IInlineChatSession2 | undefined;
-	getSessionBySessionUri(uri: URI): IInlineChatSession2 | undefined;
+	createSession(editor: ICodeEditor, isNotebook: boolean, token: CancellationToken): Promise<IInlineChatSession>;
+	getSessionByTextModel(uri: URI): IInlineChatSession | undefined;
+	getSessionBySessionUri(uri: URI): IInlineChatSession | undefined;
 }
 
-export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
-
-	const chatService = accessor.get(IChatService);
-	const widgetService = accessor.get(IChatWidgetService);
-
-	const widget = await widgetService.revealWidget();
-
-	if (widget && widget.viewModel && model) {
-		let lastRequest: IChatRequestModel | undefined;
-		for (const request of model.getRequests().slice()) {
-			await chatService.adoptRequest(widget.viewModel.model.sessionResource, request);
-			lastRequest = request;
-		}
-
-		if (lastRequest && resend) {
-			chatService.resendRequest(lastRequest, { location: widget.location });
-		}
-
-		widget.focusResponseItem();
-	}
-}
-
-export async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestModel, state: IChatModelInputState | undefined, fileContext?: { uri: URI; selection: Selection }) {
+async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestModel, state: IChatModelInputState | undefined, fileContext?: { uri: URI; selection: Selection }) {
 
 	const widgetService = accessor.get(IChatWidgetService);
 	const chatService = accessor.get(IChatService);
@@ -94,7 +73,7 @@ export async function askInPanelChat(accessor: ServicesAccessor, request: IChatR
 	widget?.acceptInput(request.message.text);
 }
 
-export async function continueInPanelChat(accessor: ServicesAccessor, session: IInlineChatSession2): Promise<void> {
+export async function continueInPanelChat(accessor: ServicesAccessor, session: IInlineChatSession): Promise<void> {
 	const request = session.chatModel.getRequests().at(-1);
 	if (!request) {
 		return;
@@ -104,7 +83,7 @@ export async function continueInPanelChat(accessor: ServicesAccessor, session: I
 	session.dispose();
 }
 
-export function rephraseInlineChat(accessor: ServicesAccessor, session: IInlineChatSession2): string | undefined {
+export function rephraseInlineChat(accessor: ServicesAccessor, session: IInlineChatSession): string | undefined {
 	const request = session.chatModel.getRequests().at(-1);
 	if (!request) {
 		return undefined;

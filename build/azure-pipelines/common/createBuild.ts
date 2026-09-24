@@ -29,6 +29,8 @@ async function main(): Promise<void> {
 	const queuedBy = getEnv('BUILD_QUEUEDBY');
 	const sourceBranch = getEnv('BUILD_SOURCEBRANCH');
 	const version = _version + (quality === 'stable' ? '' : `-${quality}`);
+	const buildId = process.env['BUILD_BUILDID'];
+	const definitionId = process.env['SYSTEM_DEFINITIONID'];
 
 	console.log('Creating build...');
 	console.log('Quality:', quality);
@@ -49,7 +51,9 @@ async function main(): Promise<void> {
 		firstReleaseTimestamp: null,
 		history: [
 			{ event: 'created', timestamp }
-		]
+		],
+		buildId,
+		definitionId
 	};
 
 	const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));

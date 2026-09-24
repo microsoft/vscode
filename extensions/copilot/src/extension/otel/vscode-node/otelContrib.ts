@@ -5,17 +5,30 @@
 
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { DEFAULT_OTLP_ENDPOINT } from '../../../platform/otel/common/otelConfig';
+import { IOTelConfigResolver } from '../../../platform/otel/common/otelConfigResolution';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IOTelSqliteStore, type OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
+import { IOTelPolicyRestartRecord, OTelStaleConfigMonitor } from '../common/otelStaleConfigMonitor';
+import { OTEL_SETTINGS_SECTION } from './otelConfigResolver';
+
+const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
+const STATUS_ACTIVE_COMMAND = 'github.copilot.chat.otel.statusActive';
+const OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY = 'github.copilot.otel.enabledExplicitly';
+const CHAT_STATUS_ITEM_ID = 'copilot.otelStatus';
+const POLICY_RESTART_RECORD_KEY = 'github.copilot.otel.latePolicyRestart';
+const DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 
 /**
  * Lifecycle contribution that logs OTel status, wires the SQLite store,
- * and shuts down the SDK on extension deactivation.
+ * surfaces the active configuration in the UI, and shuts down the SDK on
+ * extension deactivation.
  */
 export class OTelContrib extends Disposable implements IExtensionContribution {
 
@@ -24,6 +37,8 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		@IOTelSqliteStore private readonly _sqliteStore: OTelSqliteStore,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
+		@IOTelConfigResolver private readonly _otelConfigResolver: IOTelConfigResolver,
 	) {
 		super();
 		if (this._otelService.config.enabled) {
@@ -33,6 +48,10 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		}
 
 		this._fireActivatedTelemetry();
+		this._registerOpenSettingsCommand();
+		this._logEndpointInfo();
+		this._installVisibilityIndicators();
+		this._configureTerminalEnv();
 
 		this._register(vscode.commands.registerCommand('github.copilot.chat.otel.flush', async () => {
 			if (!this._otelService.config.enabled) {
@@ -42,6 +61,9 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			await this._otelService.flush();
 			this._logService.info('[OTel] Flush complete');
 		}));
+
+		// Recover policy arriving after service construction; user changes remain opt-in.
+		this._watchForReloadRequiredChanges();
 
 		// Export the agent-traces.db file.
 		// Programmatic (eval harness): called with savePath URI or string → copies DB there.
@@ -93,6 +115,210 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 				interactive: String(!savePath),
 			});
 		}));
+	}
+
+	private _watchForReloadRequiredChanges(): void {
+		const state = this._extensionContext.workspaceState;
+		const monitor = new OTelStaleConfigMonitor(this._otelConfigResolver, {
+			getRestartRecord: () => state.get<IOTelPolicyRestartRecord>(POLICY_RESTART_RECORD_KEY),
+			setRestartRecord: async record => state.update(POLICY_RESTART_RECORD_KEY, record),
+			// Unlike ordinary messages, progress notifications close when their host is disposed.
+			restartExtensionHost: async () => vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: vscode.l10n.t("Restarting extensions in this window to apply your organization's Copilot telemetry settings. Active sessions may ask you to confirm."),
+				cancellable: false,
+			}, async () => {
+				await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+				// Successful restart destroys this host. This one-off grace period is only
+				// for deciding when a still-running host should show the reload fallback.
+				await timeout(15_000);
+			}),
+			warnPolicyNotApplied: () => {
+				void this._promptReload(vscode.l10n.t("Your organization's Copilot telemetry policy could not be applied automatically. Reload the window to apply it."), true);
+			},
+			promptReload: current => {
+				const endpoint = current.config.otlpEndpoint;
+				const endpointChanged = current.config.enabled && endpoint !== this._otelConfigResolver.activeResolution.config.otlpEndpoint;
+				void this._promptReload(endpointChanged
+					? vscode.l10n.t("Copilot OTel endpoint will change to {0} after reload.", String(endpoint))
+					: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."), false);
+			},
+			notifyPolicyRestarted: () => {
+				this._logService.info('[OTel] Extensions were restarted to apply enterprise telemetry policy.');
+			},
+		}, this._logService);
+		// One startup check and configuration-event checks; no polling.
+		const scheduler = this._register(new RunOnceScheduler(() => {
+			monitor.check().catch(error => this._logService.error(error, '[OTel] Failed to check for stale telemetry configuration'));
+		}, 500));
+		this._register(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OTEL_SETTINGS_SECTION)) {
+				scheduler.schedule();
+			}
+		}));
+		scheduler.schedule();
+	}
+
+	private async _promptReload(message: string, warning: boolean): Promise<void> {
+		try {
+			const reloadWindowLabel = vscode.l10n.t("Reload Window");
+			const selection = warning
+				? await vscode.window.showWarningMessage(message, reloadWindowLabel)
+				: await vscode.window.showInformationMessage(message, reloadWindowLabel);
+			if (selection === reloadWindowLabel) {
+				await vscode.commands.executeCommand('workbench.action.reloadWindow');
+			}
+		} catch (error) {
+			this._logService.error(error, '[OTel] Failed to prompt for a window reload');
+		}
+	}
+
+	/**
+	 * Surfaces the active OTel configuration as a row in the Copilot Chat
+	 * status dashboard. Agents Window also uses this context to show its status pill,
+	 * because it does not have the dashboard surface yet.
+	 */
+	private _installVisibilityIndicators(): void {
+		// Only show indicators when the user explicitly opted in;
+		// db-only / debug-panel modes don't send data off-machine.
+		if (!this._otelService.config.enabledExplicitly) {
+			void vscode.commands.executeCommand('setContext', OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY, false);
+			return;
+		}
+
+		const chatStatusItem = this._register(vscode.window.createChatStatusItem(CHAT_STATUS_ITEM_ID));
+		this._refreshChatStatusItem(chatStatusItem);
+		void vscode.commands.executeCommand('setContext', OTEL_ENABLED_EXPLICITLY_CONTEXT_KEY, true);
+	}
+
+	private _refreshChatStatusItem(item: vscode.ChatStatusItem): void {
+		const config = this._otelService.config;
+		const destination = this._formatStatusDestination();
+		const contentCaptureState = config.captureContent ? vscode.l10n.t('enabled') : vscode.l10n.t('not enabled');
+
+		item.title = {
+			label: vscode.l10n.t('Monitoring'),
+			link: DOCS_URL,
+			helpText: vscode.l10n.t('Monitor agent usage with OpenTelemetry.'),
+		};
+		item.description = vscode.l10n.t('Enabled');
+		item.detail = vscode.l10n.t(
+			"Agent behaviors and usage are monitored and exported to {0}.\nCapture of sensitive content including prompts, responses, and tool calls is {1}.\n[Manage](command:{2})",
+			destination.detail,
+			contentCaptureState,
+			OPEN_OTEL_SETTINGS_COMMAND,
+		);
+		item.tooltip = vscode.l10n.t('Agent behaviors and usage are monitored and exported to {0}. Capture of sensitive content including prompts, responses, and tool calls is {1}.', destination.tooltip, contentCaptureState);
+		item.show();
+	}
+
+	private _formatStatusDestination(): { readonly detail: string; readonly tooltip: string } {
+		const config = this._otelService.config;
+		switch (config.exporterType) {
+			case 'console':
+				return {
+					detail: `\`${vscode.l10n.t('console exporter')}\``,
+					tooltip: vscode.l10n.t('the console exporter'),
+				};
+			case 'file': {
+				const filePath = config.fileExporterPath;
+				if (!filePath || filePath === os.devNull) {
+					return {
+						detail: `\`${vscode.l10n.t('file exporter')}\``,
+						tooltip: vscode.l10n.t('the file exporter'),
+					};
+				}
+				const fileBaseName = filePath.replace(/^.*[\\/]/, '');
+				return {
+					detail: `\`${fileBaseName}\``,
+					tooltip: filePath,
+				};
+			}
+			case 'otlp-grpc':
+			case 'otlp-http': {
+				const host = this._formatEndpointHost(config.otlpEndpoint);
+				return {
+					detail: `\`${host}\``,
+					tooltip: config.otlpEndpoint,
+				};
+			}
+		}
+	}
+
+	private _logEndpointInfo(): void {
+		const config = this._otelService.config;
+		if (!config.enabled || !config.enabledExplicitly || !config.captureContent) {
+			return;
+		}
+		if (config.exporterType === 'console' || config.exporterType === 'file') {
+			return;
+		}
+		let host: string | undefined;
+		try {
+			host = new URL(config.otlpEndpoint).hostname.toLowerCase();
+		} catch {
+			this._logService.warn(`[OTel] captureContent is on but the OTLP endpoint is not a valid URL: ${config.otlpEndpoint}`);
+			return;
+		}
+		const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
+		if (!isLocal) {
+			this._logService.info(`[OTel] captureContent is enabled; conversation content will be sent to ${config.otlpEndpoint}.`);
+		}
+	}
+
+	/**
+	 * Mirror the resolved OTel config into integrated terminals via
+	 * `environmentVariableCollection`, so terminals opened before the SDK
+	 * boots still see user-controlled values.
+	 */
+	private _configureTerminalEnv(): void {
+		const collection = this._extensionContext.environmentVariableCollection;
+		const otelKeys = [
+			'COPILOT_OTEL_ENABLED',
+			'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+			'OTEL_EXPORTER_OTLP_ENDPOINT',
+			'COPILOT_OTEL_ENDPOINT',
+			'COPILOT_OTEL_EXPORTER_TYPE',
+			'COPILOT_OTEL_FILE_EXPORTER_PATH',
+		];
+		// Clear prior overrides before re-applying.
+		for (const key of otelKeys) {
+			collection.delete(key);
+		}
+
+		const config = this._otelService.config;
+		if (!config.enabledExplicitly) {
+			return;
+		}
+
+		collection.replace('COPILOT_OTEL_ENABLED', 'true');
+		if (config.otlpEndpoint) {
+			collection.replace('OTEL_EXPORTER_OTLP_ENDPOINT', config.otlpEndpoint);
+		}
+		collection.replace('OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT', String(config.captureContent));
+	}
+
+	private _registerOpenSettingsCommand(): void {
+		this._register(vscode.commands.registerCommand(OPEN_OTEL_SETTINGS_COMMAND, async () => {
+			// OTel settings are user-scope only (`scope: application` in
+			// package.json), so always open the user settings editor.
+			await vscode.commands.executeCommand('workbench.action.openSettings', 'github.copilot.chat.otel');
+		}));
+
+		// Agents Window does not have the chat status dashboard yet, so the legacy
+		// chat-input status pill opens the same settings surface from there only.
+		this._register(vscode.commands.registerCommand(STATUS_ACTIVE_COMMAND, async () => {
+			await vscode.commands.executeCommand(OPEN_OTEL_SETTINGS_COMMAND);
+		}));
+	}
+
+	private _formatEndpointHost(endpoint: string): string {
+		try {
+			const url = new URL(endpoint);
+			return url.host || url.origin || endpoint;
+		} catch {
+			return endpoint;
+		}
 	}
 
 	override dispose(): void {

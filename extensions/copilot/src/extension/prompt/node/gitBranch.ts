@@ -9,7 +9,7 @@ import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/comm
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn } from '../../../vscodeTypes';
@@ -41,8 +41,11 @@ export class GitBranchNameGenerator {
 		const sessionResource = context.sessionResource;
 		const parentChatSessionId = sessionResource ? sessionResourceToId(URI.from(sessionResource)) : undefined;
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
-		const { messages } = await renderPromptElement(this.instantiationService, endpoint, GitBranchPrompt, { userRequest: firstRequest.prompt });
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
+		const normalizedCommand = firstRequest.command?.trim().replace(/^\/+/, '') ?? '';
+		const command = normalizedCommand ? `/${normalizedCommand} ` : '';
+		const userRequest = `${command}${firstRequest.prompt}`;
+		const { messages } = await renderPromptElement(this.instantiationService, endpoint, GitBranchPrompt, { userRequest });
 
 		const capturingToken = new CapturingToken(
 			'git-branch',
@@ -62,6 +65,7 @@ export class GitBranchNameGenerator {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, token);
 			return response;
 		};
@@ -82,7 +86,8 @@ export class GitBranchNameGenerator {
 
 			branchName = normalizeBranchName(branchName);
 			if (branchName.length < 8) {
-				throw new Error('Branch name is too short. Please keep it at least 8 characters.');
+				this.logService.warn('Generated branch name is too short after normalization, discarding.');
+				return undefined;
 			}
 
 			return branchName;

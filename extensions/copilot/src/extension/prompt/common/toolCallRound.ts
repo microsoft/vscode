@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { FetchSuccess } from '../../../platform/chat/common/commonTypes';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta } from '../../../platform/thinking/common/thinking';
+import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IToolCall, IToolCallRound } from './intents';
 
@@ -17,7 +17,8 @@ import { IToolCall, IToolCallRound } from './intents';
 export class ToolCallRound implements IToolCallRound {
 	public summary: string | undefined;
 	public phase?: string;
-	public phaseModelId?: string;
+	public modelId?: string;
+	public originApi?: ThinkingOriginApi;
 
 	/**
 	 * Creates a ToolCallRound from an existing IToolCallRound object.
@@ -33,10 +34,12 @@ export class ToolCallRound implements IToolCallRound {
 			params.thinking,
 			params.timestamp,
 			params.compaction,
+			params.statefulMarkerSummarizedAtRoundId,
 		);
 		round.summary = params.summary;
 		round.phase = params.phase;
-		round.phaseModelId = params.phaseModelId;
+		round.modelId = params.modelId;
+		round.originApi = params.originApi;
 		return round;
 	}
 
@@ -58,6 +61,7 @@ export class ToolCallRound implements IToolCallRound {
 		public readonly thinking?: ThinkingData,
 		public readonly timestamp: number = Date.now(),
 		public readonly compaction?: OpenAIContextManagementResponse,
+		public readonly statefulMarkerSummarizedAtRoundId?: string,
 	) { }
 
 	private static generateID(): string {
@@ -70,6 +74,7 @@ export class ThinkingDataItem implements ThinkingData {
 	public metadata?: { [key: string]: any };
 	public tokens?: number;
 	public encrypted?: string;
+	public redacted?: boolean;
 
 	static createOrUpdate(item: ThinkingDataItem | undefined, delta: ThinkingDelta) {
 		if (!item) {
@@ -90,6 +95,9 @@ export class ThinkingDataItem implements ThinkingData {
 		}
 		if (isEncryptedThinkingDelta(delta)) {
 			this.encrypted = delta.encrypted;
+			if (delta.redacted !== undefined) {
+				this.redacted = delta.redacted;
+			}
 		}
 		if (delta.text !== undefined) {
 

@@ -6,7 +6,52 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 - [`../AI_CUSTOMIZATIONS.md`](../AI_CUSTOMIZATIONS.md)
 
+## LOCAL EXPERIMENT OVERRIDES
+
+Production behavior reads the `sessions.list.rearrage` treatment directly from the assignment service. For local testing only, use the assignment service's standard developer override in the user `settings.json`:
+
+- Treatment: `"experiments.override.sessions.list.rearrage": true`
+- Control: `"experiments.override.sessions.list.rearrage": false`
+
+The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
+
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+
 ## SCENARIOS
+
+### Customization discovery
+
+#### Preconditions
+
+- AI features are enabled.
+- Enable `chat.customizations.marketplace.sources.publicFeed.enabled` (experimental and disabled by default). This enables the GitHub Feed, currently the only production source; Marketplace itself has no feature flag.
+- Open Agent Customizations in either the editor workbench or Agents Window.
+
+#### Actions and Expected Results
+
+1. Open Discover. Browse available resources without signing in or starting a chat session.
+2. Check that the leading section and data-backed Skills, MCP servers, and Plugins sections show names, descriptions, publisher information, resource types, and available star metadata. Repository owner images have a fallback icon when absent or unavailable.
+3. Search for a generic topic such as `postgres`, then combine Installed, MCPs, Plugins, and Skills using the search filter menu. Typed `@installed` and `@type:` tokens must stay synchronized with the filters.
+4. Verify that search replaces browse cards with one flat virtualized list, with installed items before available items. Only the latest search is displayed, even if an earlier request finishes later.
+5. Scroll near the end of search results. Existing results remain visible while the next page loads, then results append without duplicates or a persistent Load More footer. If client-side type filtering leaves too few rows to scroll after bounded backfilling, a Load More action provides access to the remaining continuation. Change the query or type and verify pagination resets.
+6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
+7. Simulate offline, rate-limited, malformed, and oversized-metadata responses from one source. Healthy-source results remain visible in browsing and search alongside a named warning and **Retry**. Scrolling continues healthy sources, retaining loaded items and warnings without inventing a combined total. When every source fails, show warnings rather than a successful empty state. Metadata lists must not exceed 32 entries or 512 characters per entry; scalar card text must not exceed 4,096 characters. URLs and pagination tokens retain their separate limits.
+8. Use Tab and Shift+Tab on controls, arrow keys in results, and Enter to open an installed item. Open Accessibility Help and Accessible View; verify source warnings, install actions, resource links, and filters have distinct labels, then close the view and verify focus returns.
+9. Open a resource or repository. It opens externally; browsing alone never installs or enables anything. Use **Import > New Agent/Skill/Instructions/Prompt** and verify the Customizations editor closes before the creation flow opens in Chat. Switch harnesses and confirm Discover remains usable.
+10. Disable AI features. Discover is hidden and does not make catalog or image requests. Unrelated setup or entitlement changes must preserve the search, loaded pages, and scroll position.
+11. Check narrow editor widths, dark/light themes, and high-contrast focus/borders. Move the editor to an auxiliary window and verify layout responds to resizing there.
+12. Install a skill into a selected workspace or user location. Confirm the source, revision, and destination; verify that `SKILL.md` and supporting files are preserved, repository `.git` data is not copied, and an existing destination is never overwritten.
+13. Cancel the destination/source confirmation or progress notification, disable its source, or change the active session during a skill import, including while the final move is pending. No incomplete skill should appear in its destination.
+14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed. Another catalog revision or version at the same repository path must remain available to install.
+15. Install an MCP server with a supported package or remote endpoint. It must resolve the version-pinned GitHub Feed record independently of the configured VS Code gallery and use the normal MCP policy and installation flow, not executable configuration supplied by the search result. For a server whose version record has only unsupported local prerequisites (for example, Unity's `uv --directory <local path>` setup), verify the publisher's setup link replaces Retry Install after the installability check.
+16. Check that installation errors allow retry without losing search results. Cancellations do not announce success, and resources without validated installation provenance explain why installation is unavailable. Cursor-format plugins must not appear in browse or search, even when the first native page contains only Cursor plugins.
+17. With the public feed setting unset or false and no other sources enabled, verify the original Overview cards and migration guidance appear instead of Discover and no catalog or installation work starts. Former settings `chat.agentFinder.enabled`, `chat.customizations.unifiedMarketplace.enabled`, `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled`, and `chat.customizations.marketplace.sources.publicGitHubFeed.enabled` must not enable a source.
+18. Enable the public feed and verify Discover replaces Overview; disable it during a query or skill import. Catalog requests and imports must be cancelled, the home button returns to Overview, and no stale Discover results remain. Re-enabling must not revive cancelled work or reuse stale installed-skill state.
+19. With an additional test source and an independent enablement setting, verify each window requests only its enabled sources. A disabled source must not be initialized or queried, even when another source is active. Disabling one source resets discovery, does not cancel another source's install, and does not clear that other source's installed-skill state. Installation of disabled or unknown source resources remains unavailable.
+20. Have the test sources return overlapping identifiers, multiple versions, and different continuation tokens. All distinct source/identifier/version entries remain visible, each continuation goes only to its owning source, exhausted sources stop querying, and installation state/actions do not collide. Continuation after a source-set change requires a new search. No second production source is introduced by this change.
+21. Supply independently ranked test sources and search. Each combined page contains at most 24 entries in descending relevance order, including across automatically loaded page boundaries. Short native pages are backfilled, undisplayed entries are retained, and a failed or cancelled continuation can be retried without losing entries. Equal scores use source-registration order; unscored entries rank as zero. Queryless browsing interleaves the feeds while preserving each feed's native order, continues the rotation across page boundaries, and fills remaining slots from other feeds when one exhausts. Scores are internal ranking signals, not displayed quality or trust ratings.
+22. With independently enabled test sources, make one fail after the first combined page. Its previously loaded results remain, healthy sources continue, and the warning persists on subsequent pages. Recover it and activate its **Retry** by keyboard: the current query restarts from page one, replacing the list so recovered high-relevance entries are not appended out of order. Warnings and the restart behavior are available in Accessibility Help and Accessible View. Cancel a continuation by leaving the page; returning and scrolling further preserves the cursor and ignores late results and warnings from the cancelled request.
+23. Have a test source require explicit sign-in. Show its neutral prompt and primary **Sign In** action without a warning icon or failed/empty-results message; an incomplete-results hint appears only for genuine source failures. Healthy-source results remain available. Repeat with only the sign-in-required source enabled and with another source failing. The action is keyboard accessible, documented in Accessibility Help and Accessible View, and runs only on explicit activation before restarting the combined query.
 
 ### Scenario 1: Empty state — no session, no customizations
 
@@ -32,7 +77,7 @@ This tests the baseline empty state before any session or workspace is active. T
 #### Expected Results
 
 - All sidebar counts are hidden (no badges visible)
-- Management editor shows empty state for each section with "No X yet" message
+- Installed-customization sections show an empty state with a "No X yet" message. Discover can browse the available catalog independently of the active workspace.
 - Create button for **user** customizations is visible but disabled until a workspace folder or repository is selected (Hooks should also show a disabled button, since there is no 'user' scoped hooks)
 
 #### Notes
@@ -205,3 +250,44 @@ This tests the transition from the empty state to having an active workspace sel
 - Hook events are derived from `COPILOT_CLI_HOOK_TYPE_MAP` — adding new events to the schema auto-includes them in the skeleton
 - Only `"bash"` is used (not `"command"`) to match the Copilot CLI schema
 - The `"version": 1` field is required by the CLI for format detection
+
+---
+
+### Scenario 6: Unified migration checklist
+
+#### Preconditions
+
+- An active agent-host session with one workspace folder
+- Prompt, user-data, and MCP migration settings enabled
+- Migratable prompts in both profile and workspace, profile agents/instructions, and a supported workspace MCP server
+
+#### Actions and expected results
+
+1. Open **Migrations**. There is one sidebar entry, not separate entries for individual migration types.
+2. Check the profile and workspace groups. Prompts to skills appears first with a high-risk label; User Data and MCP Servers appear only where eligible candidates exist.
+3. Select **Review** for profile prompts, then workspace prompts. Each opens the existing prompt migration page with only the selected location's files. User Data and MCP Servers likewise reuse their existing pages.
+4. Cancel or return without migrating. No files change and all candidates remain on the checklist.
+5. Skip the workspace. Its rows are hidden and its items are excluded from the sidebar count, but **Include Workspace** remains reachable. Including it restores the rows without changing files.
+6. Change profile destinations. The picker offers only profile file destinations; workspace destinations stay unchanged. MCP destinations remain fixed at the workspace root `.mcp.json`.
+7. Complete a migration, then return to Migrations. Expand its activity entry and verify the source and actual destination paths. Only successful writes appear, including when another item fails.
+8. Close and reopen the editor and restart VS Code. Activity remains local to the profile and initiating workspace. Switching workspaces does not show another workspace's activity.
+9. Dismiss an activity entry. Its record disappears; migrated files remain untouched.
+10. Navigate with Tab and Shift+Tab, expand activity with Enter or Space, and open Accessibility Help and Accessible View. Focus returns to the invoking control on dismissal.
+11. Verify dark, light, high-contrast, and narrow layouts. No Chat Participants, agent verification, issue creation, or optional multi-root controls are present.
+
+### Scenario 7: New-chat migration notice
+
+#### Preconditions
+
+- The migration settings and candidates from Scenario 6
+- The new-chat view with an agent-host session type selected
+
+#### Actions and expected results
+
+1. Select a workspace with pending migrations. A muted, compact banner below the composer summarizes the workspace and profile candidates from the migration overview. Its faint border, subtle background, and secondary text leave the chat input as the primary visual focus.
+2. Show and dismiss the notice. The input and its controls remain in exactly the same centered position, including at narrow widths.
+3. Activate **Review Migrations** with the keyboard. The customizations modal opens directly to **Migrations** for the selected workspace, even if an older chat was previously focused.
+4. Dismiss the notice, restart, and return to that workspace. It stays dismissed. Select another workspace with candidates; its notice remains available.
+5. Complete all migrations, then return to new chat. The notice disappears. Profile-only migrations also show in a workspace without local candidates or in a workspace-less quick chat.
+6. Disable the migration settings or AI features. No notice appears and disabled migration categories are not scanned for the notice.
+7. Verify light, dark, high-contrast, and keyboard focus states. Dismissal returns focus to the input.

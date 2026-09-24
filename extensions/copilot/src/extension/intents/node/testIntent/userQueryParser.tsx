@@ -32,7 +32,7 @@ export class UserQueryParser {
 	) { }
 
 	public async parse(query: string): Promise<ParsedUserQuery | null> {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,

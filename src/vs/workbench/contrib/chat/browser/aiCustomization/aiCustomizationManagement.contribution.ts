@@ -18,39 +18,56 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationMigrationHint } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
+	AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AICustomizationManagementOpenEditorTarget,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
+	AICustomizationManagementSyntheticItemMenuId,
 	AICustomizationManagementSection,
-	BUILTIN_STORAGE,
+	AICustomizationSource,
+	DELETE_AI_CUSTOMIZATION_ID,
+	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import './customizationMarketplace.contribution.js';
+import './customizationMigrationAccessibility.js';
 
 //#region Telemetry
 
@@ -63,7 +80,7 @@ type CustomizationEditorDeleteItemClassification = {
 	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
 	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
 	owner: 'joshspicer';
-	comment: 'Tracks item deletion in the Chat Customizations editor.';
+	comment: 'Tracks item deletion in the Agent Customizations editor.';
 };
 
 //#endregion
@@ -74,7 +91,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Agent Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -141,7 +158,7 @@ function extractURI(context: AICustomizationContext): URI {
 /**
  * Extracts storage type from context.
  */
-function extractStorage(context: AICustomizationContext): PromptsStorage | undefined {
+function extractSource(context: AICustomizationContext): AICustomizationSource | undefined {
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
@@ -171,6 +188,7 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 	}
 	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
 }
+
 
 /**
  * Extracts the item ID from context (used for identifying individual hooks within a file).
@@ -211,15 +229,18 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		if (!hasReadableCustomizationContent(extractURI(context))) {
+			return;
+		}
 		const editorService = accessor.get(IEditorService);
-		const storage = extractStorage(context);
+		const source = extractSource(context);
 
 		const editorPane = await editorService.openEditor({
 			resource: extractURI(context)
 		});
 
 		const codeEditor = getCodeEditor(editorPane?.getControl());
-		if (codeEditor && (storage === PromptsStorage.extension || storage === PromptsStorage.plugin)) {
+		if (codeEditor && (source === AICustomizationSources.extension || source === AICustomizationSources.plugin)) {
 			codeEditor.updateOptions({
 				readOnly: true,
 				readOnlyMessage: new MarkdownString(localize('readonlyPluginFile', "This file is provided by a plugin or extension and cannot be edited.")),
@@ -270,7 +291,6 @@ registerAction2(class extends Action2 {
 });
 
 // Delete action
-const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -280,6 +300,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		if (!hasReadableCustomizationContent(extractURI(context))) {
+			return;
+		}
 		const fileService = accessor.get(IFileService);
 		const dialogService = accessor.get(IDialogService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -287,7 +310,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const uri = extractURI(context);
-		const storage = extractStorage(context);
+		const source = extractSource(context);
 		const promptType = extractPromptType(context);
 		const itemId = extractItemId(context);
 		const isSkill = promptType === PromptsType.skill;
@@ -296,7 +319,7 @@ registerAction2(class extends Action2 {
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
 		// Plugin-provided files: offer to uninstall the plugin
-		if (storage === PromptsStorage.plugin) {
+		if (source === AICustomizationSources.plugin) {
 			const agentPluginService = accessor.get(IAgentPluginService);
 			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
 			if (plugin) {
@@ -307,14 +330,14 @@ registerAction2(class extends Action2 {
 					type: 'question',
 				});
 				if (result.confirmed) {
-					plugin.remove();
+					await plugin.remove?.();
 				}
 			}
 			return;
 		}
 
 		// Extension and built-in files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === BUILTIN_STORAGE) {
+		if (source === AICustomizationSources.extension || source === AICustomizationSources.builtin) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -341,7 +364,7 @@ registerAction2(class extends Action2 {
 			try {
 				telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
 					promptType: promptType ?? '',
-					storage: storage ?? '',
+					storage: source ?? '',
 				});
 			} catch {
 				// Telemetry must not block deletion
@@ -357,7 +380,7 @@ registerAction2(class extends Action2 {
 					if (edits.length > 0) {
 						const updated = applyEdits(text, edits);
 						await fileService.writeFile(uri, VSBuffer.fromString(updated));
-						if (storage === PromptsStorage.local) {
+						if (source === AICustomizationSources.local) {
 							const projectRoot = workspaceService.getActiveProjectRoot();
 							if (projectRoot) {
 								await workspaceService.commitFiles(projectRoot, [uri]);
@@ -380,7 +403,7 @@ registerAction2(class extends Action2 {
 			await fileService.del(deleteTarget, { useTrash, recursive: isSkill });
 
 			// Commit the deletion to git (sessions: main repo + worktree)
-			if (storage === PromptsStorage.local) {
+			if (source === AICustomizationSources.local) {
 				const projectRoot = workspaceService.getActiveProjectRoot();
 				if (projectRoot) {
 					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
@@ -408,6 +431,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		if (!hasReadableCustomizationContent(extractURI(context))) {
+			return;
+		}
 		const clipboardService = accessor.get(IClipboardService);
 		const uri = extractURI(context);
 		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
@@ -415,27 +441,65 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID = 'aiCustomizationManagement.installChatCustomizationExtension';
+const CHAT_CUSTOMIZATION_EXTENSION_ID = 'ms-vscode.vscode-chat-customizations-evaluations';
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', true);
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.isEqualTo(true);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID,
+			title: localize2('installChatCustomizationExtension', "Install Chat Customization Extension"),
+			icon: Codicon.beaker,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		await accessor.get(ICommandService).executeCommand('workbench.extensions.installExtension', CHAT_CUSTOMIZATION_EXTENSION_ID, { enable: true });
+	}
+});
+
 /**
  * When clause that hides an action for read-only (extension, plugin, built-in) items.
  */
 const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
-	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.extension),
-	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin),
-	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.extension),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.plugin),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
 );
 
 /**
  * When clause that shows an action only for plugin items.
+ *
+ * Synced customizations are bundled into a synthetic plugin (under the
+ * `vscode-synced-customization:` scheme) as an implementation detail of the
+ * sync mechanism. Their plugin identity is not user-facing, so we hide
+ * plugin-related actions ("Show Plugin", "Uninstall Plugin") for them.
  */
-const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin);
+const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.and(
+	ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.plugin),
+	ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, new RegExp(`^${SYNCED_CUSTOMIZATION_SCHEME}:`)).negate(),
+);
 
 // Register context menu items
 
 // Inline hover actions (shown as icon buttons on hover)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	command: { id: INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID, title: localize('Install Chat Customization Extension', "Install Chat Customization Extension"), icon: Codicon.beaker },
 	group: 'inline',
 	order: 1,
+	when: ContextKeyExpr.and(CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED,
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.instructions),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.agent),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill)
+		))
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	group: 'inline',
+	order: 2,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
@@ -503,7 +567,7 @@ registerAction2(class extends Action2 {
 			type: 'question',
 		});
 		if (result.confirmed) {
-			plugin.remove();
+			await plugin.remove?.();
 		}
 	}
 });
@@ -616,53 +680,55 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Context menu: Disable (shown when builtin item is enabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
-	group: '5_toggle',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+for (const menuId of [AICustomizationManagementItemMenuId, AICustomizationManagementSyntheticItemMenuId]) {
+	// Context menu: Disable (shown when builtin item is enabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
+		group: '5_toggle',
+		order: 1,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
 
-// Context menu: Enable (shown when builtin item is disabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
-	group: '5_toggle',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+	// Context menu: Enable (shown when builtin item is disabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
+		group: '5_toggle',
+		order: 1,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
 
-// Inline hover: Disable (shown when builtin item is enabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
-	group: 'inline',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+	// Inline hover: Disable (shown when builtin item is enabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+		group: 'inline',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
 
-// Inline hover: Enable (shown when builtin item is disabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
-	group: 'inline',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+	// Inline hover: Enable (shown when builtin item is disabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+		group: 'inline',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
+}
 
 //#endregion
 
@@ -671,13 +737,62 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.aiCustomizationManagementActions';
+	private readonly chatCustomizationExtensionNotInstalledContext: IContextKey<boolean>;
 
-	constructor() {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
+	) {
 		super();
+		this.chatCustomizationExtensionNotInstalledContext = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.bindTo(contextKeyService);
+
+		const refreshExtensionContext = () => this.updateChatCustomizationExtensionContext();
+		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
+		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
+		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
+		this.updateChatCustomizationExtensionContext();
 		this.registerActions();
 	}
 
+	private async updateChatCustomizationExtensionContext(): Promise<void> {
+		try {
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const extensionKey = ExtensionIdentifier.toKey(CHAT_CUSTOMIZATION_EXTENSION_ID);
+			const isInstalled = installedExtensions.some(ext => ExtensionIdentifier.toKey(ext.identifier.id) === extensionKey);
+			this.chatCustomizationExtensionNotInstalledContext.set(!isInstalled);
+		} catch {
+			this.chatCustomizationExtensionNotInstalledContext.set(true);
+		}
+	}
+
 	private registerActions(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.DismissMigrationHint,
+					title: localize2('dismissCustomizationMigrationHint', "Don't Show Customization Migration Hints Again"),
+					f1: false,
+				});
+			}
+
+			run(accessor: ServicesAccessor, options?: { readonly hint?: ICustomizationMigrationHint }): void {
+				const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+				if (!sessionResource) {
+					throw new Error('Expected an active chat session when dismissing customization migration hints');
+				}
+				const sessionType = getChatSessionType(sessionResource);
+				if (options?.hint) {
+					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(options.hint, 'dismiss');
+				}
+				accessor.get(IStorageService).store(
+					getCustomizationMigrationHintDismissedStorageKey(sessionType),
+					true,
+					StorageScope.WORKSPACE,
+					StorageTarget.USER
+				);
+			}
+		}));
+
 		// Open AI Customizations Editor
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -691,12 +806,59 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const harnessService = accessor.get(ICustomizationHarnessService);
+				const widget = chatWidgetService.lastFocusedWidget;
+				const { section, revealUri, sessionResource, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+					target,
+					widget?.input.pendingDelegationTarget,
+					widget?.viewModel?.sessionResource,
+					sessionType => harnessService.getSessionResourceForHarness(sessionType),
+				);
+				if (migrationHint) {
+					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
+				}
+				if (sessionResource) {
+					harnessService.setActiveSession(sessionResource);
+				}
+
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				input.setTargetLabels(
+					harnessService.getActiveDescriptor().label,
+					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+				);
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (migration && pane instanceof AICustomizationManagementEditor) {
+					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
+				} else if (section && pane instanceof AICustomizationManagementEditor) {
+					pane.selectSectionById(section);
+					if (revealUri) {
+						await pane.revealCustomizationByUri(revealUri);
+					}
+				}
+			}
+		}));
+
+		// Open Marketplace (hidden command for deep-linking into browse mode)
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					title: localize2('openMarketplace', "Open Marketplace"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
 			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
-				if (section && pane instanceof AICustomizationManagementEditor) {
-					pane.selectSectionById(section);
+				if (pane instanceof AICustomizationManagementEditor) {
+					const targetSection = section ?? AICustomizationManagementSection.McpServers;
+					pane.selectSectionById(targetSection, { showMarketplace: true });
 				}
 			}
 		}));
