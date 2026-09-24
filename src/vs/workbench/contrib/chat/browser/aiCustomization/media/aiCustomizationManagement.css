@@ -1235,9 +1235,9 @@ per-word capitalization does not survive translation. */
 }
 
 /* The scroll hosts reach the pane edge while their content retains the panel inset. */
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .section-title-header,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .section-title-header,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .list-search-and-button-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget .plugin-card-scroll,
