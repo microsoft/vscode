@@ -19,7 +19,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IWorkbenchLayoutService, LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIFrostedGlassOpacity } from '../../../../services/layout/browser/layoutService.js';
 import { FrostedGlassContribution } from '../../electron-browser/frostedGlass.contribution.js';
 import '../../../../browser/workbench.contribution.js';
 
@@ -244,7 +244,10 @@ suite('FrostedGlassContribution', () => {
 		const closedState = services.styleState();
 		contribution.dispose();
 		assert.deepStrictEqual({ initialState, updatedState, enabledState, closedState, disposedState: services.styleState(), checks: services.nativeHost.checks }, {
-			initialState: [{ glass: true, opacity: '92%' }, { glass: true, opacity: '92%' }],
+			initialState: [
+				{ glass: true, opacity: `${ModernUIFrostedGlassOpacity.Default}%` },
+				{ glass: true, opacity: `${ModernUIFrostedGlassOpacity.Default}%` },
+			],
 			updatedState: [{ glass: true, opacity: '75%' }, { glass: true, opacity: '75%' }],
 			enabledState: [{ glass: true, opacity: '75%' }, { glass: true, opacity: '75%' }, { glass: true, opacity: '75%' }],
 			closedState: [{ glass: true, opacity: '75%' }, { glass: true, opacity: '75%' }, { glass: false, opacity: '' }],

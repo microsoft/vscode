@@ -37,7 +37,7 @@ import { IUserDataProfileService } from '../../../../../workbench/services/userD
 import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
 import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AccountPolicyService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
-import { LayoutSettings } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { LayoutSettings, ModernUIFrostedGlassOpacity } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../workbench/contrib/preferences/browser/settingsTreeModels.js';
 import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
@@ -483,14 +483,14 @@ suite('Sessions ConfigurationService', () => {
 			reset: readSettings(),
 		}, {
 			profile: { isDefault: false, isAgentsWindowProfile: true, inheritsSettings: true },
-			defaults: [{ value: true, configured: false }, { value: 92, configured: false }],
+			defaults: [{ value: true, configured: false }, { value: ModernUIFrostedGlassOpacity.Default, configured: false }],
 			configured: [{ value: false, configured: true }, { value: 75, configured: true }],
 			effective: [false, 75],
 			persisted: {
 				[LayoutSettings.MODERN_UI_FROSTED_GLASS]: false,
 				[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: 75,
 			},
-			reset: [{ value: true, configured: false }, { value: 92, configured: false }],
+			reset: [{ value: true, configured: false }, { value: ModernUIFrostedGlassOpacity.Default, configured: false }],
 		});
 	}));
 
