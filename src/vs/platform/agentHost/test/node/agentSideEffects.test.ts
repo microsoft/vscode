@@ -8123,7 +8123,7 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('turn complete fires onTurnComplete once with the right turn id', async () => {
+		test('turn complete immediately fires onTurnComplete once per owner with the right turn id', () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -8139,13 +8139,6 @@ suite('AgentSideEffects', () => {
 				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			});
-
-			// `_runTurnCompleteSideEffects` now defers the
-			// `changesets.onTurnComplete` call behind the checkpoint capture
-			// promise (`captureTurnCheckpoint(...).then(...)`). Yield a
-			// microtask so the resolved promise's `.then` continuation
-			// runs before we assert.
-			await Promise.resolve();
 
 			assert.deepStrictEqual(changesets.turnCompletes, [
 				{ session: defaultChatUri, turnId: 'turn-1' },

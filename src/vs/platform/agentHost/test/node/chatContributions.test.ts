@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -815,7 +815,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string; readonly worktree: RecordingWorktreeIsolation; readonly additionalWorktreeLifecycle: IAdditionalWorktreeLifecycleService; readonly sessionRegistry: AgentSessionRegistry } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -837,10 +837,11 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	}));
 	const changesets = { _serviceBrand: undefined } as IAgentHostChangesetService;
 	changesets.onTurnComplete = () => { };
-	const checkpointService = observed ? {
+	changesets.refreshSessionChangeset = () => { };
+	const checkpointService: IAgentHostCheckpointService = {
 		...NULL_CHECKPOINT_SERVICE,
-		captureTurnCheckpoint: async () => { observed.push('checkpointAndChangeset'); },
-	} as IAgentHostCheckpointService : NULL_CHECKPOINT_SERVICE;
+		captureTurnCheckpoint: async () => { observed?.push('checkpointAndChangeset'); },
+	};
 	const usageDatabase = new TestSessionDatabase();
 	const originalGetTurnUsages = usageDatabase.getTurnUsages.bind(usageDatabase);
 	usageDatabase.getTurnUsages = async () => {
@@ -892,7 +893,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry };
+	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1391,6 +1392,60 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
+
+	for (const reason of [
+		{ kind: 'success' },
+		{ kind: 'error', error: { errorType: 'requestFailed', message: 'failed' }, resumable: false },
+	] satisfies ITurnEnd['reason'][]) {
+		for (const rejected of [false, true]) {
+			for (const owner of ['session', 'defaultChat', 'peerChat'] as const) {
+				test(`${owner} ${reason.kind} schedules tracked changes before checkpoint capture ${rejected ? 'rejects' : 'resolves'} and auto refresh after`, async () => {
+					const contributions = createBuiltInContributions(disposables);
+					const checkpoint = new DeferredPromise<void>();
+					const captures: { session: string; chat: string; turnId: string }[] = [];
+					const recomputes: Parameters<IAgentHostChangesetService['onTurnComplete']>[] = [];
+					const refreshes: Parameters<IAgentHostChangesetService['refreshSessionChangeset']>[] = [];
+					const warnings: string[] = [];
+					contributions.checkpointService.captureTurnCheckpoint = (session, chat, turnId) => {
+						captures.push({ session: session.toString(), chat: chat.toString(), turnId });
+						return checkpoint.p;
+					};
+					contributions.changesets.onTurnComplete = (...args) => { recomputes.push(args); };
+					contributions.changesets.refreshSessionChangeset = (...args) => { refreshes.push(args); };
+					contributions.logService.warn = message => { warnings.push(String(message)); };
+					const channel = owner === 'session' ? contributions.session
+						: owner === 'defaultChat' ? buildDefaultChatUri(contributions.session)
+							: buildChatUri(contributions.session, 'peer');
+					const turn: ITurnEnd = {
+						...turnEnd('checkpoint-pending', reason),
+						channel,
+						clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+					};
+
+					contributions.service.turnEnd(turn);
+					const whilePending = { recomputes: [...recomputes], refreshes: [...refreshes] };
+					if (rejected) {
+						await checkpoint.error(new Error('checkpoint failed'));
+					} else {
+						await checkpoint.complete();
+					}
+					await timeout(0);
+
+					const expected = [
+						[channel, turn.turnId, turn.clientContext],
+						...(channel === turn.session ? [] : [[turn.session, turn.turnId, turn.clientContext]]),
+					];
+					assert.deepStrictEqual({ captures, whilePending, recomputes, refreshes, warnings }, {
+						captures: [{ session: turn.session, chat: channel, turnId: turn.turnId }],
+						whilePending: { recomputes: expected, refreshes: [] },
+						recomputes: expected,
+						refreshes: [[turn.session, 'auto']],
+						warnings: rejected ? [`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: checkpoint failed`] : [],
+					});
+				});
+			}
+		}
+	}
 
 	test('reconciles GitHub references after every started turn outcome', () => {
 		const observed: string[] = [];

@@ -11,7 +11,7 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITu
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
-/** Captures end-of-turn checkpoints before scheduling changeset recomputation. */
+/** Starts end-of-turn checkpoint capture and schedules tracked then Git-backed changeset recomputation. */
 export class CheckpointAndChangesetContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'checkpointAndChangeset';
@@ -41,15 +41,13 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 
 		// Preserve checkpoints for compare-turns and explicit Git strategies without blocking later contributions.
 		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(turn.channel)?.map(w => URI.parse(w));
-		this._checkpointService.captureTurnCheckpoint(URI.parse(turn.session), URI.parse(turn.channel), turn.turnId, workingDirectories).then(() => {
-			this._onTurnComplete(turn);
-		}, err => {
-			// The successful-turn path previously logged capture failures here;
-			// error turns still schedule the fallback changeset recompute silently.
-			if (turn.reason.kind === 'success') {
-				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: ${err instanceof Error ? err.message : String(err)}`);
-			}
-			this._onTurnComplete(turn);
+		const checkpoint = this._checkpointService.captureTurnCheckpoint(URI.parse(turn.session), URI.parse(turn.channel), turn.turnId, workingDirectories);
+		this._onTurnComplete(turn);
+		void checkpoint.catch(err => {
+			this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: ${err instanceof Error ? err.message : String(err)}`);
+		}).then(() => {
+			// Recover terminal-tool edits that providers cannot report through the file-edit tracker.
+			this._changesets.refreshSessionChangeset(turn.session, 'auto');
 		});
 	}
 

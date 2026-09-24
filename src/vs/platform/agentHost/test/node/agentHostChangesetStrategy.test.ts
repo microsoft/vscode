@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -216,6 +216,20 @@ suite('AgentHostChangesetStrategy', () => {
 		return { status: ChangesetStatus.Ready, errorType: undefined, edits };
 	}
 
+	function recordSessionPublications(fixture: ReturnType<typeof createFixture>, count: number) {
+		const done = new DeferredPromise<void>();
+		const publications: ReturnType<typeof snapshot>[] = [];
+		disposables.add(fixture.state.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === sessionChangeset && envelope.action.type === ActionType.ChangesetStatusChanged && envelope.action.status === ChangesetStatus.Ready) {
+				publications.push(snapshot(fixture.state, sessionChangeset));
+				if (publications.length === count) {
+					void done.complete();
+				}
+			}
+		}));
+		return { publications, done: done.p };
+	}
+
 	for (const isolation of ['folder', 'worktree', undefined, 'unrecognized']) {
 		for (const strategy of [undefined, 'auto', 'git', 'fileEditTracker'] as const) {
 			test(`${isolation ?? 'legacy'} isolation with ${strategy ?? 'omitted'} strategy selects the requested session and turn sources`, async () => {
@@ -262,6 +276,128 @@ suite('AgentHostChangesetStrategy', () => {
 			gitCalls: fixture.gitCalls.length,
 			isolation: fixture.state.getSessionState(session)?.config?.values[SessionConfigKey.Isolation],
 		}, { session: ready([gitOnlyDiff]), turn: ready([gitOnlyDiff]), gitCalls: 2, isolation: 'folder' });
+	});
+
+	for (const strategies of [
+		['git', 'fileEditTracker'],
+		['fileEditTracker', 'git'],
+		['auto', 'fileEditTracker'],
+		['fileEditTracker', 'auto'],
+		['git', 'fileEditTracker', 'git'],
+		['git', 'git', 'fileEditTracker', 'fileEditTracker'],
+	] as const) {
+		test(`same-tick refreshes preserve ${strategies.join(', ')} requests in order`, async () => {
+			const fixture = createFixture();
+			addEdit(fixture.db);
+			fixture.subscriptions.delete(turnChangeset);
+			const distinctStrategies = strategies.filter((strategy, index) => index === 0 || strategy !== strategies[index - 1]);
+			const { publications, done } = recordSessionPublications(fixture, distinctStrategies.length);
+
+			for (const strategy of strategies) {
+				if (strategy !== 'fileEditTracker') {
+					fixture.service.refreshSessionChangeset(session, strategy);
+				} else {
+					fixture.service.onTurnComplete(session, turnId);
+				}
+			}
+			await done;
+
+			assert.deepStrictEqual({
+				publications,
+				gitCalls: fixture.gitCalls.length,
+				trackerReads: fixture.db.getAllFileEditsCalls,
+			}, {
+				publications: distinctStrategies.map(strategy => ready([strategy === 'fileEditTracker' ? trackedDiff() : gitOnlyDiff])),
+				gitCalls: distinctStrategies.filter(strategy => strategy !== 'fileEditTracker').length,
+				trackerReads: distinctStrategies.filter(strategy => strategy === 'fileEditTracker').length,
+			});
+		});
+	}
+
+	test('different strategies remain ordered behind an in-flight Git computation', async () => {
+		const fixture = createFixture();
+		addEdit(fixture.db);
+		fixture.subscriptions.delete(turnChangeset);
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const computeGit = fixture.git.computeFileDiffsBetweenRefs;
+		fixture.git.computeFileDiffsBetweenRefs = async (directory, refs) => {
+			void started.complete();
+			await release.p;
+			return computeGit(directory, refs);
+		};
+		const { publications, done } = recordSessionPublications(fixture, 3);
+		fixture.service.refreshSessionChangeset(session, 'git');
+		await started.p;
+		fixture.service.onTurnComplete(session, turnId);
+		fixture.service.refreshSessionChangeset(session, 'git');
+		await timeout(0);
+		const beforeRelease = { publications: [...publications], trackerReads: fixture.db.getAllFileEditsCalls };
+		await release.complete();
+		await done;
+
+		assert.deepStrictEqual({ beforeRelease, publications }, {
+			beforeRelease: { publications: [], trackerReads: 0 },
+			publications: [ready([gitOnlyDiff]), ready([trackedDiff()]), ready([gitOnlyDiff])],
+		});
+	});
+
+	test('removing an owner cancels all queued strategies', async () => {
+		const fixture = createFixture();
+		addEdit(fixture.db);
+		fixture.service.refreshSessionChangeset(session, 'git');
+		fixture.service.refreshSessionChangeset(session, 'fileEditTracker');
+		fixture.service.onChangesetOwnerRemoved(session);
+		await timeout(0);
+		assert.deepStrictEqual({ git: fixture.gitCalls, databases: fixture.databaseCalls }, { git: [], databases: [] });
+	});
+
+	for (const workingDirectories of [['file:///repo'], ['file:///repo', 'file:///second']]) {
+		const peer = buildChatUri(session, 'peer');
+		for (const [owner, id, unavailableDatabase] of [
+			[session, turnId, session],
+			[buildDefaultChatUri(session), turnId, session],
+			[peer, 'peer-turn', peer],
+			[session, 'peer-turn', peer],
+		]) {
+			test(`strict Git bypasses unavailable tracked storage for ${owner}/${id} with ${workingDirectories.length} roots`, async () => {
+				const peerDb = new TestSessionDatabase();
+				const fixture = createFixture({ workingDirectories, peer: { resource: peer, db: peerDb, turnId: 'peer-turn' }, unavailableDatabase });
+				addEdit(fixture.db);
+				addEdit(peerDb, '/repo/peer.txt', 'peer-turn');
+				const uri = await fixture.service.computeTurnChangeset(owner, id, 'git');
+				assert.deepStrictEqual({
+					state: snapshot(fixture.state, uri),
+					databases: fixture.databaseCalls,
+					gitCalls: fixture.gitCalls.length,
+					checkpoints: fixture.checkpointCalls,
+					trackedReads: [fixture.db.getFileEditsByTurnCalls, peerDb.getFileEditsByTurnCalls],
+				}, {
+					state: ready([gitOnlyDiff]),
+					databases: [],
+					gitCalls: workingDirectories.length,
+					checkpoints: workingDirectories.map(() => id),
+					trackedReads: [0, 0],
+				});
+			});
+		}
+	}
+
+	test('strict Git reports missing turn checkpoints without opening unavailable tracked storage', async () => {
+		const fixture = createFixture({ unavailableDatabase: session });
+		fixture.results.pair = undefined;
+		await fixture.service.computeTurnChangeset(session, turnId, 'git');
+		assert.deepStrictEqual({
+			state: snapshot(fixture.state, turnChangeset),
+			databases: fixture.databaseCalls,
+			checkpoints: fixture.checkpointCalls,
+			git: fixture.gitCalls,
+		}, {
+			state: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [] },
+			databases: [],
+			checkpoints: [turnId],
+			git: [],
+		});
 	});
 
 	for (const isolation of ['folder', 'worktree']) {
