@@ -931,22 +931,42 @@ suite('ClaudeProxyService', () => {
 
 		test('forwards supported anthropic-beta', async () => {
 			const headers = await postAndCaptureHeaders('interleaved-thinking-2025-05-14', undefined);
-			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14');
+			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14,mid-conversation-output-config-2026-07-01');
+		});
+
+		test('adds additional betas when the inbound header is absent', async () => {
+			const headers = await postAndCaptureHeaders(undefined, undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'mid-conversation-output-config-2026-07-01');
+		});
+
+		test('adds additional betas when the inbound header is empty', async () => {
+			const headers = await postAndCaptureHeaders('', undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'mid-conversation-output-config-2026-07-01');
+		});
+
+		test('forwards mid-conversation-output-config alongside other supported betas', async () => {
+			const headers = await postAndCaptureHeaders('interleaved-thinking-2025-05-14,mid-conversation-output-config-2026-07-01,foo', undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14,mid-conversation-output-config-2026-07-01');
+		});
+
+		test('adds the CAPI output-config beta when the SDK requests per-turn control', async () => {
+			const headers = await postAndCaptureHeaders('interleaved-thinking-2025-05-14, per-turn-control-2026-07-01,foo', undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14,mid-conversation-output-config-2026-07-01');
 		});
 
 		test('filters out unsupported betas', async () => {
 			const headers = await postAndCaptureHeaders('foo,bar,baz', undefined);
-			assert.strictEqual(headers?.['anthropic-beta'], undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'mid-conversation-output-config-2026-07-01');
 		});
 
 		test('drops supported family without date suffix', async () => {
 			const headers = await postAndCaptureHeaders('interleaved-thinking', undefined);
-			assert.strictEqual(headers?.['anthropic-beta'], undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'mid-conversation-output-config-2026-07-01');
 		});
 
 		test('mixed beta list keeps supported entries only', async () => {
 			const headers = await postAndCaptureHeaders('interleaved-thinking-2025-05-14,foo', undefined);
-			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14');
+			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14,mid-conversation-output-config-2026-07-01');
 		});
 
 		test('drops x-request-id and arbitrary headers', async () => {

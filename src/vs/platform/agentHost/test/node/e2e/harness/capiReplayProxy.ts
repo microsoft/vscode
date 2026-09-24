@@ -769,7 +769,12 @@ export class CapiReplayProxy {
 		const dialect = built.find(b => b.dialect !== undefined)?.dialect;
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
 		mkdirSync(dirname(this._fixturePath), { recursive: true });
-		writeFileSync(this._fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
+		const dumpOptions = { lineWidth: -1, noRefs: true };
+		let serializedFixture = yamlModule.dump(fixture, dumpOptions);
+		if (/^[\t ]+$/m.test(serializedFixture)) {
+			serializedFixture = yamlModule.dump(fixture, { ...dumpOptions, forceQuotes: true, quotingType: '"' });
+		}
+		writeFileSync(this._fixturePath, serializedFixture);
 	}
 
 	/**

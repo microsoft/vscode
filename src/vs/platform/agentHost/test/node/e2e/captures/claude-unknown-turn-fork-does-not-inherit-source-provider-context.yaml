@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Remember the code word DEFAULTSECRET. Reply exactly "ready".
+          content: Remember the code word SOURCE_SECRET. Reply exactly "ready".
     response:
       content: ready
       stopReason: end_turn
