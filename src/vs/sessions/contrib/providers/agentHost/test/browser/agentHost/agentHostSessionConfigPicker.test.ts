@@ -33,7 +33,6 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
-import { IsSessionsWindowContext } from '../../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
@@ -51,7 +50,6 @@ import { ISessionsProvider } from '../../../../../../services/sessions/common/se
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
-import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -548,53 +546,12 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.newSessionApprovePicker', order: 1 },
 				{ id: 'sessions.agentHost.newSessionPermissionModePicker', order: 2 },
 			],
-			runningSessionPrimary: [
-				{ id: 'sessions.agentHost.runningSessionModePicker', order: 0.1 },
-				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 0.2 },
-				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 0.3 },
-			],
+			runningSessionPrimary: [],
 			runningSessionSecondary: [
 				{ id: 'sessions.agentHost.runningSessionModePicker', order: 9 },
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
-		});
-	});
-
-	test('moves running-session controls only in the desktop Agents Window experiment', () => {
-		const findModePicker = (menu: MenuId) => {
-			const item = MenuRegistry.getMenuItems(menu)
-				.find(item => isIMenuItem(item) && item.command.id === 'sessions.agentHost.runningSessionModePicker');
-			assert.ok(item && isIMenuItem(item));
-			return item;
-		};
-		const primary = findModePicker(MenuId.ChatInput);
-		const secondary = findModePicker(MenuId.ChatInputSecondary);
-		const visible = (item: typeof primary, values: Record<string, boolean>) => item.when?.evaluate({
-			getValue<T>(key: string): T | undefined {
-				return values[key] as T | undefined;
-			},
-		}) ?? true;
-		const agentHost = { [ChatContextKeys.chatIsAgentHostSession.key]: true };
-		const experiment = {
-			[`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: true,
-			[`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`]: true,
-		};
-		const evaluate = (values: Record<string, boolean>) => ({
-			primary: visible(primary, { ...agentHost, ...values }),
-			secondary: visible(secondary, { ...agentHost, ...values }),
-		});
-
-		assert.deepStrictEqual({
-			agentsWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
-			experimentOff: evaluate({ ...experiment, [`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: false, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
-			editorWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: false, [IsPhoneLayoutContext.key]: false }),
-			phone: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: true }),
-		}, {
-			agentsWindow: { primary: true, secondary: false },
-			experimentOff: { primary: false, secondary: true },
-			editorWindow: { primary: false, secondary: true },
-			phone: { primary: false, secondary: true },
 		});
 	});
 
