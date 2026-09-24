@@ -16,6 +16,8 @@ import {
 	getAICustomizationManagementItemMenuId,
 } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('AI customization management contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +29,10 @@ suite('AI customization management contribution', () => {
 		'aiCustomizationManagement.delete',
 		'aiCustomizationManagement.installChatCustomizationExtension',
 	]);
+
+	test('Marketplace is not registered as a separate management section', () => {
+		assert.strictEqual(aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace), undefined);
+	});
 
 	test('isolates synthetic items from extension-contributed item actions', () => {
 		const disposables = new DisposableStore();

@@ -546,6 +546,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.inputContainer;
 	}
 
+	get inputToolbarElement(): HTMLElement {
+		return this.inputActionsToolbar.getElement();
+	}
+
+	setInputToolbarAriaLabel(label: string): void {
+		this.inputActionsToolbar.setAriaLabel(label);
+	}
+
 	placeContextUsageWidget(container?: HTMLElement): void {
 		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
 	}

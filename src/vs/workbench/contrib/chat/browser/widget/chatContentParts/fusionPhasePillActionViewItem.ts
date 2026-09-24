@@ -13,12 +13,15 @@ import { getSubagentIsActive } from '../../../common/chatService/chatService.js'
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { getLanguageModelDisplayNameWithProvider } from '../../../common/languageModels.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { OpenSubagentChatActionViewItem, SubagentPillContext, type SubagentChatStatus } from './chatSubagentOpenChat.js';
+import { OpenSubagentChatActionViewItem, SubagentPillContext, type IOpenSubagentChatContext, type SubagentChatStatus } from './chatSubagentOpenChat.js';
 
 export interface ISubagentPhaseContext extends SubagentPillContext {
 	readonly presentation: 'phase';
 	readonly phaseStatus?: AgentFusionPhaseStatus;
 	readonly activityLabel?: string;
+	/** The phase's own chat, holding its tool calls and intermediate messages, when the host provides one. */
+	readonly chatResource?: string;
+	readonly isChatAvailable?: boolean;
 }
 
 function isSubagentPhaseContext(context: unknown): context is ISubagentPhaseContext {
@@ -29,12 +32,15 @@ function isSubagentPhaseContext(context: unknown): context is ISubagentPhaseCont
 	return candidate.presentation === 'phase';
 }
 
-/** A non-interactive phase summary using the subagent pill's visual presentation. */
+/** A phase summary using the subagent pill's visual presentation; it opens the phase chat when there is one. */
 export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewItem {
 	private _modelNameCache: { modelId: string; parentSessionResource: string; name: string | undefined } | undefined;
+	/** The action bar's last request, applied once a chat makes the pill navigable. */
+	private _focusable: boolean | undefined;
 
-	protected override get navigationContext(): undefined {
-		return undefined;
+	protected override get navigationContext(): IOpenSubagentChatContext | undefined {
+		const context = this.pillContext;
+		return context?.chatResource ? { ...context, chatResource: context.chatResource } : undefined;
 	}
 
 	protected override get pillContext(): ISubagentPhaseContext | undefined {
@@ -52,21 +58,41 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 	}
 
 	override onClick(event: EventLike): void {
+		if (this.navigationContext) {
+			super.onClick(event);
+			return;
+		}
 		EventHelper.stop(event, true);
 	}
 
-	override focus(): void { }
+	override focus(): void {
+		if (this.navigationContext) {
+			super.focus();
+		}
+	}
 
-	override setFocusable(_focusable: boolean): void { }
+	override setFocusable(focusable: boolean): void {
+		this._focusable = focusable;
+		if (this.navigationContext) {
+			super.setFocusable(focusable);
+		}
+	}
 
 	protected override updateEnabled(): void {
 		super.updateEnabled();
-		if (this.element) {
-			this.element.setAttribute('role', 'group');
-			this.element.removeAttribute('aria-disabled');
-			this.element.removeAttribute('tabindex');
-			this.element.draggable = false;
+		if (!this.element) {
+			return;
 		}
+		if (this.navigationContext) {
+			if (this._focusable !== undefined) {
+				super.setFocusable(this._focusable);
+			}
+			return;
+		}
+		this.element.setAttribute('role', 'group');
+		this.element.removeAttribute('aria-disabled');
+		this.element.removeAttribute('tabindex');
+		this.element.draggable = false;
 	}
 
 	protected override get modelName(): string | undefined {

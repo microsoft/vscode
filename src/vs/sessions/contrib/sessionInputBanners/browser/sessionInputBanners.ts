@@ -36,6 +36,7 @@ interface IBaseBannerState {
 	readonly id: string;
 	readonly sessionId: string;
 	readonly sessionResource: URI;
+	readonly chatResource: URI;
 	readonly commentIds: readonly string[];
 	readonly firstCommentId: string | undefined;
 	readonly debug?: true;
@@ -107,7 +108,8 @@ export class SessionInputBanners extends Disposable {
 
 	private readonly _agentMergeConfiguration = derived(this, reader => {
 		const session = this._session.read(reader);
-		return session ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService).read(reader) : undefined;
+		const activeChat = session?.activeChat.read(reader);
+		return session && activeChat ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService, activeChat).read(reader) : undefined;
 	});
 
 	private readonly _states: IObservable<readonly BannerState[]> = derived(this, reader => {
@@ -122,9 +124,10 @@ export class SessionInputBanners extends Disposable {
 		}
 
 		this._feedbackChanged.read(reader);
+		const activeChat = session.activeChat.read(reader);
 		const createdFeedback = this.feedbackService.getFeedback(session.resource)
 			.filter(item => item.state === AgentFeedbackState.Created);
-		const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+		const gitHubInfo = activeChat.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
 		const onlyPullRequest = pullRequests.length === 1 ? pullRequests[0] : undefined;
 		const dismissed = this._dismissed.read(reader);
@@ -167,6 +170,7 @@ export class SessionInputBanners extends Disposable {
 				kind: 'pullRequest',
 				sessionId: session.sessionId,
 				sessionResource: session.resource,
+				chatResource: activeChat.resource,
 				pullRequest,
 				title: livePullRequest?.title ?? pullRequest.title,
 				failed,
@@ -188,6 +192,7 @@ export class SessionInputBanners extends Disposable {
 				kind: 'agentComments',
 				sessionId: session.sessionId,
 				sessionResource: session.resource,
+				chatResource: activeChat.resource,
 				commentIds: agentComments.map(comment => comment.id),
 				firstCommentId: agentComments[0].id,
 			});
@@ -233,7 +238,7 @@ export class SessionInputBanners extends Disposable {
 			if (!session || (agentMerge?.enabled && agentMerge.actions.fixCI && agentMerge.actions.addressReviews)) {
 				return;
 			}
-			const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const gitHubInfo = session.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			for (const pullRequest of getGitHubPullRequestRefs(gitHubInfo)) {
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const prModel = prModelRef.object;
@@ -269,6 +274,7 @@ export class SessionInputBanners extends Disposable {
 				kind: 'pullRequest',
 				sessionId: 'debug',
 				sessionResource: URI.from({ scheme: 'session-chat-pills-debug', path: '/pull-request' }),
+				chatResource: URI.from({ scheme: 'session-chat-pills-debug', path: '/pull-request' }),
 				pullRequest: {
 					owner: 'microsoft',
 					repo: 'vscode',
@@ -291,6 +297,7 @@ export class SessionInputBanners extends Disposable {
 				kind: 'agentComments',
 				sessionId: 'debug',
 				sessionResource: URI.from({ scheme: 'session-chat-pills-debug', path: '/agent-comments' }),
+				chatResource: URI.from({ scheme: 'session-chat-pills-debug', path: '/agent-comments' }),
 				commentIds: Array.from({ length: data.agentFeedback }, (_, index) => `debug-agent-${index}`),
 				firstCommentId: 'debug-agent-0',
 				debug: true,
@@ -337,7 +344,7 @@ export class SessionInputBanners extends Disposable {
 			reference: showReference ? reference : undefined,
 			dismissTooltip: localize('inputBanner.dismiss', "Hide this item for this session"),
 			actions: state.kind === 'pullRequest' ? this._pullRequestActions(state) : this._agentCommentActions(state),
-			focusAfterDismiss: () => this.chatWidgetService.getWidgetBySessionResource(state.sessionResource)?.focusInput(),
+			focusAfterDismiss: () => this.chatWidgetService.getWidgetBySessionResource(state.chatResource)?.focusInput(),
 			dismiss: () => { if (!state.debug) { this._dismiss(state.id); } },
 		};
 	}
@@ -382,14 +389,14 @@ export class SessionInputBanners extends Disposable {
 			id: 'fixCI',
 			label: localize('inputBanner.fixChecks', "Fix Checks"),
 			primary: true,
-			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
+			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
 			run: () => state.debug ? undefined : this._fixChecks(state),
 		};
 		const addressComments: ISessionInputBannerAction = {
 			id: 'addressComments',
 			label: localize('inputBanner.addressComments', "Address Comments"),
 			primary: true,
-			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
+			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
 			run: () => state.debug ? undefined : this._addressComments(state, this._queryFor(state, '/act-on-feedback')),
 		};
 		const primary = hasCI && hasComments ? {
@@ -397,7 +404,7 @@ export class SessionInputBanners extends Disposable {
 			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
 			primary: true,
 			dropdownActions: [fixCI, addressComments],
-			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
+			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
 			run: () => state.debug ? undefined : this._fixCIAndAddressComments(state),
 		} satisfies ISessionInputBannerAction : hasCI ? fixCI : addressComments;
 
@@ -419,7 +426,7 @@ export class SessionInputBanners extends Disposable {
 			id: 'addressComments',
 			label: localize('inputBanner.addressComments', "Address Comments"),
 			primary: true,
-			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
+			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
 			run: () => state.debug ? undefined : this._addressComments(state, '/act-on-feedback'),
 		}, {
 			id: 'revealComments',
@@ -433,9 +440,9 @@ export class SessionInputBanners extends Disposable {
 	}
 
 	private async _fixChecks(state: IPRBannerState): Promise<void> {
-		const widget = this.chatWidgetService.getWidgetBySessionResource(state.sessionResource);
+		const widget = this.chatWidgetService.getWidgetBySessionResource(state.chatResource);
 		if (!widget) {
-			this.logService.error('[SessionInputBanners] Cannot fix CI checks: chat model is unavailable', state.sessionResource.toString(), state.pullRequest.number);
+			this.logService.error('[SessionInputBanners] Cannot fix CI checks: chat model is unavailable', state.chatResource.toString(), state.pullRequest.number);
 			return;
 		}
 		await this._withCurrentCIModel(state, ciModel => submitFixCIChecks(ciModel, widget, this._queryFor(state, '/fix-ci')));
@@ -453,10 +460,11 @@ export class SessionInputBanners extends Disposable {
 			const submitted = await this.feedbackService.submitFeedback(state.sessionResource, {
 				query: prompt,
 				feedbackIds: state.commentIds,
+				targetChat: state.chatResource,
 				onRequestAccepted: () => ciModel.markFixRequested(),
 			});
 			if (!submitted) {
-				this.logService.error('[SessionInputBanners] Failed to submit combined CI and comments request', state.sessionResource.toString(), state.pullRequest.number);
+				this.logService.error('[SessionInputBanners] Failed to submit combined CI and comments request', state.chatResource.toString(), state.pullRequest.number);
 			}
 		});
 	}
@@ -492,9 +500,10 @@ export class SessionInputBanners extends Disposable {
 		const submitted = await this.feedbackService.submitFeedback(state.sessionResource, {
 			query,
 			feedbackIds: state.commentIds,
+			targetChat: state.chatResource,
 		});
 		if (!submitted) {
-			this.logService.error('[SessionInputBanners] Failed to submit comments', state.sessionResource.toString());
+			this.logService.error('[SessionInputBanners] Failed to submit comments', state.chatResource.toString());
 		}
 	}
 

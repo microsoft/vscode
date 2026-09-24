@@ -27,7 +27,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -87,7 +87,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
-	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; count: number }>();
 	private readonly _explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
@@ -243,12 +243,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return Array.from(this._inFlightNewSessionRequests.values(), entry => entry.session);
 	}
 
-	private trackInFlightNewSessionRequest(session: ISession): IDisposable {
+	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined {
+		return this._inFlightNewSessionRequests.get(resource)?.input;
+	}
+
+	private trackInFlightNewSessionRequest(session: ISession, options?: ISendRequestOptions): IDisposable {
 		const entry = this._inFlightNewSessionRequests.get(session.resource);
 		if (entry) {
 			entry.count++;
 		} else {
-			this._inFlightNewSessionRequests.set(session.resource, { session, count: 1 });
+			this._inFlightNewSessionRequests.set(session.resource, {
+				session,
+				input: options ? { query: options.query, attachedContext: options.attachedContext?.slice() } : undefined,
+				count: 1,
+			});
 		}
 
 		return toDisposable(() => {
@@ -629,11 +637,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
 		}
+		if (options?.modelConfiguration && !options.modelId) {
+			throw new Error('Session model configuration requires a model identifier.');
+		}
+		if (options?.modelConfiguration && provider.supportsModelConfigurationForCreation !== true) {
+			throw new Error(`Sessions provider '${provider.id}' does not support model configuration during session creation.`);
+		}
 		const automationConfiguration = sessionTemplate
 			? { sessionTemplate }
 			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
+			...(options?.modelId && options.modelConfiguration ? {
+				modelId: options.modelId,
+				modelConfiguration: options.modelConfiguration,
+			} : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}
@@ -757,7 +775,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
-		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session) : undefined;
+		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
 
 		if (options.background) {
 			this._newSession.set(undefined, undefined);
@@ -1218,7 +1236,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {
-		const resource = session.mainChat.get().resource;
+		await this._cancelChatRequest(session.mainChat.get());
+	}
+
+	private async _cancelChatRequest(chat: IChat): Promise<void> {
+		const resource = chat.resource;
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
 		if (!modelRef) {
@@ -1232,6 +1254,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
+		const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
+		if (activeChats.length === 0 && isActiveSessionStatus(session.status.get())) {
+			await this._cancelChatRequest(session.mainChat.get());
+		}
+		for (const chat of activeChats) {
+			await this._cancelChatRequest(chat);
+		}
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 		this._onDidArchiveSession.fire(session);
 	}
@@ -1329,6 +1358,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.removeSessionArtifact.unsupported', "Removing artifacts is not supported for this session."));
 		}
 		await provider.removeSessionArtifact(session.sessionId, artifactId);
+	}
+
+	async importSession(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.isExternal?.get()) {
+			return;
+		}
+		if (!session.capabilities.get().supportsImport || !provider?.importSession) {
+			throw new Error(localize('sessions.importSession.unsupported', "Importing is not supported for this session."));
+		}
+		await provider.importSession(session.sessionId);
 	}
 }
 

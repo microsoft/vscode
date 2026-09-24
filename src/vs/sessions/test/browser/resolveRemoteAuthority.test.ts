@@ -6,11 +6,13 @@
 import assert from 'assert';
 import { decodeHex, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
-import { AGENT_HOST_SCHEME } from '../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
-import { resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
+import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 
 suite('resolveRemoteAuthority', () => {
 
@@ -161,6 +163,26 @@ suite('resolveRemoteAuthority', () => {
 			folderUri: { scheme: 'vscode-remote', authority: 'wsl+Ubuntu-24.04', path: '/home/test/project' },
 		});
 	});
+
+	for (const address of [undefined, 'ssh:server', 'tunnel:server', 'wsl:Ubuntu']) {
+		test(`resolves the source workspace from a disconnected container provider on ${address ?? 'local'}`, () => {
+			const source = address ? toAgentHostUri(URI.file('/home/test/project'), agentHostAuthority(address)) : URI.file('/Users/test/project');
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-container',
+				devContainerSourceWorkspace: source,
+			});
+			const target = resolveDevContainerSourceWorkspace(provider);
+			assert.deepStrictEqual({
+				target: target && { folderUri: target.folderUri.toString(), providerId: target.providerId },
+				ordinary: resolveDevContainerSourceWorkspace(upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-ordinary' })),
+				missing: resolveDevContainerSourceWorkspace(undefined),
+			}, {
+				target: { folderUri: source.toString(), providerId: address ? `agenthost-${agentHostAuthority(address)}` : 'local-agent-host' },
+				ordinary: undefined,
+				missing: undefined,
+			});
+		});
+	}
 
 	function assertDevContainerAuthority(hostPath: string, hostAuthority?: string, expectedHostPath = hostPath, expectedHostAuthority = hostAuthority): void {
 		const address = 'devcontainer:container-id';

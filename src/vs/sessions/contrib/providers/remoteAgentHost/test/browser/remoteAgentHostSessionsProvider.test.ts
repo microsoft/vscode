@@ -131,6 +131,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return this.resolveSessionConfigResult;
 	}
 
+	override async sessionConfigCompletions() {
+		return { items: [] };
+	}
+
 	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
@@ -252,7 +256,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -331,6 +335,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 		defaultChangesetKind: overrides?.defaultChangesetKind,
 		devContainerWorktreeScope: overrides?.devContainerWorktreeScope,
+		devContainerSourceWorkspaceUri: overrides?.devContainerSourceWorkspace,
 		resolveDevContainerWorktreeConnection: overrides?.resolveDevContainerWorktreeConnection,
 		readOnlyWhenDisconnected: overrides?.readOnlyWhenDisconnected,
 	};
@@ -1115,7 +1120,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider.setAgent(draft.sessionId, { uri: 'file:///project/.github/agents/reviewer.agent.md', name: 'Reviewer' });
 			const replacement: ISession = { ...draft, sessionId: 'container:replacement', providerId: targetProvider.id };
 			const request = disposables.add(provider.startNewSessionRequest(draft.sessionId));
-			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container...');
+			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container');
 			const prepared = await provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it');
 			request.dispose();
 			provider.deleteNewSession(draft.sessionId);
@@ -1821,11 +1826,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, connection, {
 			openSession: true,
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
 				if (options) {
 					sendOptions.push(options);
 				}
-				connection.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
+				connection.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -2161,7 +2166,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	test('re-subscribes to session state after a subscribe that failed because the host had no such session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A failed pre-creation subscribe must remain retryable so later session state, including changesets, can arrive.
+		// A failed pre-creation subscribe must remain retryable so later session state can arrive.
 		connection.addSession(createSession('late-1', { summary: 'Created after we asked' }));
 		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		const backendUri = AgentSession.uri('copilotcli', 'late-1').toString();
@@ -2180,7 +2185,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' }],
 		} as unknown as SessionState);
 		provider.getSessionByResource(session.resource);
 		await timeout(0);
@@ -2188,45 +2192,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			afterFailedSubscribe,
 			afterRetry: connection.sessionSubscribeCounts.get(backendUri),
-			changesets: provider.getSessions()[0].changesets.get()?.map(c => c.id),
 		}, {
 			afterFailedSubscribe: 1,
 			afterRetry: 2,
-			changesets: ['branch'],
-		});
-	}));
-
-	test('a configured defaultChangesetKind reaches the session adapter', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const gitBackedCatalogue = [
-			{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: 'session' },
-			{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' },
-		];
-		const defaultChangesetIds = async (defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']) => {
-			const localConnection = disposables.add(new MockAgentConnection());
-			localConnection.addSession(createSession('changeset-default-1', { summary: 'Changeset default' }));
-			const provider = createProvider(disposables, localConnection, { defaultChangesetKind });
-			provider.getSessions();
-			await timeout(0);
-			localConnection.setSessionState('changeset-default-1', 'copilotcli', {
-				provider: 'copilotcli', title: 'Changeset default', status: ProtocolSessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready,
-				activeClients: [],
-				chats: [],
-				changesets: gitBackedCatalogue,
-			} as unknown as SessionState);
-			const session = provider.getSessions()[0];
-			provider.getSessionByResource(session.resource);
-			await timeout(0);
-			return provider.getSessions()[0].changesets.get()
-				?.map(c => `${c.id}${c.isDefault.get() ? '*' : ''}`);
-		};
-
-		assert.deepStrictEqual({
-			configured: await defaultChangesetIds(ChangesetKind.Session),
-			unconfigured: await defaultChangesetIds(),
-		}, {
-			configured: ['session*', 'branch'],
-			unconfigured: ['session', 'branch*'],
 		});
 	}));
 
@@ -2296,6 +2264,21 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			browsed: 'project',
 		});
 	}));
+
+	test('container source workspace is retained without a connection', () => {
+		const source = toAgentHostUri(URI.file('/project'), agentHostAuthority('wsl:Ubuntu'));
+		const provider = createProvider(disposables, connection, { noConnection: true, devContainerSourceWorkspace: source });
+		const before = provider.devContainerSourceWorkspace;
+		provider.setConnection(connection);
+		provider.clearConnection();
+		assert.deepStrictEqual({
+			before: before?.toString(),
+			after: provider.devContainerSourceWorkspace?.toString(),
+		}, {
+			before: source.toString(),
+			after: source.toString(),
+		});
+	});
 
 	test('workspaceTypeIcon reaches the built workspace, and is absent by default', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('sandbox-icon', {
