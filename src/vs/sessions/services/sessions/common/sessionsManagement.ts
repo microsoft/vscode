@@ -82,6 +82,11 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly modelId?: string;
 	/**
+	 * Optional model-specific primitive values to scope to this session.
+	 * Requires {@link modelId} and provider support.
+	 */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/**
 	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
 	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the
 	 * provider does not implement the setter.
