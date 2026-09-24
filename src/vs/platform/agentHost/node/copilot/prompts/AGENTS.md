@@ -27,7 +27,7 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as reading offloaded tool output, gated on a client tool as the browser line is, or gated on a host setting as the subagent model-guidance line is.
+Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as reading offloaded tool output, gated on a client tool as the browser line is, or gated on a host setting as the password-prompt line is.
 
 1. Write a `ToolInstructionLine` — a function `(context) => string | undefined` that returns one sentence (no surrounding newlines), or `undefined` when its gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)` and `getSetting(key)` (a `CopilotCliConfigKey`).
 2. Add it to `TOOL_INSTRUCTION_LINES`.

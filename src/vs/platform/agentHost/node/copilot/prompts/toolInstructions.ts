@@ -7,7 +7,7 @@ import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
-import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchConstants.js';
 
 /**
@@ -68,6 +68,16 @@ export const COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS = [
 const subagentToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
 
 /**
+ * Sends password prompts (such as `sudo`) to the chat `!` command, which runs
+ * them in a terminal the user can type into. Only for the SDK's built-in shell
+ * tool, which runs commands without a terminal; the Agent Host terminal tool
+ * ({@link CopilotCliConfigKey.EnableCustomTerminalTool}) already provides one.
+ */
+export const COPILOT_AGENT_HOST_PASSWORD_PROMPT_TOOL_INSTRUCTION = 'When a shell command needs a password, such as `sudo`, ask the user to run it by sending `!<command>` in chat, which runs it in a terminal where they can enter the password, and continue once they confirm it finished.';
+const passwordPromptToolInstructions: ToolInstructionLine = ({ getSetting }) =>
+	getSetting(CopilotCliConfigKey.EnableCustomTerminalTool) === true ? undefined : COPILOT_AGENT_HOST_PASSWORD_PROMPT_TOOL_INSTRUCTION;
+
+/**
  * Front-end guidance for the integrated browser tools, ported from the Copilot
  * extension's `defaultAgentInstructions`/per-model prompts. Emitted only when the
  * page-opening tool AND at least one agentic browser tool are available, naming
@@ -87,7 +97,7 @@ const browserToolInstructions: ToolInstructionLine = ({ hasTool }) => {
 /**
  * The registered tool-instruction lines, in render order.
  */
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, subagentToolInstructions, browserToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, subagentToolInstructions, passwordPromptToolInstructions, browserToolInstructions];
 
 /** Tool-search guidance mirrored from the Copilot extension prompt. */
 const toolSearchToolInstructions: ToolInstructionLine = ({ hasTool }) =>
