@@ -16,6 +16,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { parseCodexDelegation } from './codexDelegation.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
+import { codexRetainedCommandOutputContent } from './codexTerminalOutput.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -610,10 +611,10 @@ function mapItemStartedBody(
 		];
 	}
 	if (params.item.type === 'commandExecution') {
-		// Phase 4: surface shell commands as tool calls. We allocate a
-		// fresh toolCallId; the `commandExecution` item id only
-		// disambiguates the codex side.
-		const toolCallId = generateUuid();
+		// Phase 4: surface shell commands as tool calls. The codex item id is
+		// stable across live delivery and thread replay, so it also identifies
+		// the command's retained output after a reload.
+		const toolCallId = params.item.id;
 		const meta = toToolCallMeta({ toolKind: 'terminal' });
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
@@ -1037,11 +1038,14 @@ export function mapAgentMessageDelta(
  * (auto-confirmed; the codex server already decided to run the command
  * — any host-side approval was settled via the `requestApproval`
  * server-request handler before we got here) followed by a
- * `ChatToolCallComplete` carrying the aggregated output.
+ * `ChatToolCallComplete` carrying the aggregated output. When
+ * `retainedOutputResource` is set, the completion carries a preview and
+ * that terminal resource instead of the complete output.
  */
 export function mapItemCompleted(
 	state: ICodexSessionMapState,
 	params: ItemCompletedNotification,
+	retainedOutputResource?: string,
 ): (SessionAction | ChatAction)[] {
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
@@ -1090,9 +1094,11 @@ export function mapItemCompleted(
 				result: {
 					success,
 					pastTenseMessage: pastTense,
-					content: output
-						? [{ type: ToolResultContentType.Text, text: output }]
-						: undefined,
+					content: retainedOutputResource
+						? codexRetainedCommandOutputContent(retainedOutputResource, output, exit)
+						: output
+							? [{ type: ToolResultContentType.Text, text: output }]
+							: undefined,
 					error: success ? undefined : {
 						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
 						...(declined ? { code: 'denied' } : {}),

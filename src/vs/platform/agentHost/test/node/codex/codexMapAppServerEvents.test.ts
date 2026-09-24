@@ -631,6 +631,46 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(state.itemToToolCall.size, 0);
 	});
 
+	test('item/completed for commandExecution with retained output publishes a preview and its terminal resource', () => {
+		const state = createCodexSessionMapState();
+		const output = `BEGIN\n${'x'.repeat(30_000)}\nEND\n`;
+		const item = {
+			type: 'commandExecution', id: 'cmd_large',
+			command: 'build', cwd: '/tmp', processId: null,
+			source: 'agent', status: 'inProgress',
+			commandActions: [], aggregatedOutput: null,
+			exitCode: null, durationMs: null,
+		};
+		mapItemStarted(state, { item: item as never, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+
+		const actions = mapItemCompleted(state, {
+			item: { ...item, status: 'completed', aggregatedOutput: output, exitCode: 2, durationMs: 12 } as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		}, 'agenthost-terminal://shell/retained');
+
+		const preview = output.slice(0, 2_000);
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn_a',
+			toolCallId: 'cmd_large',
+			result: {
+				success: false,
+				pastTenseMessage: 'Ran `build` (exit 2)',
+				content: [
+					{ type: ToolResultContentType.Text, text: preview },
+					{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/retained',
+						title: 'Run shell command',
+						isPty: false,
+						result: { exitCode: 2, preview, truncated: true },
+					},
+				],
+				error: { message: 'Exit code 2' },
+			},
+		}]);
+	});
+
 	test('item/completed for commandExecution with non-zero exit reports failure', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {

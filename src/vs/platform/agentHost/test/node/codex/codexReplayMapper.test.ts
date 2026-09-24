@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../../common/meta/agentSnapshotAttachmentMeta.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
-import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
+import { replayThreadToTurns, type ICodexReplayedCommand } from '../../../node/codex/codexReplayMapper.js';
 import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
@@ -794,5 +794,43 @@ suite('codexReplayMapper', () => {
 		assert.strictEqual(turns[0].responseParts.length, 1);
 		const part = turns[0].responseParts[0] as { toolCall: { content?: { text: string }[] } };
 		assert.strictEqual(part.toolCall.content?.[0].text, 'Example Domain');
+	});
+
+	test('commandExecution keeps the codex item id and reports each restored command', () => {
+		const command = (id: string, commandLine: string, aggregatedOutput: string, exitCode: number) => ({
+			type: 'commandExecution', id,
+			command: commandLine, cwd: '/tmp', processId: null,
+			source: 'agent', status: 'completed',
+			commandActions: [], aggregatedOutput, exitCode, durationMs: 3,
+		});
+		const commands: ICodexReplayedCommand[] = [];
+
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'run them', text_elements: [] }] },
+					command('pre', 'curl -s https://example.com', '', 0),
+					command('esc', 'curl -s https://example.com', 'Example Domain', 0),
+					command('ls', 'ls', 'missing', 1),
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never, undefined, undefined, commands);
+
+		assert.deepStrictEqual({
+			toolCallIds: turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : undefined),
+			commands: commands.map(({ toolCall, output, exitCode }) => ({ toolCallId: toolCall.toolCallId, output, exitCode })),
+		}, {
+			// A re-run coalesced into its sandbox pre-flight keeps the pre-flight's identity, as it does live.
+			toolCallIds: ['pre', 'ls'],
+			commands: [
+				{ toolCallId: 'pre', output: 'Example Domain', exitCode: 0 },
+				{ toolCallId: 'ls', output: 'missing', exitCode: 1 },
+			],
+		});
 	});
 });

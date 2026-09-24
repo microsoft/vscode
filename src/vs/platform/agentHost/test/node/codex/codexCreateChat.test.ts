@@ -25,7 +25,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, chatStorageUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -2966,6 +2966,63 @@ suite('CodexAgent exact chat routing', () => {
 				method: 'thread/revert',
 				threadId: 'paginated-truncate-thread',
 				beforeTurnId: 'turn-3',
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('truncateChat removes output retained for commands in reverted turns', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'retained-truncate');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/retained-truncate');
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'retained-truncate-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('retained-truncate')!.materializePromise;
+			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const output = VSBuffer.fromString('full output').buffer;
+			for (const [turnId, toolCallId] of [['turn-1', 'cmd-kept'], ['turn-2', 'cmd-reverted']]) {
+				await database.createTurn(turnId);
+				await database.storeTerminalOutput(turnId, toolCallId, output);
+			}
+			const command = (id: string) => ({
+				type: 'commandExecution', id,
+				command: 'build', cwd: folder.fsPath, processId: null,
+				source: 'agent', status: 'completed',
+				commandActions: [], aggregatedOutput: 'full output', exitCode: 0, durationMs: 5,
+			});
+
+			const truncating = agent.truncateChat(chat, 'turn-1', { configurationResource: session, resource: chat });
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: { thread: { id: 'retained-truncate-thread', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } },
+			});
+			const turns = await readNextRequest(peer.outbound);
+			peer.push({
+				id: turns.id,
+				result: { data: [{ id: 'turn-1', items: [command('cmd-kept')] }, { id: 'turn-2', items: [command('cmd-reverted')] }], nextCursor: null },
+			});
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
+			await truncating;
+
+			assert.deepStrictEqual({
+				kept: await database.getTerminalOutputSize('cmd-kept'),
+				reverted: await database.getTerminalOutputSize('cmd-reverted'),
+			}, {
+				kept: output.byteLength,
+				reverted: undefined,
 			});
 		} finally {
 			peer.dispose();

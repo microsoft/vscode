@@ -32,9 +32,10 @@ import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, type StringOrMarkdown } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, chatStorageUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
@@ -1374,6 +1375,163 @@ suite('CodexAgent prewarm eviction', () => {
 				response: ['restored two'],
 			}],
 		});
+		peer.exit();
+	});
+
+	test('large command output is stored before its completion is published and reopens after restore', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+		const threadId = 'retained-output-thread';
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = threadId;
+		agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
+		// `turn/started` records the host turn before any of its items complete.
+		await database.createTurn('turn-1');
+		const output = `BEGIN\n${'x'.repeat(30_000)}\nEND\n`;
+		const command = (id: string, aggregatedOutput: string | null) => ({
+			type: 'commandExecution', id,
+			command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+			source: 'agent', status: aggregatedOutput === null ? 'inProgress' : 'completed',
+			commandActions: [], aggregatedOutput, exitCode: aggregatedOutput === null ? null : 0, durationMs: null,
+		});
+		const startItem = (item: object) => agent['_dispatchByThread'](threadId, s => agent['_handleItemStarted'](s, { item, threadId, turnId: 'turn-1', startedAtMs: 0 } as never));
+		const completeItem = (item: object) => agent['_dispatchItemCompleted']({ item, threadId, turnId: 'turn-1', completedAtMs: 0 } as never);
+		const published: { toolCallId: string; storedSize: Promise<number | undefined>; content: unknown }[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
+				const { toolCallId, result } = signal.action;
+				published.push({ toolCallId, storedSize: database.getTerminalOutputSize(toolCallId), content: result.content });
+			}
+		}));
+
+		// An output-less sandbox pre-flight followed by its approved re-run renders as the pre-flight's tool call.
+		startItem(command('pre', null));
+		completeItem(command('pre', ''));
+		startItem(command('rerun', null));
+		completeItem(command('rerun', output));
+
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const responses: Record<string, object> = {
+			'thread/read': { thread: { id: threadId, historyMode: 'paginated', turns: [] } },
+			'thread/turns/list': {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'fetch it', text_elements: [] }] },
+						command('pre', ''),
+						command('rerun', output),
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
+			},
+		};
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+		const turns = await agent.chats.getMessages(chat, chatContext(session, chat));
+
+		const preview = output.slice(0, 2_000);
+		const retainedContent = [
+			{ type: ToolResultContentType.Text, text: preview },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, session, chat, 'pre'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, preview, truncated: true },
+			},
+		];
+		const stored = await database.readTerminalOutput('pre');
+		assert.deepStrictEqual({
+			published: await Promise.all(published.map(async ({ toolCallId, storedSize, content }) => ({ toolCallId, storedSize: await storedSize, content }))),
+			restored: turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+				? { toolCallId: part.toolCall.toolCallId, content: part.toolCall.content }
+				: undefined),
+			stored: stored && VSBuffer.wrap(stored).toString(),
+		}, {
+			published: [{ toolCallId: 'pre', storedSize: output.length, content: retainedContent }],
+			restored: [{ toolCallId: 'pre', content: retainedContent }],
+			stored: output,
+		});
+		peer.exit();
+	});
+
+	test('restored large command output reopens its retained terminal resource', async () => {
+		const output = `BEGIN\n${'x'.repeat(30_000)}\nEND\n`;
+		const database = new TestSessionDatabase();
+		await database.setMetadata('codex.threadId', 'retained-history-thread');
+		await database.createTurn('host-turn');
+		await database.storeTerminalOutput('host-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'retained-history');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'retained-history' }));
+		const command = (id: string) => ({
+			type: 'commandExecution', id,
+			command: 'build', cwd: '/tmp', processId: null,
+			source: 'agent', status: 'completed',
+			commandActions: [], aggregatedOutput: output, exitCode: 0, durationMs: 5,
+		});
+		const responses: Record<string, object> = {
+			'thread/read': { thread: { id: 'retained-history', historyMode: 'paginated', turns: [] } },
+			'thread/turns/list': {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'build it', text_elements: [] }] },
+						command('cmd-retained'),
+						command('cmd-inline'),
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
+			},
+		};
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+
+		const turns = await agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
+
+		const preview = output.slice(0, 2_000);
+		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
+			[
+				{ type: ToolResultContentType.Text, text: preview },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, parent, chat, 'cmd-retained'),
+					title: 'Run shell command',
+					isPty: false,
+					result: { exitCode: 0, preview, truncated: true },
+				},
+			],
+			// Output the database did not retain stays as the thread recorded it.
+			[{ type: ToolResultContentType.Text, text: output }],
+		]);
 		peer.exit();
 	});
 
