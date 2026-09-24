@@ -1242,7 +1242,7 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedActivity: string | undefined;
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
-	 * permission request or client tool handler has to surface the tool, keyed by tool call id.
+	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
 	 */
 	private readonly _provisionalFusionToolStarts = new Map<string, SessionEventPayload<'tool.execution_start'>>();
 	/**
@@ -1250,6 +1250,8 @@ export class CopilotAgentSession extends Disposable {
 	 * already own their lifecycle; the committed re-emission is a duplicate.
 	 */
 	private readonly _surfacedProvisionalFusionToolCallIds = new Set<string>();
+	/** Provisional Fusion messages already shown in a phase chat; their committed copies only update accounting. */
+	private readonly _shownProvisionalFusionMessageIds = new Set<string>();
 	private _surfaceProvisionalFusionToolStart: ((e: SessionEventPayload<'tool.execution_start'>) => void) | undefined;
 	/** Labels of the phase tiles shown this workflow, keyed by phase tool call id; a phase gets a child chat only once an event is routed to it. */
 	private readonly _fusionPhaseLabels = new Map<string, string>();
@@ -5492,6 +5494,9 @@ export class CopilotAgentSession extends Disposable {
 			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
+		const isLastChunk = (e: SessionEventPayload<'assistant.message'>): boolean => e.data.chunkCount === undefined
+			|| e.data.chunkCount <= 1
+			|| e.data.chunkIndex === e.data.chunkCount - 1;
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
@@ -5499,9 +5504,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
-			const isLastMessageChunk = e.data.chunkCount === undefined
-				|| e.data.chunkCount <= 1
-				|| e.data.chunkIndex === e.data.chunkCount - 1;
+			const isLastMessageChunk = isLastChunk(e);
 			const isCompleteModelCall = stableModelCallId !== undefined || isLastMessageChunk;
 			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
@@ -5552,6 +5555,14 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
+			if (this._shownProvisionalFusionMessageIds.has(e.data.messageId)) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion message already shown: ${e.data.messageId}`);
+				return;
+			}
+			renderMessage(e, parentToolCallId, isLastMessageChunk);
+		}));
+
+		const renderMessage = (e: SessionEventPayload<'assistant.message'>, parentToolCallId: string | undefined, isLastMessageChunk: boolean): void => {
 			// A phase's final answer, the round without tool requests, is the response itself.
 			const contentParentToolCallId = parentToolCallId ?? (e.data.toolRequests?.length ? this._fusionPhaseParentToolCallId(e.agentId, e.data.fusion) : undefined);
 			const markdownScope = contentParentToolCallId ?? '';
@@ -5586,7 +5597,7 @@ export class CopilotAgentSession extends Disposable {
 				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
 				this._beginToolCallRound(contentParentToolCallId);
 			}
-		}));
+		};
 
 		this._register(wrapper.onSamplingRequested(e => {
 			void this._rejectSamplingRequest(e.data.requestId);
@@ -6070,15 +6081,25 @@ export class CopilotAgentSession extends Disposable {
 			handleToolComplete(e);
 		}));
 
-		this._register(wrapper.onProvisionalFusionToolEvent(e => {
+		this._register(wrapper.onProvisionalFusionEvent(e => {
+			if (e.type === 'assistant.message') {
+				// Only a winning phase's answer becomes the response, so a round without tool requests waits for the commit.
+				if (e.agentId || !e.data.toolRequests?.length || this._fusionPhaseParentToolCallId(undefined, e.data.fusion) === undefined) {
+					return;
+				}
+				this._shownProvisionalFusionMessageIds.add(e.data.messageId);
+				renderMessage(e, undefined, isLastChunk(e));
+				return;
+			}
 			if (e.type === 'tool.execution_start') {
 				if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
 					return;
 				}
 				this._provisionalFusionToolStarts.set(e.data.toolCallId, e);
-				if (this._streamingToolCalls.get(e.data.toolCallId)?.started) {
-					// `assistant.tool_call_delta` carries no Fusion attribution, so a
-					// provisional tool that streamed its input already has a visible row.
+				// `assistant.tool_call_delta` carries no Fusion attribution, so a
+				// provisional tool that streamed its input already has a visible row.
+				// Otherwise it is shown live only when its phase chat can hold it.
+				if (this._streamingToolCalls.get(e.data.toolCallId)?.started || this._fusionPhaseParentToolCallId(e.agentId, e.data.fusion) !== undefined) {
 					this._surfaceProvisionalFusionToolCall(e.data.toolCallId);
 				}
 				return;
@@ -7333,6 +7354,7 @@ export class CopilotAgentSession extends Disposable {
 	private _clearProvisionalFusionToolCalls(): void {
 		this._provisionalFusionToolStarts.clear();
 		this._surfacedProvisionalFusionToolCallIds.clear();
+		this._shownProvisionalFusionMessageIds.clear();
 	}
 
 	private _openFusionPhaseChat(toolCallId: string, label: string): void {
