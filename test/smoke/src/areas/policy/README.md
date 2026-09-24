@@ -32,3 +32,42 @@ container, never on the host.
 Each variant starts a fresh process. Cleanup runs after application shutdown.
 Existing policy is never intentionally overwritten; fixture conflicts fail the
 run rather than silently skipping coverage.
+
+## Agent Host managed settings
+
+The same `VSCODE_SMOKE_TEST_POLICY=1` opt-in also runs the Agent Host managed
+settings suites. These use the real Copilot SDK/runtime and the existing mock
+model server, not a mocked policy service or simulated telemetry producer.
+
+- **OTel (all desktop platforms):** local OTel is off, inherited OTel variables
+  are cleared, and the policy cache is isolated. A device policy enables
+  OTLP/HTTP JSON at a loopback receiver, with a synthetic managed header.
+  Separate fresh-process cases cover a bare base URL and an explicit
+  `/v1/traces` URL. The receiver rejects incorrect routes and requires a
+  successful native `github-copilot` `invoke_agent` span from the test turn
+  with the managed header; synthetic host spans and warm-up spans cannot pass.
+
+CI separately provisions an empty managed-settings directory, refusing any
+existing directory:
+
+| Platform | Device-policy file |
+| --- | --- |
+| macOS | `/Library/Application Support/GitHubCopilot/managed-settings.json` |
+| Linux | `/etc/github-copilot/managed-settings.json` |
+| Windows | `%ProgramFiles%\GitHubCopilot\managed-settings.json` |
+
+The fixture creates the file exclusively and removes only its own file after
+application shutdown. macOS preferences and Windows registry policy are also
+checked for conflicts, never changed. An always-run CI cleanup removes the
+fixture file and empty directory only when that job created the directory.
+Each suite uses an isolated Copilot policy cache.
+
+Run the new cases on a **disposable runner** with the directory provisioned:
+
+```sh
+VSCODE_SMOKE_TEST_POLICY=1 npm run smoketest-no-compile -- --tracing -g "Policy Plumbing \(Agent Host"
+```
+
+These are behavioral regression tests: a locked toggle, a configuration log,
+or a successful chat response without the required export does not
+pass. There are no expected-failure skips or local-setting workarounds.

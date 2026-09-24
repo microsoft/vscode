@@ -125,6 +125,14 @@ steps:
 
     - script: |
         set -e
+        sudo mkdir /etc/github-copilot
+        echo "##vso[task.setvariable variable=created;isOutput=true]true"
+        sudo chown "$(id -u):$(id -g)" /etc/github-copilot
+      name: managedSettingsFixture
+      displayName: Set up managed settings smoke fixture
+
+    - script: |
+        set -e
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
@@ -133,7 +141,7 @@ steps:
         # instead of the small OS root disk (`/tmp`), which has filled up and
         # crashed the agent worker with "No space left on device".
         TMPDIR: $(Agent.TempDirectory)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
       displayName: 🧪 Run smoke tests (Electron)
 
     - script: |
@@ -142,6 +150,13 @@ steps:
         sudo rmdir /etc/vscode
       displayName: Clean up native policy smoke fixture
       condition: and(always(), eq(variables['policyFixture.created'], 'true'))
+
+    - script: |
+        set -e
+        sudo rm -f /etc/github-copilot/managed-settings.json
+        sudo rmdir /etc/github-copilot
+      displayName: Clean up managed settings smoke fixture
+      condition: and(always(), eq(variables['managedSettingsFixture.created'], 'true'))
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - script: npm run smoketest-no-compile -- --web --tracing --headless

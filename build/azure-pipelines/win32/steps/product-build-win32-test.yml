@@ -154,6 +154,13 @@ steps:
           WSL_KERNEL_CACHE_RESULT: $(WSL_KERNEL_CACHE_RESULT)
 
     - powershell: |
+        $ErrorActionPreference = 'Stop'
+        New-Item -ItemType Directory -Path "$env:ProgramFiles\GitHubCopilot" | Out-Null
+        Write-Host "##vso[task.setvariable variable=created;isOutput=true]true"
+      name: managedSettingsFixture
+      displayName: Set up managed settings smoke fixture
+
+    - powershell: |
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
@@ -162,7 +169,18 @@ steps:
           VSCODE_SMOKE_TEST_WSL_DISTRO: $(WSL_SMOKE_DISTRO)
           VSCODE_SMOKE_TEST_WSL_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
       displayName: 🧪 Run smoke tests (Electron)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
+
+    - powershell: |
+        $ErrorActionPreference = 'Stop'
+        $directory = "$env:ProgramFiles\GitHubCopilot"
+        $file = Join-Path $directory 'managed-settings.json'
+        if (Test-Path -LiteralPath $file) {
+          Remove-Item -LiteralPath $file
+        }
+        [System.IO.Directory]::Delete($directory)
+      displayName: Clean up managed settings smoke fixture
+      condition: and(always(), eq(variables['managedSettingsFixture.created'], 'true'))
 
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
       - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT

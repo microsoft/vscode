@@ -36,6 +36,7 @@ import { setup as setupAccessibilityTests } from './areas/accessibility/accessib
 import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
 import { setup as setupBrowserViewTests } from './areas/browserView/browserView.test';
 import { setup as setupPolicyTests } from './areas/policy/policy.test';
+import { setup as setupAgentHostManagedOTelTests } from './areas/policy/agentHostManagedOTel.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -447,6 +448,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger, quality); }
 	if (!opts.web && !opts.remote) { setupBrowserViewTests(logger); }
 	// Native policy fixtures modify OS state outside the test profile; opt in only on disposable runners so you don't break your own machine.
-	if (!opts.web && !opts.remote && process.env.VSCODE_SMOKE_TEST_POLICY === '1') { setupPolicyTests(logger); }
+	if (!opts.web && !opts.remote && process.env.VSCODE_SMOKE_TEST_POLICY === '1') {
+		setupPolicyTests(logger);
+		setupAgentHostManagedOTelTests(logger);
+	}
 	setupAccessibilityTests(logger, opts, quality);
 });

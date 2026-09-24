@@ -647,7 +647,7 @@ export function setup(logger: Logger, quality: Quality) {
  * Agent Host Copilot selected so the caller can submit the real prompt
  * against an already-warmed model list.
  */
-async function warmUpAgentHostModel(app: Application, logger: Logger, label: string): Promise<void> {
+export async function warmUpAgentHostModel(app: Application, logger: Logger, label: string): Promise<void> {
 	await app.workbench.agentsWindow.waitForNewSessionView();
 	await app.workbench.agentsWindow.selectSessionType('Copilot');
 	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_WARMUP_SCENARIO_ID}]`);
@@ -709,14 +709,15 @@ interface IAgentHostSuiteContext {
  * vars, pre-seeds `settings.json` into both the default and Agents profiles,
  * and opens the workspace folder in the Agents Window.
  *
- * The only per-suite differences are the registered scenarios and the
- * sandbox-related settings overlay, so those are passed in.
+ * Suites supply their scenarios, settings, environment, and optional remote
+ * workspace lifecycle.
  */
-function setupAgentHostSuite(logger: Logger, config: {
+export function setupAgentHostSuite(logger: Logger, config: {
 	readonly serverLabel: string;
 	readonly mockServerHost?: string;
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
+	readonly extraEnv?: (options: ApplicationOptions) => Readonly<Record<string, string | undefined>>;
 	readonly remoteTransport?: RemoteDevContainerTransport;
 	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
@@ -791,6 +792,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 				VSCODE_SMOKE_TEST_TUNNEL_TOKEN: undefined,
 				...remoteFixture?.extraEnv,
+				...config.extraEnv?.(opts),
 			},
 		}));
 

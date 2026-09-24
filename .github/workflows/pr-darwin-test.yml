@@ -219,12 +219,28 @@ jobs:
         run: ps -ef
         continue-on-error: true
 
+      - name: Set up managed settings smoke fixture
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        id: managed-settings-fixture
+        run: |
+          set -e
+          sudo mkdir '/Library/Application Support/GitHubCopilot'
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          sudo chown "$(id -u):$(id -g)" '/Library/Application Support/GitHubCopilot'
+
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: npm run smoketest-no-compile -- --tracing
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
+
+      - name: Clean up managed settings smoke fixture
+        if: ${{ always() && steps.managed-settings-fixture.outputs.created == 'true' }}
+        run: |
+          set -e
+          sudo rm -f '/Library/Application Support/GitHubCopilot/managed-settings.json'
+          sudo rmdir '/Library/Application Support/GitHubCopilot'
 
       - name: Install Squid for network-isolated smoke tests
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
