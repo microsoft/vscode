@@ -1141,7 +1141,7 @@ suite('Sessions - Actions', () => {
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 			}));
 			const { session } = createTestSession('quick-chat-draft');
-			const activeSession = observableValue('activeSession', upcastPartial<IActiveSession>({
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 				...session,
 				isCreated: constObservable(false),
 				isQuickChat: constObservable(true),

@@ -208,11 +208,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const activeSession = sessionsService.activeSession.get();
-		// A quick chat never contributes its folder — it is workspace-less by
-		// intent (any scratch working directory must not seed the workspace
-		// composer), so a primary New Session leaves that draft and opens the
-		// folder picker. Clear the no-workspace latch first: the replacement
-		// composer otherwise restores it and immediately recreates the quick chat.
+		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 		if (isQuickChat && activeSession?.isCreated?.get() === false && !options?.toSide) {
 			const recentWorkspacesService = accessor.get(ISessionsRecentWorkspacesService);
