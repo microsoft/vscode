@@ -9,7 +9,8 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { AgentMergeConfigKey, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -50,12 +51,8 @@ function createProviderService(getAutonomousSessionConfig: NonNullable<IAgent['g
 	}();
 }
 
-/**
- * The controller only reads git to resolve the worktree commit that backs the
- * "merge only while unchanged" baseline. These tests never exercise that path,
- * so the worktree simply reports as unreadable.
- */
 const noopGitService = new class extends mock<IAgentHostGitService>() {
+	override async getCurrentBranchName(directory: URI): Promise<string | undefined> { return directory.toString() === OTHER_REPOSITORY ? 'feature-tools' : 'feature'; }
 	override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
 }();
 
@@ -151,11 +148,12 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	test('tool enablement preserves autonomous configuration injection and restoration', () => {
-		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+	test('tool enablement preserves autonomous configuration injection and restoration', async () => {
+		const { stateManager, configurationService, controller, session } = createControllerHarness(disposables);
 		const tools = disposables.add(new AgentMergeTools(
-			() => configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true,
-			() => undefined,
+			() => controller.isEnabled(),
+			session => controller.getTurnContext(session),
+			(session, enabled, overrides) => controller.setEnabled(session, enabled, overrides),
 			new class extends mock<IGitHubService>() { }(),
 			new NullLogService(),
 			stateManager,
@@ -168,9 +166,9 @@ suite('AgentMergeController', () => {
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		tools.setEnabled(session, true);
+		await tools.setEnabled(session, true);
 		const enabled = configurationService.getSessionConfigValues(session);
-		tools.setEnabled(session, false);
+		await tools.setEnabled(session, false);
 		const disabled = configurationService.getSessionConfigValues(session);
 
 		assert.deepStrictEqual({
@@ -191,6 +189,7 @@ suite('AgentMergeController', () => {
 				agentMerge: {
 					enabled: true,
 					overrides: { fixCI: false },
+					target: readAgentMergeSessionState(enabled)?.target,
 					injectedConfiguration: {
 						previous: {
 							[SessionConfigKey.Mode]: 'interactive',
@@ -211,29 +210,39 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	test('tools enable Agent Merge for the invoking chat folder', () => {
-		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+	test('tools enable Agent Merge for the invoking chat folder', async () => {
+		const { stateManager, configurationService, controller, gitService, session } = createControllerHarness(disposables);
 		const peerChat = buildChatUri(session, 'peer');
 		stateManager.addChat(session, peerChat, { workingDirectories: [OTHER_REPOSITORY] });
+		const branchReads: string[] = [];
+		gitService.getCurrentBranchName = async directory => {
+			branchReads.push(directory.toString());
+			return 'feature-tools';
+		};
 		const tools = disposables.add(new AgentMergeTools(
-			() => true,
-			() => undefined,
+			() => controller.isEnabled(),
+			chat => controller.getTurnContext(chat),
+			(chat, enabled, overrides) => controller.setEnabled(chat, enabled, overrides),
 			new class extends mock<IGitHubService>() { }(),
 			new NullLogService(),
 			stateManager,
 			configurationService,
 		));
 
-		tools.setEnabled(peerChat, true);
+		const result = JSON.parse(await tools.setEnabled(peerChat, true));
+		const folderKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
+		const folder = readAgentMergeFolderState(configurationService.getSessionConfigValues(session), folderKey, getWorkingDirectoryKey(REPOSITORY));
 
-		assert.deepStrictEqual(configurationService.getSessionConfigValues(session), {
-			[SessionConfigKey.AgentMergeFolders]: {
-				[getWorkingDirectoryKey(OTHER_REPOSITORY)]: {
-					enabled: true,
-					chat: peerChat,
-				},
-			},
-			[SessionConfigKey.AgentMergeControllerFolders]: {},
+		assert.deepStrictEqual({
+			result,
+			branchReads,
+			folder: { enabled: folder?.enabled, chat: folder?.chat, branch: folder?.target?.branchName },
+			primary: readAgentMergeFolderState(configurationService.getSessionConfigValues(session), getWorkingDirectoryKey(REPOSITORY), getWorkingDirectoryKey(REPOSITORY)),
+		}, {
+			result: { enabled: true, configuration: defaultAgentMergeConfiguration, monitoring: 'waitingForPullRequest', target: { branchName: 'feature-tools' } },
+			branchReads: [OTHER_REPOSITORY],
+			folder: { enabled: true, chat: peerChat, branch: 'feature-tools' },
+			primary: undefined,
 		});
 	});
 
@@ -328,6 +337,7 @@ suite('AgentMergeController', () => {
 			override readonly getSessionGitState = (sessionKey: string) => {
 				return sessionKey === peerChat ? { branchName: 'feature-tools', baseBranchName: 'main' } : undefined;
 			};
+			override async refreshSessionGitState(): Promise<void> { }
 			override async attachSessionGitHubPullRequest(): Promise<void> { }
 		}();
 		disposables.add(new AgentMergeController(
@@ -409,6 +419,44 @@ suite('AgentMergeController', () => {
 			refreshedAfterRemoval: true,
 		});
 	});
+
+	test('rechecks peer folder options after attachment without blocking on another chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createPeerRepairHarness(disposables);
+		try {
+			const attaching = new DeferredPromise<void>();
+			const finishAttachment = new DeferredPromise<void>();
+			h.gitStateService.attachSessionGitHubPullRequest = async () => {
+				attaching.complete();
+				await finishAttachment.p;
+			};
+			h.stateManager.dispatchServerAction(buildDefaultChatUri(h.session), {
+				type: ActionType.ChatTurnStarted, turnId: 'default-busy', startedAt: new Date().toISOString(),
+				message: { text: 'busy', origin: { kind: MessageKind.User } },
+			});
+			const started = h.start();
+			await attaching.p;
+			await h.controller.setEnabled(h.peerChat, true, { fixCI: false });
+			await finishAttachment.complete();
+			await timeout(1);
+			const whileDisabled = [...h.startTurns];
+			await h.controller.setEnabled(h.peerChat, true, { fixCI: true });
+			await started;
+
+			assert.deepStrictEqual({
+				whileDisabled,
+				startTurns: h.startTurns,
+				authorized: h.controller.getTurnContext(h.peerChat)?.configuration.fixCI,
+				defaultAuthorized: h.controller.getTurnContext(h.session) !== undefined,
+			}, {
+				whileDisabled: [],
+				startTurns: [h.peerChat],
+				authorized: true,
+				defaultAuthorized: false,
+			});
+		} finally {
+			h.controller.dispose();
+		}
+	}));
 
 	test('a chat of another session cannot own a folder\'s repairs', async () => {
 		const { startTurns, peerChat, start } = createPeerRepairHarness(disposables, stateManager => {
@@ -596,7 +644,7 @@ suite('AgentMergeController', () => {
 	});
 
 	test('PR chat preparation cannot capture the base branch or widen foreground permissions', async () => {
-		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		const { stateManager, configurationService, gitService, session } = createControllerHarness(disposables);
 		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager));
 		const chat = buildDefaultChatUri(session);
 		configurationService.updateSessionConfig(session, {
@@ -628,6 +676,7 @@ suite('AgentMergeController', () => {
 			target: readAgentMergeSessionState(values)?.target,
 			mode: values?.[SessionConfigKey.Mode], autoApprove: values?.[SessionConfigKey.AutoApprove],
 		};
+		gitService.getCurrentBranchName = async () => 'feature/new-pr';
 		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature/new-pr', baseBranchName: 'main' }));
 		const captured = new DeferredPromise<void>();
 		disposables.add(stateManager.onDidChangeSessionConfig(event => {
@@ -712,6 +761,209 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('returns the current branch during tool enablement and revalidates stale metadata after the turn', async () => {
+		const { stateManager, configurationService, gitService, gitStateService, controller, session, notices } = createControllerHarness(disposables);
+		const finishBranchRead = new DeferredPromise<string>();
+		const refreshStarted = new DeferredPromise<void>();
+		const finishRefresh = new DeferredPromise<void>();
+		const attached = new DeferredPromise<void>();
+		let branchReads = 0;
+		let refreshCount = 0;
+		gitService.getCurrentBranchName = async () => {
+			branchReads++;
+			return finishBranchRead.p;
+		};
+		gitStateService.refreshSessionGitState = async () => {
+			refreshCount++;
+			await refreshStarted.complete();
+			await finishRefresh.p;
+			stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'fix/eval-session-safety', baseBranchName: 'main' }));
+		};
+		gitStateService.attachSessionGitHubPullRequest = () => attached.complete();
+		const tools = disposables.add(new AgentMergeTools(
+			() => controller.isEnabled(),
+			session => controller.getTurnContext(session),
+			(session, enabled, overrides) => controller.setEnabled(session, enabled, overrides),
+			new class extends mock<IGitHubService>() { }(),
+			new NullLogService(),
+			stateManager,
+			configurationService,
+		));
+		const chat = buildDefaultChatUri(session);
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'create-pr', startedAt: new Date().toISOString(),
+			message: { text: 'Open PR and merge when green', origin: { kind: MessageKind.User } },
+		});
+		const enabling = tools.setEnabled(session, true, { mergePullRequest: 'always' });
+		const whileReading = { state: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)), notices: [...notices] };
+		await finishBranchRead.complete('fix/eval-session-safety');
+		const result = JSON.parse(await enabling);
+		const duringTurn = {
+			result, refreshCount, activeTurn: stateManager.getActiveTurnId(chat),
+			mode: configurationService.getSessionConfigValues(session)?.[SessionConfigKey.Mode],
+		};
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'create-pr', duration: 0 });
+		await refreshStarted.p;
+		await finishRefresh.complete();
+		await attached.p;
+		await timeout(0);
+		const current = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
+
+		assert.deepStrictEqual({
+			whileReading, duringTurn, branchReads, refreshCount,
+			enabled: current?.enabled, branch: current?.target?.branchName, overrides: current?.overrides, notices,
+		}, {
+			whileReading: { state: undefined, notices: [] },
+			duringTurn: {
+				result: {
+					enabled: true,
+					configuration: { ...defaultAgentMergeConfiguration, mergePullRequest: 'always' },
+					monitoring: 'waitingForPullRequest',
+					target: { branchName: 'fix/eval-session-safety' },
+				},
+				refreshCount: 0, activeTurn: 'create-pr', mode: undefined,
+			},
+			branchReads: 3,
+			refreshCount: 1,
+			enabled: true,
+			branch: 'fix/eval-session-safety',
+			overrides: { mergePullRequest: 'always' },
+			notices: [{
+				kind: AgentSystemNotificationKind.AgentMergeEnabled,
+				content: agentMergeEnabledNotice({ branchName: 'fix/eval-session-safety' }, { ...defaultAgentMergeConfiguration, mergePullRequest: 'always' }),
+			}],
+		});
+	});
+
+	for (const cachedState of ['missing', 'detached'] as const) {
+		test(`revalidates a tool-captured target when cached Git state is ${cachedState}`, async () => {
+			const { stateManager, configurationService, gitStateService, controller, session } = createControllerHarness(disposables);
+			const refreshed = new DeferredPromise<void>();
+			gitStateService.refreshSessionGitState = async () => {
+				stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+				await refreshed.complete();
+			};
+			stateManager.setSessionMeta(session, withSessionGitState(undefined, cachedState === 'detached' ? { isDetachedHead: true, baseBranchName: 'main' } : undefined));
+			const chat = buildDefaultChatUri(session);
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Enable Agent Merge', origin: { kind: MessageKind.User } },
+			});
+			await controller.setEnabled(session, true);
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'user-turn', duration: 0 });
+			await refreshed.p;
+			await timeout(0);
+
+			const state = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
+			assert.deepStrictEqual({ enabled: state?.enabled, branch: state?.target?.branchName }, { enabled: true, branch: 'feature' });
+		});
+	}
+
+	for (const branchName of ['another-feature', undefined]) {
+		test(`stops monitoring if the branch becomes ${branchName ?? 'unavailable'} after tool enablement`, async () => {
+			const { stateManager, configurationService, gitService, gitStateService, controller, session, notices } = createControllerHarness(disposables);
+			gitStateService.refreshSessionGitState = async () => {
+				stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName, baseBranchName: 'main' }));
+			};
+			const chat = buildDefaultChatUri(session);
+			stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Enable Agent Merge', origin: { kind: MessageKind.User } },
+			});
+			await controller.setEnabled(session, true);
+			gitService.getCurrentBranchName = async () => branchName;
+			const stopped = Event.toPromise(Event.filter(stateManager.onDidChangeSessionConfig, event => readAgentMergeSessionState(event.current?.values)?.enabled === false));
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'user-turn', duration: 0 });
+			await stopped;
+
+			assert.deepStrictEqual({
+				state: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)),
+				notices,
+			}, {
+				state: { enabled: false },
+				notices: [
+					{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration) },
+					{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: branchName ? agentMergeDisableReasons.branchChanged('feature', branchName).notice : agentMergeDisableReasons.branchUnavailable('feature').notice },
+				],
+			});
+		});
+	}
+
+	test('does not capture a target if a foreground turn starts during the initial refresh', async () => {
+		const { stateManager, configurationService, gitService, gitStateService, session, notices } = createControllerHarness(disposables);
+		const refreshStarted = new DeferredPromise<void>();
+		const finishRefresh = new DeferredPromise<void>();
+		let refreshCount = 0;
+		gitService.getCurrentBranchName = async () => refreshCount === 1 ? 'feature' : 'follow-up';
+		gitStateService.refreshSessionGitState = async () => {
+			refreshCount++;
+			if (refreshCount === 1) {
+				await refreshStarted.complete();
+				await finishRefresh.p;
+			}
+			stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: refreshCount === 1 ? 'feature' : 'follow-up', baseBranchName: 'main' }));
+		};
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await refreshStarted.p;
+		const chat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'follow-up', startedAt: new Date().toISOString(),
+			message: { text: 'Make another change', origin: { kind: MessageKind.User } },
+		});
+		await finishRefresh.complete();
+		await timeout(0);
+		const duringTurn = { target: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.target, notices: [...notices] };
+		const captured = Event.toPromise(Event.filter(stateManager.onDidChangeSessionConfig, event => !!readAgentMergeSessionState(event.current?.values)?.target));
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'follow-up', duration: 0 });
+		await captured;
+
+		assert.deepStrictEqual({
+			duringTurn, refreshCount, branch: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.target?.branchName,
+		}, {
+			duringTurn: { target: undefined, notices: [] },
+			refreshCount: 2,
+			branch: 'follow-up',
+		});
+	});
+
+	for (const branch of ['other', undefined]) {
+		test(`stops safely if the target branch becomes ${branch ?? 'unavailable'} during pull request refresh`, async () => {
+			const { stateManager, configurationService, gitService, gitStateService, session, notices } = createControllerHarness(disposables);
+			gitService.getCurrentBranchName = async () => branch;
+			gitStateService.attachSessionGitHubPullRequest = async () => {
+				stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: branch, baseBranchName: 'main' }));
+			};
+			stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+			configurationService.updateSessionConfig(session, {
+				[SessionConfigKey.AgentMerge]: { enabled: true },
+				[SessionConfigKey.AgentMergeController]: {
+					target: { branchName: 'feature', enabledAt: new Date(0).toISOString(), commentWatermark: new Date(0).toISOString() },
+				},
+			});
+			const disabled = Event.toPromise(Event.filter(stateManager.onDidChangeSessionConfig, event => readAgentMergeSessionState(event.current?.values)?.enabled === false));
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			await disabled;
+
+			assert.deepStrictEqual({
+				enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+				notices,
+			}, {
+				enabled: false,
+				notices: [{
+					kind: AgentSystemNotificationKind.AgentMergeDisabled,
+					content: (branch ? agentMergeDisableReasons.branchChanged('feature', branch) : agentMergeDisableReasons.branchUnavailable('feature')).notice,
+				}],
+			});
+		});
+	}
+
 	test('does not reevaluate when its own git state refresh completes', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -724,6 +976,7 @@ suite('AgentMergeController', () => {
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = onDidRefreshSessionGitState.event;
 			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async refreshSessionGitState(): Promise<void> { }
 			override async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
 				attachCount++;
 				if (attachCount === 1) {
@@ -795,7 +1048,9 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
-			noopGitService,
+			new class extends mock<IAgentHostGitService>() {
+				override async getCurrentBranchName(): Promise<string | undefined> { return undefined; }
+			}(),
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			createProviderService(() => ({})),
@@ -835,26 +1090,190 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	for (const hasTarget of [false, true]) {
+		test(`validates the ${hasTarget ? 'captured' : 'initial'} branch when refresh retains stale metadata`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createControllerHarness(disposables);
+			try {
+				h.stateManager.setSessionMeta(h.session, withSessionGitState(undefined, { branchName: 'stale' }));
+				h.configurationService.updateSessionConfig(h.session, {
+					[SessionConfigKey.AgentMerge]: { enabled: true },
+					[SessionConfigKey.AgentMergeController]: {
+						target: hasTarget ? { branchName: 'feature', enabledAt: new Date(0).toISOString(), commentWatermark: new Date(0).toISOString() } : undefined,
+					},
+				});
+				h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+				await timeout(1);
+
+				const state = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session));
+				assert.deepStrictEqual({
+					enabled: state?.enabled,
+					branch: state?.target?.branchName,
+					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled),
+					errors: h.errors,
+				}, { enabled: true, branch: 'feature', disabledNotices: [], errors: [] });
+			} finally {
+				h.controller.dispose();
+			}
+		}));
+
+		test(`discards a refresh for a replaced working directory ${hasTarget ? 'with' : 'without'} a target`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createControllerHarness(disposables);
+			try {
+				const refreshStarted = new DeferredPromise<void>();
+				const finishRefresh = new DeferredPromise<void>();
+				h.gitStateService.refreshSessionGitState = async () => {
+					if (!refreshStarted.isSettled) {
+						refreshStarted.complete();
+						await finishRefresh.p;
+					}
+				};
+				h.gitService.getCurrentBranchName = async directory => directory.path === '/repo' ? 'stale' : 'feature';
+				h.stateManager.setSessionMeta(h.session, withSessionGitState(undefined, { branchName: 'stale' }));
+				h.configurationService.updateSessionConfig(h.session, {
+					[SessionConfigKey.AgentMerge]: { enabled: true },
+					[SessionConfigKey.AgentMergeController]: {
+						target: hasTarget ? { branchName: 'feature', enabledAt: new Date(0).toISOString(), commentWatermark: new Date(0).toISOString() } : undefined,
+					},
+				});
+				h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+				await refreshStarted.p;
+				h.stateManager.dispatchServerAction(h.session, {
+					type: ActionType.SessionWorkingDirectoryReplaced, directory: REPOSITORY, replacement: 'file:///replacement',
+				});
+				await finishRefresh.complete();
+				await timeout(1);
+
+				const state = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session));
+				assert.deepStrictEqual({
+					enabled: state?.enabled,
+					branch: state?.target?.branchName,
+					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled),
+					errors: h.errors,
+				}, { enabled: true, branch: 'feature', disabledNotices: [], errors: [] });
+			} finally {
+				h.controller.dispose();
+			}
+		}));
+	}
+
+	test('retries an initial branch lookup after a configuration change without cached Git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createControllerHarness(disposables);
+		try {
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<string>();
+			h.gitService.getCurrentBranchName = async () => {
+				if (!started.isSettled) {
+					started.complete();
+					return finish.p;
+				}
+				return 'feature';
+			};
+			h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await started.p;
+			h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } } });
+			await finish.complete('feature');
+			await timeout(1);
+
+			const state = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session));
+			assert.deepStrictEqual({
+				branch: state?.target?.branchName, overrides: state?.overrides, errors: h.errors,
+			}, { branch: 'feature', overrides: { fixCI: false }, errors: [] });
+		} finally {
+			h.controller.dispose();
+		}
+	}));
+
+	test('a failed branch probe does not exhaust missing-branch recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createControllerHarness(disposables);
+		try {
+			h.gitService.getCurrentBranchName = async () => { throw new Error('Branch lookup failed'); };
+			h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await timeout(1);
+			const beforeRetry = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session))?.target;
+			h.gitService.getCurrentBranchName = async () => 'feature';
+			h.controller.refresh();
+			await timeout(1);
+
+			assert.deepStrictEqual({
+				beforeRetry,
+				branch: readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session))?.target?.branchName,
+				errors: h.errors,
+			}, { beforeRetry: undefined, branch: 'feature', errors: ['Error: Branch lookup failed'] });
+		} finally {
+			h.controller.dispose();
+		}
+	}));
+
+	for (const phase of ['initial capture', 'branch mismatch', 'pull request attachment'] as const) {
+		test(`does not capture or disable a target when Git fails during ${phase}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createControllerHarness(disposables);
+			try {
+				const hasTarget = phase !== 'initial capture';
+				h.gitService.getCurrentBranchName = async (_directory, options) => {
+					assert.strictEqual(options?.throwOnError, true);
+					throw new Error('Branch lookup failed');
+				};
+				h.gitStateService.attachSessionGitHubPullRequest = async () => {
+					h.stateManager.setSessionMeta(h.session, withSessionGitState(undefined, { branchName: 'stale' }));
+				};
+				h.stateManager.setSessionMeta(h.session, withSessionGitState(undefined, { branchName: phase === 'pull request attachment' ? 'feature' : 'stale' }));
+				h.configurationService.updateSessionConfig(h.session, {
+					[SessionConfigKey.AgentMerge]: { enabled: true },
+					[SessionConfigKey.AgentMergeController]: {
+						target: hasTarget ? { branchName: 'feature', enabledAt: new Date(0).toISOString(), commentWatermark: new Date(0).toISOString() } : undefined,
+					},
+				});
+				h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+				await timeout(1);
+
+				const state = readAgentMergeSessionState(h.configurationService.getSessionConfigValues(h.session));
+				assert.deepStrictEqual({
+					enabled: state?.enabled, branch: state?.target?.branchName,
+					notices: h.notices, errors: h.errors,
+				}, {
+					enabled: true, branch: hasTarget ? 'feature' : undefined,
+					notices: [], errors: ['Error: Branch lookup failed'],
+				});
+			} finally {
+				h.controller.dispose();
+			}
+		}));
+	}
+
 	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
+		readonly gitService: IAgentHostGitService;
+		readonly gitStateService: IAgentHostGitStateService;
+		readonly controller: AgentMergeController;
 		readonly session: string;
 		readonly notices: { readonly kind: AgentSystemNotificationKind; readonly content: string }[];
+		readonly errors: string[];
 		readonly noticeChats: string[];
 	} {
-		const logService = new NullLogService();
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error): void { errors.push(String(message)); }
+		}();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const gitService = new class extends mock<IAgentHostGitService>() {
+			override async getCurrentBranchName(): Promise<string | undefined> { return 'feature'; }
+			override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
+		}();
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async refreshSessionGitState(): Promise<void> { }
 			override async attachSessionGitHubPullRequest(): Promise<void> { }
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 		const notices: { kind: AgentSystemNotificationKind; content: string }[] = [];
 		const noticeChats: string[] = [];
-		disposables.add(new AgentMergeController(
+		const controller = disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
@@ -866,7 +1285,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
-			noopGitService,
+			gitService,
 			new class extends mock<IGitHubService>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
@@ -901,7 +1320,7 @@ suite('AgentMergeController', () => {
 			schema: platformSessionSchema.toProtocol(),
 			values: {},
 		});
-		return { stateManager, configurationService, session, notices, noticeChats };
+		return { stateManager, configurationService, gitService, gitStateService, controller, session, notices, errors, noticeChats };
 	}
 
 	/**
@@ -925,6 +1344,7 @@ suite('AgentMergeController', () => {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
 			override readonly getSessionGitState = () => ({ branchName: 'feature-tools', baseBranchName: 'main' });
+			override async refreshSessionGitState(): Promise<void> { }
 			override async attachSessionGitHubPullRequest(): Promise<void> { }
 		}();
 		const controller = disposables.add(new AgentMergeController(
@@ -974,7 +1394,7 @@ suite('AgentMergeController', () => {
 			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 			return started.p;
 		};
-		return { stateManager, configurationService, controller, session, peerChat, otherKey, startTurns, refreshes, start };
+		return { stateManager, configurationService, gitStateService, controller, session, peerChat, otherKey, startTurns, refreshes, start };
 	}
 
 
@@ -1041,9 +1461,11 @@ suite('AgentMergeController', () => {
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		let branchName = 'feature';
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async refreshSessionGitState(): Promise<void> { }
 			override async attachSessionGitHubPullRequest(): Promise<void> { }
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
@@ -1057,7 +1479,9 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
-			noopGitService,
+			new class extends mock<IAgentHostGitService>() {
+				override async getCurrentBranchName(): Promise<string | undefined> { return branchName; }
+			}(),
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			createProviderService(() => ({})),
@@ -1090,6 +1514,7 @@ suite('AgentMergeController', () => {
 
 		// The checkout moves to an unrelated branch, which is what silently
 		// stopped Agent Merge before it explained itself.
+		branchName = 'main';
 		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
 		await timeout(0);
 		await timeout(0);
@@ -1108,7 +1533,7 @@ suite('AgentMergeController', () => {
 					kind: AgentSystemNotificationKind.AgentMergeEnabled,
 					content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
 				},
-				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because the checked-out branch changed from `feature` to `main`.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was disabled because the checked-out branch changed from `feature` to `main`. To resume, check out the branch you want to monitor and enable Agent Merge again.' },
 			],
 			enabled: false,
 		});
@@ -1196,7 +1621,7 @@ suite('AgentMergeController', () => {
 			whilePaused: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed for this session.',
+					'Agent Merge settings changed for this session. Automatic merge is on.',
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
@@ -1204,14 +1629,14 @@ suite('AgentMergeController', () => {
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge default settings changed for all sessions.',
+					'Agent Merge default settings changed for all sessions. For this session: Automatic merge is on.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
 				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}],
 			notices: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed for this session.',
+					'Agent Merge settings changed for this session. Automatic merge is on.',
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
@@ -1219,12 +1644,12 @@ suite('AgentMergeController', () => {
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge default settings changed for all sessions.',
+					'Agent Merge default settings changed for all sessions. For this session: Automatic merge is on.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
 				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
-				content: 'Agent Merge default settings changed for all sessions.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
+				content: 'Agent Merge default settings changed for all sessions. For this session: Automatic merge is on.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
 			}],
 		});
 	});
