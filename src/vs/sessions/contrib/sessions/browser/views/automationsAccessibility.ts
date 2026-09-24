@@ -37,6 +37,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.authority', "Automations run on their selected Agent Host, not in this window. Creation and changes require a connected Agent Host that supports automations. Run now requests execution from that host; a disconnected or unsupported host never falls back to local execution. To use another host, duplicate the automation. The original history stays with its host, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
 					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")

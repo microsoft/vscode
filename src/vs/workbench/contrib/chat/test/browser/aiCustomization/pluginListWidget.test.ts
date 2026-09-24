@@ -10,9 +10,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { ContributionEnablementState } from '../../../common/enablement.js';
+import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 
 suite('pluginListWidget', () => {
@@ -42,6 +42,20 @@ suite('pluginListWidget', () => {
 			ContributionEnablementState.DisabledWorkspace,
 			ContributionEnablementState.EnabledWorkspace,
 		]);
+	});
+
+	test('renders the effective state when an enablement write is rejected', () => {
+		const model: IEnablementModel = {
+			readEnabled: () => ContributionEnablementState.DisabledProfile,
+			readProfileEnabled: () => false,
+			setEnabled: () => { },
+			remove: () => { },
+		};
+
+		assert.strictEqual(
+			setPluginEnablementAndReadEffective(model, 'plugin', ContributionEnablementState.EnabledProfile),
+			ContributionEnablementState.DisabledProfile,
+		);
 	});
 
 	test('installed metadata contains contribution counts without enablement copy', () => {

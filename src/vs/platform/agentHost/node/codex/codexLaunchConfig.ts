@@ -10,27 +10,32 @@ import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
 
 const CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE = 'vscode-workspace';
+const CODEX_VSCODE_RUNTIME_PERMISSION_PROFILE = 'vscode-runtime';
 const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
-export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
-	// Codex materializes its Linux sandbox helper below /tmp before entering bwrap.
-	// Keep it executable from inside the sandbox without granting shared temp write access.
-	const slashTmpAccess = platform === 'linux' ? 'read' : 'deny';
+function codexWorkspaceFileSystemPermissions(platform: NodeJS.Platform, binaryPath?: string): Record<string, string> {
+	return platform === 'win32' ? {} : {
+		':root': 'deny',
+		':minimal': 'read',
+		':tmpdir': 'write',
+		':slash_tmp': platform === 'linux' ? 'read' : 'deny',
+		...(platform === 'linux' && binaryPath ? { [binaryPath]: 'read' } : {}),
+	};
+}
+
+export function codexPermissionProfileOverrides(binaryPath: string, platform: NodeJS.Platform = process.platform): string[] {
+	const baseProfile = platform === 'linux' ? CODEX_VSCODE_RUNTIME_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
 	const fileSystemOverride = platform === 'win32'
 		? ''
-		: `, filesystem = { ${[
-			`":root" = "deny"`,
-			`":minimal" = "read"`,
-			`":tmpdir" = "write"`,
-			`":slash_tmp" = "${slashTmpAccess}"`,
-		].join(', ')} }`;
+		: `, filesystem = { ${Object.entries(codexWorkspaceFileSystemPermissions(platform, binaryPath)).map(([path, access]) => `${JSON.stringify(path)} = ${JSON.stringify(access)}`).join(', ')} }`;
 	const readOnlyProfile = platform === 'win32'
 		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
 		: `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`;
 	return [
 		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace"${fileSystemOverride}, network = { enabled = false } }`,
+		`permissions.${baseProfile}={ extends = ":workspace"${fileSystemOverride}, network = { enabled = false } }`,
+		...(platform === 'linux' ? [`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = "${baseProfile}" }`] : []),
 		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
 		readOnlyProfile,
 	];
@@ -44,6 +49,15 @@ export function codexPermissionProfile(mode: SandboxMode, networkAccess: boolean
 		return CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE;
 	}
 	return networkAccess ? CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
+}
+
+export function codexPermissionProfileReadRoots(readRoots: readonly string[], platform: NodeJS.Platform = process.platform): Record<string, JsonValue> {
+	return {
+		[`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}.filesystem`]: {
+			...codexWorkspaceFileSystemPermissions(platform),
+			...Object.fromEntries(readRoots.map(root => [root, 'read'])),
+		},
+	};
 }
 
 export interface ICodexLaunchProxy {
@@ -89,6 +103,7 @@ export function buildCodexResumeParams(
 }
 
 export function buildCodexLaunchConfig(
+	binaryPath: string,
 	inheritedEnv: NodeJS.ProcessEnv,
 	proxy: ICodexLaunchProxy,
 	extraArgs: readonly string[],
@@ -116,7 +131,7 @@ export function buildCodexLaunchConfig(
 		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
 	];
-	const permissionOverrides = codexPermissionProfileOverrides();
+	const permissionOverrides = codexPermissionProfileOverrides(binaryPath);
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,

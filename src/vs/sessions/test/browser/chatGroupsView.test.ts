@@ -44,6 +44,7 @@ class TestChatView extends AbstractChatView {
 	override readonly isLoadingTranscript = observableValue(this, false);
 	layoutCount = 0;
 	primary = false;
+	split = false;
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -67,8 +68,9 @@ class TestChatView extends AbstractChatView {
 		this._focusTarget.focus();
 	}
 
-	override setPrimary(primary: boolean): void {
+	override setPrimary(primary: boolean, split = false): void {
 		this.primary = primary;
+		this.split = split;
 	}
 }
 
@@ -313,6 +315,39 @@ function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visibl
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
+
+	test('aligns transcript overlays with full-width split chats', () => {
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		const sessionsPart = mainWindow.document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart');
+		const groups = mainWindow.document.createElement('div');
+		groups.classList.add('chat-groups-view');
+		const session = mainWindow.document.createElement('div');
+		session.classList.add('interactive-session');
+		const scrollDown = mainWindow.document.createElement('button');
+		scrollDown.classList.add('chat-scroll-down');
+		const list = mainWindow.document.createElement('div');
+		list.classList.add('interactive-list');
+		const transcriptContext = mainWindow.document.createElement('div');
+		transcriptContext.classList.add('chat-transcript-context');
+		list.appendChild(transcriptContext);
+		session.append(scrollDown, list);
+		groups.appendChild(session);
+		sessionsPart.appendChild(groups);
+		workbench.appendChild(sessionsPart);
+		mainWindow.document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.deepStrictEqual({
+			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
+			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
+		}, {
+			scrollDownRight: '32px',
+			transcriptContextMaxWidth: 'none',
+		});
+	});
 
 	test('opens a session with an active child chat after initial layout', () => {
 		const { view, chatViewFactory } = createHarness(disposables);
@@ -1309,11 +1344,12 @@ suite('Sessions - ChatGroupsView', () => {
 			{
 				label: group.getAttribute('aria-label'),
 				primary: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.primary,
+				split: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.split,
 			},
 		]));
 		assert.deepStrictEqual(labelByChat, {
-			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true },
-			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false },
+			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true, split: true },
+			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false, split: true },
 		});
 	});
 

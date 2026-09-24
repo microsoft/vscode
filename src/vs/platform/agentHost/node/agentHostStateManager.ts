@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -25,6 +25,7 @@ import { preserveProviderBackedRootConfigValues } from '../common/agentCustomiza
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
+import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -298,6 +299,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
+	private readonly _onDidRejectClientAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidRejectClientAction: Event<ActionEnvelope> = this._onDidRejectClientAction.event;
+
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
@@ -540,6 +544,22 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	getDefaultChatState(session: URI): ChatState | undefined {
 		return this._chatEntries.get(buildDefaultChatUri(session))?.state;
+	}
+
+	/** Refreshes persisted history without running turn lifecycle side effects or changing the draft. */
+	refreshChatHistory(chat: URI, previousTurns: readonly Turn[], turns: readonly Turn[]): boolean {
+		const state = this.getChatState(chat);
+		if (!state || state.activeTurn || state.turns !== previousTurns || equals(state.turns, turns)) {
+			return false;
+		}
+		const session = this._chatEntries.get(chat)?.session;
+		const summary = session && this.getSessionSummary(session);
+		if (session && summary && Date.parse(summary.modifiedAt) > Date.parse(state.modifiedAt)) {
+			this.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat, changes: { modifiedAt: summary.modifiedAt } });
+		}
+		this.dispatchServerAction(chat, { type: ActionType.ChatTruncated });
+		this.dispatchServerAction(chat, { type: ActionType.ChatTurnsLoaded, turns: [...turns] });
+		return true;
 	}
 
 	/** Returns already-hydrated state without triggering resolution or I/O. */
@@ -821,6 +841,11 @@ export class AgentHostStateManager extends Disposable {
 		return this._changesets.get(changeset);
 	}
 
+	/** Whether the cached changeset has produced a complete file list, including an empty one. */
+	hasCompletedChangesetResult(changeset: URI): boolean {
+		return this._changesets.hasCompletedResult(changeset);
+	}
+
 	/** Reconsiders changeset state retention after subscribers or computes release their pins. */
 	onChangesetLivenessChanged(): void {
 		this._changesets.trimEvictableEntries();
@@ -942,6 +967,30 @@ export class AgentHostStateManager extends Disposable {
 		}
 		this._summaryNotifier.announce(session, { ...announced, title });
 		this._emitSessionSummaryChanged(session, { title }, announced);
+	}
+
+	/** Publishes refreshed catalog metadata without materializing a conversation or changing its read state. */
+	updateSurfacedSessionMetadata(session: string, metadata: Pick<SessionSummary, 'title' | 'modifiedAt' | 'project' | 'workingDirectories' | '_meta'>): void {
+		const announced = this._summaryNotifier.getAnnounced(session);
+		if (this._sessionStates.has(session) || !announced) {
+			return;
+		}
+		if (announced.title === metadata.title && announced.modifiedAt === metadata.modifiedAt
+			&& equals(announced.project, metadata.project) && equals(announced.workingDirectories, metadata.workingDirectories)
+			&& equals(announced._meta, metadata._meta)) {
+			return;
+		}
+		this._summaryNotifier.applyAnnouncedChanges(session, metadata);
+	}
+
+	/** Refreshes an idle session's catalog timestamp without replacing its conversation state. */
+	updateSessionModifiedTime(session: URI, modifiedTime: number): void {
+		const entry = this._sessionStates.get(session);
+		if (!entry || this.hasActiveTurn(session) || !Number.isFinite(modifiedTime) || modifiedTime <= Date.parse(entry.modifiedAt)) {
+			return;
+		}
+		entry.modifiedAt = new Date(modifiedTime).toISOString();
+		this._summaryNotifier.markDirty(session);
 	}
 
 	/** Removes a surfaced session without affecting a live session. */
@@ -1314,6 +1363,7 @@ export class AgentHostStateManager extends Disposable {
 		// the active set forever, keeping the session permanently "active"
 		// (activeSessions > 0) and leaving changeset operations disabled.
 		this._removeChatActiveTurn(session, chatUri);
+		this.disposeChangesets(chatUri);
 		this._invalidateChatEntry(chatUri);
 		this.dispatchServerAction(session, { type: ActionType.SessionChatRemoved, chat: chatUri });
 	}
@@ -1562,16 +1612,11 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Replaces the catalogue entries on `state.changesets` for `session` by
+	 * Replaces session-owned catalogue entries on `state.changesets` by
 	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
-	 * Subscribers see the mutation in the standard session action stream —
-	 * the catalogue lives on session state and is not its own subscribable
-	 * resource. Aggregate `changes` counts (additions / deletions /
-	 * files) are propagated separately via {@link setSessionSummaryChanges}.
-	 *
-	 * Producers call this after each compute pass to keep the list of
-	 * available changesets (with their `changeKind`) in sync so observers
-	 * can render the correct entries without subscribing to each one.
+	 * Subscribers see the mutation in the standard session action stream.
+	 * Aggregate `changes` counts are propagated separately via
+	 * {@link setSessionSummaryChanges}; chat-owned catalogues remain on chat state.
 	 */
 	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
 		const entry = this._sessionStates.get(session);
@@ -1594,6 +1639,26 @@ export class AgentHostStateManager extends Disposable {
 		this.dispatchServerAction(session, {
 			type: ActionType.SessionChangesetsChanged,
 			changesets: next,
+		});
+	}
+
+	/** Replaces the changeset catalogue owned by a session or chat channel. */
+	setChangesets(owner: URI, changesets: readonly Changeset[] | undefined): void {
+		if (!isAhpChatChannel(owner)) {
+			this.setSessionChangesets(owner, changesets);
+			return;
+		}
+		const state = this._chatEntries.get(owner)?.state;
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setChangesets: unknown chat ${owner}`);
+			return;
+		}
+		if (arrayEquals(state.changesets ?? [], changesets ?? [], structuralEquals)) {
+			return;
+		}
+		this.dispatchServerAction(owner, {
+			type: ActionType.ChatChangesetsChanged,
+			changesets: changesets ? changesets.slice() : undefined,
 		});
 	}
 
@@ -1628,12 +1693,17 @@ export class AgentHostStateManager extends Disposable {
 	 * session itself is removed.
 	 */
 	disposeSessionChangesets(session: URI): void {
+		this.disposeChangesets(session, true);
+	}
+
+	/** Disposes changesets owned by one channel, optionally including all chats in its session. */
+	disposeChangesets(owner: URI, includeSessionChats: boolean = false): void {
 		// Collect first because `disposeChangeset` mutates the underlying
 		// map via its envelope handler.
 		const toDispose: URI[] = [];
 		for (const uri of this._changesets.keys()) {
 			const parsed = parseChangesetUri(uri);
-			if (parsed && parsed.sessionUri === session) {
+			if (parsed && (parsed.ownerUri === owner || (includeSessionChats && parsed.sessionUri === owner))) {
 				toDispose.push(uri);
 			}
 		}
@@ -1705,12 +1775,13 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Reject a client-originated action without applying it to state. Emits an
+	 * Reject a client-originated action without applying it to state. Emits a
 	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a
 	 * {@link ActionEnvelope.rejectionReason | rejectionReason} so the originating
 	 * client can reconcile (roll back) its optimistic write-ahead action through
 	 * the normal path instead of leaving it pending until reconnect. The reducer
-	 * is deliberately NOT run, so no synchronized state changes.
+	 * is deliberately NOT run and the envelope is not emitted to host-side action
+	 * consumers.
 	 */
 	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): void {
 		const envelope: ActionEnvelope = {
@@ -1720,8 +1791,8 @@ export class AgentHostStateManager extends Disposable {
 			origin,
 			rejectionReason: reason,
 		};
-		this._logService.trace(`[AgentHostStateManager] Emitting rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
-		this._onDidEmitEnvelope.fire(envelope);
+		this._logService.trace(`[AgentHostStateManager] Created rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
+		this._onDidRejectClientAction.fire(envelope);
 	}
 
 	// ---- Internal -----------------------------------------------------------
@@ -1759,6 +1830,9 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext): unknown {
+		if (action.type === ActionType.ChatTurnCancelled && isAhpChatChannel(channel)) {
+			this._finalizeCancelledFusionPhases(channel, action.turnId);
+		}
 		let resultingState: unknown = undefined;
 		if (action.type === ActionType.RootConfigChanged && action.replace) {
 			action = {
@@ -1918,6 +1992,45 @@ export class AgentHostStateManager extends Disposable {
 		return resultingState;
 	}
 
+	private _finalizeCancelledFusionPhases(channel: URI, turnId: string): void {
+		const activeTurn = this.getChatState(channel)?.activeTurn;
+		if (activeTurn?.id !== turnId) {
+			return;
+		}
+		const now = Date.now();
+		for (const part of activeTurn.responseParts) {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				continue;
+			}
+			const toolCall = part.toolCall;
+			if ((toolCall.status !== ToolCallStatus.Streaming && toolCall.status !== ToolCallStatus.Running) || !isPresentationOnlyToolCall(toolCall)) {
+				continue;
+			}
+			const phase = readToolCallMeta(toolCall).fusionPhase;
+			if (phase?.status !== 'running') {
+				continue;
+			}
+			const _meta = {
+				...toolCall._meta,
+				...toToolCallMeta({ fusionPhase: { ...phase, status: 'cancelled', duration: phase.duration ?? Math.max(0, now - phase.startedAt) } }),
+			};
+			// Publish metadata before cancellation closes the turn, so clients reconcile the same snapshot.
+			this.dispatchServerAction(channel, toolCall.status === ToolCallStatus.Streaming ? {
+				type: ActionType.ChatToolCallDelta,
+				turnId,
+				toolCallId: toolCall.toolCallId,
+				_meta,
+			} : {
+				type: ActionType.ChatToolCallReady,
+				turnId,
+				toolCallId: toolCall.toolCallId,
+				invocationMessage: toolCall.invocationMessage,
+				confirmed: toolCall.confirmed,
+				_meta,
+			});
+		}
+	}
+
 	/**
 	 * Removes a single chat from its session's active-turn set, firing the
 	 * session-level active flip ({@link onDidChangeSessionActiveTurn} +
@@ -1957,6 +2070,10 @@ export class AgentHostStateManager extends Disposable {
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
+		if (prev.workingDirectories !== next.workingDirectories) {
+			this._onDidChangeSessionWorkingDirectories.fire({ session: chatUri });
+		}
+
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.
 		if (next.turns.length > 0 || next.activeTurn) {

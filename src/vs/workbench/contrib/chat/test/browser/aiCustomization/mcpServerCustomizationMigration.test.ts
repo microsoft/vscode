@@ -22,7 +22,7 @@ import { IMcpServerConfiguration, McpServerType } from '../../../../../../platfo
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 class SourceWriteFailingProvider extends InMemoryFileSystemProvider {
@@ -252,7 +252,7 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	}
 
-	test('plans only enabled, applicable, fully supported and exactly representable workspace-folder servers', async () => {
+	test('plans applicable, supported and exactly representable workspace-folder servers regardless of enablement', async () => {
 		const root = URI.file('/plan');
 		const fileService = createFileService();
 		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(`{
@@ -269,9 +269,12 @@ suite('McpServerCustomizationMigration', () => {
 			servers: [
 				support(root, 'eligible'),
 				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: `${root.fsPath}/server` } }),
-				support(root, 'metadata'),
+				support(root, 'metadata', { compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable] } }),
 				support(root, 'cwd', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' } }),
-				support(root, 'sse', { projectedConfiguration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com' } }),
+				support(root, 'sse', {
+					compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.SseTransportNotPortable] },
+					projectedConfiguration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com' },
+				}),
 				support(root, 'disabled', { enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledWorkspace } }),
 				support(URI.file('/outside'), 'outside'),
 			],
@@ -285,12 +288,11 @@ suite('McpServerCustomizationMigration', () => {
 			candidates: plan.candidates.map(item => item.name),
 			exclusions: plan.exclusions.map(item => [item.name, item.reason]),
 		}, {
-			candidates: ['eligible', 'variable'],
+			candidates: ['eligible', 'variable', 'disabled'],
 			exclusions: [
 				['metadata', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['sse', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-				['disabled', McpServerCustomizationMigrationFailureReason.NoLongerEligible],
 			],
 		});
 	});

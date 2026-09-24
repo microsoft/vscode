@@ -9,7 +9,6 @@ import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../../common/agentHostCustomizationConfig.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import {
@@ -60,18 +59,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		return workspace;
 	}
 
-	async function createCustomAgentSession(prefix: string, allTools = false, discoveryMode: SessionCustomizationDiscoveryMode = 'scan'): Promise<string> {
+	async function createCustomAgentSession(prefix: string, allTools = false): Promise<string> {
 		const workspace = createCustomAgentWorkspace(prefix, allTools);
-		const sessionUri = await createRealSession(context.client, config, prefix, createdSessions, URI.file(workspace));
-		context.client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq: 1,
-			action: {
-				type: ActionType.RootConfigChanged,
-				config: { [AgentHostConfigKey.SessionCustomizationDiscoveryMode]: discoveryMode },
-			},
-		});
-		return sessionUri;
+		return createRealSession(context.client, config, prefix, createdSessions, URI.file(workspace));
 	}
 
 	function subagentChatFromReceived(parentChat: string): string | undefined {
@@ -138,23 +128,15 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const workspace = createCustomAgentWorkspace('ahp-selected-custom-agent-', true);
 			const sessionUri = await createRealSession(context.client, config, 'selected-custom-agent', createdSessions, URI.file(workspace));
-			context.client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq: 1,
-				action: {
-					type: ActionType.RootConfigChanged,
-					config: { [AgentHostConfigKey.SessionCustomizationDiscoveryMode]: 'scan' },
-				},
-			});
 			if (!initiallySelected) {
-				await driveTurnToCompletion(context.client, sessionUri, 'turn-default-agent', 'Reply exactly "DEFAULT_READY".', 2);
+				await driveTurnToCompletion(context.client, sessionUri, 'turn-default-agent', 'Reply exactly "DEFAULT_READY".', 1);
 			}
 			const chatUri = buildDefaultChatUri(sessionUri);
 			const agent = { uri: URI.file(join(workspace, '.github', 'agents', 'display-name-child.agent.md')).toString() };
 			context.client.clearReceived();
 			context.client.dispatch({
 				channel: chatUri,
-				clientSeq: 3,
+				clientSeq: initiallySelected ? 1 : 2,
 				action: {
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-selected-agent',
@@ -188,7 +170,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				response: 'CUSTOM_AGENT_CHILD_OK',
 				states: before.turns.map(() => TurnState.Complete),
 			});
-			const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-selected-agent', 'Reply exactly "RESUMED".', 4);
+			const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-selected-agent', 'Reply exactly "RESUMED".', initiallySelected ? 2 : 3);
 			const request: { stream?: boolean } = JSON.parse(context.observedModelRequestBodies.at(-1)!);
 			assert.deepStrictEqual({ response: followup.responseText.trim(), streaming: request.stream }, { response: 'RESUMED', streaming: true });
 		});
@@ -202,14 +184,14 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		(copilotCustomAgentTest ? test : test.skip)(title, async function () {
 			this.timeout(180_000);
 
-			const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-', allTools, checkFileOutputGuidance ? 'discover' : 'scan');
+			const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-', allTools);
 			const parentChat = buildDefaultChatUri(sessionUri);
 			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
 				'turn-custom-agent-display-name',
 				'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "PARENT_DONE".',
-				2,
+				1,
 			);
 
 			const subagentChat = subagentChatFromReceived(parentChat);
@@ -270,7 +252,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			sessionUri,
 			'turn-custom-agent-setup',
 			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".',
-			2,
+			1,
 		);
 		assert.match(setup.responseText, /SETUP_DONE/);
 		const subagentChat = subagentChatFromReceived(parentChat);
@@ -300,7 +282,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		}, 50, 100);
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, 'turn-after-custom-agent', 'Reply exactly "PARENT_RECOVERED".', 3);
+		dispatchTurn(context.client, sessionUri, 'turn-after-custom-agent', 'Reply exactly "PARENT_RECOVERED".', 2);
 		const started = await context.client.waitForNotification(n => {
 			if (!isActionNotification(n, 'chat/turnStarted')) {
 				return false;
@@ -433,8 +415,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		]);
 		await assertRecordedAhpSnapshot(this.test!, context.client, {
 			...behaviorSnapshot,
-			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart],
-			orderIndependentActionTypes: [ActionType.ChatTurnComplete],
+			// The initial child may complete before subscription; completion and turn states are asserted above.
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart, ActionType.ChatTurnComplete],
 		});
 	});
 

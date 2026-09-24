@@ -77,7 +77,8 @@ export interface IChatContentPartRenderContext {
 	/** Whether the response-level progress indicator owns progress animation for this render. */
 	readonly suppressProgressShimmer?: boolean;
 	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
-	/** An expanded, headerless tool group in the persistent progress layout. */
+	readonly onWillCollapse?: (target: HTMLElement) => void;
+	/** A tool group, separate from reasoning, in the persistent progress layout. */
 	readonly isToolChain?: boolean;
 	/**
 	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a

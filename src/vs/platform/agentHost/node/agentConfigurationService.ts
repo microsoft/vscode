@@ -16,6 +16,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHos
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
@@ -184,10 +185,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
 		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
+		const automationSchema = automationRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...automationSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -398,6 +400,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...automationRootConfigSchema.validateOrDefault(parsed, {}),
 				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {

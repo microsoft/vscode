@@ -1228,8 +1228,12 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 						compatibilityError: this._managedSettingsCompatibilityError,
 					};
 				}
-				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
-				const retained = this._managedSettingsCompatibilityError ? undefined : scopedCachedManagedSettings;
+				// A failed fetch (including a 401/403, which may be transient) is not evidence that policy was withdrawn:
+				// keep the last successful response even once stale, with its original timestamp so the failure does not
+				// count as a refresh and it is still refetched.
+				const retained = this._managedSettingsCompatibilityError
+					? undefined
+					: { data: { managedSettings: scopedManagedSettings }, fetchedAt: scopedManagedSettingsFetchedAt };
 				return {
 					data: { managedSettings: retained?.data.managedSettings },
 					fetchedAt: retained?.fetchedAt,

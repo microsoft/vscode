@@ -60,6 +60,7 @@ export class MockAgent implements IAgent {
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
 	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
+	captureTurnTelemetryContext?: IAgent['captureTurnTelemetryContext'];
 
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
 		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId });
@@ -694,6 +695,20 @@ export class ScriptedMockAgent implements IAgent {
 					..._toolStart(chat, sessionStr, tid, 'tc-1', 'echo_tool', 'Echo Tool', 'Running echo tool...'),
 					_toolComplete(chat, sessionStr, tid, 'tc-1', { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true }),
 					_markdown(chat, sessionStr, tid, 'Tool done.'),
+					_idle(chat, sessionStr, tid),
+				]);
+				break;
+
+			case 'question-tool-error':
+				this._fireSequence([
+					..._toolStart(chat, sessionStr, tid, 'tc-question-error', 'ask_user', 'Ask question', 'Waiting for answer...'),
+					_toolComplete(chat, sessionStr, tid, 'tc-question-error', {
+						success: false,
+						pastTenseMessage: 'Failed to ask the question',
+						error: { message: 'Could not read question input' },
+						content: [],
+					}),
+					_markdown(chat, sessionStr, tid, 'The failed question has no input/output details.'),
 					_idle(chat, sessionStr, tid),
 				]);
 				break;
