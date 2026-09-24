@@ -46,21 +46,21 @@ suite('Sessions Contribution', () => {
 			default: false,
 			experiment: { mode: 'auto' },
 		});
+	});
 
-		test('hides archived sessions by default with automatic experiments', () => {
-			assert.deepStrictEqual({
-				type: showArchivedByDefaultProperty.type,
-				default: showArchivedByDefaultProperty.default,
-				scope: showArchivedByDefaultProperty.scope,
-				tags: showArchivedByDefaultProperty.tags,
-				experiment: showArchivedByDefaultProperty.experiment,
-			}, {
-				type: 'boolean',
-				default: false,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['experimental', 'advanced'],
-				experiment: { mode: 'auto' },
-			});
+	test('hides archived sessions by default with automatic experiments', () => {
+		assert.deepStrictEqual({
+			type: showArchivedByDefaultProperty.type,
+			default: showArchivedByDefaultProperty.default,
+			scope: showArchivedByDefaultProperty.scope,
+			tags: showArchivedByDefaultProperty.tags,
+			experiment: showArchivedByDefaultProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced', 'onExP'],
+			experiment: { mode: 'auto' },
 		});
 	});
 
