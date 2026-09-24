@@ -66,12 +66,13 @@ const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 60;
 const PREVIEW_CACHE_SIZE = 200;
 
-function supportsInlineAgentMergeActions(provider: unknown): provider is Pick<IAgentHostSessionsProvider, 'getAgentMergeSessionState' | 'setAgentMergeEnabled' | 'setAgentMergeOverrides'> {
+function supportsInlineAgentMergeActions(provider: unknown): provider is Pick<IAgentHostSessionsProvider, 'getAgentMergeSessionState' | 'getAgentMergeClientStateObservable' | 'setAgentMergeEnabled' | 'setAgentMergeOverrides'> {
 	if (!provider || typeof provider !== 'object') {
 		return false;
 	}
 	const record = provider as Partial<IAgentHostSessionsProvider>;
 	return typeof record.getAgentMergeSessionState === 'function'
+		&& typeof record.getAgentMergeClientStateObservable === 'function'
 		&& typeof record.setAgentMergeEnabled === 'function'
 		&& typeof record.setAgentMergeOverrides === 'function';
 }

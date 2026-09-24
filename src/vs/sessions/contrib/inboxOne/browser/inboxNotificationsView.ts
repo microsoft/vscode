@@ -89,6 +89,7 @@ function supportsInlineAgentMergeActions(provider: ISessionsProvider | undefined
 	}
 	const candidate = provider as Partial<IAgentHostSessionsProvider>;
 	return typeof candidate.getAgentMergeSessionState === 'function'
+		&& typeof candidate.getAgentMergeClientStateObservable === 'function'
 		&& typeof candidate.setAgentMergeEnabled === 'function'
 		&& typeof candidate.setAgentMergeOverrides === 'function';
 }
@@ -233,6 +234,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private hasSplit = false;
 	private lastDetailSignature: string | undefined;
 	private readonly loadingProgress = this._register(new MutableDisposable<UnmanagedProgress>());
+	private toolbarLoadingSpinner: HTMLElement | undefined;
+	private isInboxDataLoading = false;
 
 	static getActiveInstance(): InboxNotificationsView | undefined {
 		return InboxNotificationsView.activeInstance;
@@ -420,7 +423,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 
 		const toolbarActions = toolbar.appendChild($('.inbox-notifications-toolbar-actions'));
-		const toolbarLoadingSpinner = toolbarActions.appendChild($('.inbox-notifications-toolbar-spinner.hidden'));
+		const toolbarLoadingSpinner = this.toolbarLoadingSpinner = toolbarActions.appendChild($('.inbox-notifications-toolbar-spinner.hidden'));
 		toolbarLoadingSpinner.setAttribute('role', 'status');
 		toolbarLoadingSpinner.setAttribute('aria-live', 'polite');
 		toolbarLoadingSpinner.setAttribute('aria-label', localize('inboxNotifications.loading.ariaLabel', "Inbox is updating"));
@@ -428,7 +431,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		toolbarLoadingSpinnerIcon.setAttribute('aria-hidden', 'true');
 		this._register(autorun(reader => {
 			const isLoading = this.inboxNotificationsService.isLoading.read(reader);
-			toolbarLoadingSpinner.classList.toggle('hidden', !isLoading);
+			this.isInboxDataLoading = isLoading;
+			this.updateToolbarLoadingSpinner();
 		}));
 
 		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
@@ -545,6 +549,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.deferredUpdatesBanner.classList.add('hidden');
 			this.deferredUpdatesBannerLabel.textContent = '';
 			this.announcedDeferredNewNotificationsCount = 0;
+			this.updateToolbarLoadingSpinner();
 			return;
 		}
 
@@ -557,6 +562,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.announcedDeferredNewNotificationsCount = this.deferredNewNotificationsCount;
 			status(message);
 		}
+		this.updateToolbarLoadingSpinner();
+	}
+
+	private updateToolbarLoadingSpinner(): void {
+		if (!this.toolbarLoadingSpinner) {
+			return;
+		}
+		const showDeferredIndicator = !!this.deferredItems && this.deferredNewNotificationsCount > 0;
+		this.toolbarLoadingSpinner.classList.toggle('hidden', !(this.isInboxDataLoading || showDeferredIndicator));
 	}
 
 	private countNewNotifications(previousItems: readonly IInboxNotificationItem[], currentItems: readonly IInboxNotificationItem[]): number {
@@ -1633,21 +1647,68 @@ export class InboxNotificationsView extends AbstractCustomView {
 			].filter((value, index, all) => all.indexOf(value) === index);
 			for (const candidateSessionId of candidateSessionIds) {
 				try {
-					await provider.setAgentMergeEnabled(candidateSessionId, true);
-					const currentOverrides = provider.getAgentMergeSessionState(candidateSessionId)?.overrides;
-					await provider.setAgentMergeOverrides(candidateSessionId, {
-						...currentOverrides,
-						...overrides,
-					});
+					await this.applyAgentMergeOverrides(provider, candidateSessionId, overrides);
 					return 'success';
 				} catch (error) {
 					lastError = error;
+					try {
+						await this.warmAgentMergeSessionState(provider, candidateSessionId);
+						await this.applyAgentMergeOverrides(provider, candidateSessionId, overrides);
+						return 'success';
+					} catch (warmRetryError) {
+						lastError = warmRetryError;
+					}
 				}
+			}
+		}
+		if (item.sessionResource) {
+			try {
+				await this.sessionsService.openSession(item.sessionResource, { preserveFocus: true, source: 'notification' });
+				for (const provider of providers) {
+					const candidateSessionIds = [
+						session.sessionId,
+						session.resource.toString(),
+						`${provider.id}:${session.resource.toString()}`,
+					].filter((value, index, all) => all.indexOf(value) === index);
+					for (const candidateSessionId of candidateSessionIds) {
+						try {
+							await this.warmAgentMergeSessionState(provider, candidateSessionId);
+							await this.applyAgentMergeOverrides(provider, candidateSessionId, overrides);
+							return 'success';
+						} catch (retryError) {
+							lastError = retryError;
+						}
+					}
+				}
+			} catch (openError) {
+				lastError = openError;
 			}
 		}
 		throw lastError instanceof Error
 			? lastError
 			: new Error(`Unable to run Agent Merge action inline for session provider: ${session.providerId}`);
+	}
+
+	private async applyAgentMergeOverrides(provider: IAgentHostSessionsProvider, sessionId: string, overrides: AgentMergeSessionOverrides): Promise<void> {
+		await provider.setAgentMergeEnabled(sessionId, true);
+		const currentOverrides = provider.getAgentMergeSessionState(sessionId)?.overrides;
+		await provider.setAgentMergeOverrides(sessionId, {
+			...currentOverrides,
+			...overrides,
+		});
+	}
+
+	private async warmAgentMergeSessionState(provider: IAgentHostSessionsProvider, sessionId: string): Promise<void> {
+		const store = new DisposableStore();
+		try {
+			const state = provider.getAgentMergeClientStateObservable(sessionId);
+			store.add(autorun(reader => {
+				state.read(reader);
+			}));
+			await Promise.resolve();
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private getInlineAgentMergeProvidersForSession(sessionProviderId: string): readonly IAgentHostSessionsProvider[] {
