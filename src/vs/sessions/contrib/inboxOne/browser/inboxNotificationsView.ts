@@ -13,8 +13,9 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/browser/ui/sash/sash.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { timeout } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -28,7 +29,6 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { UnmanagedProgress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -69,7 +69,6 @@ import {
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
-import { INBOX_NOTIFICATIONS_VIEW_ID } from './inboxNotificationsConstants.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 import { pickFunWorkingMessage } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatThinkingContentPart.js';
 
@@ -233,7 +232,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private layoutWidth = 0;
 	private hasSplit = false;
 	private lastDetailSignature: string | undefined;
-	private readonly loadingProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private toolbarLoadingSpinner: HTMLElement | undefined;
 	private isInboxDataLoading = false;
 
@@ -405,20 +403,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 			filterCompletedButton.checked = showingCompleted;
 			filterCompletedButton.element.classList.toggle('active', showingCompleted);
 			filterCompletedButton.element.setAttribute('aria-pressed', String(showingCompleted));
-		}));
-
-		this._register(autorun(reader => {
-			const isLoading = this.inboxNotificationsService.isLoading.read(reader);
-			if (isLoading) {
-				if (!this.loadingProgress.value) {
-					this.loadingProgress.value = this.instantiationService.createInstance(UnmanagedProgress, {
-						location: INBOX_NOTIFICATIONS_VIEW_ID,
-						title: localize('inboxNotifications.loading.progressTitle', "Updating"),
-					});
-				}
-			} else {
-				this.loadingProgress.clear();
-			}
 		}));
 
 		const toolbarActions = toolbar.appendChild($('.inbox-notifications-toolbar-actions'));
@@ -1639,40 +1623,25 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 		let lastError: unknown;
 		for (const provider of providers) {
-			const candidateSessionIds = [
-				session.sessionId,
-				session.resource.toString(),
-				`${provider.id}:${session.resource.toString()}`,
-			].filter((value, index, all) => all.indexOf(value) === index);
+			const candidateSessionIds = this.collectAgentMergeCandidateSessionIds(session, provider);
 			for (const candidateSessionId of candidateSessionIds) {
 				try {
-					await this.applyAgentMergeOverrides(provider, candidateSessionId, overrides);
+					await this.applyAgentMergeOverridesWithRetry(provider, candidateSessionId, overrides);
 					return 'success';
 				} catch (error) {
 					lastError = error;
-					try {
-						await this.warmAgentMergeSessionState(provider, candidateSessionId);
-						await this.applyAgentMergeOverrides(provider, candidateSessionId, overrides);
-						return 'success';
-					} catch (warmRetryError) {
-						lastError = warmRetryError;
-					}
 				}
 			}
 		}
 		if (item.sessionResource) {
 			try {
 				await this.sessionsService.openSession(item.sessionResource, { preserveFocus: true, source: 'notification' });
+				const refreshedSession = this.sessionsManagementService.getSession(item.sessionResource) ?? session;
 				for (const provider of providers) {
-					const candidateSessionIds = [
-						session.sessionId,
-						session.resource.toString(),
-						`${provider.id}:${session.resource.toString()}`,
-					].filter((value, index, all) => all.indexOf(value) === index);
+					const candidateSessionIds = this.collectAgentMergeCandidateSessionIds(refreshedSession, provider);
 					for (const candidateSessionId of candidateSessionIds) {
 						try {
-							await this.warmAgentMergeSessionState(provider, candidateSessionId);
-							await this.applyAgentMergeOverrides(provider, candidateSessionId, overrides);
+							await this.applyAgentMergeOverridesWithRetry(provider, candidateSessionId, overrides);
 							return 'success';
 						} catch (retryError) {
 							lastError = retryError;
@@ -1686,6 +1655,51 @@ export class InboxNotificationsView extends AbstractCustomView {
 		throw lastError instanceof Error
 			? lastError
 			: new Error(`Unable to run Agent Merge action inline for session provider: ${session.providerId}`);
+	}
+
+	private collectAgentMergeCandidateSessionIds(session: { readonly sessionId: string; readonly resource: URI }, provider: IAgentHostSessionsProvider): readonly string[] {
+		const candidates = new Set<string>([
+			session.sessionId,
+			session.resource.toString(),
+			`${provider.id}:${session.resource.toString()}`,
+		]);
+
+		const activeSession = this.sessionsService.activeSession.get()?.session;
+		if (activeSession && activeSession.resource.toString() === session.resource.toString()) {
+			candidates.add(activeSession.sessionId);
+		}
+
+		for (const providerSession of provider.getSessions()) {
+			if (providerSession.resource.toString() === session.resource.toString()) {
+				candidates.add(providerSession.sessionId);
+			}
+		}
+
+		return [...candidates];
+	}
+
+	private async applyAgentMergeOverridesWithRetry(provider: IAgentHostSessionsProvider, sessionId: string, overrides: AgentMergeSessionOverrides): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 4; attempt++) {
+			try {
+				if (attempt > 0) {
+					await this.warmAgentMergeSessionState(provider, sessionId);
+				}
+				await this.applyAgentMergeOverrides(provider, sessionId, overrides);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (!this.isAgentMergeConnectionUnavailableError(error) || attempt === 3) {
+					break;
+				}
+				await timeout(200 + (attempt * 200));
+			}
+		}
+		throw lastError;
+	}
+
+	private isAgentMergeConnectionUnavailableError(error: unknown): boolean {
+		return error instanceof Error && error.message.includes('Cannot update Agent Merge state without a running session connection');
 	}
 
 	private async applyAgentMergeOverrides(provider: IAgentHostSessionsProvider, sessionId: string, overrides: AgentMergeSessionOverrides): Promise<void> {
@@ -1704,7 +1718,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			store.add(autorun(reader => {
 				state.read(reader);
 			}));
-			await Promise.resolve();
+			await timeout(250);
 		} finally {
 			store.dispose();
 		}
