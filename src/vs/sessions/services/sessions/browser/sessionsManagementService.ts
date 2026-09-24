@@ -9,8 +9,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { IObservable, ObservableSet, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -84,6 +84,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	/** Tracks the Automation dialog's in-progress session draft. */
 	private readonly _automationSession = observableValue<ISession | undefined>(this, undefined);
 	readonly automationSession: IObservable<ISession | undefined> = this._automationSession;
+
+	private readonly _sessionDrafts = new ObservableSet<ISession>();
+	readonly sessionDrafts: IObservable<ReadonlySet<ISession>> = this._sessionDrafts.observable;
 
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
@@ -578,6 +581,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			? provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options))
 			: provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		this._unlistedNewSessions.set(session.resource, session);
+		this._sessionDrafts.add(session);
 		try {
 			options?.onSessionCreated?.(session);
 			const supportsWorktreeConfiguration = !!folderUri && provider.getSessionTypes(folderUri)
@@ -585,6 +589,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			await this._configureNewSession(provider, session, options, supportsWorktreeConfiguration, this._disposeCts.token, folderUri);
 			await this._checkSessionDraftTarget(provider, session.sessionType, folderUri);
 		} catch (error) {
+			this._sessionDrafts.delete(session);
 			this._unlistedNewSessions.delete(session.resource);
 			provider.deleteNewSession(session.sessionId);
 			throw error;
@@ -598,6 +603,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const isPublished = () => published || provider.getSessions().some(candidate =>
 			candidate.sessionId === session.sessionId || this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource));
 		const release = () => {
+			this._sessionDrafts.delete(session);
 			this._unlistedNewSessions.delete(session.resource);
 			lifetime.dispose();
 			if (!isPublished()) {
@@ -630,8 +636,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					checkDisposed();
 					const prepared = await this._prepareNewSessionForSend(provider, session, requestActivity, false, requestOptions.query, preparationCts.token);
 					this._unlistedNewSessions.delete(session.resource);
-					provider = prepared.provider;
-					session = prepared.session;
+					transaction(tx => {
+						this._sessionDrafts.delete(session, tx);
+						provider = prepared.provider;
+						session = prepared.session;
+						this._sessionDrafts.add(session, tx);
+					});
 					this._unlistedNewSessions.set(session.resource, session);
 					inFlightRequest.value = this.trackInFlightNewSessionRequest(session);
 					checkDisposed();
@@ -641,6 +651,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					// Await the actual send outcome: cancellation may race provider publication.
 					const result = await this._sendNewChatRequestInBackground(provider, session, requestOptions, newSessionConfig);
 					published = true;
+					this._sessionDrafts.delete(session);
 					this._unlistedNewSessions.delete(session.resource);
 					session = result ?? session;
 					return result;
@@ -668,6 +679,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		lifetime.add(this.onDidReplaceSession(({ from, to }) => {
 			if (from.providerId === session.providerId && from.sessionId === session.sessionId) {
 				published = true;
+				this._sessionDrafts.delete(session);
 				this._unlistedNewSessions.delete(session.resource);
 				session = to;
 			}
