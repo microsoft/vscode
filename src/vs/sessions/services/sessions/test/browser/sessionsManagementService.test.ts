@@ -2497,15 +2497,20 @@ suite('SessionsManagementService', () => {
 		const send = service.sendNewChatRequest(session, { query: 'hi' });
 		await timeout(0);
 		const duringCreate = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		const inputDuringCreate = service.getInFlightNewSessionRequest(session.resource);
 		createChatBarrier.complete();
 		await send;
 
 		assert.deepStrictEqual({
 			duringCreate,
+			inputDuringCreate,
 			afterSend: service.getInFlightNewSessionRequests(),
+			inputAfterSend: service.getInFlightNewSessionRequest(session.resource),
 		}, {
 			duringCreate: ['s1'],
+			inputDuringCreate: { query: 'hi', attachedContext: undefined },
 			afterSend: [],
+			inputAfterSend: undefined,
 		});
 	});
 

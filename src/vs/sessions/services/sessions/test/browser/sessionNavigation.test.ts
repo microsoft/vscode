@@ -158,6 +158,7 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
+	getInFlightNewSessionRequest(): undefined { return undefined; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
 
