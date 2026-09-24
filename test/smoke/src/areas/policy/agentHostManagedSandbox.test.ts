@@ -14,9 +14,8 @@ import { shellEchoResponseMatcher } from '../chat/shellScenarios';
 import { managedSettingsEnv, managedSettingsFixture } from './managedSettings';
 
 export function setup(logger: Logger): void {
-	if (process.platform !== 'darwin' && process.platform !== 'linux') {
-		return;
-	}
+	const isWindows = process.platform === 'win32';
+	const fileSystemPlatform = isWindows ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
 	for (const localSandbox of ['off', 'on']) {
 		describe(`Policy Plumbing (Agent Host managed sandbox, local ${localSandbox})`, function () {
 			this.timeout(5 * 60 * 1000);
@@ -25,7 +24,7 @@ export function setup(logger: Logger): void {
 			let probeDirectory: string | undefined;
 			let probeFile: string;
 			const settings: Record<string, unknown> = {
-				'chat.agent.sandbox.enabled': localSandbox,
+				[isWindows ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled']: localSandbox,
 				'chat.agent.sandbox.allowUnsandboxedCommands': true,
 			};
 			const scenario = `smoke-managed-sandbox-${localSandbox}`;
@@ -40,7 +39,7 @@ export function setup(logger: Logger): void {
 				// Prove the file is writable outside the sandbox, then require the
 				// SDK shell to leave it unchanged. This is never a user's file.
 				fs.writeFileSync(probeFile, original);
-				settings[`chat.agent.sandbox.fileSystem.${process.platform === 'darwin' ? 'mac' : 'linux'}`] = { denyWrite: [probeDirectory] };
+				settings[`chat.agent.sandbox.fileSystem.${fileSystemPlatform}`] = { denyWrite: [probeDirectory] };
 				policy.set({ sandbox: { enabled: true, allowBypass: false } });
 			});
 
@@ -52,9 +51,11 @@ export function setup(logger: Logger): void {
 						{
 							kind: 'tool-calls',
 							toolCalls: [{
-								toolNamePattern: /^bash$/,
+								toolNamePattern: isWindows ? /^(pwsh|powershell)$/i : /^bash$/,
 								arguments: {
-									command: `if printf changed > '${probeFile.replace(/'/g, `'\\''`)}'; then echo UNEXPECTED_UNSANDBOXED_WRITE; else echo ${blocked}; fi; echo ${completed}`,
+									command: isWindows
+										? `try { Set-Content -LiteralPath '${probeFile.replace(/'/g, `''`)}' -Value changed -NoNewline -ErrorAction Stop; Write-Output UNEXPECTED_UNSANDBOXED_WRITE } catch [System.UnauthorizedAccessException] { Write-Output ${blocked} }; Write-Output ${completed}`
+										: `if printf changed > '${probeFile.replace(/'/g, `'\\''`)}'; then echo UNEXPECTED_UNSANDBOXED_WRITE; else echo ${blocked}; fi; echo ${completed}`,
 								},
 							}],
 						},
