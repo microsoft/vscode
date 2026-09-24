@@ -512,6 +512,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			return;
 		}
 
+		const previousListScrollTop = this.scrollableElement.getScrollPosition().scrollTop;
 		const previouslyFocusedElement = getActiveElement();
 		const hadFocusWithinList = isHTMLElement(previouslyFocusedElement) && list.contains(previouslyFocusedElement);
 		const previouslyFocusedCard = hadFocusWithinList
@@ -578,6 +579,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		this.scrollableElement.scanDomNode();
+		if (!revealTarget) {
+			this.scrollableElement.setScrollPosition({ scrollTop: previousListScrollTop });
+		}
 	}
 
 	private renderSection(list: HTMLElement, key: string, label: string, items: readonly IInboxNotificationItem[], accentPriority: InboxNotificationPriority | undefined): void {
