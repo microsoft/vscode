@@ -171,6 +171,41 @@ The usage sidecar diagnostics are separate from provider OTel and product teleme
 The native SDK's output TTFT includes reasoning and tool-call output, so it is
 not interchangeable with renderer first-response-text latency.
 
+## Sandbox Connection Product Scorecard
+
+The renderer's [cloud sandbox telemetry owner](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.ts)
+uses ordinary VS Code product telemetry, not provider OTel. Existing telemetry-level
+and administrator controls apply; no additional setting or exporter is needed.
+
+- `cloudSandboxConnectionOutcome`: one `connect` or `recover` outcome (`success`,
+  `failure`, `cancelled`) and `durationMs`. Public connects start before credential
+  minting, waking and sealed-token waits; direct factory dials start at connection
+  setup. `stage` is `credentials` or `connection`. Readiness means authenticated
+  AHP initialization/state restoration, not WebSocket open. Reuse is excluded.
+  Retries, backoff and outer-client replacement stay in the same operation;
+  an initial handshake retry is not a healthy connection drop.
+- `cloudSandboxConnectionHealth`: five-minute aggregate deltas across tracked
+  connections, plus each connection's final delta at teardown. `connectedMs`
+  includes quiet healthy connections and excludes outages. `unexpectedDisconnects`
+  excludes intentional disconnect, cancellation, account/feature teardown and
+  shutdown. `receivedFrames` counts inbound relay frames, including control,
+  malformed, chunk and recovery traffic; it is not unique messages or bytes.
+
+Primary stability measure: `sum(unexpectedDisconnects) / (sum(connectedMs) / 3600000) * 100`
+unexpected disconnects per 100 connected hours. Ready rate is
+`successes / (successes + failures)`, with cancellations shown separately.
+Report successful p50/p95 ready/recovery durations alongside failure and cancellation
+rates; use p99 only with enough samples. Compare like traffic levels and product
+surfaces using existing `commitHash`, `version`, `common.platform`,
+`common.product` and `common.isAgentsWindow` properties (including web Agents).
+
+Both versions need this instrumentation; missing historical measurements cannot
+be reconstructed, and a version comparison alone is not causal proof. Deltas reset
+before reporting, but hard crashes can lose the final partial interval or an
+unfinished outcome; delivery is not exactly once. Browser timer throttling can
+delay summaries. No connection identifiers, credentials, addresses or error text
+are emitted, and the existing request aggregation is unchanged.
+
 ## Sources of Truth
 
 Agent Host owns transport routing, optional interception and persistence, resource normalization, and cross-provider trace context. Each provider owns the telemetry it produces:

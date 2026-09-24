@@ -18,6 +18,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
+import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -209,6 +210,7 @@ export function getToolInvocationA11yDescription(
 	resultDetails: ResultDetails | undefined,
 	isComplete: boolean,
 	originMessage?: string,
+	resultError?: string | boolean,
 ): string {
 	const parts: string[] = [];
 
@@ -225,9 +227,13 @@ export function getToolInvocationA11yDescription(
 		parts.push(toolDataDesc);
 	}
 
-	if (isComplete && resultDetails) {
+	if (isComplete) {
 		const details = getResultDetailsDescription(resultDetails);
-		if (details.isError) {
+		const terminalData = toolSpecificData?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(toolSpecificData) : undefined;
+		const error = formatChatToolError(resultError, terminalData?.terminalCommandState?.exitCode);
+		if (error) {
+			parts.unshift(error);
+		} else if (details.isError) {
 			parts.unshift(localize('errored', "Errored"));
 		}
 		if (details.input && !toolDataDesc) {
@@ -474,6 +480,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 						resultDetails,
 						isComplete,
 						originMessage,
+						IChatToolInvocation.resultError(part),
 					);
 					if (description) {
 						contentParts.push({ partIndex, text: description });
@@ -489,6 +496,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					part.resultDetails,
 					part.isComplete,
 					part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined,
+					part.resultError,
 				);
 				if (description) {
 					contentParts.push({ partIndex, text: description });

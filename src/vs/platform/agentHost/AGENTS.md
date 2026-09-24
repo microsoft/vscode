@@ -461,6 +461,8 @@ Client-synced skills are advertised through `turn/start.additionalContext`, usin
 
 The thread's permission profiles grant read-only access to its enabled skill directories, reapplied through the existing start/resume path when those directories or the selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. The filesystem override preserves the provider's existing restrictions and profile inheritance.
 
+POSIX profiles start from an empty restricted filesystem policy and explicitly grant baseline access, including read-only workspace metadata. Do not replace that default confinement with explicit deny entries: Codex preserves denied reads even after approval, which prevents `require_escalated` from executing outside the sandbox. Both launch and per-thread skill profiles must allow approved commands to escalate without changing permissions for subsequent ordinary commands.
+
 On Linux, the inherited runtime profile also grants read access to the canonical Codex executable, which the sandbox helper must re-execute. Keep this grant outside the per-thread filesystem table so skill updates cannot replace it; do not widen access to the SDK directory or disable the sandbox.
 
 Do not rely on `selectedCapabilityRoots` for client skills: the pinned Codex launch does not advertise them, and `thread/resume` cannot update those roots. Never register those cache directories with the process-global `skills/extraRoots/set`: workspace-specific bundles and concurrently retained revisions would leak into unrelated sessions and be rediscovered as duplicate native user skills.

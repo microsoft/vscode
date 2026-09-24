@@ -5779,6 +5779,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,
 		};
 
@@ -5911,6 +5912,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
 			hideFromTranscript: options.hideFromTranscript,
+			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,
 		};
 

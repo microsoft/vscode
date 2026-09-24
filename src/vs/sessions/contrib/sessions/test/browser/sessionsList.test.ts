@@ -61,7 +61,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -2417,6 +2417,36 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, State: Completed, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('archived filter default', () => {
+		function getExcludeArchived(settingValue: boolean, storedValue?: boolean): boolean {
+			const harness = createListHarness(disposables, []);
+			void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, settingValue);
+			if (storedValue !== undefined) {
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.excludeArchived', storedValue, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			return list.isExcludeArchived();
+		}
+
+		test('uses the setting only until the user has changed the filter', () => {
+			assert.deepStrictEqual({
+				defaultHidden: getExcludeArchived(false),
+				experimentShows: getExcludeArchived(true),
+				existingHiddenChoice: getExcludeArchived(true, true),
+				existingShownChoice: getExcludeArchived(false, false),
+			}, {
+				defaultHidden: true,
+				experimentShows: false,
+				existingHiddenChoice: true,
+				existingShownChoice: false,
 			});
 		});
 	});

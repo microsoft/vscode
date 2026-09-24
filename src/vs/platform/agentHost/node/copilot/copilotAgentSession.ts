@@ -73,7 +73,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
@@ -860,7 +860,7 @@ export class CopilotAgentSession extends Disposable {
 	 * the same id, so mappings live until session teardown.
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
-	/** Canonical names for `read_agent`/`write_agent` labels; seeded from persisted events and kept for the session lifetime like the map above. */
+	/** Display names for coordination tools, retained across turns and refreshed from lifecycle and task metadata. */
 	private readonly _subagentDisplayNamesByAgentId = new Map<string, string>();
 	private readonly _resolveAgentName = (agentId: string) => this._subagentDisplayNamesByAgentId.get(agentId);
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
@@ -1780,6 +1780,10 @@ export class CopilotAgentSession extends Disposable {
 			for (const task of tasks.tasks) {
 				if (task.type !== 'agent') {
 					continue;
+				}
+				const displayName = task.displayName?.trim() || task.description.trim();
+				if (displayName && !this._subagentDisplayNamesByAgentId.get(task.id)?.trim()) {
+					this._subagentDisplayNamesByAgentId.set(task.id, displayName);
 				}
 				if (activityRevisions.get(task.id) !== this._subagentActivityRevisions.get(task.id)) {
 					continue;
@@ -3778,9 +3782,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _seedSubagentDisplayNames(events: readonly SessionEvent[]): void {
-		for (const event of events) {
-			if (event.type === 'subagent.started' && event.agentId && !this._subagentDisplayNamesByAgentId.has(event.agentId)) {
-				this._subagentDisplayNamesByAgentId.set(event.agentId, event.data.agentDisplayName);
+		for (const [agentId, displayName] of getCopilotSubagentDisplayNames(events)) {
+			if (!this._subagentDisplayNamesByAgentId.get(agentId)?.trim()) {
+				this._subagentDisplayNamesByAgentId.set(agentId, displayName);
 			}
 		}
 	}
@@ -3799,8 +3803,15 @@ export class CopilotAgentSession extends Disposable {
 		if (abortTarget) {
 			this._cancelFusionEvents(abortTarget.id);
 		}
-		if (abortingTurn) {
+		if (abortingTurn || this._activeSubagentAgentIds.size > 0) {
 			this._dropLateRootTurnEvents = true;
+			// Aborted children are not guaranteed to emit a terminal event before reuse.
+			for (const agentId of this._activeSubagentAgentIds) {
+				this._completeSubagentTurn(agentId);
+			}
+			this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
+			this._subagentActivityRevisions.clear();
+			this._subagentTaskStatusRevision++;
 		}
 		const abortBarrier = this._abortBarrier ??= new DeferredPromise<void>();
 		try {
@@ -5354,6 +5365,7 @@ export class CopilotAgentSession extends Disposable {
 		const sessionId = this.sessionId;
 
 		this._register(wrapper.onSystemNotification(e => {
+			this._seedSubagentDisplayNames([e]);
 			const notification = buildCopilotSystemNotification(e);
 			if (!notification) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring system.notification kind=${e.data.kind.type}`);
@@ -7726,10 +7738,12 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentCompleted(e => {
+			this._seedSubagentDisplayNames([e]);
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
+			this._seedSubagentDisplayNames([e]);
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
 		}));
 
