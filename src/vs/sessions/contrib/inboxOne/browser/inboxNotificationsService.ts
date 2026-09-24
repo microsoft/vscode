@@ -339,6 +339,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _previewCache = new LRUCache<string, string>(PREVIEW_CACHE_SIZE);
 	private readonly _previewInFlight = new Set<string>();
 	private readonly _previewCancellationSources = new Set<CancellationTokenSource>();
+	/**
+	 * Signatures whose published preview is a fallback (the item's own description), used because
+	 * the model could not produce one (e.g. no utility model available). Tracked so the pending
+	 * state resolves instead of hanging, and so these can be dropped and retried when language
+	 * models (re)appear — unlike a real generated preview, which is cached.
+	 */
+	private readonly _previewFallbackSignatures = new Set<string>();
 
 	private readonly _detailSummaries: ISettableObservable<ReadonlyMap<string, IInboxDetailSummary>>;
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
@@ -412,6 +419,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			this._previewCancellationSources.clear();
 			this._previewInFlight.clear();
+			this._previewFallbackSignatures.clear();
 			this._detailSummaryInFlight.clear();
 		}));
 		this._register(autorun(reader => {
@@ -484,8 +492,24 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		// Card previews are generated on demand as cards become visible (see requestPreview),
 		// so hidden or dismissed items don't fan out utility-model traffic before the Inbox
 		// is even opened. When language models (re)appear, drop transient-empty detail
-		// summaries so a re-render retries them.
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.invalidateEmptyDetailSummaries()));
+		// summaries and preview fallbacks so a re-render retries them.
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+			this.invalidateEmptyDetailSummaries();
+			this.invalidatePreviewFallbacks();
+		}));
+	}
+
+	private invalidatePreviewFallbacks(): void {
+		if (this._previewFallbackSignatures.size === 0) {
+			return;
+		}
+		const current = this._previews.get();
+		const next = new Map(current);
+		for (const signature of this._previewFallbackSignatures) {
+			next.delete(signature);
+		}
+		this._previewFallbackSignatures.clear();
+		this._previews.set(next, undefined);
 	}
 
 	private invalidateEmptyDetailSummaries(): void {
@@ -528,7 +552,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this.publishPreview(signature, cached);
 			return;
 		}
-		void this.generatePreview(signature, inputText);
+		void this.generatePreview(signature, inputText, item.description);
 	}
 
 	private publishPreview(signature: string, preview: string): void {
@@ -541,16 +565,27 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		this._previews.set(next, undefined);
 	}
 
-	private async generatePreview(signature: string, inputText: string): Promise<void> {
+	private async generatePreview(signature: string, inputText: string, fallback: string): Promise<void> {
 		const endLoading = this.beginLoadingOperation();
 		this._previewInFlight.add(signature);
 		const cts = new CancellationTokenSource();
 		this._previewCancellationSources.add(cts);
 		try {
 			const preview = await this._utilityLimiter.queue(() => this.invokePreviewModel(inputText, cts.token)) as string | undefined;
-			if (preview && !cts.token.isCancellationRequested) {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			if (preview) {
+				this._previewFallbackSignatures.delete(signature);
 				this._previewCache.set(signature, preview);
 				this.publishPreview(signature, preview);
+			} else if (fallback) {
+				// The model produced nothing (no utility model, refusal, or empty). Resolve the
+				// pending state with the item's own description so the card doesn't hang on a
+				// loading message. Not cached and tracked as a fallback, so it retries when a
+				// language model (re)appears.
+				this._previewFallbackSignatures.add(signature);
+				this.publishPreview(signature, fallback);
 			}
 		} catch (error) {
 			onUnexpectedError(error);

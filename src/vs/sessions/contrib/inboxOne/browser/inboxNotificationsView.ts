@@ -829,15 +829,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		const descriptionEl = card.appendChild($('.inbox-notifications-item-description', undefined, item.description));
+		const descriptionEl = card.appendChild($('.inbox-notifications-item-description'));
 		if (item.previewSignature) {
 			this.inboxNotificationsService.requestPreview(item);
 			const signature = item.previewSignature;
+			// Needs-input cards never show the generic "Answer the pending questions below." text:
+			// while the model-written summary is still generating, show a playful working message so
+			// the card only ever surfaces the summary (or that it is on its way). If generation
+			// cannot produce one, the service publishes the description as a fallback, which resolves
+			// this pending state. Other card kinds keep their concrete description while pending.
+			const pendingText = item.needsInputPart ? `${pickFunWorkingMessage()}…` : item.description;
 			this.renderedListDisposables.add(autorun(reader => {
 				const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
-				descriptionEl.textContent = preview ?? item.description;
+				descriptionEl.textContent = preview ?? pendingText;
 				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
 			}));
+		} else {
+			descriptionEl.textContent = item.description;
 		}
 		this.renderNeedsInputPart(card, item, this.renderedListDisposables);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));

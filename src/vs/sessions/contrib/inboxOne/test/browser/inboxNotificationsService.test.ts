@@ -476,6 +476,25 @@ suite('InboxNotificationsService', () => {
 		assert.ok(firstSignature && firstSignature.length > 0);
 	});
 
+	test('resolves the preview pending state with a fallback when no model is available', async () => {
+		// The fixture's language model mock returns no models, so generation cannot produce a
+		// preview. The service must still resolve the pending state by publishing the item's own
+		// description as a fallback, so a needs-input card never hangs on its loading message.
+		const fixture = createFixture([
+			createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'waiting for user answer' }),
+		]);
+		const item = fixture.service.notifications.get()[0];
+		assert.ok(item.previewSignature);
+		fixture.service.requestPreview(item);
+
+		const signature = item.previewSignature!;
+		const deadline = Date.now() + 2000;
+		while (fixture.service.previews.get().get(signature) === undefined && Date.now() < deadline) {
+			await new Promise(resolve => setTimeout(resolve, 5));
+		}
+		assert.strictEqual(fixture.service.previews.get().get(signature), item.description);
+	});
+
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
 		const chatResource = URI.parse('test:///chat/repeat-question');
 		const chatService = new TestChatService();
