@@ -111,6 +111,8 @@ type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['g
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
+// Remove this compatibility signature once the pinned SDK exposes startServers (github/copilot-agent-runtime#22835).
+type McpListWithOptions = (options: { startServers: boolean }) => ReturnType<CopilotSession['rpc']['mcp']['list']>;
 
 interface IClientToolSdkPolicy {
 	readonly overridesBuiltInTool?: true;
@@ -3989,7 +3991,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._getDesiredMcpServerEnablementByName().size === 0) {
 			return;
 		}
-		const { servers } = await this._wrapper.session.rpc.mcp.list({ startServers: false });
+		const { servers } = await (this._wrapper.session.rpc.mcp.list as McpListWithOptions)({ startServers: false });
 		this._markMcpLaunchConfigurationDirty();
 		const desiredEnablement = this._getDesiredMcpServerEnablementByName();
 		if (desiredEnablement.size === 0) {
@@ -6803,7 +6805,7 @@ export class CopilotAgentSession extends Disposable {
 		const requestVersion = ++this._mcpInventoryRequestVersion;
 		while (!this._store.isDisposed) {
 			const lifecycleVersion = this._mcpLifecycleVersion;
-			const result = await mcpRpc.list({ startServers: false });
+			const result = await (mcpRpc.list as McpListWithOptions)({ startServers: false });
 			if (this._store.isDisposed || requestVersion !== this._mcpInventoryRequestVersion) {
 				return;
 			}

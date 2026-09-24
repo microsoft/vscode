@@ -217,10 +217,51 @@ suite('ChatMcpServersStartingContentPart', () => {
 
 		assert.deepStrictEqual({
 			text: part.domNode.textContent,
+			hidden: part.domNode.style.display === 'none',
 			requests,
 		}, {
-			text: 'Waiting for MCP servers alpha, beta... Skip',
+			text: '',
+			hidden: true,
 			requests: ['alpha', 'beta'],
+		});
+	});
+
+	test('Skip immediately hides existing startups and restores focus while allowing new startups', async () => {
+		const accepted = new DeferredPromise<void>();
+		const input = document.createElement('input');
+		attach(input);
+		const alpha = { id: 'a', name: 'alpha', blocking: true, background: () => accepted.p };
+		const beta = { id: 'b', name: 'beta', blocking: false };
+		const { part, servers$, getFinishedCount, getDisposedSpinners } = createPart([alpha, beta], true, () => input.focus());
+		attach(part.domNode);
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]')!;
+		link.focus();
+		link.click();
+
+		const immediate = {
+			hidden: part.domNode.style.display === 'none',
+			text: part.domNode.textContent,
+			inputFocused: document.activeElement === input,
+			disposedSpinners: getDisposedSpinners(),
+			finishedCount: getFinishedCount(),
+		};
+		servers$.set([{ ...alpha, blocking: false }, beta], undefined);
+		const afterStateChange = part.domNode.textContent;
+		servers$.set([alpha, beta, { id: 'c', name: 'gamma' }], undefined);
+		const withNewServer = part.domNode.textContent;
+		await accepted.complete();
+		await timeout(0);
+		const afterSkipCompletes = part.domNode.textContent;
+		servers$.set([beta], undefined);
+		servers$.set([alpha, beta], undefined);
+		const afterRestart = part.domNode.textContent;
+
+		assert.deepStrictEqual({ immediate, afterStateChange, withNewServer, afterSkipCompletes, afterRestart }, {
+			immediate: { hidden: true, text: '', inputFocused: true, disposedSpinners: 1, finishedCount: 1 },
+			afterStateChange: '',
+			withNewServer: 'Starting MCP servers gamma...',
+			afterSkipCompletes: 'Starting MCP servers gamma...',
+			afterRestart: 'Waiting for MCP servers alpha... Skip',
 		});
 	});
 
@@ -243,7 +284,7 @@ suite('ChatMcpServersStartingContentPart', () => {
 			const link = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
 			link?.click();
 			await timeout(0);
-			link?.click();
+			part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]')?.click();
 			await timeout(0);
 
 			assert.deepStrictEqual({

@@ -19,16 +19,15 @@ import { IChatContentPart } from './chatContentParts.js';
 import './media/chatMcpServersInteractionContent.css';
 
 /**
- * Renders a lightweight "Starting MCP servers …" progress hint for agent-host
- * sessions. The set of servers still starting is driven by the observable on
- * {@link IChatMcpServersStartingSlow.servers}; when it empties (all servers
- * started, content began arriving, or the turn ended) the part hides itself.
+ * Renders startup progress for agent-host MCP servers, hiding skipped startups
+ * until they leave the starting set.
  */
 export class ChatMcpServersStartingContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
+	private readonly skippedServers = new Set<string>();
 	private skipAction: HTMLAnchorElement | undefined;
 	private hadStartingServers = false;
 	private didNotifyFinished = false;
@@ -51,6 +50,13 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	}
 
 	private render(servers: readonly IChatMcpStartingServer[]): void {
+		const startingIds = new Set(servers.map(server => server.id));
+		for (const id of this.skippedServers) {
+			if (!startingIds.has(id)) {
+				this.skippedServers.delete(id);
+			}
+		}
+		servers = servers.filter(server => !this.skippedServers.has(server.id));
 		const actionHadFocus = !!this.skipAction && dom.isActiveElement(this.skipAction);
 		this.skipAction = undefined;
 		dom.clearNode(this.domNode);
@@ -111,12 +117,23 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 					return;
 				}
 				skipping = true;
+				const servers = this.data.servers.get();
+				for (const server of servers) {
+					this.skippedServers.add(server.id);
+				}
+				this.render(servers);
 				const results = await Promise.allSettled(backgroundableServers.map(server => Promise.resolve().then(() => server.background!())));
 				skipping = false;
-				for (const result of results) {
+				let failed = false;
+				for (const [index, result] of results.entries()) {
 					if (result.status === 'rejected') {
+						failed = true;
+						this.skippedServers.delete(backgroundableServers[index].id);
 						onUnexpectedError(result.reason);
 					}
+				}
+				if (failed && !this._store.isDisposed) {
+					this.render(this.data.servers.get());
 				}
 			},
 		});
