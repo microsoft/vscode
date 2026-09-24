@@ -5,6 +5,9 @@
 
 import type { InitializeResult } from '../state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './agentHostArtifactRemovalMeta.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './agentHostAutomationsMeta.js';
+import { AgentHostDevContainersCapabilityMetaKey } from './agentHostDevContainersMeta.js';
+import { AgentHostTimingCapabilityMetaKey } from './agentHostTimingMeta.js';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -15,17 +18,24 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostCanvasChatInitializationCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
+	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
+	readonly [AgentHostTimingCapabilityMetaKey]?: true;
+	/** Present when Automation execution does not require a client activation or migration handshake. */
+	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(canInitializeCanvasChat = false, canRemoveSessionArtifact = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(canRemoveSessionArtifact = true, canUseDevContainers = false, timing = false, canInitializeCanvasChat = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: canRemoveSessionArtifact ? true : undefined,
+		...(canUseDevContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
+		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(canInitializeCanvasChat ? { [AgentHostCanvasChatInitializationCapabilityMetaKey]: true as const } : {}),
 	};
 }

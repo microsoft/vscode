@@ -11,7 +11,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AhpJsonlLogger, getAhpLogByteLength, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, getAhpLogByteLength, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -21,7 +21,7 @@ suite('AhpJsonlLogger', () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'canvas', transport: 'message_port' },
+			{ logsHome: URI.file('/logs'), logId: 'canvas', connectionId: 'canvas', transport: 'message_port' },
 			fileService, new NullLogService(),
 		));
 		const source = { url: 'http://127.0.0.1:8123/app?credential=preview-secret', expiresAt: '2026-01-01T00:00:00Z' };
@@ -42,7 +42,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));
@@ -126,6 +126,7 @@ suite('AhpJsonlLogger', () => {
 				},
 			},
 		]);
+		assert.strictEqual(isAhpLogFileFor('logical-host', basename(logger.resource)), true);
 
 		for (const entry of parsed) {
 			assert.strictEqual(entry.jsonrpc, '2.0');
@@ -138,7 +139,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
+			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
 			fileService,
 			new NullLogService(),
 		));
@@ -161,10 +162,12 @@ suite('AhpJsonlLogger', () => {
 		assert.deepStrictEqual({
 			firstFileExists: await fileService.exists(firstResource),
 			ids: parsed.map(entry => entry.id),
+			segmentsMatchLogicalHost: [rotated1, rotated2].every(resource => isAhpLogFileFor('logical-host', basename(resource))),
 			rootsAreJsonRpc: parsed.every(entry => entry.jsonrpc === '2.0' && (entry.method !== undefined || (entry.id !== undefined && (Object.hasOwn(entry, 'result') || Object.hasOwn(entry, 'error'))))),
 		}, {
 			firstFileExists: false,
 			ids: [2, 3],
+			segmentsMatchLogicalHost: true,
 			rootsAreJsonRpc: true,
 		});
 	});
@@ -175,7 +178,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', provider));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'batched', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'batched', connectionId: 'batched', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));
@@ -208,7 +211,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'flush-order', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'flush-order', connectionId: 'flush-order', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));
@@ -233,7 +236,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));

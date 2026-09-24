@@ -147,6 +147,22 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('a model with its own row, such as HydraFusion, is left out of every destination', () => {
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot' });
+		const hasOwnRow = (model: ILanguageModelChatMetadataAndIdentifier) => model === auto || model === hydraFusion;
+		const summarizeWithOwnRows = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) =>
+			buildModelPickerDestinations(models, service, [], hasOwnRow).map(destination => ({ id: destination.id, models: destination.models.map(model => model.metadata.name) }));
+		assert.deepStrictEqual(
+			[summarizeWithOwnRows([hydraFusion]), summarizeWithOwnRows([auto, hydraFusion, gpt]), summarize([auto, hydraFusion, gpt])],
+			[
+				[{ id: 'builtIn', models: [] }],
+				[{ id: 'builtIn', models: ['GPT-5.5'] }],
+				// Without its own row, e.g. when this build is too old for it, it stays listed.
+				[{ id: 'builtIn', label: 'GitHub Copilot', models: ['HydraFusion', 'GPT-5.5'] }],
+			],
+		);
+	});
+
 	test('models from only the built-in provider yield a single destination', () => {
 		assert.deepStrictEqual(
 			summarize([auto, gpt, claude]),

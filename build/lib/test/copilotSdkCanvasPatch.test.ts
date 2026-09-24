@@ -19,7 +19,7 @@ import { collectInputFiles, computeState } from '../../npm/installStateHash.ts';
 const before = {
 	'package.json': JSON.stringify({
 		name: '@github/copilot-sdk',
-		version: '1.0.13',
+		version: '1.0.15-preview.2',
 		type: 'module',
 		exports: { '.': { types: './dist/index.d.ts', import: './dist/client.js', require: './dist/cjs/client.js' } },
 	}) + '\n',
@@ -105,7 +105,7 @@ function fixture(t: TestContext) {
 	const manifest: CopilotSdkCanvasPatchManifest = {
 		schemaVersion: 1,
 		packageName: '@github/copilot-sdk',
-		packageVersion: '1.0.13',
+		packageVersion: '1.0.15-preview.2',
 		patchFile: 'copilot-sdk-canvas.patch',
 		patchSha256: hash(patch),
 		before: hashes(before),
@@ -446,7 +446,6 @@ suite('Copilot SDK canvas dependency patch', () => {
 				'build/npm/copilotSdkCanvasPatch.ts',
 				'build/npm/copilot-sdk-canvas.json',
 				'build/npm/copilot-sdk-canvas.patch',
-				'build/npm/copilot-sdk-canvas-from-b3.patch',
 			],
 		);
 	});

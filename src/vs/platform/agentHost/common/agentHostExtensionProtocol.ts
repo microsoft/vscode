@@ -4,9 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
+import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 export { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCanvasChatInitialization, supportsAgentHostChatStateFile, supportsAgentHostDetachedWorktrees, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionInitializeResultMeta } from './meta/agentHostExtensionProtocolMeta.js';
+import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
+export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+
+export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
+export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect';
+export const DevContainerDisconnectExtensionMethod = 'vscode/devContainers/disconnect';
+export const DevContainerRelaySendExtensionMethod = 'vscode/devContainers/relaySend';
+export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayMessage';
+export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
+export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
+export const DevContainerOutputNotification = 'vscode/devContainers/output';
+
+export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString() });
+export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
+export const devContainerConnectResultValidator = vObj({
+	connectionId: vString(),
+	address: vString(),
+	name: vString(),
+	remoteWorkspaceFolder: vString(),
+	hostWorkspaceFolder: vOptionalProp(vString()),
+});
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
@@ -22,6 +45,7 @@ export const CancelAgentHostCanvasApprovalExtensionMethod = 'vscode/cancelCanvas
 export const InitializeCanvasChatExtensionMethod = 'vscode/initializeCanvasChat';
 export const CancelCanvasChatInitializationExtensionMethod = 'vscode/cancelCanvasChatInitialization';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
 export const initializeCanvasChatParamsValidator = vObj({
 	channel: vString(),
@@ -47,6 +71,11 @@ export const removeSessionArtifactParamsValidator = vObj({
 export interface IAgentHostExtensionCommandMap {
 	[InitializeCanvasChatExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
 	[CancelCanvasChatInitializationExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
+	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
+	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
+	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
+	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
+	[DevContainerRelaySendExtensionMethod]: { params: ValidatorType<typeof devContainerRelayMessageValidator>; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
@@ -88,6 +117,13 @@ export interface IAgentHostExtensionCommandMap {
 		/** `data` is base64; at most `AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES` decoded bytes. */
 		result: { data: string; eof: boolean };
 	};
+}
+
+export interface IAgentHostExtensionNotificationMap {
+	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
+	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
+	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
+	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

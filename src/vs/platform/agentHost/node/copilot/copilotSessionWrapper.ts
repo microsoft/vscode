@@ -8,7 +8,11 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../log/common/log.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type CopilotFusionEvent } from './copilotFusionProgress.js';
 
 /** Live SDK notifications received before the owning chat has installed its handlers. */
 export class CopilotSessionEventBuffer {
@@ -53,6 +57,9 @@ export class CopilotSessionEventBuffer {
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
 
+/** Tool lifecycle events emitted by a provisional (not yet committed) Fusion phase. */
+export type CopilotProvisionalFusionToolEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'>;
+
 export interface ICopilotModelCallFinishedEvent {
 	readonly id: string;
 	readonly agentId?: string;
@@ -78,11 +85,18 @@ export class CopilotSessionWrapper extends Disposable {
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
 	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
 	readonly onModelCallFinished = this._onModelCallFinished.event;
+	private readonly _onProvisionalFusionToolEvent = this._register(new Emitter<CopilotProvisionalFusionToolEvent>());
+	/**
+	 * Tool lifecycle from provisional Fusion phases. These never reach the
+	 * typed events because the phase output is not yet part of the parent
+	 * transcript, but a tool that asks for permission still has to be shown
+	 * and completed, so the session decides per tool call.
+	 */
+	readonly onProvisionalFusionToolEvent = this._onProvisionalFusionToolEvent.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 	private _disconnectPromise: Promise<void> | undefined;
-	private _disconnectCompleted = false;
 	private readonly _eventDispatchers = new Map<SessionEventType, (event: SessionEvent) => void>();
 	private readonly _ready = new DeferredPromise<CopilotSession | undefined>();
 	readonly whenReady = this._ready.p;
@@ -94,8 +108,16 @@ export class CopilotSessionWrapper extends Disposable {
 	private _observationError: unknown;
 	private _observationFailed = false;
 	readonly acceptsExternalMessages: boolean;
+	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
+	private readonly _instanceId = generateUuid();
+	private readonly _lifetime = new StopWatch();
+	private _beforeDisconnect: (() => Promise<void>) | undefined;
 
-	constructor(session: CopilotSession | string, earlyEvents?: CopilotSessionEventBuffer) {
+	constructor(
+		session: CopilotSession | string,
+		@ILogService private readonly _logService: ILogService,
+		earlyEvents?: CopilotSessionEventBuffer,
+	) {
 		super();
 		this._sessionId = typeof session === 'string' ? session : session.sessionId;
 		this._earlyEvents = earlyEvents;
@@ -133,6 +155,7 @@ export class CopilotSessionWrapper extends Disposable {
 	private _attach(session: CopilotSession): void {
 		this._session = session;
 		this._register(toDisposable(session.on(event => this.acceptSessionEvent(event))));
+		this._logService.info(this._lifecycleLogMessage('attached'));
 		void this._ready.complete(session);
 	}
 
@@ -142,6 +165,7 @@ export class CopilotSessionWrapper extends Disposable {
 		}
 		if (event.type === 'session.shutdown') {
 			void this._shutdown.complete();
+			this._logService.info(this._lifecycleLogMessage(`shutdown received (${event.data.shutdownType})`));
 		}
 		if (this._earlyEvents) {
 			this._earlyEvents.append(event);
@@ -200,6 +224,12 @@ export class CopilotSessionWrapper extends Disposable {
 	}
 
 	private _dispatch(event: SessionEvent): void {
+		if (isProvisionalFusionConversationEvent(event)) {
+			if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete') {
+				this._onProvisionalFusionToolEvent.fire(event);
+			}
+			return;
+		}
 		const modelCallFinished = parseModelCallFinishedEvent(event);
 		if (modelCallFinished) {
 			this._onModelCallFinished.fire(modelCallFinished);
@@ -223,26 +253,33 @@ export class CopilotSessionWrapper extends Disposable {
 	get lifecycleState(): AgentTurnProviderSessionState {
 		return this._shutdown.isSettled
 			? 'shutdown'
-			: this._disconnectCompleted
+			: this._disconnectRpcState === 'completed'
 				? 'disconnected'
 				: this._disconnectPromise
 					? 'disconnecting'
 					: 'active';
 	}
 
-	/** Disconnects once the request completes or the SDK reports session shutdown. */
+	/** Sets bounded, best-effort cleanup to run once before disconnecting the SDK session. */
+	setBeforeDisconnect(beforeDisconnect: () => Promise<void>): void {
+		this._beforeDisconnect = beforeDisconnect;
+	}
+
+	/** Runs pre-disconnect cleanup, then waits for the disconnect response or SDK shutdown. */
 	disconnect(): Promise<void> {
 		if (!this._session) {
-			this._disconnectCompleted = true;
+			this._disconnectRpcState = 'completed';
 			return Promise.resolve();
 		}
 		if (this._shutdown.isSettled) {
+			this._logService.info(this._lifecycleLogMessage('disconnect skipped after shutdown'));
 			return this._shutdown.p;
 		}
 		if (!this._disconnectPromise) {
-			const disconnectPromise = this.session.disconnect()
-				.then(() => { this._disconnectCompleted = true; })
+			const disconnectPromise = this._disconnect()
 				.catch(error => {
+					this._disconnectRpcState = 'failed';
+					this._logService.warn(this._lifecycleLogMessage('disconnect RPC failed'), error);
 					if (!this._shutdown.isSettled) {
 						if (this._disconnectPromise === disconnectPromise) {
 							this._disconnectPromise = undefined;
@@ -252,12 +289,42 @@ export class CopilotSessionWrapper extends Disposable {
 				});
 			this._disconnectPromise = disconnectPromise;
 		}
-		return Promise.race([this._disconnectPromise, this._shutdown.p]);
+		const result = Promise.race([this._disconnectPromise, this._shutdown.p]);
+		// Observe settlement without delaying the promise returned to the caller.
+		void result.then(
+			() => this._logService.info(this._lifecycleLogMessage('disconnect wait completed')),
+			() => this._logService.info(this._lifecycleLogMessage('disconnect wait failed')),
+		);
+		return result;
+	}
+
+	private _lifecycleLogMessage(event: string): string {
+		return `[Copilot:${this.sessionId}] SDK session ${event}: instanceId=${this._instanceId}, disconnectRpc=${this._disconnectRpcState}, shutdownReceived=${this._shutdown.isSettled}, disposed=${this._store.isDisposed}, lifetimeMs=${Math.round(this._lifetime.elapsed())}`;
+	}
+
+	private async _disconnect(): Promise<void> {
+		const beforeDisconnect = this._beforeDisconnect;
+		this._beforeDisconnect = undefined;
+		if (beforeDisconnect) {
+			await beforeDisconnect();
+		}
+		if (!this._shutdown.isSettled) {
+			this._disconnectRpcState = 'pending';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC started'));
+			await this.session.disconnect();
+			this._disconnectRpcState = 'completed';
+			this._logService.info(this._lifecycleLogMessage('disconnect RPC completed'));
+		}
 	}
 
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
 	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> {
 		return this._onMessageDelta ??= this._sdkEvent('assistant.message_delta');
+	}
+
+	private _onFusionEvent: Event<CopilotFusionEvent> | undefined;
+	get onFusionEvent(): Event<CopilotFusionEvent> {
+		return this._onFusionEvent ??= Event.any(...copilotFusionEventTypes.map(type => this._sdkEvent(type)));
 	}
 
 	private _onMessage: Event<SessionEventPayload<'assistant.message'>> | undefined;
@@ -455,6 +522,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSubagentStarted ??= this._sdkEvent('subagent.started');
 	}
 
+	private _onSubagentConfigured: Event<SessionEventPayload<'subagent.configured'>> | undefined;
+	get onSubagentConfigured(): Event<SessionEventPayload<'subagent.configured'>> {
+		return this._onSubagentConfigured ??= this._sdkEvent('subagent.configured');
+	}
+
 	private _onSubagentCompleted: Event<SessionEventPayload<'subagent.completed'>> | undefined;
 	get onSubagentCompleted(): Event<SessionEventPayload<'subagent.completed'>> {
 		return this._onSubagentCompleted ??= this._sdkEvent('subagent.completed');
@@ -503,6 +575,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
 	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onMcpOAuthCompleted: Event<SessionEventPayload<'mcp.oauth_completed'>> | undefined;
+	get onMcpOAuthCompleted(): Event<SessionEventPayload<'mcp.oauth_completed'>> {
+		return this._onMcpOAuthCompleted ??= this._sdkEvent('mcp.oauth_completed');
 	}
 
 	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;

@@ -7,8 +7,22 @@ import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../.
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 
-export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
+}
+
+/**
+ * Whether a tool is waiting on an approval that the confirmation carousel above the chat input hosts
+ * when it is enabled. Hidden tools and MCP tools (extension-hosted or agent-host, see
+ * {@link isMcpToolInvocation}) keep their confirmations inline.
+ * @param state The tool state to check, for callers that already read it through an observable reader.
+ */
+export function isCarouselToolConfirmation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): toolInvocation is IChatToolInvocation {
+	if (toolInvocation.kind !== 'toolInvocation' || toolInvocation.presentation === 'hidden' || isMcpToolInvocation(toolInvocation)) {
+		return false;
+	}
+	const current = state ?? toolInvocation.state.get();
+	return current.type === IChatToolInvocation.StateKind.WaitingForConfirmation && !!current.confirmationMessages?.title;
 }
 
 export function isAskQuestionsToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {

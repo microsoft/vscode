@@ -15,7 +15,7 @@ export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekly';
 /**
  * Describes the cadence at which an automation should fire.
  *
- * Times are stored in local-time wall-clock values. The scheduler converts
+ * Times are stored in local-time wall-clock values. The Agent Host converts
  * them to UTC when computing concrete run instants so DST transitions are
  * handled correctly.
  */
@@ -91,6 +91,7 @@ export function assertAutomationSessionTemplate(template: IAutomationSessionTemp
  * else may be edited by the user.
  */
 export interface IAutomationDescriptor {
+	/** Opaque identifier, unique across concrete providers as well as within one host. */
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
@@ -124,18 +125,19 @@ export interface IAutomationDescriptor {
 
 /**
  * Lifecycle of an automation run. A run stays `running` while its agent session
- * is active or needs input, and becomes terminal when that session completes or
- * fails, or when tracking is cancelled or times out while the session may remain active.
+ * is active or needs input, and becomes terminal when the owning Agent Host
+ * reports completion, failure, cancellation, or timeout.
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
- * What kicked off a run. `catch_up` fires once at startup for a due-time that
- * passed while VS Code was closed.
+ * What kicked off a run. `catch_up` reflects the host's misfire policy for a
+ * due-time that passed while the host was not running.
  */
 export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual';
 
 export interface IAutomationRun {
+	/** Opaque identifier, unique across concrete providers and historical archives. */
 	readonly id: string;
 	readonly automationId: string;
 	readonly status: AutomationRunStatus;
@@ -147,7 +149,4 @@ export interface IAutomationRun {
 	readonly startedAt: string;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
-
-	/** Window that claimed this run; the leader-election guard uses it to avoid duplicate execution across windows. */
-	readonly leaderWindowId: number;
 }

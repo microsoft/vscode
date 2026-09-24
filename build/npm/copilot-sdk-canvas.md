@@ -1,11 +1,11 @@
 # Copilot SDK canvas backport
 
-VS Code still depends on the published `@github/copilot-sdk@1.0.13`. The adjacent
-generated B4 delta supplies the public Node SDK launch-provider and initial
+VS Code depends on the published `@github/copilot-sdk@1.0.15-preview.2`. The adjacent
+generated B4 delta supplies the launch-v1 admission and initial
 script-classification bindings needed by the opt-in canvas integration. It is a
 local source-backed backport, not a new published SDK or CLI version.
 
-The SDK's internal CLI pin remains `1.0.83`. Applying this delta does not add
+The SDK's internal CLI pin remains `1.0.89-1`. Applying this delta does not add
 runtime support: the selected runtime must implement launch-provider contract
 version 1 and the initial create/resume script-classification option. The caller
 must already own a durable chat before extension admission. The client rejects
@@ -30,21 +30,20 @@ It does not replace integration qualification against the actual selected runtim
 | `copilot-sdk-canvas.source.patch` | Portable Node SDK source changes against the published release's source commit, including its patched generated TypeScript. |
 | `copilot-sdk-canvas.build.md` | Portable build recipe, immutable inputs, toolchain and regeneration boundary. |
 | `copilot-sdk-canvas.patch` | Generated package-relative changes to ESM, CommonJS and declarations. Do not hand-edit. |
-| `copilot-sdk-canvas-from-b3.patch` | Complete-image transition for an already installed B3 package. |
 | `copilot-sdk-canvas.json` | Complete before/after package SHA-256 vectors, payload digest, source provenance and build-tool versions. |
 | `copilotSdkCanvasPatch.ts` | Version-bound installation and verification of the emitted delta. |
 
-The base is SDK source commit
-`f13e4a2cc7e4e220974d2333142234e162a3252e`. B4 keeps B3's connection-owned
-launch-provider attachment, strict v1 negotiation, cancellation-safe callbacks
-and idempotent cleanup. It removes the unpublished retention method/event
-bindings and keeps the optional `enableScriptSafety` field in initial create and
-resume requests. It does not transplant unrelated newer SDK APIs or dependency
-changes.
+The source is the merge of SDK main
+`075f027363fc3b1e904d09370763731c3ecd2d88` and the canvas SDK branch
+`499d4276ff4fda9d0dda87f05db84a77c34985d2`, recorded as
+`972d49771039f183f5331c16fed3d9f96a294c21`. B4 preserves current-main SDK
+behavior while adding strict v1 negotiation, session/default-launch context,
+cancellation-safe callbacks and idempotent cleanup. It contains no retention
+method or event bindings and keeps `enableScriptSafety` in initial create and
+resume requests.
 
-The unmodified release source reproduces all 52 published `dist` files.
-The emitted delta changes 12 paths, including three new files; the complete
-package grows from 59 to 62 files. Package metadata, export map, CLI pin,
+The emitted delta changes 11 paths, including three new files; the complete
+package grows from 66 to 69 files. Package metadata, export map, CLI pin,
 optional platform dependencies and documentation are unchanged.
 
 Follow the [portable build recipe](copilot-sdk-canvas.build.md) to build the
@@ -53,11 +52,10 @@ tooling, not VS Code's TypeScript or esbuild versions. The exact versions and
 source-patch digest are recorded in the manifest. Building those checked-in
 sources does not require access to a private runtime checkout.
 
-Regenerating the RPC TypeScript uses CLI `1.0.83` plus the seven reviewed
-launch-v1 fragments from runtime `ef0ce220`. Released session-event input is
-used unchanged; no retention method or event is projected. An aligned runtime
-release and regeneration remain prerequisites to replacing this backport with
-a published SDK.
+Regenerating the RPC TypeScript uses CLI `1.0.89-1` plus the reviewed launch-v1
+schema overlay. No retention method or event is projected. An aligned runtime
+release and regeneration remain prerequisites to replacing this backport with a
+published SDK.
 
 ## Initial script classification
 
@@ -111,11 +109,11 @@ errors, not successful installation. Replacement is per package, not a
 transaction across all trees.
 A later repair can finish a mixed complete-before/complete-after installation.
 
-The carrier recognizes both the complete published package and the complete B3
-after-image. Fresh installs use `copilot-sdk-canvas.patch`; existing B3 installs
-use `copilot-sdk-canvas-from-b3.patch`. Both routes must produce the same complete
-B4 after-image. Do not apply one route manually over the other or relax the
-before-image guard.
+The carrier recognizes the complete published `1.0.15-preview.2` package and
+the complete B4 after-image. Dependency upgrades invalidate the install-state
+hash, so older package images must be replaced by `npm ci` before the current
+delta is applied. Do not apply the payload manually or relax the before-image
+guard.
 
 Do not disable the guards to repair a linked or unexpected installation.
 Remove dependency links using the mechanism that created them, then restore
@@ -129,7 +127,7 @@ content-bound approval of extension directories, or a Node execution sandbox.
 
 Move to an aligned published SDK/runtime pair only after its public
 launch-provider negotiation, cancellation and initial script-safety behavior are
-qualified. Remove both payload routes, the source patch, carrier and repair
-command together; remove both installation call sites, their explicit hash
+qualified. Remove the payload, source patch, carrier and repair command
+together; remove both installation call sites, their explicit hash
 inputs and the generated-patch Git attributes. Do not leave declaration-only
 shims or a silent fallback behind.

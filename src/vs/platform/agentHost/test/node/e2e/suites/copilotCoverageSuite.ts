@@ -17,11 +17,12 @@ import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHost
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -288,8 +289,23 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					},
 				},
 			}, 100);
+			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
+			const chatUri = buildChatUri(sessionUri, 'root-mcp');
+			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
+			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			await context.client.waitForNotification(n => {
+				if (n.method !== 'action') {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === sessionUri
+					&& action.type === ActionType.SessionCustomizationUpdated
+					&& action.customization.type === CustomizationType.McpServer
+					&& action.customization.name === 'root_probe_server'
+					&& action.customization.state.kind === McpServerStatus.Ready;
+			}, 30_000);
 			const turnId = 'turn-root-mcp';
-			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
+			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			const completion = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.turnId === turnId);
@@ -483,6 +499,56 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}, {
 			success: true,
 			exitCode: 7,
+		});
+	});
+
+	test('shell full output is readable through its historical terminal resource', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('shell-full-output');
+		const turnId = 'turn-shell-full-output';
+		const command = `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\\n' + 'x'.repeat(131072) + '\\nFULL_OUTPUT_MIDDLE\\n' + 'y'.repeat(131072) + '\\nFULL_OUTPUT_END\\n')"`;
+		const expected = `FULL_OUTPUT_BEGIN\n${'x'.repeat(131072)}\nFULL_OUTPUT_MIDDLE\n${'y'.repeat(131072)}\nFULL_OUTPUT_END\n`;
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			`Run exactly \`${command}\` synchronously with your shell tool. Do not read the saved output file or call other tools. Then reply exactly "done".`, 1);
+		const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
+			.find(action => action.turnId === turnId && action.toolName === expandShellToolName('${shell}'));
+		const completion = shellStart && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
+			.find(action => action.toolCallId === shellStart.toolCallId);
+		const terminalContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal);
+		assert.ok(terminalContent);
+		const output = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const outputState = output.snapshot!.state as TerminalState;
+		const outputText = outputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.strictEqual(outputText, expected);
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const snapshot = await fetchSessionWithChat(context.client, sessionUri);
+		const restoredCall = snapshot.turns.flatMap(turn => turn.responseParts)
+			.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === shellStart?.toolCallId);
+		const restoredTerminal = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
+			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)
+			: undefined;
+		assert.ok(restoredTerminal);
+		await context.restartServer();
+		await initialize('full-output-restored', workspace);
+		const coldOutput = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const coldOutputState = coldOutput.snapshot!.state as TerminalState;
+		const coldOutputText = coldOutputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.deepStrictEqual({
+			exitCode: terminalContent.result?.exitCode,
+			truncated: terminalContent.result?.truncated,
+			firstResource: terminalContent.resource,
+			restoredResource: restoredTerminal.resource,
+			firstOutput: outputText,
+			coldOutput: coldOutputText,
+		}, {
+			exitCode: 0,
+			truncated: true,
+			firstResource: terminalContent.resource,
+			restoredResource: terminalContent.resource,
+			firstOutput: expected,
+			coldOutput: expected,
 		});
 	});
 

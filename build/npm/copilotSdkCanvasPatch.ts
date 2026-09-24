@@ -13,7 +13,7 @@ import { root } from './installStateHash.ts';
 export interface CopilotSdkCanvasPatchManifest {
 	readonly schemaVersion: 1;
 	readonly packageName: '@github/copilot-sdk';
-	readonly packageVersion: '1.0.13';
+	readonly packageVersion: '1.0.15-preview.2';
 	readonly patchFile: string;
 	readonly patchSha256: string;
 	readonly before: Readonly<Record<string, string>>;
@@ -85,7 +85,7 @@ function isManifest(value: unknown): value is CopilotSdkCanvasPatchManifest {
 	return isRecord(value)
 		&& value.schemaVersion === 1
 		&& value.packageName === '@github/copilot-sdk'
-		&& value.packageVersion === '1.0.13'
+		&& value.packageVersion === '1.0.15-preview.2'
 		&& value.patchFile === 'copilot-sdk-canvas.patch'
 		&& typeof value.patchSha256 === 'string' && hashPattern.test(value.patchSha256)
 		&& isHashVector(value.before) && isHashVector(value.after)
@@ -180,7 +180,7 @@ function inspectPackage(directory: string, manifest: CopilotSdkCanvasPatchManife
 			return { directory, route };
 		}
 	}
-	throw new Error(`Unexpected or partially patched Copilot SDK at ${directory}. The canvas backport requires the exact 1.0.13 package; restore it with npm ci.`);
+	throw new Error(`Unexpected or partially patched Copilot SDK at ${directory}. The canvas backport requires the exact 1.0.15-preview.2 package; restore it with npm ci.`);
 }
 
 function gitApply(directory: string, args: readonly string[], patch: Buffer): string {

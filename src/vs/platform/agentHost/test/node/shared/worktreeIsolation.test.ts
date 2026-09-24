@@ -55,6 +55,7 @@ suite('WorktreeIsolation', () => {
 			restoredTurnsSame: await isolation.applyRestoreAnnouncement(session, turns) === turns,
 			deletion: await isolation.prepareSessionDeletion(session, 'session'),
 			adopted: await isolation.adoptExistingWorktreeMetadata(session, workingDirectory),
+			externalProject: await isolation.resolveExternalWorktreeProject(workingDirectory),
 			project: await isolation.resolveWorktreeProject(session),
 		}, {
 			supported: false,
@@ -66,6 +67,7 @@ suite('WorktreeIsolation', () => {
 			restoredTurnsSame: true,
 			deletion: undefined,
 			adopted: false,
+			externalProject: undefined,
 			project: undefined,
 		});
 	});
@@ -240,7 +242,42 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('uses the local default branch name in config and its remote ref as the worktree start point', async () => {
+	test('defaults worktree isolation to the current branch upstream when available', async () => {
+		const gitService = createGitService();
+		let upstreamBranchName: string | undefined = 'origin/main';
+		const branchLookups: string[] = [];
+		gitService.getBranch = async (_root, name) => {
+			branchLookups.push(name);
+			return {
+				ref: `refs/heads/${name}`,
+				name,
+				kind: GitRefType.Head,
+				upstream: upstreamBranchName ? { ref: `refs/remotes/${upstreamBranchName}`, name: upstreamBranchName, remote: 'origin' } : undefined,
+			};
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const checked = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
+		const folder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		const explicit = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
+		upstreamBranchName = undefined;
+		const noUpstream = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+		assert.deepStrictEqual({
+			checked: { value: checked.branchValue, default: checked.branchProperty?.protocol.default, enum: checked.branchProperty?.protocol.enum },
+			folder: { value: folder.branchValue, default: folder.branchProperty?.protocol.default },
+			explicit: { value: explicit.branchValue, default: explicit.branchProperty?.protocol.default },
+			noUpstream: noUpstream.branchValue,
+			branchLookups,
+		}, {
+			checked: { value: 'origin/main', default: 'origin/main', enum: ['origin/main'] },
+			folder: { value: 'feature', default: 'feature' },
+			explicit: { value: 'feature', default: 'origin/main' },
+			noUpstream: 'main',
+			branchLookups: ['feature', 'feature', 'feature'],
+		});
+	});
+
+	test('uses the selected local default branch as the worktree start point', async () => {
 		const gitService = createGitService();
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		const isolation = createIsolation(disposables, { gitService });
@@ -261,10 +298,34 @@ suite('WorktreeIsolation', () => {
 			branchDefault: config.branchDefault,
 			branchEnum: config.branchProperty?.protocol.enum,
 			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
 		}, {
 			branchDefault: 'main',
 			branchEnum: ['main'],
+			startPoint: 'main',
+			diffBaseBranch: 'main',
+		});
+	});
+
+	test('uses an explicitly selected remote branch as the worktree start point', async () => {
+		const isolation = createIsolation(disposables);
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'origin/main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+		}, {
 			startPoint: 'origin/main',
+			diffBaseBranch: 'origin/main',
 		});
 	});
 
@@ -294,7 +355,6 @@ suite('WorktreeIsolation', () => {
 				commitish: call.commitish,
 				newBranchName: call.newBranchName,
 				track: call.track,
-				preferRemoteBranch: call.preferRemoteBranch,
 			})),
 			branchName: await db.getMetadata('copilot.worktree.branchName'),
 			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
@@ -304,7 +364,6 @@ suite('WorktreeIsolation', () => {
 				commitish: 'feature',
 				newBranchName: undefined,
 				track: true,
-				preferRemoteBranch: false,
 			}],
 			branchName: 'feature',
 			diffBaseBranch: 'origin/main',

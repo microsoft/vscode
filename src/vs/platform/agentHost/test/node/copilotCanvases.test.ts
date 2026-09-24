@@ -132,7 +132,7 @@ function createFixture(store: Pick<DisposableStore, 'add'>, canvases?: IAgentHos
 		source: 'project', id: 'project:counter', name: 'counter', modulePath: testModule.fsPath,
 		sessionId: session.sessionId, defaultLaunch: { executable: process.execPath, args: ['unchanged-bootstrap'], env: { ORIGINAL: 'preserved' } },
 	};
-	const wrapper = store.add(new CopilotSessionWrapper(session));
+	const wrapper = store.add(new CopilotSessionWrapper(session, new NullLogService()));
 	const start = () => { adapter.clientStarting(client); adapter.clientStarted(client); };
 	const bind = (startup: 'complete' | 'pending' = 'complete') => {
 		const launch = store.add(adapter.beginLaunch(session.sessionId, canvasChat, workingDirectory));
@@ -871,7 +871,7 @@ suite('Copilot canvases', () => {
 		const buffer = new CopilotSessionEventBuffer();
 		const first = nativeEvent('user.message', { content: 'Native message' });
 		buffer.capture(first);
-		const wrapper = store.add(new CopilotSessionWrapper(f.session, buffer));
+		const wrapper = store.add(new CopilotSessionWrapper(f.session, new NullLogService(), buffer));
 		const received: string[] = [];
 		store.add(wrapper.onUserMessage(event => received.push(event.data.content)));
 		store.add(wrapper.onMessageDelta(event => received.push(event.data.deltaContent)));
@@ -890,19 +890,19 @@ suite('Copilot canvases', () => {
 		for (let i = 0; i < 1025; i++) {
 			buffer.capture(nativeEvent('user.message', { content: 'message' }));
 		}
-		const wrapper = store.add(new CopilotSessionWrapper(f.session, buffer));
+		const wrapper = store.add(new CopilotSessionWrapper(f.session, new NullLogService(), buffer));
 		assert.throws(() => wrapper.releaseBufferedEvents(), /bounded buffer/);
 	});
 
 	test('pending wrappers deliver early events once and disconnect late SDK objects after disposal', async () => {
 		const f = createFixture(store);
-		const pending = store.add(new CopilotSessionWrapper(f.session.sessionId));
+		const pending = store.add(new CopilotSessionWrapper(f.session.sessionId, new NullLogService()));
 		const received: string[] = [];
 		store.add(pending.onUserMessage(event => received.push(event.data.content)));
 		pending.acceptSessionEvent(nativeEvent('user.message', { content: 'Before create completed' }));
 		await pending.attachSession(f.session);
 		f.events.fire(nativeEvent('user.message', { content: 'After create completed' }));
-		const cancelled = store.add(new CopilotSessionWrapper(f.session.sessionId));
+		const cancelled = store.add(new CopilotSessionWrapper(f.session.sessionId, new NullLogService()));
 		cancelled.dispose();
 		await assert.rejects(cancelled.attachSession(f.session), /Canceled/);
 		assert.deepStrictEqual({

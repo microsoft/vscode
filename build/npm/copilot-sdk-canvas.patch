@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/client.js b/dist/cjs/client.js
-index f559ca2..55c8707 100644
+index 6a7d098..c12e4cd 100644
 --- a/dist/cjs/client.js
 +++ b/dist/cjs/client.js
 @@ -39,6 +39,7 @@ var import_node_path = require("node:path");
@@ -10,25 +10,15 @@ index f559ca2..55c8707 100644
  var import_session = require("./session.js");
  var import_runtimeArtifacts = require("./runtimeArtifacts.js");
  var import_cliVersion = require("./cliVersion.js");
-@@ -241,6 +242,8 @@ class CopilotClient {
-   runtimePort = null;
-   actualHost = "localhost";
-   state = "disconnected";
-+  /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
-+  startPromise = null;
-   sessions = /* @__PURE__ */ new Map();
-   stderrBuffer = "";
-   // Captures CLI stderr for error messages
-@@ -270,6 +273,8 @@ class CopilotClient {
-   /** Connection-level session filesystem config, set via constructor option. */
+@@ -265,6 +266,7 @@ class CopilotClient {
    sessionFsConfig = null;
    requestHandler = null;
-+  extensionLaunchProvider;
+   extensionLaunchProvider;
 +  extensionLaunchProviderConnection;
    builtinPluginDirectories = [];
    onGitHubTelemetry;
    clientGlobalHandlers = {};
-@@ -279,7 +284,7 @@ class CopilotClient {
+@@ -274,7 +276,7 @@ class CopilotClient {
     * @throws Error if the client is not connected
     */
    get rpc() {
@@ -37,44 +27,37 @@ index f559ca2..55c8707 100644
        throw new Error("Client is not connected. Call start() first.");
      }
      if (!this._rpc) {
-@@ -427,6 +432,7 @@ class CopilotClient {
-     this.onGetTraceContext = options.onGetTraceContext;
-     this.sessionFsConfig = options.sessionFs ?? null;
-     this.requestHandler = options.requestHandler ?? null;
-+    this.extensionLaunchProvider = options.extensionLaunchProvider;
-     this.onGitHubTelemetry = options.onGitHubTelemetry;
-     this.setupClientGlobalHandlers();
-     const connEnv = conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : void 0;
-@@ -618,6 +624,20 @@ class CopilotClient {
-     if (this.state === "connected") {
-       return;
+@@ -525,7 +527,6 @@ class CopilotClient {
+   }
+   setupClientGlobalHandlers() {
+     const handlers = {};
+-    handlers.extensionLaunchProvider = this.extensionLaunchProvider;
+     if (this.requestHandler) {
+       this.requestAdapter = (0, import_copilotRequestHandler.createCopilotRequestAdapter)(this.requestHandler, () => {
+         if (!this.connection) {
+@@ -627,6 +628,9 @@ class CopilotClient {
      }
-+    if (this.startPromise) {
-+      return this.startPromise;
-+    }
-+    this.startPromise = this.doStart();
-+    try {
-+      await this.startPromise;
-+    } finally {
-+      this.startPromise = null;
-+    }
-+  }
-+  async doStart() {
+   }
+   async doStart() {
 +    if (this.connectionClosed) {
 +      await this.forceStop();
 +    }
      this.forceStopping = false;
      this.connectionClosed = false;
      this.processTransportError = null;
-@@ -629,6 +649,7 @@ class CopilotClient {
+@@ -638,10 +642,8 @@ class CopilotClient {
          await this.startCLIServer();
        }
        await this.connectToServer();
 +      const launchProviderConnection = this.extensionLaunchProviderConnection;
        await this.verifyProtocolVersion();
+-      if (this.extensionLaunchProvider) {
+-        await this.rpc.registerExtensionLaunchProvider();
+-      }
        if (this.builtinPluginDirectories.length > 0) {
          try {
-@@ -651,6 +672,7 @@ class CopilotClient {
+           await this.connection.sendRequest("plugins.builtin.set", {
+@@ -663,6 +665,7 @@ class CopilotClient {
        if (this.requestHandler) {
          await this.connection.sendRequest("llmInference.setProvider", {});
        }
@@ -82,7 +65,7 @@ index f559ca2..55c8707 100644
        this.state = "connected";
      } catch (error) {
        const startupError = this.processTransportError ?? error;
-@@ -685,6 +707,7 @@ class CopilotClient {
+@@ -697,6 +700,7 @@ class CopilotClient {
     */
    async stop() {
      const errors = [];
@@ -90,7 +73,7 @@ index f559ca2..55c8707 100644
      const activeSessions = [...this.sessions.values()];
      if (this.connectionConfig.kind === "inprocess") {
        await Promise.allSettled(activeSessions.map((session) => session.abort()));
-@@ -824,6 +847,7 @@ class CopilotClient {
+@@ -837,6 +841,7 @@ class CopilotClient {
      this.runtimePort = null;
      this.stderrBuffer = "";
      this.processExitPromise = null;
@@ -98,7 +81,7 @@ index f559ca2..55c8707 100644
      return errors;
    }
    /**
-@@ -868,6 +892,7 @@ class CopilotClient {
+@@ -881,6 +886,7 @@ class CopilotClient {
     */
    async forceStop() {
      this.forceStopping = true;
@@ -106,7 +89,7 @@ index f559ca2..55c8707 100644
      for (const session of this.sessions.values()) {
        session._markDisconnected();
      }
-@@ -916,6 +941,7 @@ class CopilotClient {
+@@ -931,6 +937,7 @@ class CopilotClient {
      this.runtimePort = null;
      this.stderrBuffer = "";
      this.processExitPromise = null;
@@ -114,7 +97,7 @@ index f559ca2..55c8707 100644
    }
    /**
     * Creates a new conversation session with the Copilot CLI.
-@@ -1079,7 +1105,7 @@ class CopilotClient {
+@@ -1094,7 +1101,7 @@ class CopilotClient {
      if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
        throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
      }
@@ -123,7 +106,7 @@ index f559ca2..55c8707 100644
        await this.start();
      }
      const modeDefaults = this.configDefaultsForMode();
-@@ -1204,6 +1230,7 @@ class CopilotClient {
+@@ -1219,6 +1226,7 @@ class CopilotClient {
          enableSessionTelemetry: config.enableSessionTelemetry,
          enableCitations: config.enableCitations,
          enableFileChangeTracking: config.enableFileChangeTracking,
@@ -131,7 +114,7 @@ index f559ca2..55c8707 100644
          sessionLimits: config.sessionLimits,
          modelCapabilities: config.modelCapabilities,
          largeOutput: toWireLargeOutput(config.largeOutput),
-@@ -1329,7 +1356,7 @@ class CopilotClient {
+@@ -1348,7 +1356,7 @@ class CopilotClient {
      if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
        throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
      }
@@ -140,7 +123,7 @@ index f559ca2..55c8707 100644
        await this.start();
      }
      const session = new import_session.CopilotSession(
-@@ -1413,6 +1440,7 @@ class CopilotClient {
+@@ -1433,6 +1441,7 @@ class CopilotClient {
          excludedBuiltinAgents: config.excludedBuiltinAgents,
          enableCitations: config.enableCitations,
          enableFileChangeTracking: config.enableFileChangeTracking,
@@ -148,7 +131,7 @@ index f559ca2..55c8707 100644
          sessionLimits: config.sessionLimits,
          tools: config.tools?.map((tool) => ({
            name: tool.name,
-@@ -2061,8 +2089,13 @@ stderr: ${stderrOutput}`
+@@ -2083,8 +2092,13 @@ stderr: ${stderrOutput}`
        case "inprocess":
          return this.connectViaFfi();
        case "tcp":
@@ -163,7 +146,7 @@ index f559ca2..55c8707 100644
      }
    }
    /** Starts the in-process FFI runtime with SDK-managed typed options. */
-@@ -2259,15 +2292,28 @@ stderr: ${stderrOutput}` : ""}`
+@@ -2281,15 +2295,28 @@ stderr: ${stderrOutput}` : ""}`
        if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
        return session.clientSessionApis;
      });
@@ -194,8 +177,8 @@ index f559ca2..55c8707 100644
        if (this.connection !== connection) {
          return;
        }
-@@ -2280,11 +2326,8 @@ stderr: ${stderrOutput}` : ""}`
-       this.githubTokenProviders.clear();
+@@ -2303,11 +2330,8 @@ stderr: ${stderrOutput}` : ""}`
+       this.requestAdapter?.cancelPending();
      };
      this.connection.onClose(markDisconnected);
 -    this.connection.onError(() => {
@@ -332,7 +315,7 @@ index 0000000..a0fdd1c
 +  ExtensionLaunchProviderConnection
 +});
 diff --git a/dist/cjs/generated/rpc.js b/dist/cjs/generated/rpc.js
-index 7622b8d..987895a 100644
+index e139224..3fdbe28 100644
 --- a/dist/cjs/generated/rpc.js
 +++ b/dist/cjs/generated/rpc.js
 @@ -211,7 +211,9 @@ function createServerRpc(connection) {
@@ -346,7 +329,7 @@ index 7622b8d..987895a 100644
       *
       * @experimental
       */
-@@ -2906,30 +2908,30 @@ function registerClientSessionApiHandlers(connection, getHandlers) {
+@@ -3317,30 +3319,30 @@ function registerClientSessionApiHandlers(connection, getHandlers) {
    });
  }
  function registerClientGlobalApiHandlers(connection, handlers) {
@@ -386,37 +369,19 @@ index 7622b8d..987895a 100644
  }
  // Annotate the CommonJS export names for ESM import in node:
 diff --git a/dist/client.d.ts b/dist/client.d.ts
-index 1b75a01..f163f76 100644
+index b1d771b..9781a0a 100644
 --- a/dist/client.d.ts
 +++ b/dist/client.d.ts
-@@ -12,6 +12,8 @@ export declare class CopilotClient {
-     private runtimePort;
-     private actualHost;
-     private state;
-+    /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
-+    private startPromise;
-     private sessions;
-     private stderrBuffer;
-     /** Resolved connection mode chosen in the constructor. */
-@@ -39,6 +41,8 @@ export declare class CopilotClient {
-     /** Connection-level session filesystem config, set via constructor option. */
+@@ -43,6 +43,7 @@ export declare class CopilotClient {
      private sessionFsConfig;
      private requestHandler;
-+    private extensionLaunchProvider?;
+     private extensionLaunchProvider?;
 +    private extensionLaunchProviderConnection?;
      private builtinPluginDirectories;
      private onGitHubTelemetry?;
      private clientGlobalHandlers;
-@@ -122,6 +126,7 @@ export declare class CopilotClient {
-      * ```
-      */
-     start(): Promise<void>;
-+    private doStart;
-     /**
-      * Stops the CLI server and closes all active sessions.
-      *
 diff --git a/dist/client.js b/dist/client.js
-index 35c5f86..cd8ca63 100644
+index 0fc3f6e..e8dd668 100644
 --- a/dist/client.js
 +++ b/dist/client.js
 @@ -17,6 +17,7 @@ import {
@@ -427,25 +392,15 @@ index 35c5f86..cd8ca63 100644
  import { CopilotSession } from "./session.js";
  import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
  import { COPILOT_CLI_VERSION } from "./cliVersion.js";
-@@ -219,6 +220,8 @@ class CopilotClient {
-   runtimePort = null;
-   actualHost = "localhost";
-   state = "disconnected";
-+  /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
-+  startPromise = null;
-   sessions = /* @__PURE__ */ new Map();
-   stderrBuffer = "";
-   // Captures CLI stderr for error messages
-@@ -248,6 +251,8 @@ class CopilotClient {
-   /** Connection-level session filesystem config, set via constructor option. */
+@@ -243,6 +244,7 @@ class CopilotClient {
    sessionFsConfig = null;
    requestHandler = null;
-+  extensionLaunchProvider;
+   extensionLaunchProvider;
 +  extensionLaunchProviderConnection;
    builtinPluginDirectories = [];
    onGitHubTelemetry;
    clientGlobalHandlers = {};
-@@ -257,7 +262,7 @@ class CopilotClient {
+@@ -252,7 +254,7 @@ class CopilotClient {
     * @throws Error if the client is not connected
     */
    get rpc() {
@@ -454,44 +409,37 @@ index 35c5f86..cd8ca63 100644
        throw new Error("Client is not connected. Call start() first.");
      }
      if (!this._rpc) {
-@@ -405,6 +410,7 @@ class CopilotClient {
-     this.onGetTraceContext = options.onGetTraceContext;
-     this.sessionFsConfig = options.sessionFs ?? null;
-     this.requestHandler = options.requestHandler ?? null;
-+    this.extensionLaunchProvider = options.extensionLaunchProvider;
-     this.onGitHubTelemetry = options.onGitHubTelemetry;
-     this.setupClientGlobalHandlers();
-     const connEnv = conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : void 0;
-@@ -596,6 +602,20 @@ class CopilotClient {
-     if (this.state === "connected") {
-       return;
+@@ -503,7 +505,6 @@ class CopilotClient {
+   }
+   setupClientGlobalHandlers() {
+     const handlers = {};
+-    handlers.extensionLaunchProvider = this.extensionLaunchProvider;
+     if (this.requestHandler) {
+       this.requestAdapter = createCopilotRequestAdapter(this.requestHandler, () => {
+         if (!this.connection) {
+@@ -605,6 +606,9 @@ class CopilotClient {
      }
-+    if (this.startPromise) {
-+      return this.startPromise;
-+    }
-+    this.startPromise = this.doStart();
-+    try {
-+      await this.startPromise;
-+    } finally {
-+      this.startPromise = null;
-+    }
-+  }
-+  async doStart() {
+   }
+   async doStart() {
 +    if (this.connectionClosed) {
 +      await this.forceStop();
 +    }
      this.forceStopping = false;
      this.connectionClosed = false;
      this.processTransportError = null;
-@@ -607,6 +627,7 @@ class CopilotClient {
+@@ -616,10 +620,8 @@ class CopilotClient {
          await this.startCLIServer();
        }
        await this.connectToServer();
 +      const launchProviderConnection = this.extensionLaunchProviderConnection;
        await this.verifyProtocolVersion();
+-      if (this.extensionLaunchProvider) {
+-        await this.rpc.registerExtensionLaunchProvider();
+-      }
        if (this.builtinPluginDirectories.length > 0) {
          try {
-@@ -629,6 +650,7 @@ class CopilotClient {
+           await this.connection.sendRequest("plugins.builtin.set", {
+@@ -641,6 +643,7 @@ class CopilotClient {
        if (this.requestHandler) {
          await this.connection.sendRequest("llmInference.setProvider", {});
        }
@@ -499,7 +447,7 @@ index 35c5f86..cd8ca63 100644
        this.state = "connected";
      } catch (error) {
        const startupError = this.processTransportError ?? error;
-@@ -663,6 +685,7 @@ class CopilotClient {
+@@ -675,6 +678,7 @@ class CopilotClient {
     */
    async stop() {
      const errors = [];
@@ -507,7 +455,7 @@ index 35c5f86..cd8ca63 100644
      const activeSessions = [...this.sessions.values()];
      if (this.connectionConfig.kind === "inprocess") {
        await Promise.allSettled(activeSessions.map((session) => session.abort()));
-@@ -802,6 +825,7 @@ class CopilotClient {
+@@ -815,6 +819,7 @@ class CopilotClient {
      this.runtimePort = null;
      this.stderrBuffer = "";
      this.processExitPromise = null;
@@ -515,7 +463,7 @@ index 35c5f86..cd8ca63 100644
      return errors;
    }
    /**
-@@ -846,6 +870,7 @@ class CopilotClient {
+@@ -859,6 +864,7 @@ class CopilotClient {
     */
    async forceStop() {
      this.forceStopping = true;
@@ -523,7 +471,7 @@ index 35c5f86..cd8ca63 100644
      for (const session of this.sessions.values()) {
        session._markDisconnected();
      }
-@@ -894,6 +919,7 @@ class CopilotClient {
+@@ -909,6 +915,7 @@ class CopilotClient {
      this.runtimePort = null;
      this.stderrBuffer = "";
      this.processExitPromise = null;
@@ -531,7 +479,7 @@ index 35c5f86..cd8ca63 100644
    }
    /**
     * Creates a new conversation session with the Copilot CLI.
-@@ -1057,7 +1083,7 @@ class CopilotClient {
+@@ -1072,7 +1079,7 @@ class CopilotClient {
      if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
        throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
      }
@@ -540,7 +488,7 @@ index 35c5f86..cd8ca63 100644
        await this.start();
      }
      const modeDefaults = this.configDefaultsForMode();
-@@ -1182,6 +1208,7 @@ class CopilotClient {
+@@ -1197,6 +1204,7 @@ class CopilotClient {
          enableSessionTelemetry: config.enableSessionTelemetry,
          enableCitations: config.enableCitations,
          enableFileChangeTracking: config.enableFileChangeTracking,
@@ -548,7 +496,7 @@ index 35c5f86..cd8ca63 100644
          sessionLimits: config.sessionLimits,
          modelCapabilities: config.modelCapabilities,
          largeOutput: toWireLargeOutput(config.largeOutput),
-@@ -1307,7 +1334,7 @@ class CopilotClient {
+@@ -1326,7 +1334,7 @@ class CopilotClient {
      if (config.gitHubToken !== void 0 && config.gitHubTokenProvider !== void 0) {
        throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
      }
@@ -557,7 +505,7 @@ index 35c5f86..cd8ca63 100644
        await this.start();
      }
      const session = new CopilotSession(
-@@ -1391,6 +1418,7 @@ class CopilotClient {
+@@ -1411,6 +1419,7 @@ class CopilotClient {
          excludedBuiltinAgents: config.excludedBuiltinAgents,
          enableCitations: config.enableCitations,
          enableFileChangeTracking: config.enableFileChangeTracking,
@@ -565,7 +513,7 @@ index 35c5f86..cd8ca63 100644
          sessionLimits: config.sessionLimits,
          tools: config.tools?.map((tool) => ({
            name: tool.name,
-@@ -2039,8 +2067,13 @@ stderr: ${stderrOutput}`
+@@ -2061,8 +2070,13 @@ stderr: ${stderrOutput}`
        case "inprocess":
          return this.connectViaFfi();
        case "tcp":
@@ -580,7 +528,7 @@ index 35c5f86..cd8ca63 100644
      }
    }
    /** Starts the in-process FFI runtime with SDK-managed typed options. */
-@@ -2237,15 +2270,28 @@ stderr: ${stderrOutput}` : ""}`
+@@ -2259,15 +2273,28 @@ stderr: ${stderrOutput}` : ""}`
        if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
        return session.clientSessionApis;
      });
@@ -611,8 +559,8 @@ index 35c5f86..cd8ca63 100644
        if (this.connection !== connection) {
          return;
        }
-@@ -2258,11 +2304,8 @@ stderr: ${stderrOutput}` : ""}`
-       this.githubTokenProviders.clear();
+@@ -2281,11 +2308,8 @@ stderr: ${stderrOutput}` : ""}`
+       this.requestAdapter?.cancelPending();
      };
      this.connection.onClose(markDisconnected);
 -    this.connection.onError(() => {
@@ -748,7 +696,7 @@ index 0000000..0860be5
 +  ExtensionLaunchProviderConnection
 +};
 diff --git a/dist/generated/rpc.d.ts b/dist/generated/rpc.d.ts
-index 8696a7d..4429fe4 100644
+index ddc0cb9..44c7d63 100644
 --- a/dist/generated/rpc.d.ts
 +++ b/dist/generated/rpc.d.ts
 @@ -1,8 +1,8 @@
@@ -759,10 +707,10 @@ index 8696a7d..4429fe4 100644
   */
 -import type { MessageConnection } from "vscode-jsonrpc/node.js";
 +import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
- import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+ import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
  /** A value that can be represented losslessly on the SDK JSON wire. */
  export type JsonValue = null | boolean | number | string | JsonValue[] | {
-@@ -7117,16 +7117,24 @@ export interface ExtensionLaunchProviderResolveRequest {
+@@ -8589,16 +8589,24 @@ export interface ExtensionLaunchProviderResolveRequest {
       */
      modulePath: string;
      source: ExtensionSource;
@@ -789,7 +737,7 @@ index 8696a7d..4429fe4 100644
  }
  /**
   * Extensions discovered for the session, with their current status.
-@@ -22757,6 +22765,19 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
+@@ -25860,6 +25868,19 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
       */
      operation: string;
  }
@@ -807,9 +755,9 @@ index 8696a7d..4429fe4 100644
 +    contractVersion: 1;
 +}
  /** @experimental */
- export interface SessionModelListRequest {
-     /**
-@@ -23066,11 +23087,13 @@ export declare function createServerRpc(connection: MessageConnection): {
+ export interface SessionFactoryPauseAtCheckpointResult {
+     action: FactoryPauseCheckpointAction;
+@@ -26184,11 +26205,13 @@ export declare function createServerRpc(connection: MessageConnection): {
          disable: (params: DiscoveredExtensionsDisableRequest) => Promise<void>;
      };
      /**
@@ -825,7 +773,7 @@ index 8696a7d..4429fe4 100644
      /** @experimental */
      catalog: {
          /**
-@@ -25494,13 +25517,13 @@ export declare function registerClientSessionApiHandlers(connection: MessageConn
+@@ -28994,13 +29017,13 @@ export declare function registerClientSessionApiHandlers(connection: MessageConn
  /** @experimental */
  export interface ExtensionLaunchProviderHandler {
      /**
@@ -842,7 +790,7 @@ index 8696a7d..4429fe4 100644
  }
  /** Handler for `llmInference` client global API methods. */
  /** @experimental */
-@@ -25512,7 +25535,7 @@ export interface LlmInferenceHandler {
+@@ -29012,7 +29035,7 @@ export interface LlmInferenceHandler {
       *
       * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
       */
@@ -851,7 +799,7 @@ index 8696a7d..4429fe4 100644
      /**
       * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
       *
-@@ -25520,7 +25543,7 @@ export interface LlmInferenceHandler {
+@@ -29020,7 +29043,7 @@ export interface LlmInferenceHandler {
       *
       * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
       */
@@ -860,7 +808,7 @@ index 8696a7d..4429fe4 100644
  }
  /** Handler for `gitHubTelemetry` client global API methods. */
  /** @experimental */
-@@ -25542,7 +25565,7 @@ export interface GitHubTokenHandler {
+@@ -29042,7 +29065,7 @@ export interface GitHubTokenHandler {
       *
       * @returns SDK host response to a GitHub credential request.
       */
@@ -870,7 +818,7 @@ index 8696a7d..4429fe4 100644
  /** All client global API handler groups. */
  export interface ClientGlobalApiHandlers {
 diff --git a/dist/generated/rpc.js b/dist/generated/rpc.js
-index 92fb384..4290ea2 100644
+index 44cec34..462dddb 100644
 --- a/dist/generated/rpc.js
 +++ b/dist/generated/rpc.js
 @@ -183,7 +183,9 @@ function createServerRpc(connection) {
@@ -884,7 +832,7 @@ index 92fb384..4290ea2 100644
       *
       * @experimental
       */
-@@ -2878,30 +2880,30 @@ function registerClientSessionApiHandlers(connection, getHandlers) {
+@@ -3289,30 +3291,30 @@ function registerClientSessionApiHandlers(connection, getHandlers) {
    });
  }
  function registerClientGlobalApiHandlers(connection, handlers) {
@@ -924,34 +872,52 @@ index 92fb384..4290ea2 100644
  }
  export {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index f480b4d..d2918a6 100644
+index 6a1550e..10307ed 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -11,5 +11,5 @@ export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./facto
+@@ -12,6 +12,6 @@ export { defineWorkflow, WorkflowResumeError, isWorkflowRunTerminal } from "./wo
  export { Canvas, CanvasError, createCanvas, type CanvasAction, type CanvasDeclaration, type CanvasHostContext, type CanvasHostContextCapabilities, type CanvasJsonSchema, type CanvasOptions, } from "./canvas.js";
  export { defineTool, approveAll, createAttributedPermissionResult, convertMcpCallToolResult, createSessionFsAdapter, CopilotRequestHandler, CopilotWebSocketHandler, CopilotWebSocketCloseStatus, CopilotWebSocketForwarder, SessionFsSqliteTransactionFailure, SYSTEM_MESSAGE_SECTIONS, } from "./types.js";
  export type * from "./generated/session-events.js";
--export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionInfo, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, MessageOptions, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
-+export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionInfo, ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, MessageOptions, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
- export type { RunOptions, ResumeOptions, FactoryResumeErrorCode, SessionFactoryApi, FactoryAgentOptions, FactoryContext, FactoryDefinition, FactoryHandle, FactoryJsonSchema, JsonValue, FactoryPipelineStage, FactoryStepOptions, FactoryRunResult, FactoryRunStatus, FactoryRunSummary, FactoryListRunsOptions, FactoryRunsPage, FactoryRunDetail, FactoryProgressPage, FactoryProgressLine, FactoryPhaseObservation, FactoryPhaseStatus, FactoryAgentSummary, } from "./factory.js";
+-export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionLaunchProfile, ExtensionLaunchProvider, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionInfo, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, ExtensionContextAttachment, MessageOptions, ResponseSchema, MessageSource, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
++export type { AskUserVariant, CommandContext, CommandDefinition, CommandHandler, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, AutoModeSwitchHandler, AutoModeSwitchRequest, AutoModeSwitchResponse, AgentStopHandler, AgentStopHookInput, AgentStopHookOutput, UserPromptTransformedHandler, UserPromptTransformedHookInput, UserPromptTransformedHookOutput, CopilotClientInfo, CopilotClientMode, CopilotClientOptions, CopilotExpAssignmentResponse, StdioRuntimeConnection, InProcessRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, ChildProcessRuntimeConnection, CustomAgentConfig, ElicitationFieldValue, ElicitationHandler, ElicitationParams, ElicitationContext, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExpConfigEntry, ExpFlagValue, ExitPlanModeHandler, ExitPlanModeRequest, ExitPlanModeResult, ExtensionLaunchProfile, ExtensionLaunchProvider, ExtensionInfo, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, ForegroundSessionInfo, GetAuthStatusResponse, GetStatusResponse, GitHubMcpToolConfig, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult, InfiniteSessionConfig, LargeToolOutputConfig, MemoryConfiguration, UiInputOptions, FactoryLimits, FactoryMeta, MCPStdioServerConfig, MCPHTTPServerConfig, MCPServerConfig, DefaultAgentConfig, BearerTokenProvider, ExtensionContextAttachment, MessageOptions, ResponseSchema, MessageSource, ManagedSettings, ManagedSettingsPermissions, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, AutoTier, CapiSessionOptions, CurrentModel, ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, ModelCapabilities, ModelCapabilitiesOverride, ModelInfo, ModelPolicy, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestedData, PermissionRequestedEvent, PermissionRequestResult, AttributedPermissionResult, PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ProviderTokenArgs, RemoteSessionMode, ResumeSessionConfig, SectionOverride, SectionOverrideAction, SectionTransformFn, SessionCapabilities, SessionConfig, SessionConfigBase, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, SessionLifecycleEvent, SessionLifecycleEventMetadata, SessionLifecycleEventType, SessionLifecycleHandler, SessionHooks, SessionCreatedEvent, SessionDeletedEvent, SessionUpdatedEvent, SessionForegroundEvent, SessionBackgroundEvent, SessionContext, SessionListFilter, SessionMetadata, SessionUiApi, SessionFsConfig, SessionFsProvider, SessionFsFileInfo, SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteProvider, SessionFsSqliteStatement, SessionFsSqliteTransactionErrorClass, CopilotRequestContext, SystemMessageAppendConfig, SystemMessageConfig, SystemMessageCustomizeConfig, SystemMessageReplaceConfig, SystemMessageSection, TelemetryConfig, TraceContext, TraceContextProvider, Tool, ToolHandler, ToolInvocation, CurrentToolMetadata, ToolTelemetry, ToolResultObject, ToolSearchConfig, TypedSessionEventHandler, TypedSessionLifecycleHandler, ZodSchema, } from "./types.js";
+ export type { RunOptions, ResumeOptions, FactoryLimitOverrides, FactoryResumeErrorCode, SessionFactoryApi, FactoryAgentOptions, FactoryContext, FactoryDefinition, FactoryHandle, FactoryJsonSchema, JsonValue, FactoryPipelineStage, FactoryStepOptions, FactoryRunResult, FactoryRunStatus, FactoryRunSummary, FactoryListRunsOptions, FactoryRunsPage, FactoryRunDetail, FactoryProgressPage, FactoryProgressLine, FactoryPhaseObservation, FactoryPhaseStatus, FactoryAgentSummary, } from "./factory.js";
+ export type { WorkflowRunOptions, WorkflowResumeOptions, WorkflowLimitOverrides, WorkflowResumeErrorCode, SessionWorkflowApi, WorkflowAgentOptions, WorkflowContext, WorkflowDefinition, WorkflowHandle, WorkflowJsonSchema, WorkflowLimits, WorkflowMeta, WorkflowPipelineStage, WorkflowStepOptions, WorkflowRunResult, WorkflowRunStatus, WorkflowRunSummary, WorkflowListRunsOptions, WorkflowRunsPage, WorkflowRunDetail, WorkflowProgressPage, WorkflowProgressLine, WorkflowPhaseObservation, WorkflowPhaseStatus, WorkflowAgentSummary, } from "./workflow.js";
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 006c541..77cb6f4 100644
+index 5337153..c43097d 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -7,10 +7,11 @@ import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
- import type { AutoTier, PermissionRequest as GeneratedPermissionRequest, PermissionRequestedData as GeneratedPermissionRequestedData, PermissionRequestedEvent as GeneratedPermissionRequestedEvent, ReasoningSummary, SessionLimitsConfig, SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+@@ -7,11 +7,12 @@ import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
+ import type { AttachmentExtensionContext as GeneratedExtensionContextAttachment, AutoTier, PermissionRequest as GeneratedPermissionRequest, PermissionRequestedData as GeneratedPermissionRequestedData, PermissionRequestedEvent as GeneratedPermissionRequestedEvent, ReasoningSummary, SessionLimitsConfig, SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
  import type { CopilotSession } from "./session.js";
  import type { FactoryJsonSchema, JsonValue } from "./factory.js";
--import type { GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTelemetryNotification, ModelBillingTokenPrices, OpenCanvasInstance, RemoteSessionMode, CurrentToolMetadata } from "./generated/rpc.js";
-+import type { ExtensionLaunchProviderHandler, GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTelemetryNotification, ModelBillingTokenPrices, OpenCanvasInstance, RemoteSessionMode, CurrentToolMetadata, SessionOpenOptions } from "./generated/rpc.js";
+-import type { ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider, GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTelemetryNotification, ModelBillingTokenPrices, OpenCanvasInstance, RemoteSessionMode, CurrentToolMetadata } from "./generated/rpc.js";
++import type { ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider, GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTelemetryNotification, ModelBillingTokenPrices, OpenCanvasInstance, RemoteSessionMode, CurrentToolMetadata, SessionOpenOptions } from "./generated/rpc.js";
  import type { ToolSet } from "./toolSet.js";
  export type { RemoteSessionMode } from "./generated/rpc.js";
  export type { CurrentToolMetadata } from "./generated/rpc.js";
+-export type { ExtensionLaunchProfile, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, } from "./generated/rpc.js";
 +export type { ExtensionLaunchProfile, ExtensionLaunchProviderHandler, ExtensionLaunchProviderRegistrationResult, ExtensionLaunchProviderResolveRequest, ExtensionLaunchProviderResolveResult, ExtensionSource, } from "./generated/rpc.js";
- export type { GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, } from "./generated/rpc.js";
++export type { GitHubTokenAcquireReason, GitHubTokenAcquireResult, GitHubTelemetryNotification, GitHubTelemetryEvent, GitHubTelemetryClientInfo, } from "./generated/rpc.js";
  /**
   * Arguments passed to a session's {@link GitHubTokenProvider}.
-@@ -371,6 +372,30 @@ export interface CopilotClientOptions {
+  *
+@@ -282,14 +283,6 @@ export interface CopilotClientOptions {
+      * startup before any sessions can be created.
+      */
+     builtinPluginDirectories?: readonly string[];
+-    /**
+-     * Connection-level extension launch profile provider.
+-     * When set, the client registers the provider during startup before any
+-     * session can be created.
+-     *
+-     * @experimental
+-     */
+-    extensionLaunchProvider?: ExtensionLaunchProvider;
+     /**
+      * Log level for the Copilot runtime. When omitted, the runtime uses its
+      * own default (currently `"info"`).
+@@ -380,6 +373,30 @@ export interface CopilotClientOptions {
       * @experimental
       */
      requestHandler?: CopilotRequestHandler;
@@ -978,11 +944,11 @@ index 006c541..77cb6f4 100644
 +     *
 +     * @experimental
 +     */
-+    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
++    extensionLaunchProvider?: ExtensionLaunchProvider;
      /**
       * Experimental. Receives GitHub telemetry events the runtime forwards to
       * this connection. When set, the client opts each session it creates or
-@@ -2087,6 +2112,17 @@ export interface SessionConfigBase {
+@@ -2105,6 +2122,17 @@ export interface SessionConfigBase {
       * reconstruct changes from earlier untracked turns.
       */
      enableFileChangeTracking?: boolean;

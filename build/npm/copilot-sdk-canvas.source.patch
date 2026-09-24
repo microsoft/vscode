@@ -1,16 +1,138 @@
+diff --git a/nodejs/README.md b/nodejs/README.md
+index 7ecaac4b..9c9aaa41 100644
+--- a/nodejs/README.md
++++ b/nodejs/README.md
+@@ -132,7 +132,7 @@ new CopilotClient(options?: CopilotClientOptions)
+ - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
+ - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
+ - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
+-- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
++- `extensionLaunchProvider?: ExtensionLaunchProvider` - Experimental, connection-owned extension launch admission. Requires explicit runtime contract version 1; see [Extension launch admission](#extension-launch-admission-experimental).
+ - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
+ - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
+ - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
+@@ -150,6 +150,90 @@ new CopilotClient(options?: CopilotClientOptions)
+ 
+ Start the CLI server and establish connection.
+ 
++##### Extension launch admission (experimental)
++
++Configure `extensionLaunchProvider` before starting the client. The SDK attaches
++the handler before the RPC handshake, registers it once per connection, and requires
++`{ contractVersion: 1 }` before allowing session creation or resume. An older
++runtime's null acknowledgement, an unsupported version, or a registration error
++rejects startup. Omitting the option preserves legacy launching.
++
++Canvas embedding is limited to **existing, already-persisted chats**. The host
++must establish durability through its ordinary chat/session lifecycle before
++approving a launch. This SDK contract does not persist a new or zero-turn chat;
++canvas-first persistence is deferred.
++
++```typescript
++// persistedSessionId comes from the host's already-persisted chat selection.
++const client = new CopilotClient({
++    extensionLaunchProvider: {
++        async resolve(request, cancellation) {
++            if (request.sessionId !== persistedSessionId || request.defaultLaunch === undefined) {
++                return { launch: null };
++            }
++            // approveRevision is the embedding application's source-admission routine.
++            if (!(await approveRevision(request, cancellation))) {
++                return { launch: null };
++            }
++            return { launch: request.defaultLaunch };
++        },
++    },
++});
++const session = await client.resumeSession(persistedSessionId, {
++    requestExtensions: true,
++    enableScriptSafety: true,
++});
++```
++
++The request preserves the source-qualified ID, name, original module path,
++source (`project`, `user`, `plugin`, or `session`), and optional `sessionId` and
++`defaultLaunch`. The latter is the runtime's unexecuted executable, arguments,
++and bootstrap environment overrides, not its inherited environment. Do not
++invent missing session IDs or reconstruct private bootstrap paths.
++
++The handler must respond within the runtime's 15-second deadline. An absent/null
++launch, callback error, timeout, or cancellation denies execution without a
++fallback. The optional transport cancellation token also signals disconnect and
++stop. Reconnection requires a fresh registration; approvals are not cached or
++replayed. A shared runtime may keep a disconnected provider authoritative to
++prevent a fallback to legacy launching. If it rejects replacement registration,
++the SDK surfaces that error; it does not take over the old registration. Restarting
++an SDK-owned runtime permits fresh negotiation. Shared-runtime reattachment
++requires support from the runtime contract.
++
++This contract does not sandbox Node, freeze files or dependencies, or
++implement source-revision approval or immediate revocation.
++
++For an already-durable session, approve the source revision before returning the
++launch recipe: top-level extension code can have effects before resume returns,
++`joinSession`, or canvas open. The SDK does not infer durability from a session ID
++or a successful resume. Create/resume completion is not registry readiness; wait for the expected
++entry in `session.rpc.canvas.list()` or a registry-change event before opening it.
++
++For read-only shell-command classification from the first new extension operation,
++pass `enableScriptSafety: true` in the initial `createSession` and `resumeSession`
++configurations, rather than only updating options after they return. Commands
++classified as read-only may run without a permission prompt, subject to runtime
++and managed policy. This is not blanket tool approval, a policy override, or
++retroactive protection for already-running extensions.
++
++The setting is in-memory, not a durable session preference. An omitted cold-resume
++setting uses the runtime default (classification disabled); omission on a resident
++resume preserves the current value. Hosts requiring classification should supply
++`true` on every create and cold resume. Explicit `false` and omission are forwarded
++without an SDK default.
++
++These bindings require a runtime implementing the launch-v1 contract and initial
++script-safety configuration. The checked-in CLI pin alone
++does not establish their availability; an older runtime rejects these opt-in
++operations. Publishing and qualifying a matching SDK/runtime pair is a separate
++release step.
++
++These experimental high-level bindings are currently Node-only. Generated wire
++types or an earlier launch-provider API in another SDK do not establish equivalent
++launch-v1, cancellation, or initial script-safety behavior.
++High-level parity in the other SDKs is a separate follow-up.
++
+ ##### `stop(): Promise<Error[]>`
+ 
+ Stop the server and close all sessions. Returns a list of any errors encountered during cleanup.
+@@ -1310,6 +1394,25 @@ For native Vitest selectors on E2Es, use the
+ [prepared-runtime instructions](../CONTRIBUTING.md#testing-an-unreleased-runtime-api);
+ the SDK facade does not forward selectors.
+ 
++Run `npm run generate` to regenerate bindings from the checksum-verified pinned
++CLI schemas. The default Node generator also applies the reviewed experimental
++[canvas schema revision](../scripts/codegen/experimental/canvas.schema.json).
++That checked-in input records the canonical producer schema hashes, the exact
++released predecessor fingerprints, and the launch-v1 API fragments; it does not
++invent a CLI release or change the downloaded schemas. Session events use the
++unmodified release schema; no no-turn persistence API or event is projected.
++
++The revision accepts only its recorded predecessor or an already matching
++canonical field. Unexpected changes fail generation rather than silently
++overriding a newer contract. When the runtime contract is released, review and
++remove the corresponding revision entries as part of the normal pin update.
++Other language generators remain on the release schema, and explicit schema
++arguments to the Node generator remain complete caller-supplied inputs.
++
++This makes ordinary codegen reproducible, not the experimental runtime available.
++The launch-version acknowledgement and compatible-runtime requirements above
++still apply.
++
+ ## License
+ 
+ MIT
 diff --git a/nodejs/src/client.ts b/nodejs/src/client.ts
-index eb92cf0..c218bdc 100644
+index c99af602..f87add7e 100644
 --- a/nodejs/src/client.ts
 +++ b/nodejs/src/client.ts
-@@ -33,6 +33,7 @@ import {
- } from "./generated/rpc.js";
- import type {
-     ConnectClientInfo,
-+    ExtensionLaunchProviderHandler,
-     GitHubTelemetryNotification,
-     GitHubTokenAcquireRequest,
-     GitHubTokenAcquireResult,
-@@ -41,6 +42,7 @@ import type {
+@@ -41,6 +41,7 @@ import type {
      TaskKind,
  } from "./generated/rpc.js";
  import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
@@ -18,25 +140,15 @@ index eb92cf0..c218bdc 100644
  import { CopilotSession } from "./session.js";
  import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
  import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
-@@ -448,6 +450,8 @@ export class CopilotClient {
-     private runtimePort: number | null = null;
-     private actualHost: string = "localhost";
-     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
-+    /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
-+    private startPromise: Promise<void> | null = null;
-     private sessions: Map<string, CopilotSession> = new Map();
-     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
-     /** Resolved connection mode chosen in the constructor. */
-@@ -489,6 +493,8 @@ export class CopilotClient {
-     /** Connection-level session filesystem config, set via constructor option. */
+@@ -477,6 +478,7 @@ export class CopilotClient {
      private sessionFsConfig: SessionFsConfig | null = null;
      private requestHandler: CopilotRequestHandler | null = null;
-+    private extensionLaunchProvider?: ExtensionLaunchProviderHandler;
+     private extensionLaunchProvider?: ExtensionLaunchProvider;
 +    private extensionLaunchProviderConnection?: ExtensionLaunchProviderConnection;
      private builtinPluginDirectories: string[] = [];
      private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
      private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
-@@ -502,7 +508,7 @@ export class CopilotClient {
+@@ -490,7 +492,7 @@ export class CopilotClient {
       * @throws Error if the client is not connected
       */
      get rpc(): ReturnType<typeof createServerRpc> {
@@ -45,39 +157,25 @@ index eb92cf0..c218bdc 100644
              throw new Error("Client is not connected. Call start() first.");
          }
          if (!this._rpc) {
-@@ -687,6 +693,7 @@ export class CopilotClient {
-         this.onGetTraceContext = options.onGetTraceContext;
-         this.sessionFsConfig = options.sessionFs ?? null;
-         this.requestHandler = options.requestHandler ?? null;
-+        this.extensionLaunchProvider = options.extensionLaunchProvider;
-         this.onGitHubTelemetry = options.onGitHubTelemetry;
-         this.setupClientGlobalHandlers();
+@@ -821,7 +823,6 @@ export class CopilotClient {
  
-@@ -935,6 +942,23 @@ export class CopilotClient {
-             return;
-         }
+     private setupClientGlobalHandlers(): void {
+         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+-        handlers.extensionLaunchProvider = this.extensionLaunchProvider;
+         if (this.requestHandler) {
+             this.requestAdapter = createCopilotRequestAdapter(this.requestHandler, () => {
+                 if (!this.connection) {
+@@ -940,6 +941,9 @@ export class CopilotClient {
+     }
  
-+        // Concurrent callers share one in-progress start instead of each spawning a CLI.
-+        if (this.startPromise) {
-+            return this.startPromise;
-+        }
-+
-+        this.startPromise = this.doStart();
-+        try {
-+            await this.startPromise;
-+        } finally {
-+            this.startPromise = null;
-+        }
-+    }
-+
-+    private async doStart(): Promise<void> {
+     private async doStart(): Promise<void> {
 +        if (this.connectionClosed) {
 +            await this.forceStop();
 +        }
          this.forceStopping = false;
          this.connectionClosed = false;
          this.processTransportError = null;
-@@ -950,6 +974,7 @@ export class CopilotClient {
+@@ -955,14 +959,11 @@ export class CopilotClient {
  
              // Connect to the server
              await this.connectToServer();
@@ -85,7 +183,15 @@ index eb92cf0..c218bdc 100644
  
              // Verify protocol version compatibility
              await this.verifyProtocolVersion();
-@@ -982,6 +1007,7 @@ export class CopilotClient {
+ 
+-            if (this.extensionLaunchProvider) {
+-                await this.rpc.registerExtensionLaunchProvider();
+-            }
+-
+             if (this.builtinPluginDirectories.length > 0) {
+                 try {
+                     await this.connection!.sendRequest("plugins.builtin.set", {
+@@ -991,6 +992,7 @@ export class CopilotClient {
                  await this.connection!.sendRequest("llmInference.setProvider", {});
              }
  
@@ -93,7 +199,7 @@ index eb92cf0..c218bdc 100644
              this.state = "connected";
          } catch (error) {
              const startupError = this.processTransportError ?? error;
-@@ -1017,6 +1043,7 @@ export class CopilotClient {
+@@ -1026,6 +1028,7 @@ export class CopilotClient {
       */
      async stop(): Promise<Error[]> {
          const errors: Error[] = [];
@@ -101,7 +207,7 @@ index eb92cf0..c218bdc 100644
  
          // Disconnect all active sessions with retry logic
          const activeSessions = [...this.sessions.values()];
-@@ -1202,6 +1229,7 @@ export class CopilotClient {
+@@ -1212,6 +1215,7 @@ export class CopilotClient {
          this.runtimePort = null;
          this.stderrBuffer = "";
          this.processExitPromise = null;
@@ -109,7 +215,7 @@ index eb92cf0..c218bdc 100644
  
          return errors;
      }
-@@ -1249,6 +1277,7 @@ export class CopilotClient {
+@@ -1259,6 +1263,7 @@ export class CopilotClient {
       */
      async forceStop(): Promise<void> {
          this.forceStopping = true;
@@ -117,7 +223,7 @@ index eb92cf0..c218bdc 100644
  
          // Clear sessions immediately without trying to destroy them
          for (const session of this.sessions.values()) {
-@@ -1315,6 +1344,7 @@ export class CopilotClient {
+@@ -1327,6 +1332,7 @@ export class CopilotClient {
          this.runtimePort = null;
          this.stderrBuffer = "";
          this.processExitPromise = null;
@@ -125,7 +231,7 @@ index eb92cf0..c218bdc 100644
      }
  
      /**
-@@ -1510,7 +1540,7 @@ export class CopilotClient {
+@@ -1522,7 +1528,7 @@ export class CopilotClient {
          if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
              throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
          }
@@ -134,7 +240,7 @@ index eb92cf0..c218bdc 100644
              await this.start();
          }
  
-@@ -1666,6 +1696,7 @@ export class CopilotClient {
+@@ -1678,6 +1684,7 @@ export class CopilotClient {
                  enableSessionTelemetry: config.enableSessionTelemetry,
                  enableCitations: config.enableCitations,
                  enableFileChangeTracking: config.enableFileChangeTracking,
@@ -142,7 +248,7 @@ index eb92cf0..c218bdc 100644
                  sessionLimits: config.sessionLimits,
                  modelCapabilities: config.modelCapabilities,
                  largeOutput: toWireLargeOutput(config.largeOutput),
-@@ -1817,7 +1848,7 @@ export class CopilotClient {
+@@ -1849,7 +1856,7 @@ export class CopilotClient {
          if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
              throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
          }
@@ -151,7 +257,7 @@ index eb92cf0..c218bdc 100644
              await this.start();
          }
  
-@@ -1910,6 +1941,7 @@ export class CopilotClient {
+@@ -1943,6 +1950,7 @@ export class CopilotClient {
                  excludedBuiltinAgents: config.excludedBuiltinAgents,
                  enableCitations: config.enableCitations,
                  enableFileChangeTracking: config.enableFileChangeTracking,
@@ -159,7 +265,7 @@ index eb92cf0..c218bdc 100644
                  sessionLimits: config.sessionLimits,
                  tools: config.tools?.map((tool) => ({
                      name: tool.name,
-@@ -2787,8 +2819,13 @@ export class CopilotClient {
+@@ -2822,8 +2830,13 @@ export class CopilotClient {
              case "inprocess":
                  return this.connectViaFfi();
              case "tcp":
@@ -174,7 +280,7 @@ index eb92cf0..c218bdc 100644
          }
      }
  
-@@ -3048,7 +3085,20 @@ export class CopilotClient {
+@@ -3083,7 +3096,20 @@ export class CopilotClient {
          // Register client *global* API handlers (e.g. LLM inference) on the
          // same connection. These methods carry no implicit sessionId dispatch
          // — the runtime calls into a single handler for the whole connection.
@@ -196,7 +302,7 @@ index eb92cf0..c218bdc 100644
  
          // `hooks.invoke` is an internal RPC method: the runtime calls it to
          // invoke a hook callback on the client. Route each call to the matching
-@@ -3061,8 +3111,8 @@ export class CopilotClient {
+@@ -3096,8 +3122,8 @@ export class CopilotClient {
              }
          );
  
@@ -206,8 +312,8 @@ index eb92cf0..c218bdc 100644
              if (this.connection !== connection) {
                  return;
              }
-@@ -3075,11 +3125,8 @@ export class CopilotClient {
-             this.githubTokenProviders.clear();
+@@ -3111,11 +3137,8 @@ export class CopilotClient {
+             this.requestAdapter?.cancelPending();
          };
          this.connection.onClose(markDisconnected);
 -        this.connection.onError(() => {
@@ -222,7 +328,7 @@ index eb92cf0..c218bdc 100644
      private handleSessionEventNotification(notification: unknown): void {
 diff --git a/nodejs/src/extensionLaunchProvider.ts b/nodejs/src/extensionLaunchProvider.ts
 new file mode 100644
-index 0000000..f434f7c
+index 00000000..f434f7cb
 --- /dev/null
 +++ b/nodejs/src/extensionLaunchProvider.ts
 @@ -0,0 +1,117 @@
@@ -344,7 +450,7 @@ index 0000000..f434f7c
 +    }
 +}
 diff --git a/nodejs/src/generated/rpc.ts b/nodejs/src/generated/rpc.ts
-index f4978de..0dd2b2d 100644
+index da14db8f..2ed5b828 100644
 --- a/nodejs/src/generated/rpc.ts
 +++ b/nodejs/src/generated/rpc.ts
 @@ -1,9 +1,9 @@
@@ -357,9 +463,9 @@ index f4978de..0dd2b2d 100644
 -import type { MessageConnection } from "vscode-jsonrpc/node.js";
 +import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
  
- import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+ import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
  
-@@ -7483,16 +7483,24 @@ export interface ExtensionLaunchProviderResolveRequest {
+@@ -9015,16 +9015,24 @@ export interface ExtensionLaunchProviderResolveRequest {
     */
    modulePath: string;
    source: ExtensionSource;
@@ -386,7 +492,7 @@ index f4978de..0dd2b2d 100644
  }
  /**
   * Extensions discovered for the session, with their current status.
-@@ -23577,6 +23585,19 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
+@@ -26766,6 +26774,19 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
     */
    operation: string;
  }
@@ -405,8 +511,8 @@ index f4978de..0dd2b2d 100644
 +}
  
  /** @experimental */
- export interface SessionModelListRequest {
-@@ -23919,11 +23940,13 @@ export function createServerRpc(connection: MessageConnection) {
+ export interface SessionFactoryPauseAtCheckpointResult {
+@@ -27126,11 +27147,13 @@ export function createServerRpc(connection: MessageConnection) {
                  connection.sendRequest("extensions.disable", params),
          },
          /**
@@ -422,7 +528,7 @@ index f4978de..0dd2b2d 100644
              connection.sendRequest("registerExtensionLaunchProvider", {}),
          /** @experimental */
          catalog: {
-@@ -27160,13 +27183,13 @@ export function registerClientSessionApiHandlers(
+@@ -30851,13 +30874,13 @@ export function registerClientSessionApiHandlers(
  /** @experimental */
  export interface ExtensionLaunchProviderHandler {
      /**
@@ -439,7 +545,7 @@ index f4978de..0dd2b2d 100644
  }
  
  /** Handler for `llmInference` client global API methods. */
-@@ -27179,7 +27202,7 @@ export interface LlmInferenceHandler {
+@@ -30870,7 +30893,7 @@ export interface LlmInferenceHandler {
       *
       * @returns Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
       */
@@ -448,7 +554,7 @@ index f4978de..0dd2b2d 100644
      /**
       * Delivers a body byte range (or a cancellation signal) for a request previously announced via httpRequestStart, correlated by requestId. The runtime fires at least one chunk per request — when there is no body, a single chunk with empty data and end=true. Mid-stream the runtime may send a chunk with cancel=true to abort the request; the SDK then stops issuing httpResponseChunk frames and may emit a terminal httpResponseChunk with error set.
       *
-@@ -27187,7 +27210,7 @@ export interface LlmInferenceHandler {
+@@ -30878,7 +30901,7 @@ export interface LlmInferenceHandler {
       *
       * @returns Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
       */
@@ -457,7 +563,7 @@ index f4978de..0dd2b2d 100644
  }
  
  /** Handler for `gitHubTelemetry` client global API methods. */
-@@ -27211,7 +27234,7 @@ export interface GitHubTokenHandler {
+@@ -30902,7 +30925,7 @@ export interface GitHubTokenHandler {
       *
       * @returns SDK host response to a GitHub credential request.
       */
@@ -466,7 +572,7 @@ index f4978de..0dd2b2d 100644
  }
  
  /** All client global API handler groups. */
-@@ -27233,29 +27256,29 @@ export function registerClientGlobalApiHandlers(
+@@ -30924,29 +30947,29 @@ export function registerClientGlobalApiHandlers(
      connection: MessageConnection,
      handlers: ClientGlobalApiHandlers,
  ): void {
@@ -505,35 +611,28 @@ index f4978de..0dd2b2d 100644
      });
  }
 diff --git a/nodejs/src/index.ts b/nodejs/src/index.ts
-index 2007679..6ef0ed1 100644
+index 42adbe30..00970fe3 100644
 --- a/nodejs/src/index.ts
 +++ b/nodejs/src/index.ts
-@@ -92,6 +92,12 @@ export type {
-     ExitPlanModeRequest,
+@@ -94,9 +94,12 @@ export type {
      ExitPlanModeResult,
-     ExtensionInfo,
-+    ExtensionLaunchProfile,
+     ExtensionLaunchProfile,
+     ExtensionLaunchProvider,
++    ExtensionInfo,
 +    ExtensionLaunchProviderHandler,
 +    ExtensionLaunchProviderRegistrationResult,
-+    ExtensionLaunchProviderResolveRequest,
-+    ExtensionLaunchProviderResolveResult,
+     ExtensionLaunchProviderResolveRequest,
+     ExtensionLaunchProviderResolveResult,
+-    ExtensionInfo,
 +    ExtensionSource,
      ForegroundSessionInfo,
      GetAuthStatusResponse,
      GetStatusResponse,
 diff --git a/nodejs/src/types.ts b/nodejs/src/types.ts
-index 0f15749..9cce98b 100644
+index 6a19116a..f4b28930 100644
 --- a/nodejs/src/types.ts
 +++ b/nodejs/src/types.ts
-@@ -22,6 +22,7 @@ import type {
- import type { CopilotSession } from "./session.js";
- import type { FactoryJsonSchema, JsonValue } from "./factory.js";
- import type {
-+    ExtensionLaunchProviderHandler,
-     GitHubTokenAcquireRequest,
-     GitHubTokenAcquireResult,
-     GitHubTelemetryNotification,
-@@ -29,10 +30,19 @@ import type {
+@@ -31,14 +31,20 @@ import type {
      OpenCanvasInstance,
      RemoteSessionMode,
      CurrentToolMetadata,
@@ -542,18 +641,35 @@ index 0f15749..9cce98b 100644
  import type { ToolSet } from "./toolSet.js";
  export type { RemoteSessionMode } from "./generated/rpc.js";
  export type { CurrentToolMetadata } from "./generated/rpc.js";
-+export type {
-+    ExtensionLaunchProfile,
+ export type {
+     ExtensionLaunchProfile,
 +    ExtensionLaunchProviderHandler,
 +    ExtensionLaunchProviderRegistrationResult,
-+    ExtensionLaunchProviderResolveRequest,
-+    ExtensionLaunchProviderResolveResult,
+     ExtensionLaunchProviderResolveRequest,
+     ExtensionLaunchProviderResolveResult,
 +    ExtensionSource,
 +} from "./generated/rpc.js";
- export type {
++export type {
      GitHubTokenAcquireReason,
      GitHubTokenAcquireResult,
-@@ -484,6 +494,31 @@ export interface CopilotClientOptions {
+     GitHubTelemetryNotification,
+@@ -390,15 +396,6 @@ export interface CopilotClientOptions {
+      */
+     builtinPluginDirectories?: readonly string[];
+ 
+-    /**
+-     * Connection-level extension launch profile provider.
+-     * When set, the client registers the provider during startup before any
+-     * session can be created.
+-     *
+-     * @experimental
+-     */
+-    extensionLaunchProvider?: ExtensionLaunchProvider;
+-
+     /**
+      * Log level for the Copilot runtime. When omitted, the runtime uses its
+      * own default (currently `"info"`).
+@@ -498,6 +495,31 @@ export interface CopilotClientOptions {
       */
      requestHandler?: CopilotRequestHandler;
  
@@ -580,12 +696,12 @@ index 0f15749..9cce98b 100644
 +     *
 +     * @experimental
 +     */
-+    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
++    extensionLaunchProvider?: ExtensionLaunchProvider;
 +
      /**
       * Experimental. Receives GitHub telemetry events the runtime forwards to
       * this connection. When set, the client opts each session it creates or
-@@ -2563,6 +2598,18 @@ export interface SessionConfigBase {
+@@ -2588,6 +2610,18 @@ export interface SessionConfigBase {
       */
      enableFileChangeTracking?: boolean;
  
@@ -606,7 +722,7 @@ index 0f15749..9cce98b 100644
       *
 diff --git a/nodejs/test/canvas-codegen.test.ts b/nodejs/test/canvas-codegen.test.ts
 new file mode 100644
-index 0000000..f8fa695
+index 00000000..31c252d5
 --- /dev/null
 +++ b/nodejs/test/canvas-codegen.test.ts
 @@ -0,0 +1,120 @@
@@ -620,7 +736,7 @@ index 0000000..f8fa695
 +    loadCanvasSchemaRevisions,
 +    schemaFingerprint,
 +    type SchemaRevision,
-+} from "../../scripts/codegen/canvas-schema.js";
++} from "../../scripts/codegen/canvas-schema.ts";
 +
 +const previousMethod = { params: null, result: { type: "null" } };
 +const approvedMethod = { params: null, result: { $ref: "#/definitions/Acknowledgement" } };
@@ -731,75 +847,10 @@ index 0000000..f8fa695
 +    });
 +});
 diff --git a/nodejs/test/client.test.ts b/nodejs/test/client.test.ts
-index 3db96ea..40daf5f 100644
+index 8175b4b5..bcc4f7e1 100644
 --- a/nodejs/test/client.test.ts
 +++ b/nodejs/test/client.test.ts
-@@ -62,6 +62,64 @@ describe("approveAll", () => {
- });
- 
- describe("CopilotClient", () => {
-+    it("start() is single-flight: concurrent callers share one startup", async () => {
-+        const client = new CopilotClient({ autoStart: false });
-+        onTestFinished(() => client.forceStop());
-+
-+        // Stub the underlying startup (doStart) that the single-flight guard
-+        // dedupes. Transport-independent: this is the same regardless of the
-+        // stdio vs in-process connection path. The delay makes all three
-+        // start() calls overlap; on success it marks the client connected like
-+        // the real doStart does.
-+        const doStart = vi.fn().mockImplementation(
-+            () =>
-+                new Promise<void>((resolve) =>
-+                    setTimeout(() => {
-+                        (client as any).state = "connected";
-+                        resolve();
-+                    }, 50)
-+                )
-+        );
-+        (client as any).doStart = doStart;
-+
-+        // Before the fix, each concurrent caller ran startup (and spawned its own
-+        // CLI, orphaning all but the last). With single-flight they share one.
-+        await Promise.all([client.start(), client.start(), client.start()]);
-+
-+        expect(doStart).toHaveBeenCalledTimes(1);
-+        expect((client as any).state).toBe("connected");
-+
-+        // Once connected, a further start() is a no-op (no extra startup).
-+        await client.start();
-+        expect(doStart).toHaveBeenCalledTimes(1);
-+    });
-+
-+    it("start() retries after a failed attempt (single-flight guard is cleared)", async () => {
-+        const client = new CopilotClient({ autoStart: false });
-+        onTestFinished(() => client.forceStop());
-+
-+        // Stub the underlying startup: fail once, then succeed. Transport-
-+        // independent (does not depend on the stdio vs in-process path).
-+        const doStart = vi
-+            .fn()
-+            .mockImplementationOnce(async () => {
-+                (client as any).state = "error";
-+                throw new Error("boom");
-+            })
-+            .mockImplementationOnce(async () => {
-+                (client as any).state = "connected";
-+            });
-+        (client as any).doStart = doStart;
-+
-+        await expect(client.start()).rejects.toThrow(/boom/);
-+        expect((client as any).state).toBe("error");
-+
-+        // The guard must have cleared so a later start() can retry.
-+        await client.start();
-+        expect(doStart).toHaveBeenCalledTimes(2);
-+        expect((client as any).state).toBe("connected");
-+    });
-+
-     it.each([
-         {
-             source: "connection path",
-@@ -4072,6 +4130,7 @@ describe("CopilotClient", () => {
+@@ -4131,6 +4131,7 @@ describe("CopilotClient", () => {
                  onNotification: vi.fn(),
                  onRequest: vi.fn(),
                  onClose: vi.fn(),
@@ -807,12 +858,154 @@ index 3db96ea..40daf5f 100644
                  onError: vi.fn(),
              };
  
+diff --git a/nodejs/test/e2e/client_options.e2e.test.ts b/nodejs/test/e2e/client_options.e2e.test.ts
+index bbcd35e1..d2addda4 100644
+--- a/nodejs/test/e2e/client_options.e2e.test.ts
++++ b/nodejs/test/e2e/client_options.e2e.test.ts
+@@ -15,7 +15,6 @@ const captureIndex = process.argv.indexOf("--capture-file");
+ const captureFile = captureIndex >= 0 ? process.argv[captureIndex + 1] : undefined;
+ const requests = [];
+ const clientResponses = [];
+-let extensionRegistrationId;
+ 
+ function saveCapture() {
+   if (!captureFile) {
+@@ -86,10 +85,6 @@ function handleMessage(message) {
+   if (!message.method) {
+     clientResponses.push(message);
+     saveCapture();
+-    if (message.id === 9001 && extensionRegistrationId !== undefined) {
+-      writeResponse(extensionRegistrationId, {});
+-      extensionRegistrationId = undefined;
+-    }
+     return;
+   }
+ 
+@@ -107,7 +102,7 @@ function handleMessage(message) {
+   }
+ 
+   if (message.method === "registerExtensionLaunchProvider") {
+-    extensionRegistrationId = message.id;
++    writeResponse(message.id, { contractVersion: 1 });
+     writeRequest(9001, "extensionLaunchProvider.resolve", {
+       id: "project:node-e2e",
+       name: "node-e2e",
+@@ -404,7 +399,7 @@ describe("Client options", async () => {
+         await resumed.disconnect();
+     });
+ 
+-    it("should register and invoke an extension launch provider during startup", async () => {
++    it("should register before invoking an extension launch provider", async () => {
+         const cliPath = path.join(workDir, `fake-cli-extension-provider-${Date.now()}.js`);
+         const capturePath = path.join(workDir, `fake-cli-extension-provider-${Date.now()}.json`);
+         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+@@ -443,35 +438,40 @@ describe("Client options", async () => {
+ 
+         await client.start();
+ 
+-        expect(observedRequest).toEqual({
+-            id: "project:node-e2e",
+-            name: "node-e2e",
+-            modulePath: "/extensions/node-e2e.mjs",
+-            source: "project",
+-        });
+-        const capture = JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
+-            requests: { method: string }[];
+-            clientResponses: {
+-                id: number;
+-                result: {
+-                    launch: { executable: string; args: string[]; env: Record<string, string> };
+-                };
+-            }[];
+-        };
+-        expect(capture.requests.map((request) => request.method)).toContain(
++        await expect
++            .poll(() => observedRequest)
++            .toEqual({
++                id: "project:node-e2e",
++                name: "node-e2e",
++                modulePath: "/extensions/node-e2e.mjs",
++                source: "project",
++            });
++        const readCapture = () =>
++            JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
++                requests: { method: string }[];
++                clientResponses: {
++                    id: number;
++                    result: {
++                        launch: { executable: string; args: string[]; env: Record<string, string> };
++                    };
++                }[];
++            };
++        expect(readCapture().requests.map((request) => request.method)).toContain(
+             "registerExtensionLaunchProvider"
+         );
+-        expect(capture.clientResponses).toContainEqual({
+-            jsonrpc: "2.0",
+-            id: 9001,
+-            result: {
+-                launch: {
+-                    executable: "node",
+-                    args: ["extension-host"],
+-                    env: { EXTENSION_SOURCE: "node" },
++        await expect
++            .poll(() => readCapture().clientResponses)
++            .toContainEqual({
++                jsonrpc: "2.0",
++                id: 9001,
++                result: {
++                    launch: {
++                        executable: "node",
++                        args: ["extension-host"],
++                        env: { EXTENSION_SOURCE: "node" },
++                    },
+                 },
+-            },
+-        });
++            });
+     });
+ 
+     it("should send empty-mode custom agent locality defaults in initial requests", async () => {
+diff --git a/nodejs/test/e2e/factory.e2e.test.ts b/nodejs/test/e2e/factory.e2e.test.ts
+index 5b5796e4..1656373f 100644
+--- a/nodejs/test/e2e/factory.e2e.test.ts
++++ b/nodejs/test/e2e/factory.e2e.test.ts
+@@ -18,28 +18,13 @@ const sdkEntryPoint = process.env.COPILOT_CLI_PATH
+ const { approveAll, RuntimeConnection } = (await import(
+     sdkEntryPoint
+ )) as typeof import("../../src/index.js");
+-const cliPath = process.env.COPILOT_CLI_PATH ?? (await getLegacyCliPathForTests());
+-const cliDistDirectory = process.env.COPILOT_EXTENSION_SDK_PATH
+-    ? dirname(process.env.COPILOT_EXTENSION_SDK_PATH)
+-    : dirname(cliPath);
++const cliPath = await getLegacyCliPathForTests();
+ const factoryTestContext = await createSdkTestContext({
+     copilotClientOptions: {
+         connection: RuntimeConnection.forStdio({ path: cliPath }),
+         env: {
+             COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS,AGENT_FACTORIES",
+         },
+-        extensionLaunchProvider: {
+-            resolve: async (request) => ({
+-                launch: {
+-                    executable: "node",
+-                    args: [join(cliDistDirectory, "preloads", "extension_bootstrap.mjs")],
+-                    env: {
+-                        COPILOT_CLI_DIST_DIR: cliDistDirectory,
+-                        EXTENSION_PATH: request.modulePath,
+-                    },
+-                },
+-            }),
+-        },
+     },
+ });
+ 
 diff --git a/nodejs/test/extension-launch-provider.test.ts b/nodejs/test/extension-launch-provider.test.ts
 new file mode 100644
-index 0000000..9a03b57
+index 00000000..7814a30a
 --- /dev/null
 +++ b/nodejs/test/extension-launch-provider.test.ts
-@@ -0,0 +1,894 @@
+@@ -0,0 +1,896 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *--------------------------------------------------------------------------------------------*/
@@ -838,6 +1031,7 @@ index 0000000..9a03b57
 +    type CopilotClientOptions,
 +    type CopilotSession,
 +    type ExtensionLaunchProfile,
++    type ExtensionLaunchProvider,
 +    type ExtensionLaunchProviderHandler,
 +    type ExtensionLaunchProviderRegistrationResult,
 +    type ExtensionLaunchProviderResolveRequest,
@@ -1653,6 +1847,7 @@ index 0000000..9a03b57
 +        expectTypeOf<Extract<SessionEvent, { type: "session.retained" }>>().toBeNever();
 +        expectTypeOf<CopilotClient["rpc"]["sessions"]["save"]>().toBeFunction();
 +        expectTypeOf<CopilotClient["resumeSession"]>().toBeFunction();
++        expectTypeOf<ExtensionLaunchProvider>().toEqualTypeOf<ExtensionLaunchProviderHandler>();
 +    });
 +
 +    it("admits an existing session before resume returns without an implicit persistence or turn RPC", async () => {
@@ -1661,7 +1856,7 @@ index 0000000..9a03b57
 +        const unexpectedRequest = vi.fn((method: string) => {
 +            throw new Error(`Unexpected RPC: ${method}`);
 +        });
-+        const resolve = vi.fn<ExtensionLaunchProviderHandler["resolve"]>(async (request) => {
++        const resolve = vi.fn<ExtensionLaunchProvider["resolve"]>(async (request) => {
 +            expect(resumeReturned).toBe(false);
 +            expect(request).toEqual({ ...candidate, sessionId });
 +            return { launch: request.defaultLaunch };
@@ -1708,25 +1903,22 @@ index 0000000..9a03b57
 +    });
 +});
 diff --git a/nodejs/tsconfig.test.json b/nodejs/tsconfig.test.json
-index 2957487..3ae69d6 100644
+index 33490b84..1d9a4b20 100644
 --- a/nodejs/tsconfig.test.json
 +++ b/nodejs/tsconfig.test.json
-@@ -5,6 +5,11 @@
-         "emitDeclarationOnly": false,
-         "types": ["node"]
-     },
--    "include": ["src/**/*", "test/session-event-types.test.ts"],
-+    "include": [
-+        "src/**/*",
-+        "test/session-event-types.test.ts",
-+        "test/extension-launch-provider.test.ts",
-+        "test/canvas-codegen.test.ts"
-+    ],
+@@ -11,7 +11,8 @@
+         "test/copilot-request-handler.test.ts",
+         "test/ffiRuntimeHost.test.ts",
+         "test/session-event-types.test.ts",
+-        "test/message-source.test.ts"
++        "test/message-source.test.ts",
++        "test/extension-launch-provider.test.ts"
+     ],
      "exclude": ["node_modules", "dist"]
  }
 diff --git a/scripts/codegen/canvas-schema.ts b/scripts/codegen/canvas-schema.ts
 new file mode 100644
-index 0000000..43e4793
+index 00000000..43e4793c
 --- /dev/null
 +++ b/scripts/codegen/canvas-schema.ts
 @@ -0,0 +1,76 @@
@@ -1808,7 +2000,7 @@ index 0000000..43e4793
 +}
 diff --git a/scripts/codegen/experimental/canvas.schema.json b/scripts/codegen/experimental/canvas.schema.json
 new file mode 100644
-index 0000000..efcc654
+index 00000000..203bb403
 --- /dev/null
 +++ b/scripts/codegen/experimental/canvas.schema.json
 @@ -0,0 +1,221 @@
@@ -1816,8 +2008,8 @@ index 0000000..efcc654
 +  "$comment": "Reviewed experimental Node-only canvas contract. This is a schema input, not a released CLI version or runtime capability assertion.",
 +  "provenance": {
 +    "predecessor": {
-+      "cliVersion": "1.0.83",
-+      "apiSchemaSha256": "0d4416b3e042bf0064d5349dc2a30e40f2755f0ece0d9ef046fbbcfebaf4de42"
++      "cliVersion": "1.0.89-0",
++      "apiSchemaSha256": "a445b552b6ecef536b89f3d08cc73b6fbbe8fe0e503daae8974578529d62bc83"
 +    },
 +    "canonical": {
 +      "repository": "github/copilot-agent-runtime",
@@ -2034,10 +2226,10 @@ index 0000000..efcc654
 +  }
 +}
 diff --git a/scripts/codegen/typescript.ts b/scripts/codegen/typescript.ts
-index f5e8acb..601c827 100644
+index a4680803..7487bd84 100644
 --- a/scripts/codegen/typescript.ts
 +++ b/scripts/codegen/typescript.ts
-@@ -11,6 +11,7 @@ import type { JSONSchema7 } from "json-schema";
+@@ -12,6 +12,7 @@ import type { JSONSchema7 } from "json-schema";
  import { compile } from "json-schema-to-typescript";
  import path from "path";
  import { fileURLToPath } from "url";
@@ -2045,7 +2237,16 @@ index f5e8acb..601c827 100644
  import {
      getApiSchemaPath,
      fixNullableRequiredRefsInApiSchema,
-@@ -692,11 +693,10 @@ function paramsTypeName(method: RpcMethod): string {
+@@ -527,7 +528,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
+     console.log("TypeScript: generating session-events...");
+ 
+     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
+-    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
++    const schema = await loadSchemaJson<JSONSchema7>(resolvedPath);
+     const processed = propagateInternalVisibility(postProcessSchema(schema));
+     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
+     const sessionEvent =
+@@ -693,11 +694,10 @@ function paramsTypeName(method: RpcMethod): string {
      return externalRef?.definitionName ?? getRpcSchemaTypeName(schema, fallback);
  }
  
@@ -2059,7 +2260,7 @@ index f5e8acb..601c827 100644
      if (sessionEventsSchema) {
          const sharedDefinitions = findSharedSchemaDefinitions(
              schema as unknown as Record<string, unknown>,
-@@ -714,10 +714,10 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
+@@ -715,10 +715,10 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
      const lines: string[] = [];
      lines.push(`/**
   * AUTO-GENERATED FILE - DO NOT EDIT
@@ -2072,7 +2273,7 @@ index f5e8acb..601c827 100644
  `);
  
      const externalSchemaRefs = collectExternalSchemaRefNames(schema);
-@@ -1211,7 +1211,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
+@@ -1212,7 +1212,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                  includeExperimental: method.stability === "experimental" && !groupExperimental,
              });
              if (hasParams) {
@@ -2082,7 +2283,7 @@ index f5e8acb..601c827 100644
              } else {
                  lines.push(`    ${name}(): Promise<${rType}>;`);
              }
-@@ -1270,10 +1271,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
+@@ -1271,10 +1272,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
                      lines.push(`    });`);
                  }
              } else if (hasParams) {
@@ -2095,7 +2296,7 @@ index f5e8acb..601c827 100644
                  lines.push(`    });`);
              } else {
                  lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
-@@ -1294,11 +1295,17 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
+@@ -1295,11 +1296,21 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
  // ── Main ────────────────────────────────────────────────────────────────────
  
  async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Promise<void> {
@@ -2105,12 +2306,17 @@ index f5e8acb..601c827 100644
      await generateSessionEvents(sessionSchemaPath);
      try {
          const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-         const sessionSchema = propagateInternalVisibility(postProcessSchema((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
+-        const sessionSchema = propagateInternalVisibility(postProcessSchema((await loadSchemaJson(resolvedSessionPath)) as JSONSchema7));
 -        await generateRpc(apiSchemaPath, sessionSchema);
++        const sessionSchema = await loadSchemaJson<JSONSchema7>(resolvedSessionPath);
 +        const resolvedApiPath = apiSchemaPath ?? (await getApiSchemaPath());
 +        const releasedApiSchema = await loadSchemaJson<ApiSchema>(resolvedApiPath);
 +        const apiSchema = canvas ? applySchemaRevision(releasedApiSchema, canvas.api) : releasedApiSchema;
-+        await generateRpc(apiSchema, `api.schema.json${sourceSuffix}`, sessionSchema);
++        await generateRpc(
++            apiSchema,
++            `api.schema.json${sourceSuffix}`,
++            propagateInternalVisibility(postProcessSchema(sessionSchema))
++        );
      } catch (err) {
          if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {
              console.log("TypeScript: skipping RPC (api.schema.json not found)");
