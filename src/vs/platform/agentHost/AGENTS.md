@@ -425,6 +425,8 @@ Agent Merge is session-resident but folder-scoped. Client-owned enablement lives
 
 The `chat` value records the chat that enabled Agent Merge for that folder. Repair turns and transcript notices target that chat while it still works in the folder; otherwise the host picks the default chat first, then the first peer chat whose first effective working directory is that folder. Repair concurrency is per chat: a folder waits only for its owning chat to be idle, while session-wide elevation is applied when any folder is enabled and restored only after the last folder stops.
 
+Initial tool enablement validates the invoking folder's current Git branch before persisting and returning the target. Configuration-only updates preserve the folder's target and owning chat; asynchronous evaluations revalidate that folder's live configuration and chat ownership before acting.
+
 ---
 
 ## 6. Per-Agent Notes

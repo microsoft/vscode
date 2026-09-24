@@ -170,6 +170,60 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
+	test('ignores a failed server tree kill when the server exits during taskkill', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdout.write('ready');
+			process.stdin.resume();
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+				killTree: async () => {
+					server.kill();
+					throw new Error('taskkill failed after the server exited');
+				},
+				isSameProcessRunning: async () => false,
+			});
+			assert.deepStrictEqual(server.exitCode !== null || server.signalCode !== null, true);
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	});
+
+	test('preserves a failed server tree kill when the server is still running', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdout.write('ready');
+			process.stdin.resume();
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+				killTree: async () => {
+					throw new Error('taskkill failed while server was running');
+				},
+				isSameProcessRunning: async () => false,
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			assert.deepStrictEqual(error?.message, 'taskkill failed while server was running');
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	});
+
 	(isWindows ? test : test.skip)('stops owned descendants after the server exits gracefully', async function () {
 		this.timeout(30_000);
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-test-server-cleanup-'));

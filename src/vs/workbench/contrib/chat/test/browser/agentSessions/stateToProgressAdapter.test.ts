@@ -860,6 +860,28 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
 		});
 
+		for (const message of [undefined, '', 'Could not read question input']) {
+			test(`preserves question-tool failures without input/output details in live and restored state (message=${message})`, () => {
+				const completed = createCompletedToolCall({
+					toolName: 'ask_user',
+					toolInput: undefined,
+					success: false,
+					error: message !== undefined ? { message } : undefined,
+				});
+				const invocation = toolCallStateToInvocation(createToolCallState({ toolName: 'ask_user', toolInput: undefined }));
+				finalizeToolInvocation(invocation, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+
+				assert.deepStrictEqual({
+					liveError: IChatToolInvocation.resultError(invocation),
+					restoredError: IChatToolInvocation.resultError(restored),
+					liveDetails: IChatToolInvocation.resultDetails(invocation),
+					restoredDetails: IChatToolInvocation.resultDetails(restored),
+					restoredPresentation: restored.presentation,
+				}, { liveError: message || true, restoredError: message || true, liveDetails: undefined, restoredDetails: undefined, restoredPresentation: undefined });
+			});
+		}
+
 		test('failed MCP App tool call in history remains confirmed', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -2729,6 +2751,19 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(fileEdits.length, 0);
+		});
+
+		test('does not turn cancellation without a reason message into a tool failure', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState({ status: ToolCallStatus.Running, toolInput: undefined }));
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				reason: ToolCallCancellationReason.Denied,
+			});
+			assert.strictEqual(IChatToolInvocation.resultError(invocation), undefined);
 		});
 
 		test('finalized search tool keeps search rendering without generic details', () => {
