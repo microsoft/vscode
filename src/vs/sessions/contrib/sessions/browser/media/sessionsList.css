@@ -331,6 +331,87 @@
 		}
 	}
 
+	&.session-comparison-attempt[data-session-group-connector] .session-icon {
+		> .codicon,
+		> .monaco-pixel-spinner {
+			display: none;
+		}
+
+		&::before {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
+			color: var(--vscode-descriptionForeground);
+			font-family: var(--monaco-monospace-font);
+			font-size: var(--vscode-fontSize-body1);
+			line-height: 16px;
+			text-align: center;
+		}
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='first'] .session-icon::before {
+		content: '┌';
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='middle'] .session-icon::before {
+		content: '├';
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='last'] .session-icon::before {
+		content: '└';
+	}
+
+	&.session-comparison-attempt[data-session-group-connector] .session-icon {
+		align-self: stretch;
+		width: var(--vscode-spacing-size160);
+
+		&::before,
+		&::after {
+			position: absolute;
+			content: '';
+		}
+
+		&::before {
+			top: var(--vscode-spacing-size80);
+			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
+			width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+			height: 0;
+			border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		}
+
+		&::after {
+			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
+			width: 0;
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		}
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='first'] .session-icon::after {
+		top: var(--vscode-spacing-size80);
+		bottom: calc(-1 * var(--vscode-spacing-size100));
+		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		border-top-left-radius: var(--vscode-cornerRadius-small);
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='middle'] .session-icon::after {
+		top: calc(-1 * var(--vscode-spacing-size80));
+		bottom: calc(-1 * var(--vscode-spacing-size100));
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='last'] .session-icon::after {
+		top: calc(-1 * var(--vscode-spacing-size80));
+		bottom: calc(100% - var(--vscode-spacing-size80));
+		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		border-bottom-left-radius: var(--vscode-cornerRadius-small);
+	}
+
+	&.session-comparison-attempt[data-session-group-connector='first'] .session-icon::before,
+	&.session-comparison-attempt[data-session-group-connector='last'] .session-icon::before {
+		display: none;
+	}
+
 	.session-main {
 		padding-left: 6px;
 	}
@@ -344,6 +425,49 @@
 	.session-title-row {
 		line-height: 17px;
 		padding-bottom: 4px;
+	}
+
+	.session-comparison-attempt-status {
+		display: none;
+		flex-shrink: 0;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-size80);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
+
+		&.visible {
+			display: flex;
+		}
+
+		.session-comparison-attempt-status-icon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+	}
+
+	&.session-comparison-attempt {
+		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		.session-icon {
+			line-height: 16px;
+		}
+
+		.session-title-row {
+			line-height: 16px;
+			padding-bottom: 0;
+		}
+
+		.session-title {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.session-details-row {
+			display: none;
+		}
 	}
 
 	.session-details-row {
@@ -1125,6 +1249,31 @@
 
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
+	.session-group-labels {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		line-height: normal;
+	}
+
+	.session-group-description {
+		display: none;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
+		line-height: 14px;
+
+		&.visible {
+			display: block;
+		}
+	}
+
 	.session-group-input {
 		flex: 1 1 auto;
 		min-width: 0;
@@ -1141,6 +1290,65 @@
 			font-size: var(--vscode-fontSize-label2, 11px);
 		}
 	}
+}
+
+.session-group .session-comparison-archive.monaco-button[hidden] {
+	display: none;
+}
+
+.session-group.session-comparison-group {
+	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
+	color: var(--vscode-foreground);
+
+	.session-section-label {
+		display: block;
+		color: var(--vscode-strongForeground);
+		font-size: var(--vscode-fontSize-label1);
+		font-weight: var(--vscode-fontWeight-semiBold);
+		line-height: 16px;
+	}
+
+	.session-section-chevron.collapsible {
+		order: 4;
+		display: flex;
+		align-items: center;
+		margin-right: 0;
+		margin-left: var(--vscode-spacing-size40);
+	}
+
+	.session-section-toolbar {
+		order: 3;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
+	}
+
+	.session-comparison-archive.monaco-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--vscode-spacing-size160);
+		min-width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding: 0;
+		border-radius: var(--vscode-cornerRadius-small);
+
+		.codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+	}
+}
+
+.monaco-list-row:hover .session-group.session-comparison-group .session-section-toolbar,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-toolbar,
+.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-toolbar {
+	display: flex;
+}
+
+.monaco-list-row:hover .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
+	display: flex;
 }
 
 .session-group.session-group-editing .session-group-input {
@@ -1213,6 +1421,12 @@
 				var(--vscode-strongForeground) 70%,
 				var(--vscode-strongForeground) 100%
 			);
+		}
+
+		.monaco-list-row:not(.selected) .session-item.session-comparison-attempt.in-progress .session-title {
+			background: none;
+			-webkit-text-fill-color: currentColor;
+			animation: none;
 		}
 	}
 }
