@@ -281,7 +281,8 @@ suite('TabbedActionListWidget', () => {
 			.flatMap(sheet => Array.from(sheet.cssRules))
 			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
 			.filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.endsWith('.tabbed-action-list-details:focus'))
-			.map(rule => ({ selector: rule.selectorText, outline: rule.style.outline, offset: rule.style.outlineOffset }));
+			// WebKit serializes `outline: none` as `medium`, so use the longhand for disabled outlines.
+			.map(rule => ({ selector: rule.selectorText, outline: rule.style.outlineStyle === 'none' ? 'none' : rule.style.outline, offset: rule.style.outlineOffset }));
 		assert.deepStrictEqual(rules, [
 			{ selector: '.action-widget.showing-details .tabbed-action-list-details:focus', outline: 'none', offset: '' },
 			{ selector: '.action-widget.showing-details.keyboard-navigation .tabbed-action-list-details:focus', outline: 'var(--vscode-strokeThickness) solid var(--vscode-focusBorder)', offset: 'calc(-1 * var(--vscode-strokeThickness))' },
