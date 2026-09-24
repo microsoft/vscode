@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment, tokenizeSSHPathList } from '../../common/sshConfigParsing.js';
 
 suite('SSH Config Parsing', () => {
 
@@ -131,6 +131,21 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
 		});
 
+		test('unescapes quotes in quoted host names', () => {
+			const config = 'Host "foo\\"bar"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['foo"bar']);
+		});
+
+		test('unescapes backslashes in quoted host names', () => {
+			const config = 'Host "a\\\\b"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['a\\b']);
+		});
+
+		test('keeps escaped spaces in host names together', () => {
+			const config = 'Host foo\\ bar baz';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['foo bar', 'baz']);
+		});
+
 		test('ignores non-Host directives', () => {
 			const config = [
 				'Host myserver',
@@ -157,6 +172,21 @@ suite('SSH Config Parsing', () => {
 
 		test('strips comments after closing quotes', () => {
 			assert.strictEqual(stripSSHComment('"Dev # Instance" # my server'), '"Dev # Instance"');
+		});
+
+		test('ignores escaped quotes', () => {
+			assert.strictEqual(stripSSHComment('"a\\" # x" # c'), '"a\\" # x"');
+		});
+	});
+
+	suite('tokenizeSSHPathList', () => {
+
+		test('keeps quoted include paths with spaces together', () => {
+			// `_parseSSHConfigHosts` feeds Include values through this helper;
+			// it has no direct unit-test seam (private + filesystem I/O).
+			assert.deepStrictEqual(
+				tokenizeSSHPathList('"~/My Configs/*.conf" other.conf').map(token => token.path),
+				['~/My Configs/*.conf', 'other.conf']);
 		});
 	});
 

@@ -9,9 +9,12 @@ import { isSSHStrictHostKeyChecking, type ISSHResolvedConfig } from './sshRemote
 export function stripSSHComment(s: string): string {
 	let inQuotes = false;
 	for (let i = 0; i + 1 < s.length; i++) {
-		if (s[i] === '"') {
+		const ch = s[i];
+		if (ch === '\\') {
+			i++; // an escaped char cannot toggle quotes
+		} else if (ch === '"') {
 			inQuotes = !inQuotes;
-		} else if (s[i] === ' ' && s[i + 1] === '#' && !inQuotes) {
+		} else if (ch === ' ' && s[i + 1] === '#' && !inQuotes) {
 			return s.substring(0, i).trim();
 		}
 	}
@@ -41,15 +44,53 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 	return hosts;
 }
 
-/** Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
+/** Backslash escapes honored inside and outside double quotes, mirroring OpenSSH's argv_split. */
+function isSSHEscapable(next: string, inQuotes: boolean): boolean {
+	return next === '\'' || next === '"' || next === '\\' || (!inQuotes && next === ' ');
+}
+
+/** Splits a whitespace-separated SSH value into tokens, honoring double quotes and backslash escapes like OpenSSH. Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
 export function tokenizeSSHPathList(value: string): { path: string; start: number; end: number; quoted: boolean }[] {
 	const paths: { path: string; start: number; end: number; quoted: boolean }[] = [];
-	const pattern = /"(?<quoted>[^"]*)"|(?<unquoted>\S+)/g;
-	let match: RegExpExecArray | null;
-	while ((match = pattern.exec(value)) !== null) {
-		const path = match.groups?.quoted ?? match.groups?.unquoted;
-		if (path) {
-			paths.push({ path, start: match.index, end: pattern.lastIndex, quoted: match.groups?.quoted !== undefined });
+	const n = value.length;
+	let i = 0;
+	while (i < n) {
+		while (i < n && /\s/.test(value[i])) {
+			i++;
+		}
+		if (i >= n) {
+			break;
+		}
+		const start = i;
+		let token = '';
+		let quoted = false;
+		while (i < n && !/\s/.test(value[i])) {
+			const ch = value[i];
+			if (ch === '\\' && i + 1 < n && isSSHEscapable(value[i + 1], false)) {
+				token += value[i + 1];
+				i += 2;
+			} else if (ch === '"') {
+				quoted = true;
+				i++;
+				while (i < n && value[i] !== '"') {
+					if (value[i] === '\\' && i + 1 < n && isSSHEscapable(value[i + 1], true)) {
+						token += value[i + 1];
+						i += 2;
+					} else {
+						token += value[i];
+						i++;
+					}
+				}
+				if (i < n) {
+					i++; // consume the closing quote
+				}
+			} else {
+				token += ch;
+				i++;
+			}
+		}
+		if (token) {
+			paths.push({ path: token, start, end: i, quoted });
 		}
 	}
 	return paths;
