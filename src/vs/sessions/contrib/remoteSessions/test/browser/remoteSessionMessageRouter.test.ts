@@ -771,6 +771,31 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual({ checked: trust.checked, granted: trust.granted, sent: first.dispatched.length }, { checked: [], granted: [], sent: 1 });
 	});
 
+	for (const trusted of [false, true]) {
+		test(`workspace-less sessions ${trusted ? 'accept trusted' : 'reject untrusted'} additional folders without trusting the scratch directory`, async () => {
+			const { router, first, sessions, trust } = setup();
+			const folders = [URI.file('/first'), URI.file('/second')];
+			const mappedFolders = folders.map(folder => toAgentHostUri(folder, 'first').toString());
+			first.sessionState.set({
+				...first.sessionState.verifiedValue!,
+				workingDirectories: [URI.file('/internal/scratch').toString(), ...folders.map(folder => folder.toString())],
+			});
+			trust.uris.add(mappedFolders[0]);
+			if (trusted) {
+				trust.uris.add(mappedFolders[1]);
+			}
+			const request = router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'additional-folders', CancellationToken.None);
+			if (trusted) {
+				await request;
+			} else {
+				await assert.rejects(request, /workspace is not trusted/);
+			}
+			assert.deepStrictEqual({
+				checked: [...new Set(trust.checked.map(uri => uri.toString()))], granted: trust.granted, sent: first.dispatched.length,
+			}, { checked: mappedFolders, granted: [], sent: trusted ? 1 : 0 });
+		});
+	}
+
 	test('trust is rechecked after asynchronous background preparation', async () => {
 		const { router, local, sessions, trust, backgroundState } = setup();
 		const directory = URI.file('/repo');

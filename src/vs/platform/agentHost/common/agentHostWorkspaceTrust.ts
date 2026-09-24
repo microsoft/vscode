@@ -15,10 +15,15 @@ export async function resolveAgentHostSessionTrustFolders(
 	workspaceTrustService: IWorkspaceTrustManagementService,
 	mapResource: (resource: URI) => URI = resource => resource,
 ): Promise<readonly URI[] | undefined> {
+	let workingDirectories = state.workingDirectories;
 	if (readSessionWorkspaceless(state._meta)) {
-		return undefined;
+		// The immutable primary remains the internal scratch directory when chats add workspace folders.
+		workingDirectories = workingDirectories?.slice(1);
+		if (!workingDirectories?.length) {
+			return undefined;
+		}
 	}
-	const folders = state.workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+	const folders = workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
 	if (folders === undefined) {
 		return undefined;
 	}
