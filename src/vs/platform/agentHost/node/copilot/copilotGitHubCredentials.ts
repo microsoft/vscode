@@ -88,9 +88,9 @@ export class CopilotGitHubCredentials extends Disposable {
 		return this._token;
 	}
 
-	get needsRefresh(): boolean {
+	needsRefreshWithin(thresholdSeconds: number): boolean {
 		const expiresIn = getRemainingTimeInSeconds(this._expiresAt, this._now());
-		return this._usesTokenProvider && expiresIn !== undefined && expiresIn <= COPILOT_GITHUB_TOKEN_REFRESH_THRESHOLD_SECONDS;
+		return this._usesTokenProvider && expiresIn !== undefined && expiresIn <= thresholdSeconds;
 	}
 
 	readonly tokenProvider: GitHubTokenProvider = async ({ reason }) => {

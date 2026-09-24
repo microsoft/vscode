@@ -651,6 +651,7 @@ export function resolveCopilotOtlpMetricsEndpoint(endpoint: string, protocol: 'h
 
 const COPILOT_EXTERNAL_SESSION_CLIENT_NAMES = new Set(['github/cli', 'github/autopilot']);
 const COPILOT_EXTERNAL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const COPILOT_GITHUB_ENTERPRISE_TOKEN_REFRESH_LEAD_TIME_SECONDS = 30 * 60;
 /** How many SDK sessions are classified before the batch is published to clients. */
 const COPILOT_DISCOVERY_BATCH_SIZE = 250;
 
@@ -1228,9 +1229,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
 	 * start, so applying the restart late is always correct.
 	 */
-	private async _requestClientRestart(reason: string): Promise<void> {
+	private async _requestClientRestart(reason: string): Promise<boolean> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
-			return;
+			return false;
 		}
 		this._pendingClientRestartReasons.add(reason);
 		if (this._clientStarting) {
@@ -1238,22 +1239,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._clientStarting;
 			} catch {
 				this._pendingClientRestartReasons.delete(reason);
-				return;
+				return false;
 			}
 		}
 		if (!this._client) {
-			return;
+			return false;
 		}
 		if (this._updatingGitHubCredentials) {
 			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until GitHub credential updates finish`);
-			return;
+			return true;
 		}
 		const busyChats = this._chatsWithActiveTurn();
 		if (busyChats > 0) {
 			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until ${busyChats} in-flight turn(s) finish`);
-			return;
+			return true;
 		}
 		await this._applyPendingClientRestart();
+		return true;
 	}
 
 	/**
@@ -1933,14 +1935,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._updatingGitHubCredentials = false;
 			await this._applyPendingClientRestart();
 		}
-		if (restartRequired) {
-			await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
-		}
+		const restartWillRefreshModels = restartRequired
+			&& await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
 		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== token) {
 			return;
 		}
 		await this._resolveCopilotSku(token);
-		void this._scheduleModelRefresh();
+		if (!restartWillRefreshModels) {
+			void this._scheduleModelRefresh();
+		}
 	}
 
 	private _handleCopilotSessionAuthRequired(credentialInvalid = true): void {
@@ -2190,7 +2193,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 
-		if (this._getEnterpriseHost() && this._githubCredentials.needsRefresh) {
+		if (this._getEnterpriseHost() && this._githubCredentials.needsRefreshWithin(COPILOT_GITHUB_ENTERPRISE_TOKEN_REFRESH_LEAD_TIME_SECONDS)) {
 			this._handleCopilotSessionAuthRequired(false);
 			return;
 		}

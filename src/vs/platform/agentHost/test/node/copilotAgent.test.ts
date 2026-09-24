@@ -2984,7 +2984,7 @@ suite('CopilotAgent', () => {
 			sessionReads++;
 			return [{
 				accessToken: sessionReads === 1 ? 'enterprise-model-token' : 'renewed-enterprise-model-token',
-				expiresAfter: 2 * 60 * 60 * 1000,
+				expiresAfter: 60 * 60 * 1000,
 			}];
 		};
 		const reconcileAuthentication = async () => {
@@ -3000,9 +3000,24 @@ suite('CopilotAgent', () => {
 			await reconcileAuthentication();
 			await waitForState(agent.models, models => models.length > 0);
 			await timeout(0);
-			now += 61 * 60 * 1000;
+			let hasActiveTurn = true;
+			const liveSession = {
+				get hasActiveTurn() { return hasActiveTurn; },
+				usesStaticGitHubToken: false,
+				updateGitHubCredentials: async () => { throw new Error('unexpected credential update'); },
+				dispose() { },
+			} satisfies ICredentialUpdateSession;
+			setDefaultSessionStub(agent, 'enterprise-active-turn', liveSession);
+			now += 31 * 60 * 1000;
 			await agent.refreshModels();
 			await reconcileAuthentication();
+			const whileTurnActive = {
+				clientStops: client.stopCallCount,
+				modelListRequests: client.modelListRequests.length,
+				authenticationRequired: agent.authenticationRequired.get(),
+			};
+			hasActiveTurn = false;
+			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
 			await waitForState(agent.models, () => client.modelListRequests.length === 2);
 			await timeout(0);
 			await agent.refreshModels();
@@ -3010,6 +3025,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				sessionReads,
 				authenticationRequests,
+				whileTurnActive,
 				clientTokens: getCreatedClientOptions(agent).map(options => options.gitHubToken),
 				enterpriseHosts: getCreatedClientOptions(agent).map(options => options.env?.['COPILOT_GH_HOST']),
 				clientStarts: client.startCallCount,
@@ -3022,6 +3038,11 @@ suite('CopilotAgent', () => {
 					resource: endpointService.getCopilotResource(),
 					reason: AuthRequiredReason.Expired,
 				}],
+				whileTurnActive: {
+					clientStops: 0,
+					modelListRequests: 1,
+					authenticationRequired: undefined,
+				},
 				clientTokens: ['enterprise-model-token', 'renewed-enterprise-model-token'],
 				enterpriseHosts: ['example.ghe.com', 'example.ghe.com'],
 				clientStarts: 2,
