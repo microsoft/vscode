@@ -149,11 +149,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			} catch (error) {
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}
-			try {
-				await removeTempDirs(tempDirs);
-			} catch (error) {
-				errors.push(error instanceof Error ? error : new Error(String(error)));
-			}
+			// Provider subprocesses can retain workspace handles until suite teardown stops the lease.
 			if (errors.length > 0) {
 				throw new AggregateError(errors, `Failed to dispose Agent Host E2E test resources: ${errors.map(error => error.message).join('; ')}`);
 			}

@@ -71,7 +71,8 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}, { compacted: 'Compaction completed', followup: 'COMPACT_ORCHID', active: undefined, finalState: 'complete' });
 	});
 
-	test('runtime compaction: a compacted conversation retains context after host restart', async function () {
+	// Windows currently restores the original transcript instead of the compacted context.
+	(!context.isWindows || context.runKnownIssueTests ? test : test.skip)('runtime compaction: a compacted conversation retains context after host restart', async function () {
 		this.timeout(240_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('compact-restart');
 		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-memory',

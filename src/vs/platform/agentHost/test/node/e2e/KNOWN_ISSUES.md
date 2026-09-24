@@ -511,6 +511,17 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Copilot compacted history is not restored on Windows
+
+A user can compact a Copilot conversation to reduce its context and then restart the host. On Windows, the resumed model request contains the original conversation rather than the saved summary. The conversation can still answer a remembered fact, but that alone does not prove compaction survived.
+
+- Test: `runtime compaction: a compacted conversation retains context after host restart`.
+- Scope: Copilot on Windows; macOS and Linux remain enabled. Observed in PR CI and both ADO validation builds.
+- Expected: the post-restart model request uses the compacted history.
+- Observed: request projection contains the original user and assistant messages, not the compaction summary.
+- Gate: Windows requires `context.runKnownIssueTests`; request projection remains strict on enabled platforms.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts --grep 'runtime compaction: a compacted conversation'`.
+
 ### Claude can complete an endpoint-not-found request without a response
 
 When a model endpoint temporarily returns HTTP 404, the Claude provider can report that the turn completed even though it produced neither an answer nor an error. The user is left with an apparently finished, empty response. Other recordings of the same scenario successfully retry, so the missing response is not a stable alternative error presentation.
