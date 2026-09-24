@@ -2227,6 +2227,91 @@ export class Repository implements Disposable {
 		});
 	}
 
+	private _isHandlingIndexCorrupted = false;
+
+	async handleIndexCorruptedError(): Promise<void> {
+		if (this._isHandlingIndexCorrupted) {
+			return;
+		}
+
+		this._isHandlingIndexCorrupted = true;
+		try {
+			const message = l10n.t('The Git index file (.git/index) is corrupted. Would you like to rebuild it?');
+			const rebuildAction = l10n.t('Rebuild Index');
+			const choice = await window.showWarningMessage(message, rebuildAction);
+
+			if (choice === rebuildAction) {
+				try {
+					await this.rebuildIndex();
+				} catch (err) {
+					const errorMessage = err instanceof Error ? err.message : String(err);
+					window.showErrorMessage(l10n.t('Failed to rebuild Git index: {0}', errorMessage));
+				}
+			}
+		} finally {
+			this._isHandlingIndexCorrupted = false;
+		}
+	}
+
+	async rebuildIndex(): Promise<void> {
+		await this.run(Operation.Reset, async () => {
+			const dotGitPath = this.repository.dotGit.path;
+			const indexPath = path.join(dotGitPath, 'index');
+			const lockPath = path.join(dotGitPath, 'index.lock');
+
+			let isLocked = false;
+			try {
+				await fsPromises.access(lockPath);
+				isLocked = true;
+			} catch {
+				// Lock file does not exist
+			}
+
+			if (isLocked) {
+				throw new GitError({ message: l10n.t('Git index is locked by another process'), gitErrorCode: GitErrorCodes.RepositoryIsLocked });
+			}
+
+			try {
+				await this.repository.exec(['status', '--porcelain']);
+				this.logger.info('[Repository][rebuildIndex] Git index is already healthy; skipping rebuild.');
+				return;
+			} catch (err) {
+				if (!(err instanceof GitError && err.gitErrorCode === GitErrorCodes.IndexCorrupted)) {
+					throw err;
+				}
+			}
+
+			const tempIndexPath = path.join(dotGitPath, `index.rebuild-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+			try {
+				await this.repository.exec(['reset', '-q', 'HEAD'], { env: { GIT_INDEX_FILE: tempIndexPath } });
+
+				let isLockedPostReset = false;
+				try {
+					await fsPromises.access(lockPath);
+					isLockedPostReset = true;
+				} catch {
+					// Lock file does not exist
+				}
+
+				if (isLockedPostReset) {
+					throw new GitError({ message: l10n.t('Git index is locked by another process'), gitErrorCode: GitErrorCodes.RepositoryIsLocked });
+				}
+
+				await fsPromises.rename(tempIndexPath, indexPath);
+			} catch (err) {
+				const stderr = err instanceof GitError ? (err.stderr ?? '') : String(err);
+				if (/ambiguous argument 'HEAD'|unknown revision or path not in the working tree/i.test(stderr)) {
+					this.logger.warn(`[Repository][rebuildIndex] Git reset HEAD skipped (unborn branch without HEAD): ${err}`);
+					await fsPromises.rm(indexPath, { force: true });
+					return;
+				}
+				throw err;
+			} finally {
+				await fsPromises.rm(tempIndexPath, { force: true });
+			}
+		});
+	}
+
 	async deleteRef(ref: string): Promise<void> {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}
@@ -2736,8 +2821,17 @@ export class Repository implements Disposable {
 				this.state = RepositoryState.Disposed;
 			}
 
-			if (!operation.readOnly) {
-				await this.updateModelState();
+			if (!operation.readOnly && !(err instanceof GitError && err.gitErrorCode === GitErrorCodes.IndexCorrupted)) {
+				try {
+					await this.updateModelState();
+				} catch (updateErr) {
+					this.logger.error(`[Repository][run] Failed to update model state after error: ${updateErr}`);
+				}
+			}
+
+			if (err instanceof GitError) {
+				// SAFETY: Augment GitError with the originating Repository instance for recovery routing in CommandCenter
+				(err as GitError & { repository?: Repository }).repository = this;
 			}
 
 			throw err;
@@ -2844,7 +2938,7 @@ export class Repository implements Disposable {
 				);
 
 				if (shouldRetry) {
-					// quatratic backoff
+					// quadratic backoff
 					await timeout(Math.pow(attempt, 2) * 50);
 				} else {
 					throw err;
@@ -2871,11 +2965,39 @@ export class Repository implements Disposable {
 		return folderPaths.filter(p => !ignored.has(p));
 	}
 
-	private async updateModelState(optimisticResourcesGroups?: GitResourceGroups) {
+	private async updateModelState(optimisticResourcesGroups?: GitResourceGroups): Promise<void> {
 		this.updateModelStateCancellationTokenSource?.cancel();
+		this.updateModelStateCancellationTokenSource?.dispose();
 
-		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
-		await this._updateModelState(optimisticResourcesGroups, this.updateModelStateCancellationTokenSource.token);
+		const cancellationTokenSource = new CancellationTokenSource();
+		this.updateModelStateCancellationTokenSource = cancellationTokenSource;
+
+		let attempt = 0;
+		while (true) {
+			try {
+				attempt++;
+				await this._updateModelState(optimisticResourcesGroups, cancellationTokenSource.token);
+				return;
+			} catch (err) {
+				const shouldRetry = attempt <= 3
+					&& !cancellationTokenSource.token.isCancellationRequested
+					&& err instanceof GitError
+					&& err.gitErrorCode === GitErrorCodes.IndexCorrupted;
+
+				if (shouldRetry) {
+					// quadratic backoff
+					await timeout(Math.pow(attempt, 2) * 50);
+					if (cancellationTokenSource.token.isCancellationRequested) {
+						return;
+					}
+				} else {
+					if (cancellationTokenSource.token.isCancellationRequested) {
+						return;
+					}
+					throw err;
+				}
+			}
+		}
 	}
 
 	private async _updateModelState(optimisticResourcesGroups?: GitResourceGroups, cancellationToken?: CancellationToken): Promise<void> {
@@ -3205,7 +3327,15 @@ export class Repository implements Disposable {
 	@throttle
 	private async updateWhenIdleAndWait(): Promise<void> {
 		await this.whenIdleAndFocused();
-		await this.status();
+		try {
+			await this.status();
+		} catch (err) {
+			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.IndexCorrupted) {
+				await this.handleIndexCorruptedError();
+			} else {
+				throw err;
+			}
+		}
 		await timeout(5000);
 	}
 

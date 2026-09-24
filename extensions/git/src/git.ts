@@ -326,7 +326,7 @@ export interface IGitOptions {
 	env?: { [key: string]: string };
 }
 
-function getGitErrorCode(stderr: string): string | undefined {
+export function getGitErrorCode(stderr: string): string | undefined {
 	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
 		return GitErrorCodes.RepositoryIsLocked;
 	} else if (/Authentication failed/i.test(stderr)) {
@@ -359,6 +359,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.WorktreeAlreadyExists;
 	} else if (/is already used by worktree at/.test(stderr)) {
 		return GitErrorCodes.WorktreeBranchAlreadyUsed;
+	} else if (/fatal: .*(index file (smaller than expected|corrupt)|unable to map index file|bad index file)|error: bad signature/i.test(stderr)) {
+		return GitErrorCodes.IndexCorrupted;
 	}
 	return undefined;
 }
