@@ -416,6 +416,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const currentGitState = readSessionGitState(currentMeta);
 		return withSessionGitState(currentMeta, {
 			branchName,
+			...(currentGitState?.hasGitRemote !== undefined ? { hasGitRemote: currentGitState.hasGitRemote } : {}),
 			...(currentGitState?.hasGitHubRemote !== undefined ? { hasGitHubRemote: currentGitState.hasGitHubRemote } : {}),
 			...(currentGitState?.baseBranchName !== undefined ? { baseBranchName: currentGitState.baseBranchName } : {}),
 			...(currentGitState?.githubOwner !== undefined ? { githubOwner: currentGitState.githubOwner } : {}),

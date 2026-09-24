@@ -125,6 +125,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const result = await svc!.getSessionGitState(URI.file(dir));
 		assert.ok(result, 'expected git state');
 		assert.strictEqual(result.branchName, 'main');
+		assert.strictEqual(result.hasGitRemote, true);
 		assert.strictEqual(result.hasGitHubRemote, true);
 		assert.strictEqual(result.uncommittedChanges, 0);
 		// No upstream configured for the fresh local branch.
@@ -222,7 +223,15 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const result = await svc!.getSessionGitState(URI.file(dir));
 		assert.ok(result);
 		assert.strictEqual(result.uncommittedChanges, 2);
+		assert.strictEqual(result.hasGitRemote, true);
 		assert.strictEqual(result.hasGitHubRemote, false);
+	});
+
+	(hasGit ? test : test.skip)('reports when a repository has no remote', async () => {
+		const dir = initRepo();
+		const result = await svc!.getSessionGitState(URI.file(dir));
+		assert.ok(result);
+		assert.strictEqual(result.hasGitRemote, false);
 	});
 
 	(hasGit ? test : test.skip)('reports no state at all when the status probe fails', async () => {

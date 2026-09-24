@@ -1592,6 +1592,8 @@ export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, d
  * "unknown" from "known to be zero".
  */
 export interface ISessionGitState {
+	/** Whether the working directory has any Git remote. */
+	readonly hasGitRemote?: boolean;
 	/** Whether the working directory has a `github.com` git remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
@@ -1802,6 +1804,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	}
 	const raw = value as Record<string, unknown>;
 	const result: {
+		hasGitRemote?: boolean;
 		hasGitHubRemote?: boolean;
 		branchName?: string;
 		isDetachedHead?: boolean;
@@ -1815,6 +1818,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
+	if (typeof raw['hasGitRemote'] === 'boolean') { result.hasGitRemote = raw['hasGitRemote']; }
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
