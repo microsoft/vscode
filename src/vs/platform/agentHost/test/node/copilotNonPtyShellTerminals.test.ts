@@ -9,22 +9,91 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NonPtyShellTerminalStreams } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionUri = URI.parse('agenthost-session://test/session-1');
+	const chatUri = URI.parse(buildDefaultChatUri(sessionUri));
 	let manager: TestAgentHostTerminalManager;
 	let streams: NonPtyShellTerminalStreams;
 
 	setup(() => {
 		manager = store.add(new TestAgentHostTerminalManager());
-		streams = store.add(new NonPtyShellTerminalStreams(sessionUri, URI.parse(buildDefaultChatUri(sessionUri)), manager));
+		streams = store.add(new NonPtyShellTerminalStreams(sessionUri, sessionUri, chatUri, manager));
 	});
 
 	function channelContent(): string {
 		return manager.outputTerminalData.map(d => d.data).join('');
 	}
+
+	suite('completed output cleanup', () => {
+		for (const preview of ['short output\n', '', undefined]) {
+			test(`retires settled short output without retaining or reviving it (${JSON.stringify(preview)})`, () => {
+				const disposed: string[] = [];
+				for (let i = 0; i < 20; i++) {
+					const toolCallId = `short-${i}`;
+					streams.track(toolCallId, 'shell');
+					streams.append(toolCallId, 'streamed output\n');
+					const completion = streams.completeToolCall(toolCallId, undefined, {
+						shellId: String(i),
+						result: { exitCode: i % 2 ? 127 : 0, preview },
+					});
+					ok(completion);
+					strictEqual(completion.result?.preview, preview ?? 'streamed output\n');
+					strictEqual(completion.shouldRetire, true);
+					streams.retire(toolCallId);
+					streams.retire(toolCallId);
+					disposed.push(completion.uri);
+					deepStrictEqual({
+						live: manager.getTerminalState(completion.uri),
+						lateOutput: streams.append(toolCallId, 'late output'),
+					}, { live: undefined, lateOutput: undefined });
+				}
+				streams.dispose();
+				deepStrictEqual(manager.disposedTerminals, disposed);
+			});
+		}
+
+		test('retires the live channel even when a command spills output', () => {
+			streams.track('spilled', 'shell');
+			streams.append('spilled', 'partial output');
+			const artifact = URI.file('/tmp/copilot-output.txt');
+			const completion = streams.completeToolCall('spilled', undefined, {
+				shellId: '1',
+				result: { exitCode: 0, preview: 'preview', truncated: true },
+				outputFilePath: artifact.fsPath,
+			});
+			ok(completion);
+			strictEqual(manager.getTerminalState(completion.uri)?.lifecycle.status, 'running');
+			streams.finalizeToolCall('spilled', completion.result?.exitCode, 'authoritative output');
+			deepStrictEqual({
+				replacements: manager.outputTerminalReplacements,
+				state: manager.getTerminalState(completion.uri),
+			}, {
+				replacements: [{ uri: completion.uri, data: 'authoritative output' }],
+				state: {
+					title: 'shell',
+					content: [{ type: 'unclassified', value: 'authoritative output' }],
+					lifecycle: { status: 'exited', exitCode: 0 },
+					claim: {
+						kind: 'session',
+						session: sessionUri.toString(),
+						chat: chatUri.toString(),
+						toolCallId: 'spilled',
+					},
+					isPty: false,
+				},
+			});
+			streams.retire('spilled');
+			streams.dispose();
+			deepStrictEqual({
+				live: manager.getTerminalState(completion.uri),
+				disposed: manager.disposedTerminals,
+			}, { live: undefined, disposed: [completion.uri] });
+		});
+	});
 
 	suite('rolling-tail snapshot stitching', () => {
 		test('appends only the unseen suffix when the snapshot is a rolling tail, without resetting', () => {
@@ -48,9 +117,12 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 
 			ok(completion);
+			strictEqual(completion.shouldRetire, true);
 			deepStrictEqual(manager.outputTerminalResets, []);
 			strictEqual(channelContent(), 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n');
 			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri: completion.uri, exitCode: 0 }]);
+			streams.retire('call-2');
+			strictEqual(manager.getTerminalState(completion.uri), undefined);
 		});
 
 		test('preserves the transcript across truncation marker rewrites and disjoint rolling tails', () => {
@@ -220,12 +292,12 @@ suite('NonPtyShellTerminalStreams', () => {
 				finalized: manager.outputTerminalsFinalized,
 			}, {
 				completion: {
-					uri: 'agenthost-terminal://shell/session-1/call-12',
+					uri: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, 'call-12'),
 					result: { exitCode: -1, preview: 'fallback output\r\n' },
 					shouldRetire: true,
 				},
 				content: 'fallback output\r\n',
-				finalized: [{ uri: 'agenthost-terminal://shell/session-1/call-12', exitCode: -1 }],
+				finalized: [{ uri: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, 'call-12'), exitCode: -1 }],
 			});
 		});
 

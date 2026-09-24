@@ -221,7 +221,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>());
 	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' | 'disposed' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
@@ -301,7 +301,7 @@ export class ChatService extends Disposable implements IChatService {
 			// Drop the forward untitled→real mapping for this session so it stops
 			// re-targeting late sends. The inverse alias is intentionally retained.
 			this.chatSessionService.clearMaterializedSessionResource(model.sessionResource);
-			this._onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'cleared' });
+			this._onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' });
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);

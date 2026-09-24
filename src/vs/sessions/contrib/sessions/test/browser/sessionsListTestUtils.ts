@@ -110,6 +110,7 @@ export interface ITestSession {
 	readonly status: ISettableObservable<SessionStatus, void>;
 	readonly isArchived: ISettableObservable<boolean, void>;
 	readonly isRead: ISettableObservable<boolean, void>;
+	readonly isExternal: ISettableObservable<boolean, void>;
 }
 
 export interface ITestSessionOptions {
@@ -119,6 +120,7 @@ export interface ITestSessionOptions {
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
+	readonly isExternal?: boolean;
 	readonly changesSummary?: ISessionChangesSummary;
 }
 
@@ -136,6 +138,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
+	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
@@ -163,13 +166,14 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		loading: constObservable(false),
 		isArchived,
 		isRead,
+		isExternal,
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
 	};
-	return { session, capabilities, status, isArchived, isRead };
+	return { session, capabilities, status, isArchived, isRead, isExternal };
 }
 
 export function createSession(title: string, resourceId: string = title): ITestSession {
