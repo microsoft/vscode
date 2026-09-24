@@ -38,7 +38,7 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionIdContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -108,7 +108,7 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		}];
 
-		function createHarness(changeKind = ChangesetKind.Branch, streamingChanges?: IObservable<readonly ISessionFileChange[] | undefined>) {
+		function createHarness(changeKind = ChangesetKind.Branch, streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>) {
 			const isActiveSession = observableValue('isActiveSession', false);
 			const subscription = createMutableSubscription<ChangesetState | undefined>(undefined);
 			let acquired = 0;
@@ -227,7 +227,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 
 		test('streams the active turn over Session Changes until the authoritative snapshot catches up', () => {
-			const streamingChanges = observableValue<readonly ISessionFileChange[] | undefined>('streamingChanges', undefined);
+			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
 			const harness = createHarness(ChangesetKind.Session, streamingChanges);
 			const changesetFile = (afterAuthority: string, added: number, removed: number): ChangesetFile => ({
 				id: 'file:///repo/a.ts',
@@ -253,7 +253,8 @@ suite('AgentHostSessionChangesets', () => {
 				modifiedUri: URI.parse('readonly-content://live/repo/a.ts'),
 				insertions: 2,
 				deletions: 1,
-			} satisfies IChatSessionFileChange2], undefined);
+				isOutsideWorkspace: false,
+			} satisfies ISessionTurnFileChange], undefined);
 			const streaming = describe();
 			streamingChanges.set(undefined, undefined);
 			harness.subscription.set({ status: ChangesetStatus.Recomputing, files: [changesetFile('before-stream', 5, 2)] });
@@ -290,7 +291,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 
 		test('streaming Session Changes removes session-created files deleted in the active turn', () => {
-			const streamingChanges = observableValue<readonly ISessionFileChange[] | undefined>('streamingChanges', undefined);
+			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
 			const harness = createHarness(ChangesetKind.Session, streamingChanges);
 			harness.isActiveSession.set(true, undefined);
 			harness.subscription.set({
@@ -308,13 +309,15 @@ suite('AgentHostSessionChangesets', () => {
 				modifiedUri: undefined,
 				insertions: 0,
 				deletions: 3,
+				isOutsideWorkspace: false,
 			}, {
 				uri: URI.file('/repo/new.ts'),
 				originalUri: undefined,
 				modifiedUri: URI.parse('readonly-content:/after/new.ts'),
 				insertions: 4,
 				deletions: 0,
-			}] satisfies readonly IChatSessionFileChange2[], undefined);
+				isOutsideWorkspace: false,
+			}] satisfies readonly ISessionTurnFileChange[], undefined);
 
 			assert.deepStrictEqual(harness.changes().map(change => ({
 				uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
@@ -324,6 +327,42 @@ suite('AgentHostSessionChangesets', () => {
 				uri: 'file:///repo/new.ts',
 				original: undefined,
 				modified: 'readonly-content:/after/new.ts',
+			}]);
+		});
+
+		test('streaming Session Changes replaces a cumulative source path when the active turn renames it', () => {
+			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
+			const harness = createHarness(ChangesetKind.Session, streamingChanges);
+			harness.isActiveSession.set(true, undefined);
+			harness.subscription.set({
+				status: ChangesetStatus.Ready,
+				files: [{
+					id: 'file:///repo/old.ts',
+					edit: {
+						before: { uri: 'file:///repo/old.ts', content: { uri: 'session-db://baseline/old.ts' } },
+						after: { uri: 'file:///repo/old.ts', content: { uri: 'session-db://previous/old.ts' } },
+						diff: { added: 3, removed: 1 },
+					},
+				}],
+			});
+			streamingChanges.set([{
+				uri: URI.file('/repo/new.ts'),
+				renamedFromUri: URI.file('/repo/old.ts'),
+				originalUri: URI.parse('readonly-content:/turn-before/old.ts'),
+				modifiedUri: URI.parse('readonly-content:/turn-after/new.ts'),
+				insertions: 1,
+				deletions: 1,
+				isOutsideWorkspace: false,
+			} satisfies ISessionTurnFileChange], undefined);
+
+			assert.deepStrictEqual(harness.changes().map(change => ({
+				uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+				original: change.originalUri?.toString(),
+				modified: change.modifiedUri?.toString(),
+			})), [{
+				uri: 'file:///repo/new.ts',
+				original: 'readonly-content://baseline/old.ts',
+				modified: 'readonly-content:/turn-after/new.ts',
 			}]);
 		});
 	});
@@ -656,13 +695,14 @@ suite('AgentHostSessionChangesets', () => {
 		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-		const currentTurnChanges = observableValue<readonly ISessionFileChange[] | undefined>('currentTurnChanges', [{
+		const currentTurnChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('currentTurnChanges', [{
 			uri: URI.file('/repo/live.ts'),
 			originalUri: URI.parse('readonly-content:/before/live.ts'),
 			modifiedUri: URI.parse('readonly-content:/after/live.ts'),
 			insertions: 2,
 			deletions: 1,
-		} satisfies IChatSessionFileChange2]);
+			isOutsideWorkspace: false,
+		} satisfies ISessionTurnFileChange]);
 		const projected = createChatChangesets(chatUri, {
 			icon: Codicon.copilot,
 			loading: constObservable(false),

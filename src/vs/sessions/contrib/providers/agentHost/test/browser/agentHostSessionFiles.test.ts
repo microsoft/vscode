@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -20,6 +20,8 @@ import {
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
+	type ActiveTurn,
+	type ChatState,
 	type ResponsePart,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -283,6 +285,7 @@ suite('agentHostSessionFiles', () => {
 
 		const changes = reduceTurnChanges(edits, [URI.file('/repo')]).map(c => ({
 			uri: c.uri.path,
+			renamedFrom: c.renamedFromUri?.path,
 			modified: c.modifiedUri?.path,
 			original: c.originalUri?.path,
 			isOutsideWorkspace: c.isOutsideWorkspace,
@@ -291,7 +294,7 @@ suite('agentHostSessionFiles', () => {
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/renamed.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', isOutsideWorkspace: false, insertions: 1, deletions: 2 },
+			{ uri: '/repo/renamed.ts', renamedFrom: '/repo/old.ts', modified: '/repo/renamed.ts', original: '/repo/old.ts.before', isOutsideWorkspace: false, insertions: 1, deletions: 2 },
 		]);
 	});
 });
@@ -372,6 +375,56 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			{ whileObserved, afterDispose: openKeys(), everAcquired: acquired },
 			{ whileObserved: [CHAT_A.toString()], afterDispose: [], everAcquired: [CHAT_A.toString()] },
 		);
+	});
+
+	test('publishes a new Last Turn snapshot when only after-content changes', () => {
+		const onDidChange = store.add(new Emitter<ChatState>());
+		const createState = (afterContentUri: string): ChatState => upcastPartial<ChatState>({
+			turns: [],
+			activeTurn: upcastPartial<ActiveTurn>({
+				responseParts: [completedToolCallPart([{
+					type: ToolResultContentType.FileEdit,
+					before: { uri: 'file:///repo/a.ts', content: { uri: 'snapshot:/before/a.ts' } },
+					after: { uri: 'file:///repo/a.ts', content: { uri: afterContentUri } },
+					diff: { added: 1, removed: 0 },
+				}])],
+			}),
+		});
+		let state = createState('snapshot:/after-1/a.ts');
+		const subscription = new class extends mock<IAgentSubscription<ChatState>>() {
+			override get value() { return state; }
+			override readonly onDidChange = onDidChange.event;
+		}();
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+				return { object: subscription as IAgentSubscription<T>, dispose: () => { } };
+			}
+		}();
+		const output = createSessionOutputObs(
+			SESSION_URI,
+			{
+				...createOptions(connection),
+				mapDiffUri: (uri, options) => options?.contentRef ? uri.with({ scheme: 'readonly-content' }) : uri,
+			},
+			constObservable(true),
+			constObservable(false),
+			constObservable(undefined),
+			new Map<string, unknown>(),
+		);
+		const changes = output.getLastTurnChanges(CHAT_A);
+		const observed: (string | undefined)[] = [];
+		const observer = store.add(autorun(reader => {
+			observed.push(changes.read(reader)[0]?.modifiedUri?.toString());
+		}));
+
+		state = createState('snapshot:/after-2/a.ts');
+		onDidChange.fire(state);
+		observer.dispose();
+
+		assert.deepStrictEqual(observed, [
+			'readonly-content:/after-1/a.ts',
+			'readonly-content:/after-2/a.ts',
+		]);
 	});
 
 	test('releaseChat drops the cached observables for a removed chat', () => {

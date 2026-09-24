@@ -346,6 +346,7 @@ interface IMutableTurnChange {
 	uri: URI;
 	modifiedUri: URI | undefined;
 	originalUri: URI | undefined;
+	renamedFromUri: URI | undefined;
 	isOutsideWorkspace: boolean;
 	/** Whether the file was created during the turn (kept across later edits). */
 	created: boolean;
@@ -400,14 +401,15 @@ export function reduceTurnChanges(
 			existing.deletions += deletions;
 			return;
 		}
-		byUri.set(key, { uri, modifiedUri, originalUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: true, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri, originalUri: undefined, renamedFromUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: true, insertions, deletions });
 	};
 
-	const setModified = (uri: URI, modifiedUri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+	const setModified = (uri: URI, modifiedUri: URI, originalUri: URI | undefined, renamedFromUri: URI | undefined, insertions: number, deletions: number): void => {
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
 			existing.modifiedUri = modifiedUri;
+			existing.renamedFromUri ??= renamedFromUri;
 			existing.insertions += insertions;
 			existing.deletions += deletions;
 			if (!existing.created) {
@@ -416,7 +418,7 @@ export function reduceTurnChanges(
 			}
 			return;
 		}
-		byUri.set(key, { uri, modifiedUri, originalUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri, originalUri, renamedFromUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
 	};
 
 	const setDeleted = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
@@ -427,7 +429,7 @@ export function reduceTurnChanges(
 			return;
 		}
 		// Pre-existing file deleted during the turn: no modified side to preview.
-		byUri.set(key, { uri, modifiedUri: undefined, originalUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri: undefined, originalUri, renamedFromUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
 	};
 
 	for (const edit of edits) {
@@ -439,7 +441,7 @@ export function reduceTurnChanges(
 				break;
 			case FileEditKind.Edit:
 				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
+					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, undefined, edit.insertions, edit.deletions);
 				}
 				break;
 			case FileEditKind.Delete:
@@ -452,7 +454,7 @@ export function reduceTurnChanges(
 					byUri.delete(getComparisonKey(edit.beforeUri));
 				}
 				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
+					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, edit.beforeUri, edit.insertions, edit.deletions);
 				}
 				break;
 		}
@@ -462,6 +464,7 @@ export function reduceTurnChanges(
 		uri: c.uri,
 		modifiedUri: c.modifiedUri,
 		originalUri: c.originalUri,
+		renamedFromUri: c.renamedFromUri,
 		isOutsideWorkspace: c.isOutsideWorkspace,
 		insertions: c.insertions,
 		deletions: c.deletions,
@@ -486,7 +489,8 @@ function parsedFileEditsEqual(a: readonly IParsedFileEdit[], b: readonly IParsed
 			|| a[i].deletions !== b[i].deletions
 			|| !isEqual(a[i].afterUri, b[i].afterUri)
 			|| !isEqual(a[i].beforeUri, b[i].beforeUri)
-			|| !isEqual(a[i].beforeContentUri, b[i].beforeContentUri)) {
+			|| !isEqual(a[i].beforeContentUri, b[i].beforeContentUri)
+			|| !isEqual(a[i].afterContentUri, b[i].afterContentUri)) {
 			return false;
 		}
 	}

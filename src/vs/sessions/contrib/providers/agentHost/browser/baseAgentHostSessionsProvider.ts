@@ -2287,7 +2287,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: undefined;
 	}
 
-	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionFileChange[] | undefined> {
+	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionTurnFileChange[] | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
 			this.isActiveSessionObs,
