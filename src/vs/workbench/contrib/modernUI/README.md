@@ -7,6 +7,10 @@ Modern UI uses the standard workbench color theme system. Theme authors can use 
 
 The Modern UI colors below are experimental and require a build that supports them. Enable `workbench.experimental.modernUI` to use them in the main workbench. The shared `modernTab.*` and `modernEditorTab.*` colors also apply to the modern tab style in the Agents window. `statusBar.inactiveBackground` works in both classic and Modern UI layouts.
 
+## Layout density
+
+With Modern UI enabled, `window.density.layout` set to `default` keeps the workbench's floating cards, outer gutters, and rounded corners. In `compact` density, the main editor window's panels meet each other and the surrounding window chrome without outer spacing or corner radii. Internal separators and control padding remain intact; status bar items stay centered and keep their own horizontal inset. This perimeter treatment does not change modal editors, auxiliary editor windows, or the Agents window.
+
 ## Editor tab style
 
 `workbench.experimental.modernUIEditorTabStyle` chooses the editor tab treatment when `workbench.experimental.modernUI` is enabled:
@@ -34,7 +38,7 @@ The connected design uses `editor.background` for the active tab; its action con
 
 Connected tabs use `tab.inactiveForeground` rather than dimming the general foreground to 50% opacity. The default palettes pair these fills with readable inactive text (at least 4.5:1), including in inactive editor groups. Light Modern and the classic light themes use the existing neutral `#616161`; the classic dark themes use `#A6A6A6`. Explicit legacy foreground customizations still take precedence. HC styling and the original pill label defaults are unchanged.
 
-In high contrast, the connected boundary uses `focusBorder` for the active editor group and `contrastBorder` for other groups. It follows the selected tab and continues around the breadcrumbs and document body, rather than outlining only the tab. With multiple tabs, the surrounding editor-area card stroke is transparent in HC, including compact-layout corner strokes, so it does not create a second frame. Single and hidden-tab modes retain their original editor-card outline. Keyboard focus and multi-selection indicators remain visible. The same one-stroke geometry is present in all themes: the body frame is transparent in standard themes, and its inside paint layer does not change editor dimensions when switching themes or active groups.
+In high contrast, the connected boundary uses `focusBorder` for the active editor group and `contrastBorder` for other groups. It follows the selected tab and continues around the breadcrumbs and document body, rather than outlining only the tab. With multiple tabs, the surrounding editor-area card stroke is transparent in HC, including in compact layout, so it does not create a second frame. Single and hidden-tab modes retain their original editor-card outline. Keyboard focus and multi-selection indicators remain visible. The same one-stroke geometry is present in all themes: the body frame is transparent in standard themes, and its inside paint layer does not change editor dimensions when switching themes or active groups.
 
 ## Colors
 
