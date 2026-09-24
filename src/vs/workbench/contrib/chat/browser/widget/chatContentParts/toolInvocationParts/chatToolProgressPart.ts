@@ -12,11 +12,13 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { localize } from '../../../../../../../nls.js';
+import { ChatErrorLevel, IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
+import { ChatErrorWidget } from '../chatErrorContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { shouldShimmerForTool } from './chatToolPartUtilities.js';
 
@@ -39,6 +41,11 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private createProgressPart(): HTMLElement {
+		const error = IChatToolInvocation.resultError(this.toolInvocation);
+		if (error) {
+			const message = typeof error === 'string' ? error : localize('toolExecutionFailed', "Tool execution failed");
+			return this._register(new ChatErrorWidget(ChatErrorLevel.Error, new MarkdownString().appendText(message), this.renderer)).domNode;
+		}
 		const isComplete = IChatToolInvocation.isComplete(this.toolInvocation);
 
 		if (isComplete && this.toolIsConfirmed && (this.toolInvocation.pastTenseMessage || this.toolInvocation.invocationMessage)) {

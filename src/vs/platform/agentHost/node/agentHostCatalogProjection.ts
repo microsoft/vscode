@@ -12,7 +12,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandl
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
-import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
+import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
 export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 1;
 export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
@@ -93,6 +93,9 @@ class RecordValidator<T> extends ValidatorBase<Record<string, T>> {
 		}
 		const result: Record<string, T> = {};
 		for (const [key, value] of Object.entries(content)) {
+			if (key === '__proto__' || key === 'constructor') {
+				return { content: undefined, error: { message: 'Keys must not be prototype properties.' } };
+			}
 			if (key.length === 0 || key.length > AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT) {
 				return { content: undefined, error: { message: `Keys must be non-empty and at most ${AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT} characters.` } };
 			}
@@ -263,6 +266,7 @@ const githubDataValidator = new RefinedValidator(
 );
 
 const gitValidator = plainObject(vObj({
+	hasGitRemote: vOptionalProp(vBoolean()),
 	hasGitHubRemote: vOptionalProp(vBoolean()),
 	branchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	isDetachedHead: vOptionalProp(vBoolean()),
@@ -277,8 +281,16 @@ const gitValidator = plainObject(vObj({
 	githubRepo: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 }));
 
+const gitDataValidator = new RefinedValidator(
+	plainObject(new RecordValidator(gitValidator)),
+	value => Object.keys(value).length <= AGENT_HOST_CATALOG_CHILD_LIMIT
+		? value
+		: { message: `Expected at most ${AGENT_HOST_CATALOG_CHILD_LIMIT} entries.` },
+);
+
 /** Exposed so persisted git metadata is parsed by the payload authority instead of a private copy. */
 export const agentHostCatalogGitValidator: IValidator<ValidatorType<typeof gitValidator>> = gitValidator;
+export const agentHostCatalogGitDataValidator: IValidator<ValidatorType<typeof gitDataValidator>> = gitDataValidator;
 
 const sourceControlValidator = new RefinedValidator(plainObject(vObj({
 	merge: vOptionalProp(plainObject(vObj({ commit: boundedString() }))),
@@ -339,6 +351,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_GITHUB_KEY]: vOptionalProp(githubValidator),
 	[SESSION_META_GITHUB_DATA_KEY]: vOptionalProp(githubDataValidator),
 	[SESSION_META_GIT_KEY]: vOptionalProp(gitValidator),
+	[SESSION_META_GIT_DATA_KEY]: vOptionalProp(gitDataValidator),
 	[SESSION_META_SOURCE_CONTROL_KEY]: vOptionalProp(sourceControlValidator),
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
 	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),

@@ -6,7 +6,8 @@
 import { localize } from '../../../nls.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { URI as ResourceURI } from '../../../base/common/uri.js';
-import { readAgentMergeSessionState } from './agentMerge.js';
+import { readAgentMergeFolderState } from './agentMerge.js';
+import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
 import { buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
@@ -400,12 +401,14 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * are still registered for every owner; only the catalogue advertisement is
  * conditional.
  *
- * The Agent Merge entry is advertised only by the default chat. It reuses the
- * session-rooted compare-turns URI template because the repair range belongs to
- * the session workflow, and remains available after Agent Merge is disabled.
+ * The Agent Merge entry is advertised by the chat that owns the enabled folder.
+ * It uses the chat-owned compare-turns URI template because the repair range
+ * belongs to that chat, and remains available after Agent Merge is disabled.
+ * When chats share the folder, `resolveAgentMergeOwner` picks the one chat
+ * whose transcript the repairs run in.
  * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
@@ -443,11 +446,11 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 	const sessionUri = chat.session;
 	const isDefaultChat = buildDefaultChatUri(sessionUri) === ownerUri;
 	const gitState = readSessionGitState(state._meta);
-	const agentMergeChangeset = isDefaultChat && shouldAdvertiseAgentMergeChangeset(state)
+	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(ownerUri, state, isDefaultChat, resolveAgentMergeOwner)
 		? [{
 			label: agentMergeChangesetLabel(),
 			description: agentMergeChangesetDescription(),
-			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(ownerUri),
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 		}] satisfies Changeset[]
 		: [];
@@ -495,9 +498,16 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 	] satisfies Changeset[];
 }
 
-function shouldAdvertiseAgentMergeChangeset(state: ISessionWithDefaultChat): boolean {
-	if (readAgentMergeSessionState(state.config?.values)?.enabled === true
-		|| state.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID)) {
+function shouldAdvertiseAgentMergeChangeset(ownerUri: URI, state: ISessionWithDefaultChat, isDefaultChat: boolean, resolveAgentMergeOwner: ((folderKey: string, recordedChat: URI | undefined) => URI | undefined) | undefined): boolean {
+	const folderKey = state.workingDirectories?.[0] ? getWorkingDirectoryKey(state.workingDirectories[0]) : undefined;
+	if (!isDefaultChat && folderKey === undefined) {
+		return false;
+	}
+	const sessionFolderKey = isDefaultChat ? folderKey : undefined;
+	const folderState = readAgentMergeFolderState(state.config?.values, folderKey, sessionFolderKey);
+	const ownsEnabledFolder = folderState?.enabled === true
+		&& (folderKey === undefined || !resolveAgentMergeOwner || resolveAgentMergeOwner(folderKey, folderState.chat) === ownerUri);
+	if (ownsEnabledFolder || state.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID)) {
 		return true;
 	}
 

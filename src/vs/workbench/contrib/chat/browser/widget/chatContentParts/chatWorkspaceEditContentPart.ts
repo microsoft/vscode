@@ -5,9 +5,10 @@
 
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -36,7 +37,7 @@ export class ChatWorkspaceEditContentPart extends Disposable implements IChatCon
 		this.domNode = $('.chat-workspace-edit-content-part');
 
 		const renderEntry = (message: string, icon: ThemeIcon) => {
-			const result = this._register(chatContentMarkdownRenderer.render(new MarkdownString(message, { isTrusted: true })));
+			const result = this._register(chatContentMarkdownRenderer.render(new MarkdownString(message)));
 			result.element.classList.add('progress-step');
 			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			const progressPart = this._register(this.instantiationService.createInstance(ChatProgressSubPart, result.element, icon, undefined));
@@ -46,11 +47,11 @@ export class ChatWorkspaceEditContentPart extends Disposable implements IChatCon
 		for (const edit of workspaceEdit.edits) {
 			if (edit.oldResource && !edit.newResource) {
 				// note: not linked because trying to open it would simply error
-				renderEntry(localize('deleted', "Deleted `{0}`", this.labelService.getUriBasenameLabel(edit.oldResource)), Codicon.trash);
+				renderEntry(localize('deleted', "Deleted {0}", appendEscapedMarkdownInlineCode(this.labelService.getUriBasenameLabel(edit.oldResource))), Codicon.trash);
 			} else if (!edit.oldResource && edit.newResource) {
-				renderEntry(localize('created', "Created []({0})", edit.newResource.toString()), Codicon.newFile);
+				renderEntry(localize('created', "Created []({0})", URI.from(edit.newResource).toString()), Codicon.newFile);
 			} else if (edit.oldResource && edit.newResource) {
-				renderEntry(localize('renamedTo', "Renamed {0} to []({1})", this.labelService.getUriBasenameLabel(edit.oldResource), edit.newResource.toString()), Codicon.arrowRight);
+				renderEntry(localize('renamedTo', "Renamed {0} to []({1})", escapeMarkdownSyntaxTokens(this.labelService.getUriBasenameLabel(edit.oldResource)), URI.from(edit.newResource).toString()), Codicon.arrowRight);
 			}
 		}
 	}

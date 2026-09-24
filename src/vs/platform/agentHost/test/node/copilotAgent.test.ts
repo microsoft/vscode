@@ -38,9 +38,15 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryService } from '../../../telemetry/common/telemetryService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { CodexAgent } from '../../node/codex/codexAgent.js';
+import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexProxyService.js';
+import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -72,13 +78,13 @@ import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHu
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
-import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
-import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
@@ -92,7 +98,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
+import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 
 const TEST_PRODUCT_SERVICE: IProductService = {
@@ -928,7 +934,6 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	}
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
-	setSessionComparisonMetadata() { }
 	releaseSessionTraceContext() { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext() { return undefined; }
@@ -969,7 +974,6 @@ class RecordingReleaseOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig() { return undefined; }
 	async getNativeSdkTelemetryConfig() { return undefined; }
 	getSessionTraceContext() { return undefined; }
-	setSessionComparisonMetadata() { }
 	releaseSessionTraceContext(sessionUri: string): void {
 		this.released.push(sessionUri);
 	}
@@ -2980,30 +2984,142 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('updates Copilot SKU telemetry across authentication changes and ignores stale resolution', async () => {
-		const client = new TestCopilotClient([]);
-		const copilotApiService = new TestCopilotApiService();
-		const telemetryService = new RecordingTelemetryService();
-		copilotApiService.resolveCopilotSkuHandler = async token => token === 'token-a' ? 'sku-a' : 'sku-b';
-		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService });
+	test('keeps Codex SKU telemetry independent of concurrent Copilot authentication and clearing', async () => {
+		const copilotDiscoveryStarted = new DeferredPromise<void>();
+		const copilotDiscovery = new DeferredPromise<Response>();
+		const endpoints = createTestGitHubEndpointService();
+		const copilotApiService = disposables.add(new CopilotApiService(async (_url, options) => {
+			if (new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a') {
+				copilotDiscoveryStarted.complete();
+				return copilotDiscovery.p;
+			}
+			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku' });
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints));
+		const events: ITelemetryData[] = [];
+		const sdkEvents: ITelemetryData[] = [];
+		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+			telemetryLevel: TelemetryLevel.USAGE,
+			appenders: [{
+				log: (name, data) => {
+					if (name === 'agentHost.executionModeChanged') {
+						events.push({ provider: data.provider, copilotSku: data.copilotSku });
+					} else if (name === 'copilotSdk/response.success') {
+						sdkEvents.push(data);
+					}
+				},
+				flush: async () => { },
+			}],
+		}, TEST_PRODUCT_SERVICE)));
+		const { agent, instantiationService } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService, gitHubEndpointService: endpoints,
+		});
+		const childServices = new ServiceCollection();
+		const sdkDownloader = new RecordingAgentSdkDownloader();
+		sdkDownloader.resolvableWithoutDownload = false;
+		childServices.set(IAgentSdkDownloader, sdkDownloader);
+		childServices.set(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
+		childServices.set(ICodexProxyService, disposables.add(new CodexProxyService(undefined, new NullLogService(), copilotApiService)));
+		const child = disposables.add(instantiationService.createChild(childServices));
+		const codex = disposables.add(child.createInstance(CodexAgent));
+		const reporter = new AgentHostTelemetryReporter(telemetryService);
+		const report = (provider: CodexAgent | CopilotAgent) => reporter.executionModeChanged(provider.id, AgentSession.uri(provider.id, 'sku-test').toString(), 'interactive', 'plan', 0);
 		try {
-			await agent.authenticate('https://api.github.com', 'token-a');
-			const staleResolution = new DeferredPromise<string | undefined>();
-			copilotApiService.resolveCopilotSkuHandler = token => token === 'token-a' ? staleResolution.p : Promise.resolve('sku-b');
-			const staleResolutionCall = agent['_resolveCopilotSku']('token-a');
-
-			await agent.authenticate('https://api.github.com', 'token-b');
-			staleResolution.complete('stale-sku-a');
-			await staleResolutionCall;
+			const authenticating = agent.authenticate('https://api.github.com', 'test-token-a');
+			await copilotDiscoveryStarted.p;
+			await codex.authenticate('https://api.github.com', 'test-token-b');
+			report(codex);
+			copilotDiscovery.complete(Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'copilot-sku' }));
+			await authenticating;
+			report(codex);
+			report(agent);
 			await agent.authenticate('https://api.github.com', '');
+			report(codex);
+			await codex.authenticate('https://api.github.com', '');
+			await agent.authenticate('https://api.github.com', 'test-token-a');
+			report(codex);
+			await agent.refreshModels();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+			await forward({
+				sessionId: 'sku-test',
+				restricted: false,
+				event: { kind: 'response.success', properties: {}, metrics: {}, exp_assignment_context: '' },
+			});
 
-			assert.deepStrictEqual(telemetryService.commonPropertyUpdates.filter(update => update.name === 'copilotSku'), [
-				{ name: 'copilotSku', value: undefined },
-				{ name: 'copilotSku', value: 'sku-a' },
-				{ name: 'copilotSku', value: undefined },
-				{ name: 'copilotSku', value: 'sku-b' },
-				{ name: 'copilotSku', value: undefined },
-			]);
+			assert.deepStrictEqual({ events, sdkSkus: sdkEvents.map(event => event.copilotSku) }, {
+				events: [
+					{ provider: 'codex', copilotSku: 'codex-sku' },
+					{ provider: 'codex', copilotSku: 'codex-sku' },
+					{ provider: 'copilotcli', copilotSku: 'copilot-sku' },
+					{ provider: 'codex', copilotSku: 'codex-sku' },
+					{ provider: 'codex', copilotSku: undefined },
+				],
+				sdkSkus: ['copilot-sku'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('does not discover SKU on a new enterprise endpoint using an earlier authentication', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configuration = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const endpoints = disposables.add(new AgentHostGitHubEndpointService(configuration, logService));
+		const discoveryStarted = new DeferredPromise<void>();
+		const oldDiscovery = new DeferredPromise<Response>();
+		let oldCredentialReachedNewEndpoint = false;
+		const apiService = disposables.add(new CopilotApiService(async (url, options) => {
+			if (String(url).startsWith('https://api.github.com/')) {
+				discoveryStarted.complete();
+				return oldDiscovery.p;
+			}
+			if (String(url).endsWith('/copilot_internal/user')) {
+				oldCredentialReachedNewEndpoint ||= new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a';
+			}
+			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'enterprise-sku' });
+		}, logService, TEST_PRODUCT_SERVICE, endpoints));
+		const skus: ITelemetryData[] = [];
+		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+			telemetryLevel: TelemetryLevel.USAGE,
+			appenders: [{ log: (name, data) => { if (name === 'agentHost.executionModeChanged') { skus.push({ copilotSku: data.copilotSku }); } }, flush: async () => { } }],
+		}, TEST_PRODUCT_SERVICE)));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService: apiService, gitHubEndpointService: endpoints, telemetryService });
+		try {
+			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
+			await discoveryStarted.p;
+			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+			const newAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-b');
+			oldDiscovery.complete(Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'old-sku' }));
+			await Promise.all([oldAuthentication, newAuthentication]);
+			new AgentHostTelemetryReporter(telemetryService).executionModeChanged(agent.id, AgentSession.uri(agent.id, 'sku-test').toString(), 'interactive', 'plan', 0);
+
+			assert.deepStrictEqual({ oldCredentialReachedNewEndpoint, skus }, {
+				oldCredentialReachedNewEndpoint: false,
+				skus: [{ copilotSku: 'enterprise-sku' }],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('retries Copilot SKU discovery on authentication with an unchanged token', async () => {
+		let available = false;
+		const copilotApiService = disposables.add(new CopilotApiService(async () => available
+			? Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'recovered-sku' })
+			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
+		try {
+			await agent.authenticate('https://api.github.com', 'test-token-a');
+			await agent.refreshModels();
+			await assert.rejects(copilotApiService.resolveCopilotSku('test-token-a'), CopilotApiError);
+			const unavailableSku = agent.getTelemetryContext().copilotSku;
+			available = true;
+			await agent.authenticate('https://api.github.com', 'test-token-a');
+
+			assert.deepStrictEqual({ unavailableSku, recoveredSku: agent.getTelemetryContext().copilotSku }, {
+				unavailableSku: undefined, recoveredSku: 'recovered-sku',
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -3255,7 +3371,10 @@ suite('CopilotAgent', () => {
 
 	test('rearms expired Copilot auth notifications after every authenticate call', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
-		const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService });
+		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService, copilotApiService });
 		const mockSession = new MockCopilotSession();
 		const createdSession = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
 		const authRequests: Array<{ readonly resource: ProtectedResourceMetadata; readonly reason?: string }> = [];
@@ -3280,18 +3399,26 @@ suite('CopilotAgent', () => {
 			authError('authentication', 403);
 
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'fresh-token');
+			const authenticatedSku = agent.getTelemetryContext().copilotSku;
+			const contextBeforeRejection = agent.getTelemetryContext();
 			authError('authorization');
+			const rejectedSku = agent.getTelemetryContext().copilotSku;
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'fresh-token');
+			const refreshedSku = agent.getTelemetryContext().copilotSku;
+			const rejectedContextAfterRefresh = contextBeforeRejection.copilotSku;
 			authError('authentication');
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'new-token');
 			authError('authentication');
 
-			assert.deepStrictEqual(authRequests, [
-				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
-				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
-				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
-				{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
-			]);
+			assert.deepStrictEqual({ authRequests, authenticatedSku, rejectedSku, refreshedSku, rejectedContextAfterRefresh }, {
+				authRequests: [
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: 'expired' },
+				],
+				authenticatedSku: 'sku-a', rejectedSku: undefined, refreshedSku: 'sku-a', rejectedContextAfterRefresh: undefined,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -6513,6 +6640,28 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		test('forces tgrep indexed search only when configured', async () => {
+			const readTgrepEnv = async (rootConfig: Record<string, unknown>) => {
+				const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), rootConfig });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					const env = getCreatedClientOptions(agent).at(-1)?.env;
+					return { useTgrep: env?.['USE_TGREP'], useBuiltinRipgrep: env?.['USE_BUILTIN_RIPGREP'] };
+				} finally {
+					await disposeAgent(agent);
+				}
+			};
+
+			assert.deepStrictEqual({
+				off: await readTgrepEnv({}),
+				on: await readTgrepEnv({ [CopilotCliConfigKey.Tgrep]: true }),
+			}, {
+				off: { useTgrep: undefined, useBuiltinRipgrep: 'false' },
+				on: { useTgrep: 'true', useBuiltinRipgrep: undefined },
+			});
 		});
 
 		test('publishes HydraFusion when enabled and restarts its runtime when disabled', async () => {
@@ -10996,7 +11145,10 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const mockSession = new MockCopilotSession();
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
-			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+				endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
+			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, copilotApiService });
 			client.createSession = async config => {
 				capturedConfig = config;
 				return mockSession as unknown as CopilotSession;
@@ -11014,6 +11166,7 @@ suite('CopilotAgent', () => {
 				assert.ok(provider);
 				const refresh = provider({ host: 'github.com', sessionId: 'refreshable-token-session', reason: 'refresh' });
 				const authenticationRequired = agent.authenticationRequired.get();
+				const skuWhileRefreshing = agent.getTelemetryContext().copilotSku;
 				await agent.authenticate('https://api.github.com', 'refreshed-token', 7200);
 				await refresh;
 
@@ -11021,6 +11174,7 @@ suite('CopilotAgent', () => {
 					gitHubToken: capturedConfig?.gitHubToken,
 					hasTokenProvider: capturedConfig?.gitHubTokenProvider !== undefined,
 					authenticationRequired,
+					skuWhileRefreshing,
 					credentialUpdates: mockSession.gitHubCredentialUpdates,
 					clientStops: client.stopCallCount,
 				}, {
@@ -11030,6 +11184,7 @@ suite('CopilotAgent', () => {
 						resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
 						reason: AuthRequiredReason.Expired,
 					},
+					skuWhileRefreshing: 'sku-a',
 					credentialUpdates: [],
 					clientStops: 0,
 				});
@@ -11350,6 +11505,84 @@ suite('CopilotAgent', () => {
 						turns: 1,
 					});
 				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		test('Stop releases a send waiting for shared plugin sync without cancelling its replacement', async () => {
+			const gate = new DeferredPromise<void>();
+			const h = await createHarness({ syncGate: gate.p });
+			try {
+				const cancelled = h.agent.chats.sendMessage(h.chat, 'cancelled', undefined, undefined, 'turn-1', undefined, h.context);
+				await timeout(0);
+				await h.agent.chats.abort(h.chat, h.context);
+				const settledWhileSyncBlocked = await raceTimeout(cancelled.then(() => true), 1000);
+				const beforeSyncCompletes = {
+					sends: h.oldRuntime.sendCalls + h.newRuntime.sendCalls,
+					disconnects: h.oldRuntime.disconnectCalls,
+				};
+
+				const replacement = h.agent.chats.sendMessage(h.chat, 'replacement', undefined, undefined, 'turn-2', undefined, h.context);
+				gate.complete();
+				await Promise.all([cancelled, replacement]);
+
+				assert.deepStrictEqual({
+					settledWhileSyncBlocked,
+					beforeSyncCompletes,
+					oldSends: h.oldRuntime.sendCalls,
+					newSends: h.newRuntime.sendCalls,
+					syncCalls: h.syncCalls,
+					plugins: h.resumeConfigs[1]?.pluginDirectories,
+				}, {
+					settledWhileSyncBlocked: true,
+					beforeSyncCompletes: { sends: 0, disconnects: 0 },
+					oldSends: 0,
+					newSends: 1,
+					syncCalls: [[h.pluginDirectory.toString(), h.healthyDirectory.toString()]],
+					plugins: [h.pluginDirectory.fsPath, h.healthyDirectory.fsPath],
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const phase of ['disconnect', 'resume'] as const) {
+			test(`Stop during send refresh ${phase} skips dispatch and preserves the replacement`, async () => {
+				const h = await createHarness();
+				const gate = new DeferredPromise<void>();
+				try {
+					if (phase === 'disconnect') {
+						h.oldRuntime.disconnectGate = gate.p;
+					} else {
+						h.blockResume(gate.p);
+					}
+					const cancelled = h.agent.chats.sendMessage(h.chat, 'cancelled', undefined, undefined, 'turn-1', undefined, h.context);
+					if (phase === 'disconnect') {
+						await timeout(0);
+						assert.strictEqual(h.oldRuntime.disconnectCalls, 1);
+					} else {
+						await h.refreshStarted.p;
+					}
+					await h.agent.chats.abort(h.chat, h.context);
+					const replacement = h.agent.chats.sendMessage(h.chat, 'replacement', undefined, undefined, 'turn-2', undefined, h.context);
+					gate.complete();
+					await Promise.all([cancelled, replacement]);
+
+					assert.deepStrictEqual({
+						oldSends: h.oldRuntime.sendCalls,
+						newSends: h.newRuntime.sendCalls,
+						resumes: h.resumedIds,
+						turnId: h.live().currentTurnId,
+					}, {
+						oldSends: 0,
+						newSends: 1,
+						resumes: ['restored-sdk-session', 'restored-sdk-session'],
+						turnId: 'turn-2',
+					});
+				} finally {
+					gate.complete();
 					await disposeAgent(h.agent);
 				}
 			});
@@ -13651,6 +13884,55 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const operation of ['send', 'resume'] as const) {
+			test(`cancels an already queued ${operation} without cancelling a replacement or another chat`, async () => {
+				const agent = createTestAgent(disposables);
+				const historyStarted = new DeferredPromise<void>();
+				const historyGate = new DeferredPromise<void>();
+				try {
+					const session = AgentSession.uri('copilotcli', 'abort-queued-send');
+					const chat = URI.parse(buildChatUri(session, 'peer-a'));
+					const otherChat = URI.parse(buildChatUri(session, 'peer-b'));
+					const target = makeFakeChatSession(session, 'sdk-a', async () => {
+						historyStarted.complete();
+						await historyGate.p;
+						return [];
+					});
+					const resumes: string[] = [];
+					target.fake.resume = async turnId => { resumes.push(turnId); };
+					const otherTarget = makeFakeChatSession(session, 'sdk-b');
+					setPeerChatStub(agent, chat, target.fake);
+					setPeerChatStub(agent, otherChat, otherTarget.fake);
+
+					const history = agent.chats.getMessages(chat, exactChatContext(session, chat));
+					await historyStarted.p;
+					const cancelled = operation === 'send'
+						? agent.chats.sendMessage(chat, 'cancelled', undefined, undefined, 'turn-1', undefined, exactChatContext(session, chat))
+						: agent.chats.resumeTurn!(chat, 'turn-1', exactChatContext(session, chat));
+					const other = agent.chats.sendMessage(otherChat, 'unrelated', undefined, undefined, 'turn-other', undefined, exactChatContext(session, otherChat));
+					await agent.chats.abort(chat, exactChatContext(session, chat));
+					const replacement = agent.chats.sendMessage(chat, 'replacement', undefined, undefined, 'turn-2', undefined, exactChatContext(session, chat));
+					historyGate.complete();
+					await Promise.all([history, cancelled, other, replacement]);
+
+					assert.deepStrictEqual({
+						sends: target.rec.sends,
+						resumes,
+						otherSends: otherTarget.rec.sends,
+						aborted: [target.rec.aborted, otherTarget.rec.aborted],
+					}, {
+						sends: [{ prompt: 'replacement', turnId: 'turn-2', mode: undefined, senderClientId: undefined }],
+						resumes: [],
+						otherSends: [{ prompt: 'unrelated', turnId: 'turn-other', mode: undefined, senderClientId: undefined }],
+						aborted: [1, 0],
+					});
+				} finally {
+					historyGate.complete();
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('drops a queued send when abort arrives before the session materializes', async () => {
 			const agent = createTestAgent(disposables);
 			try {
@@ -13674,8 +13956,8 @@ suite('CopilotAgent', () => {
 				await send;
 
 				assert.deepStrictEqual(
-					{ sends: target.rec.sends, aborted: target.rec.aborted, discarded: target.rec.discardedTurns },
-					{ sends: [], aborted: 0, discarded: 1 },
+					{ sends: target.rec.sends, aborted: target.rec.aborted, resets: target.rec.resets },
+					{ sends: [], aborted: 0, resets: [] },
 				);
 			} finally {
 				await disposeAgent(agent);
