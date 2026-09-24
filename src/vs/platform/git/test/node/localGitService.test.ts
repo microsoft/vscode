@@ -233,7 +233,7 @@ suite('LocalGitService', () => {
 				logged.push([message, ...args].join(' '));
 			}
 		}();
-		const error = createPullError('Authorization: Basic dummy-credential', 'Trace2: Authorization: Basic dummy-credential');
+		const error = createPullError('Authorization: Basic dummy-credential', 'Trace2: dummy-credential');
 		const service = new LocalGitService(logService, createExecFile([{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
 			args: ['fetch'],
 			error,
