@@ -34,7 +34,7 @@ export interface IAgentHostChangeset extends Changeset {
 	 * channel; an array, including an empty one, is used as-is.
 	 */
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
-	/** Live changes layered over the authoritative changeset until its next ready snapshot. */
+	/** Live changes layered over the authoritative changeset until its next cached `Recomputing` or `Ready` snapshot. */
 	readonly streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>;
 }
 
@@ -343,7 +343,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			review: changeset.capabilities?.review !== undefined
 		} satisfies ISessionChangesetCapabilities;
 
-		const retainUntilReady = <T extends readonly ISessionFileChange[]>(source: IObservable<T | undefined> | undefined) => {
+		const retainUntilChangesetFilesPublished = <T extends readonly ISessionFileChange[]>(source: IObservable<T | undefined> | undefined) => {
 			let changesetStateWithProvidedChanges: ChangesetState | Error | undefined | null;
 			return derivedObservableWithCache<T | undefined>(this, (reader, lastValue) => {
 				const providedChanges = source?.read(reader);
@@ -358,15 +358,15 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				if (changesetState === changesetStateWithProvidedChanges
 					|| !changesetState
 					|| changesetState instanceof Error
-					|| changesetState.status !== ChangesetStatus.Ready) {
+					|| (changesetState.status !== ChangesetStatus.Ready && changesetState.status !== ChangesetStatus.Recomputing)) {
 					return lastValue;
 				}
 				changesetStateWithProvidedChanges = undefined;
 				return undefined;
 			});
 		};
-		const providedChangesObs = retainUntilReady(changeset.changes);
-		const streamingChangesObs = retainUntilReady(changeset.streamingChanges);
+		const providedChangesObs = retainUntilChangesetFilesPublished(changeset.changes);
+		const streamingChangesObs = retainUntilChangesetFilesPublished(changeset.streamingChanges);
 
 		this.isLoadingChanges = derived(reader => {
 			if (providedChangesObs.read(reader) !== undefined || streamingChangesObs.read(reader) !== undefined) {
