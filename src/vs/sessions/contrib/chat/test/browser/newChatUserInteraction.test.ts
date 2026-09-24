@@ -99,14 +99,12 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		return { input, sourceOwner };
 	}
 
-	function createSend(h: ReturnType<typeof createHarness>, newSession: boolean, dispatch: (options: ISendRequestOptions) => Promise<void>, comparison = false) {
+	function createSend(h: ReturnType<typeof createHarness>, newSession: boolean, dispatch: (options: ISendRequestOptions) => Promise<void>) {
 		type Send = (query: string, attachments?: IChatRequestVariableEntry[], background?: boolean, interaction?: NewChatUserInteraction) => Promise<boolean>;
 		const owner = {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
 			_session: constObservable(h.session),
 			_feedbackItems: constObservable([]),
-			_comparisonSubmitArmed: comparison,
-			_comparisonAttempts: constObservable(comparison ? [{}] : []),
 			_isQuickChatComposer: constObservable(false),
 			_workspacePicker: { clearAttachedContext: () => { }, showPicker: () => { } },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
@@ -331,15 +329,6 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			h.assertFinished(result);
 		});
 	}
-
-	test('comparison submission terminates before its unsupported multi-response path', async () => {
-		const h = createHarness();
-		let sent = false;
-		const { input } = createInput(h, createSend(h, true, async () => { sent = true; }, true));
-		await input.submit();
-		assert.strictEqual(sent, false);
-		h.assertFinished('notDispatched');
-	});
 
 	test('visible tools complete after two frames while nil, whitespace and hidden parts do not', () => {
 		const h = createHarness(false);

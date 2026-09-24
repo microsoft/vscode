@@ -276,7 +276,6 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
-			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -417,28 +416,6 @@ suite('Sessions - Actions', () => {
 		}]);
 	});
 
-	test('shows Close in every multi-pane desktop session header', () => {
-		const closeItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.chatCompositeBar.close')
-			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''))
-			.map(item => ({
-				group: item.group,
-				order: item.order,
-				when: item.when?.serialize(),
-			}));
-
-		assert.deepStrictEqual(closeItems, [{
-			group: 'navigation',
-			order: 20,
-			when: 'multipleSessionsVisible && !sessionHeaderShowsChat && !sessionsIsPhoneLayout',
-		}, {
-			group: 'secondary/4_pin',
-			order: 30,
-			when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
-		}]);
-	});
-
 	test('keeps the Command Palette delete action explicit', () => {
 		const deleteChat = MenuRegistry.getCommand('sessions.chatCompositeBar.deleteChat');
 
@@ -528,7 +505,6 @@ suite('Sessions - Actions', () => {
 			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
-			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },

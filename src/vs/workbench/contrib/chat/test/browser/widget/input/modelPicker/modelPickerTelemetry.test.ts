@@ -108,7 +108,6 @@ suite('ModelPickerTelemetry', () => {
 		const onDidChangeTab = store.add(new Emitter<string>());
 		let visible = false;
 		let listOptions: IActionListOptions | undefined;
-		let contextViewLayer: number | undefined;
 		let selectItem: (label: string) => void = () => assert.fail('Picker has not opened');
 		let selectTab: (label: string) => void = () => assert.fail('Tabbed picker has not opened');
 		let showCard: (label: string) => HTMLElement = () => assert.fail('Picker has not opened');
@@ -176,7 +175,6 @@ suite('ModelPickerTelemetry', () => {
 			show: options => {
 				tabbedShows++;
 				visible = true;
-				contextViewLayer = options.contextViewLayer;
 				let activeTab = options.initialTab;
 				refreshList = () => {
 					const list = options.createActionList(activeTab);
@@ -264,7 +262,6 @@ suite('ModelPickerTelemetry', () => {
 			events, openedLinks, picker, container, configurations, pinnedModelIds,
 			get visible() { return visible; },
 			get tabbedShows() { return tabbedShows; },
-			get contextViewLayer() { return contextViewLayer; },
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			showCard: (label: string) => showCard(label),
@@ -305,21 +302,6 @@ suite('ModelPickerTelemetry', () => {
 			during: { label: 'Medium · 264K', popup: 'dialog', expanded: 'true', model: model.metadata.name },
 			focused: true, expanded: 'false', events: [],
 		});
-	});
-
-	test('the input readout forwards dialog layering without confusing it with the details model', () => {
-		const result = createPicker(true);
-		result.picker.render(result.container);
-		result.picker.show(result.container);
-		result.picker.setContextViewLayer(1);
-		const readout = result.container.querySelector<HTMLElement>('.model-picker-config')!;
-		readout.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({
-			layer: result.contextViewLayer,
-			model: result.container.querySelector('.chat-model-card-name')?.textContent,
-			expanded: readout.getAttribute('aria-expanded'),
-			events: result.events,
-		}, { layer: 1, model: model.metadata.name, expanded: 'true', events: [] });
 	});
 
 	for (const keyboard of [false, true]) {
