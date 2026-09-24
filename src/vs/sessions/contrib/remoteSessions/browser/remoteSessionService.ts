@@ -47,8 +47,8 @@ interface IRemoteSessionCandidate {
 
 type RemoteSessionsProvider = IAgentHostSessionsProvider & { readonly remoteAddress: string };
 
-const maxRemoteSessionCreations = 25;
-const maxRemoteSessionDepth = 3;
+const maxRemoteSessionCreations = 500;
+const maxRemoteSessionDepth = 10;
 
 export class RemoteSessionService implements IRemoteSessionService {
 	declare readonly _serviceBrand: undefined;

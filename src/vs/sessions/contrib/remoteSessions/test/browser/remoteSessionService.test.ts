@@ -327,6 +327,17 @@ suite('RemoteSessionService', () => {
 		assert.throws(() => create({ prompt: 'Different' }), /different arguments/);
 	});
 
+	test('allows 500 creations per window and retries but rejects additional requests', async () => {
+		const { create, calls } = setup([new RemoteProvider('host')]);
+		const first = await create({}, '0');
+		for (let request = 1; request < 500; request++) {
+			await create({}, String(request));
+		}
+		assert.throws(() => create({}, 'over-limit'), /^Error: Remote session creation limit reached \(500 requests per window\)\.$/);
+		const retried = await create({}, '0');
+		assert.deepStrictEqual({ count: calls.length, sameResult: retried === first }, { count: 500, sameResult: true });
+	});
+
 	test('pins an explicit host and passes its exact model without inheriting source configuration', async () => {
 		const hosts = [new RemoteProvider('idle', 0), new RemoteProvider('pinned', 3)];
 		const { create, calls } = setup(hosts);
@@ -775,14 +786,23 @@ suite('RemoteSessionService', () => {
 		assert.deepStrictEqual(backgroundEvents.map(event => event.split(':')[0]), ['acquire', 'releaseWhenIdle']);
 	});
 
-	test('source-host unavailability and inherited recursion limits do not start work', async () => {
+	test('source-host unavailability does not start work', async () => {
 		const { create, calls, state } = setup([new RemoteProvider('host')]);
 		state.sourceConnected = false;
 		await assert.rejects(create({}, 'offline'), /not registered and connected/);
-		state.sourceConnected = true;
-		state.sourceMetadata = { ...state.sourceMetadata, _meta: withSessionSpawnDepth(undefined, 3) };
-		await assert.rejects(create({}, 'depth'), /recursion limit/);
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('allows remote session depth 10 but rejects depth 11', async () => {
+		const { create, calls, state } = setup([new RemoteProvider('host')]);
+		state.sourceMetadata = { ...state.sourceMetadata, _meta: withSessionSpawnDepth(undefined, 9) };
+		await create({}, 'at-limit');
+		state.sourceMetadata = { ...state.sourceMetadata, _meta: withSessionSpawnDepth(undefined, 10) };
+		await assert.rejects(create({}, 'over-limit'), { message: 'Remote session recursion limit reached (maximum depth 10).' });
+		assert.deepStrictEqual(calls.map(call => ({
+			originDepth: readRemoteSessionOrigin({ _meta: call.options?.metadata })?.depth,
+			spawnDepth: readSessionSpawnDepth(call.options?.metadata),
+		})), [{ originDepth: 10, spawnDepth: 10 }]);
 	});
 
 	for (const replaced of [false, true]) {
