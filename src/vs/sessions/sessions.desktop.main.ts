@@ -199,6 +199,9 @@ import '../workbench/contrib/splash/electron-browser/splash.contribution.js';
 // Local History
 import '../workbench/contrib/localHistory/electron-browser/localHistory.contribution.js';
 
+// Onboarding
+import '../workbench/contrib/onboarding/electron-browser/onboardingTryout.contribution.js';
+
 // Merge Editor
 import '../workbench/contrib/mergeEditor/electron-browser/mergeEditor.contribution.js';
 
