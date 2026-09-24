@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,11 +21,13 @@ import { ContextKeyValue } from '../../../../../platform/contextkey/common/conte
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { McpServerType, McpServerVariableType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IPickOptions, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -41,6 +45,7 @@ import { AddConfigurationAction, OpenWorkspaceFolderMcpResourceCommand } from '.
 import { McpConfigurationDestination } from '../../browser/mcpConfigurationDestination.js';
 import { InstallAction, InstallInRemoteAction, InstallInWorkspaceAction, ShowServerJsonConfigurationAction } from '../../browser/mcpServerActions.js';
 import { mcpWorkspaceRootConfig } from '../../common/mcpConfiguration.js';
+import { IMcpCopilotGlobalConfigurationService } from '../../common/mcpCopilotGlobalConfigurationService.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerInstallState } from '../../common/mcpTypes.js';
 import { startServerByFilter } from '../../common/mcpTypesUtils.js';
@@ -49,12 +54,14 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	readonly selections: (string | undefined)[] = [];
 	readonly inputs: (string | undefined)[] = [];
 	readonly pickLabels: string[][] = [];
+	readonly questionOrder: string[] = [];
 	readonly pickOptions: { placeholder?: string; descriptions: (string | undefined)[]; details: (string | undefined)[] }[] = [];
 
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[] | undefined>;
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T | undefined>;
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined>;
 	override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+		this.questionOrder.push('pick');
 		const items = (await picks).filter((item): item is T => item.type !== 'separator');
 		this.pickLabels.push(items.map(item => item.label));
 		this.pickOptions.push({ placeholder: options?.placeHolder, descriptions: items.map(item => item.description), details: items.map(item => item.detail) });
@@ -69,6 +76,7 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	}
 
 	override async input(): Promise<string | undefined> {
+		this.questionOrder.push('input');
 		assert.ok(this.inputs.length, 'Unexpected input');
 		return this.inputs.shift();
 	}
@@ -131,6 +139,9 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		instantiation.stub(IMcpService, { servers });
 		instantiation.stub(IMcpRegistry, { collections });
+		instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => undefined });
+		instantiation.stub(IMcpResourceScannerService, {});
+		instantiation.stub(IAllowedMcpServersService, { isAllowed: () => true });
 
 		const runtimeServer = (id: string, resource: URI) => {
 			const definition = upcastPartial<McpServerDefinition>({ id, label: installable.name, presentation: { origin: { uri: resource, range: new Range(3, 1, 3, 5) } } });
@@ -436,6 +447,130 @@ suite('MCP configuration entry points', () => {
 			});
 		});
 	}
+
+	suite('manual Copilot Global', () => {
+		function setupGlobal(resource: URI | undefined = URI.file('/home/me/.copilot/mcp-config.json')) {
+			const fixture = setup(true);
+			const writes: { servers: IInstallableMcpServer[]; resource: URI; format: McpResourceFormat | undefined }[] = [];
+			const notifications: Parameters<INotificationService['info']>[0][] = [];
+			let lookups = 0;
+			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, {
+				getConfigurationResource: async () => { lookups++; return resource; },
+			});
+			fixture.instantiation.stub(IMcpResourceScannerService, {
+				addMcpServers: async (servers, resource, _target, format) => { writes.push({ servers, resource, format }); },
+			});
+			fixture.instantiation.stub(ILabelService, { getUriLabel: uri => uri.toString(true), getHostLabel: () => 'test-host' });
+			fixture.instantiation.stub(INotificationService, 'info', (message: Parameters<INotificationService['info']>[0]) => { notifications.push(message); });
+			return { ...fixture, writes, notifications, get lookups() { return lookups; } };
+		}
+
+		for (const remote of [false, true]) {
+			for (const http of [false, true]) {
+				test(`writes manual ${http ? 'HTTP' : 'stdio'} to ${remote ? 'remote' : 'local'} Copilot Global`, async () => {
+					const resource = remote ? URI.parse('vscode-remote://ssh-remote+test/home/me/custom/mcp-config.json') : URI.file('/home/me/.copilot/mcp-config.json');
+					const fixture = setupGlobal(resource);
+					if (remote) {
+						fixture.instantiation.stub(IWorkbenchEnvironmentService, { remoteAuthority: 'ssh-remote+test' });
+					}
+					fixture.quickInput.selections.push(http ? 'HTTP (HTTP or Server-Sent Events)' : 'Command (stdio)', 'Global', 'Copilot Global');
+					fixture.quickInput.inputs.push(http ? 'https://example.com/mcp' : 'node server.js', installable.name);
+					await new AddConfigurationAction().run(fixture.instantiation);
+					assert.deepStrictEqual({
+						writes: fixture.writes,
+						opened: fixture.opened,
+						installs: fixture.installs,
+						started: fixture.started,
+						pickers: fixture.quickInput.pickLabels.slice(1),
+						questions: fixture.quickInput.questionOrder,
+						notified: fixture.notifications.length === 1 && String(fixture.notifications[0]).includes('environment variables on the agent-host machine'),
+					}, {
+						writes: [{ servers: [{ ...(http ? { name: installable.name, config: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } } : installable), inputs: undefined }], resource, format: McpResourceFormat.CopilotGlobal }],
+						opened: [resource],
+						installs: [], started: [],
+						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'VS Code Global']],
+						questions: ['pick', 'input', 'input', 'pick', 'pick'],
+						notified: true,
+					});
+				});
+			}
+		}
+
+		for (const choice of ['VS Code Global', undefined]) {
+			test(`global choice ${choice ?? 'cancellation'} preserves legacy behavior`, async () => {
+				const fixture = setupGlobal();
+				fixture.quickInput.selections.push('Command (stdio)', 'Global', choice);
+				fixture.quickInput.inputs.push('node server.js', installable.name);
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({ writes: fixture.writes, targets: fixture.installs.map(install => install.options?.target), notifications: fixture.notifications },
+					{ writes: [], targets: choice ? [ConfigurationTarget.USER_LOCAL] : [], notifications: [] });
+			});
+		}
+
+		test('unavailable host falls back to VS Code user configuration', async () => {
+			const fixture = setupGlobal();
+			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => undefined });
+			fixture.quickInput.selections.push('Command (stdio)', 'Global');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ targets: fixture.installs.map(install => install.options?.target), writes: fixture.writes, pickers: fixture.quickInput.pickLabels.length },
+				{ targets: [ConfigurationTarget.USER_LOCAL], writes: [], pickers: 2 });
+		});
+
+		for (const failure of ['policy', 'write']) {
+			test(`${failure} failure is surfaced without opening a file or reporting success`, async () => {
+				const fixture = setupGlobal();
+				if (failure === 'policy') {
+					fixture.instantiation.stub(IAllowedMcpServersService, { isAllowed: () => new MarkdownString('Blocked by policy') });
+				} else {
+					fixture.instantiation.stub(IMcpResourceScannerService, { addMcpServers: async () => { throw new Error('Concurrent edit'); } });
+				}
+				fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
+				fixture.quickInput.inputs.push('node server.js', installable.name);
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({ errors: fixture.errors.map(String), writes: fixture.writes, opened: fixture.opened, notifications: fixture.notifications },
+					{ errors: [failure === 'policy' ? 'Error: Blocked by policy' : 'Error: Concurrent edit'], writes: [], opened: [], notifications: [] });
+			});
+		}
+
+		test('explicit file additions never resolve or offer Copilot Global', async () => {
+			const fixture = setupGlobal();
+			fixture.quickInput.selections.push('Command (stdio)');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(legacyFile));
+			assert.deepStrictEqual({ lookups: fixture.lookups, writes: fixture.writes, pickers: fixture.quickInput.pickLabels.length, installs: fixture.installs.length },
+				{ lookups: 0, writes: [], pickers: 1, installs: 1 });
+		});
+
+		test('package-assisted additions retain the original global destination without host lookup', async () => {
+			const fixture = setupGlobal();
+			fixture.instantiation.stub(ICommandService, 'executeCommand', async (command: string) => {
+				switch (command) {
+					case 'github.copilot.chat.mcp.setup.check': return true;
+					case 'github.copilot.chat.mcp.setup.validatePackage': return { state: 'ok', publisher: 'test' };
+					case 'github.copilot.chat.mcp.setup.flow': return { server: { command: 'node', args: ['server.js'] } };
+				}
+				throw new Error(`Unexpected command: ${command}`);
+			});
+			fixture.instantiation.stub(IQuickInputService, 'createQuickPick', <T extends IQuickPickItem>() => {
+				const accepted = store.add(new Emitter<IQuickPickDidAcceptEvent>());
+				let items: readonly T[] = [];
+				return upcastPartial<IQuickPick<T>>({
+					set items(value: readonly T[]) { items = value; queueMicrotask(() => accepted.fire({ inBackground: false })); },
+					get selectedItems() { return items.slice(0, 1); },
+					onDidAccept: accepted.event,
+					onDidHide: Event.None,
+					show: () => { },
+					dispose: () => accepted.dispose(),
+				});
+			});
+			fixture.quickInput.selections.push('NPM Package', 'Global');
+			fixture.quickInput.inputs.push('test-package', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation);
+			assert.deepStrictEqual({ lookups: fixture.lookups, writes: fixture.writes, pickers: fixture.quickInput.pickLabels.slice(1), targets: fixture.installs.map(install => install.options?.target), errors: fixture.errors },
+				{ lookups: 0, writes: [], pickers: [['Global', 'Workspace']], targets: [ConfigurationTarget.USER_LOCAL], errors: [] });
+		});
+	});
 
 	test('editor menu retains AI gates and only offers root additions when enabled', () => {
 		const menu = new AddConfigurationAction().desc.menu;

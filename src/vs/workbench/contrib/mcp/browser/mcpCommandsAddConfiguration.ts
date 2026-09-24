@@ -22,7 +22,9 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpResourceFormat } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
@@ -42,6 +44,7 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceMcpConfigurationTarget, McpConfigurationDestination } from './mcpConfigurationDestination.js';
+import { IMcpCopilotGlobalConfigurationService } from '../common/mcpCopilotGlobalConfigurationService.js';
 
 export const enum AddConfigurationType {
 	Stdio,
@@ -153,6 +156,9 @@ export class McpAddConfigurationCommand {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILabelService private readonly _label: ILabelService,
+		@IMcpCopilotGlobalConfigurationService private readonly _copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService,
+		@IMcpResourceScannerService private readonly _mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -580,6 +586,31 @@ export class McpAddConfigurationCommand {
 
 		const { target } = installTarget;
 		const installable = { name, config, inputs };
+		if (target === ConfigurationTarget.USER_LOCAL && (serverType === AddConfigurationType.Stdio || serverType === AddConfigurationType.HTTP)) {
+			const resource = await this._copilotGlobalConfigurationService.getConfigurationResource();
+			if (resource) {
+				const selected = await this._quickInputService.pick([
+					{ id: 'copilot', label: localize('mcp.target.copilotGlobal', "Copilot Global"), description: localize('mcp.target.copilotGlobal.description', "Available to Copilot agent sessions on this host"), detail: this._label.getUriLabel(resource) },
+					{ id: 'vscode', label: localize('mcp.target.vscodeGlobal', "VS Code Global"), description: localize('mcp.target.vscodeGlobal.description', "VS Code user configuration, runs locally") },
+				], {
+					title: localize('mcp.target.title', "Add MCP Server"),
+					placeHolder: localize('mcp.target.global.placeholder', "Select the global configuration"),
+				});
+				if (!selected) {
+					return;
+				}
+				if (selected.id === 'copilot') {
+					const allowed = this._allowedMcpServersService.isAllowed(installable);
+					if (allowed !== true) {
+						throw new Error(allowed.value);
+					}
+					await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
+					await this._editorService.openEditor({ resource });
+					this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. VS Code input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
+					return;
+				}
+			}
+		}
 		const workspaceConfig = isWorkspaceFolder(target)
 			? await this._instantiationService.createInstance(McpConfigurationDestination).selectForAdd(target, installable, this.configurationTarget?.kind)
 			: undefined;
