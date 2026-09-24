@@ -166,7 +166,7 @@ suite('ExtHostTypeConverter', function () {
 		});
 	});
 
-	test('WorkspaceEdit preserves snippet edits and whitespace (#178654, #325990)', function () {
+	test('WorkspaceEdit round-trip preserves insertAsSnippet and keepWhitespace (#178654, #325990)', function () {
 
 		const uri = URI.parse('file:///foo/bar');
 		const ws = new extHostTypes.WorkspaceEdit();
