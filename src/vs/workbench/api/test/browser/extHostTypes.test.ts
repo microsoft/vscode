@@ -787,6 +787,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.ResolvedAuthority('localhost', 65536));
 		assert.throws(() => new types.ResolvedAuthority('localhost', 1.5));
 		assert.throws(() => new types.ResolvedAuthority('localhost', NaN));
+		assert.throws(() => new types.ResolvedAuthority('localhost', Infinity));
+		assert.throws(() => new types.ResolvedAuthority('localhost', -Infinity));
 
 		assert.strictEqual(new types.ResolvedAuthority('localhost', 1).port, 1);
 		assert.strictEqual(new types.ResolvedAuthority('localhost', 65535).port, 65535);
