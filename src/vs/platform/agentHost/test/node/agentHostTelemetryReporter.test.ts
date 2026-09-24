@@ -14,7 +14,7 @@ import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildSubagentChatUri, MessageKind } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
@@ -248,6 +248,68 @@ suite('AgentHostTelemetryReporter', () => {
 		}]);
 	});
 
+	test('userMessageSent identifies admitted turns and both subagent URI forms in Microsoft telemetry', () => {
+		const legacySubagent = buildSubagentSessionUri(session, 'tool-call-1');
+		const cases = [
+			{ chat: session, owner: session, isSubagent: false },
+			{ chat: buildDefaultChatUri(session), owner: session, isSubagent: false },
+			{ chat: buildChatUri(session, 'peer-chat'), owner: session, isSubagent: false },
+			{ chat: buildSubagentChatUri(session, 'tool-call-1'), owner: session, isSubagent: true },
+			{ chat: legacySubagent, owner: legacySubagent, isSubagent: true },
+			{ chat: buildDefaultChatUri(legacySubagent), owner: legacySubagent, isSubagent: true },
+		];
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow);
+
+		for (const [index, { chat }] of cases.entries()) {
+			reporter.userMessageSent('copilotcli', 'client-1', clientContext, chat, `turn-${index}`, undefined, 'direct', userMessage, false);
+		}
+
+		assert.deepStrictEqual(service.standardEvents, cases.map(({ chat, owner, isSubagent }, index) => ({
+			eventName: 'agentHost.userMessageSent',
+			data: {
+				provider: 'copilotcli',
+				hostLaunchKind: 'unknown',
+				initiatorClientId: 'client-1',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'unknown',
+				initiatorTransportKind: 'unknown',
+				agentSessionId: AgentSession.id(owner),
+				chatSessionId: getTelemetryChatSessionId(chat),
+				turnId: `turn-${index}`,
+				source: 'direct',
+				messageOriginKind: 'user',
+				messageActorKind: 'user',
+				isSubagentSession: isSubagent,
+				turnCount: 0,
+				attachmentCount: 0,
+			},
+		})));
+	});
+
+	test('userMessageSent preserves every actor independently of inline origin classification', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const actors = [MessageKind.User, MessageKind.Agent, MessageKind.Tool, MessageKind.Automation, MessageKind.SystemNotification];
+
+		for (const kind of actors) {
+			reporter.userMessageSent('copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), session, `turn-${kind}`, undefined, 'queued', { text: 'message', origin: { kind } }, true);
+		}
+
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			turnId: event.data?.turnId,
+			source: event.data?.source,
+			messageOriginKind: event.data?.messageOriginKind,
+			messageActorKind: event.data?.messageActorKind,
+		})), actors.map(kind => ({
+			turnId: `turn-${kind}`,
+			source: 'queued',
+			messageOriginKind: 'inline',
+			messageActorKind: kind,
+		})));
+	});
+
 	test('userMessageSent reports the producing actor on both standard events', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -263,9 +325,11 @@ suite('AgentHostTelemetryReporter', () => {
 
 		assert.deepStrictEqual({
 			standard: service.standardEvents.map(event => event.data?.messageOriginKind),
+			actors: service.standardEvents.map(event => event.data?.messageActorKind),
 			github: service.githubStandardEvents.map(event => event.properties?.messageOriginKind),
 		}, {
 			standard: ['agent', 'agentMerge', 'user', 'user', 'inline'],
+			actors: ['agent', 'systemNotification', 'user', 'user', 'user'],
 			github: ['agent', 'agentMerge', 'user', 'user', 'inline'],
 		});
 	});

@@ -27,7 +27,7 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { NewSessionUncommittedChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 
@@ -163,11 +163,15 @@ suite('Changes Actions', () => {
 				}),
 			})],
 		}));
+		const chat = upcastPartial<IChat>({
+			changesets: constObservable([changeset]),
+		});
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', upcastPartial<IActiveSession>({
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,
-			changesets: constObservable([changeset]),
+			mainChat: constObservable(chat),
+			activeChat: constObservable(chat),
 		}));
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;

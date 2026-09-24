@@ -613,7 +613,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		let sessionFilesChanged = 0;
 		let sessionLinesAdded = 0;
 		let sessionLinesDeleted = 0;
-		for (const change of session.changes.get()) {
+		for (const change of session.mainChat.get().changes.get()) {
 			sessionFilesChanged++;
 			sessionLinesAdded += change.insertions;
 			sessionLinesDeleted += change.deletions;

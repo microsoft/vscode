@@ -443,6 +443,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
 	private bodyDimension: dom.Dimension | undefined;
+	private maximumWidth = 950;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private hasActiveRequest: IContextKey<boolean>;
@@ -1168,6 +1169,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parent: petHost,
 				dragBounds: inputContainer ?? petHost,
 				movementBounds: petMovementBounds ?? parent,
+				transition: this.viewOptions.isSessionsWindow ? 'fall' : undefined,
 				model: this._viewModelObs.map(viewModel => viewModel?.model),
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,
@@ -3695,6 +3697,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				CancellationToken.None,
 				requestOptions,
 			);
+			this.chatTipService.recordSlashCommandUsage(commandPart.slashCommand.command);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
 		}
@@ -3758,6 +3761,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			viewModel.sessionResource,
 			CancellationToken.None,
 		);
+		this.chatTipService.recordSlashCommandUsage(command);
 		return true;
 	}
 
@@ -3901,8 +3905,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPartMaxHeightOverride = maxHeight;
 	}
 
+	setMaximumWidth(maximumWidth: number): void {
+		this.maximumWidth = maximumWidth;
+	}
+
 	layout(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth); // no min width of inline chat
 
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._findController?.layout(width);
@@ -3930,7 +3938,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * surfaces and must not call {@link ChatInputPart.layout}.
 	 */
 	layoutForInputHeight(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950);
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth);
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._layoutListForInputHeight();
 	}

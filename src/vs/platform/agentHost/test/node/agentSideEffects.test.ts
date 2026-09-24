@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -15,11 +16,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -52,9 +55,12 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -169,6 +175,7 @@ function createTestSideEffects(
 	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
 	const logService = new NullLogService();
+	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = new NoopWorktreeIsolation();
 	const services = new ServiceCollection(
@@ -178,6 +185,8 @@ function createTestSideEffects(
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
 		[IAgentHostStateManager, stateManager],
+		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+		[IFileService, contributionFileService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -201,6 +210,10 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
+	services.set(IAgentHostSessionPromptService, {
+		_serviceBrand: undefined,
+		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+	});
 	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
@@ -956,6 +969,104 @@ suite('AgentSideEffects', () => {
 		}]);
 	});
 
+	suite('MCP server start failures', () => {
+		function requestStart(): void {
+			setupSession();
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin',
+					children: [{ type: CustomizationType.McpServer, id: 'server', uri: 'file:///plugin/.mcp.json', name: 'server', state: { kind: McpServerStatus.Stopped } }],
+				}],
+			});
+			const action = { type: ActionType.SessionMcpServerStartRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), action);
+		}
+
+		function serverState() {
+			const plugin = stateManager.getSessionState(sessionUri.toString())?.customizations?.[0];
+			const server = plugin?.type === CustomizationType.Plugin ? plugin.children?.[0] : undefined;
+			return server?.type === CustomizationType.McpServer ? server.state : undefined;
+		}
+
+		for (const supported of [true, false]) {
+			test(`reports a rejected Start as Error (${supported ? 'SDK rejection' : 'unsupported provider'})`, async () => {
+				if (supported) {
+					Object.assign(agent, { startMcpServer: async () => { throw new Error('no installed config'); } });
+				}
+				requestStart();
+				await timeout(0);
+				assert.deepStrictEqual(serverState(), {
+					kind: McpServerStatus.Error,
+					error: { errorType: 'mcp-server-start-failed', message: supported ? 'no installed config' : 'The session provider does not support starting MCP servers.' },
+				});
+			});
+		}
+
+		test('preserves a newer Stop when Start fails', async () => {
+			const start = new DeferredPromise<void>();
+			let token: CancellationToken = CancellationToken.None;
+			Object.assign(agent, { startMcpServer: (_session: URI, _id: string, requestToken: CancellationToken) => { token = requestToken; return start.p; } });
+			requestStart();
+			const stop = { type: ActionType.SessionMcpServerStopRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), stop, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), stop);
+			start.error(new Error('start failed'));
+			await timeout(0);
+			assert.deepStrictEqual({ state: serverState(), cancelled: token.isCancellationRequested }, { state: { kind: McpServerStatus.Stopped }, cancelled: true });
+		});
+
+		test('reports failure after refresh resets optimistic state', async () => {
+			const start = new DeferredPromise<void>();
+			Object.assign(agent, { startMcpServer: () => start.p });
+			requestStart();
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionMcpServerStateChanged, id: 'server', state: { kind: McpServerStatus.Stopped },
+			});
+			start.error(new Error('refresh failed'));
+			await timeout(0);
+			assert.deepStrictEqual(serverState(), {
+				kind: McpServerStatus.Error, error: { errorType: 'mcp-server-start-failed', message: 'refresh failed' },
+			});
+		});
+
+		test('preserves a newer Start when the superseded Start fails', async () => {
+			const first = new DeferredPromise<void>();
+			const second = new DeferredPromise<void>();
+			const tokens: CancellationToken[] = [];
+			Object.assign(agent, {
+				startMcpServer: (_session: URI, _id: string, token: CancellationToken) => {
+					tokens.push(token);
+					return tokens.length === 1 ? first.p : second.p;
+				},
+			});
+			requestStart();
+			const action = { type: ActionType.SessionMcpServerStartRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(sessionUri.toString(), action);
+			first.error(new Error('first failed'));
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: serverState(), cancelled: tokens.map(token => token.isCancellationRequested),
+			}, { state: { kind: McpServerStatus.Starting }, cancelled: [true, false] });
+			sideEffects.handleAction(sessionUri.toString(), { type: ActionType.SessionMcpServerStopRequested, id: 'server' });
+			assert.ok(tokens[1].isCancellationRequested, 'Finishing the old Start must not remove the new cancellation source');
+			second.complete();
+		});
+
+		test('cancels pending Starts on dispatcher disposal', async () => {
+			const start = new DeferredPromise<void>();
+			let token: CancellationToken = CancellationToken.None;
+			Object.assign(agent, { startMcpServer: (_session: URI, _id: string, requestToken: CancellationToken) => { token = requestToken; return start.p; } });
+			requestStart();
+			sideEffects.dispose();
+			start.error(new Error('late failure'));
+			await timeout(0);
+			assert.deepStrictEqual({ cancelled: token.isCancellationRequested, state: serverState() }, { cancelled: true, state: { kind: McpServerStatus.Starting } });
+		});
+	});
+
 	suite('customization enablement refresh', () => {
 		const plugin: PluginCustomization = {
 			type: CustomizationType.Plugin,
@@ -1382,6 +1493,7 @@ suite('AgentSideEffects', () => {
 				'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 				'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 				'- Focus on the user\'s selected range when one is provided.',
+				'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 				'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 				'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 				'- Produce the edit directly rather than explaining it or writing a tutorial.',
@@ -1447,8 +1559,11 @@ suite('AgentSideEffects', () => {
 					initiatorConnectionKind: 'dev_tunnel',
 					initiatorTransportKind: 'websocket',
 					agentSessionId: 'session-1',
+					chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+					turnId: 'turn-1',
 					source: 'direct',
 					messageOriginKind: 'user',
+					messageActorKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					activeClientId: 'test-client',
@@ -3891,8 +4006,11 @@ suite('AgentSideEffects', () => {
 					initiatorConnectionKind: 'unknown',
 					initiatorTransportKind: 'unknown',
 					agentSessionId: 'session-1',
+					chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+					turnId: stateManager.getActiveTurnId(defaultChatUri),
 					source: 'queued',
 					messageOriginKind: 'user',
+					messageActorKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					attachmentCount: 0,
@@ -8003,10 +8121,13 @@ suite('AgentSideEffects', () => {
 				},
 			});
 
-			assert.deepStrictEqual(changesets.toolCallEdits, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+			assert.deepStrictEqual(changesets.toolCallEdits, [
+				{ session: defaultChatUri, turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+			]);
 		});
 
-		test('turn complete fires onTurnComplete once with the right turn id', async () => {
+		test('turn complete immediately fires onTurnComplete once per owner with the right turn id', () => {
 			setupSession();
 			startTurn('turn-1');
 
@@ -8023,14 +8144,10 @@ suite('AgentSideEffects', () => {
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			});
 
-			// `_runTurnCompleteSideEffects` now defers the
-			// `changesets.onTurnComplete` call behind the checkpoint capture
-			// promise (`captureTurnCheckpoint(...).then(...)`). Yield a
-			// microtask so the resolved promise's `.then` continuation
-			// runs before we assert.
-			await Promise.resolve();
-
-			assert.deepStrictEqual(changesets.turnCompletes, [{ session: sessionUri.toString(), turnId: 'turn-1' }]);
+			assert.deepStrictEqual(changesets.turnCompletes, [
+				{ session: defaultChatUri, turnId: 'turn-1' },
+				{ session: sessionUri.toString(), turnId: 'turn-1' },
+			]);
 		});
 
 		test('turn complete passes the resolved working directories to the checkpoint capture', async () => {
