@@ -13,9 +13,8 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/browser/ui/sash/sash.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
-import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -40,14 +39,13 @@ import { IChatContentPartRenderContext } from '../../../../workbench/contrib/cha
 import { SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
-import { AgentMergeSessionOverrides } from '../../../../platform/agentHost/common/agentMerge.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { type ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
@@ -81,17 +79,6 @@ type InboxMergedSessionCleanupActionKind = InboxNotificationActionKind.ArchiveSe
 
 function isInboxMergedSessionCleanupActionKind(actionKind: InboxNotificationActionKind): actionKind is InboxMergedSessionCleanupActionKind {
 	return actionKind === InboxNotificationActionKind.ArchiveSession || actionKind === InboxNotificationActionKind.DeleteSession;
-}
-
-function supportsInlineAgentMergeActions(provider: ISessionsProvider | undefined): provider is IAgentHostSessionsProvider {
-	if (!provider) {
-		return false;
-	}
-	const candidate = provider as Partial<IAgentHostSessionsProvider>;
-	return typeof candidate.getAgentMergeSessionState === 'function'
-		&& typeof candidate.getAgentMergeClientStateObservable === 'function'
-		&& typeof candidate.setAgentMergeEnabled === 'function'
-		&& typeof candidate.setAgentMergeOverrides === 'function';
 }
 
 const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSections';
@@ -247,7 +234,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1529,7 +1515,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		return this.runAgentMergeAction(item, this.getAgentMergeActionOverrides(actionKind));
+		return this.runInboxPullRequestAction(item, actionKind);
 	}
 
 	private resolveAgentMergeAlwaysSpotlightTarget(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind, sourceElement: HTMLElement | undefined): HTMLElement | undefined {
@@ -1607,161 +1593,80 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	private getAgentMergeActionOverrides(actionKind: InboxAgentMergeActionKind): AgentMergeSessionOverrides {
-		switch (actionKind) {
-			case InboxNotificationActionKind.AgentMergeFixCI:
-				return { fixCI: true };
-			case InboxNotificationActionKind.AgentMergeAddressReviews:
-				return { addressReviews: true };
-			case InboxNotificationActionKind.AgentMergeMergePullRequest:
-				return { mergePullRequest: 'always' };
-		}
-	}
-
-	private async runAgentMergeAction(item: IInboxNotificationItem, overrides: AgentMergeSessionOverrides): Promise<InboxInteractionResult> {
+	/**
+	 * Runs a pull-request inbox action by submitting the matching slash-command
+	 * prompt to the session's chat in the background — the same universal flow
+	 * the in-session Fix Checks / Address Comments actions use. Works for both
+	 * cloud and agent-host sessions and never opens or navigates to the session.
+	 */
+	private async runInboxPullRequestAction(item: IInboxNotificationItem, actionKind: InboxAgentMergeActionKind): Promise<InboxInteractionResult> {
 		if (!item.sessionResource) {
 			return 'skipped';
 		}
-
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
 		if (!session) {
 			return 'skipped';
 		}
-		const providers = this.getInlineAgentMergeProvidersForSession(session);
-		if (providers.length === 0) {
-			throw new Error(`Agent Merge provider unavailable for inline action: ${session.providerId}`);
+
+		switch (actionKind) {
+			case InboxNotificationActionKind.AgentMergeFixCI:
+			case InboxNotificationActionKind.AgentMergeAddressReviews:
+				// When the same session has both failing CI and unresolved Copilot
+				// review comments, address both in a single turn — the same combined
+				// request the in-session "Fix Checks & Address Comments" action sends —
+				// so the two aren't fixed by two competing turns.
+				return this.submitSessionSlashCommand(session, this.pullRequestFixQuery(item.sessionResource));
+			case InboxNotificationActionKind.AgentMergeMergePullRequest:
+				return this.submitSessionSlashCommand(session, '/merge');
 		}
-		let lastError: unknown;
-		for (const provider of providers) {
-			const candidateSessionIds = this.collectAgentMergeCandidateSessionIds(session, provider);
-			for (const candidateSessionId of candidateSessionIds) {
-				try {
-					await this.applyAgentMergeOverridesWithRetry(provider, candidateSessionId, overrides);
-					return 'success';
-				} catch (error) {
-					lastError = error;
-				}
+	}
+
+	/**
+	 * Builds the fix query for a session's CI/review notifications: `/fix-ci` when
+	 * only checks are failing, `/act-on-feedback` when only Copilot comments are
+	 * unresolved, and both together when the session has failing CI and unresolved
+	 * comments at once.
+	 */
+	private pullRequestFixQuery(sessionResource: URI): string {
+		const notifications = this.inboxNotificationsService.notifications.get();
+		const sessionKey = sessionResource.toString();
+		let hasFailingCI = false;
+		let hasReviewComments = false;
+		for (const notification of notifications) {
+			if (notification.sessionResource?.toString() !== sessionKey) {
+				continue;
+			}
+			if (notification.kind === InboxNotificationKind.FailingCI) {
+				hasFailingCI = true;
+			} else if (notification.kind === InboxNotificationKind.ReviewComments) {
+				hasReviewComments = true;
 			}
 		}
-		if (item.sessionResource) {
-			try {
-				await this.sessionsService.openSession(item.sessionResource, { preserveFocus: true, source: 'notification' });
-				const refreshedSession = this.sessionsManagementService.getSession(item.sessionResource) ?? session;
-				const activeSession = this.sessionsService.activeSession.get();
-				if (activeSession && isEqual(activeSession.resource, refreshedSession.resource)) {
-					const activeSessionProvider = this.sessionsProvidersService.getProvider(activeSession.providerId);
-					if (supportsInlineAgentMergeActions(activeSessionProvider)) {
-						try {
-							await this.applyAgentMergeOverridesWithRetry(activeSessionProvider, activeSession.sessionId, overrides);
-							return 'success';
-						} catch (activeRetryError) {
-							lastError = activeRetryError;
-						}
-					}
-				}
-				for (const provider of providers) {
-					const candidateSessionIds = this.collectAgentMergeCandidateSessionIds(refreshedSession, provider);
-					for (const candidateSessionId of candidateSessionIds) {
-						try {
-							await this.applyAgentMergeOverridesWithRetry(provider, candidateSessionId, overrides);
-							return 'success';
-						} catch (retryError) {
-							lastError = retryError;
-						}
-					}
-				}
-			} catch (openError) {
-				lastError = openError;
-			}
+		if (hasFailingCI && hasReviewComments) {
+			return '/fix-ci and /act-on-feedback';
 		}
-		throw lastError instanceof Error
-			? lastError
-			: new Error(`Unable to run Agent Merge action inline for session provider: ${session.providerId}`);
+		return hasReviewComments ? '/act-on-feedback' : '/fix-ci';
 	}
 
-	private collectAgentMergeCandidateSessionIds(session: { readonly sessionId: string; readonly resource: URI }, provider: IAgentHostSessionsProvider): readonly string[] {
-		const candidates = new Set<string>([
-			session.sessionId,
-			session.resource.toString(),
-			`${provider.id}:${session.resource.toString()}`,
-		]);
-
-		const activeSession = this.sessionsService.activeSession.get();
-		if (activeSession && isEqual(activeSession.resource, session.resource)) {
-			candidates.add(activeSession.sessionId);
+	/**
+	 * Loads the session's chat model in the background (without opening it in the
+	 * UI) and sends the given slash command to it. Mirrors the background submit
+	 * in {@link BlockedSessionsCIFixModel}.
+	 */
+	private async submitSessionSlashCommand(session: ISession, query: string): Promise<InboxInteractionResult> {
+		const ref = await this.chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None, 'InboxNotifications');
+		if (!ref) {
+			return 'failure';
 		}
-
-		for (const providerSession of provider.getSessions()) {
-			if (isEqual(providerSession.resource, session.resource)) {
-				candidates.add(providerSession.sessionId);
-			}
-		}
-
-		return [...candidates];
-	}
-
-	private async applyAgentMergeOverridesWithRetry(provider: IAgentHostSessionsProvider, sessionId: string, overrides: AgentMergeSessionOverrides): Promise<void> {
-		let lastError: unknown;
-		for (let attempt = 0; attempt < 4; attempt++) {
-			try {
-				if (attempt > 0) {
-					await this.warmAgentMergeSessionState(provider, sessionId);
-				}
-				await this.applyAgentMergeOverrides(provider, sessionId, overrides);
-				return;
-			} catch (error) {
-				lastError = error;
-				if (!this.isAgentMergeConnectionUnavailableError(error) || attempt === 3) {
-					break;
-				}
-				await timeout(200 + (attempt * 200));
-			}
-		}
-		throw lastError;
-	}
-
-	private isAgentMergeConnectionUnavailableError(error: unknown): boolean {
-		return error instanceof Error && error.message.includes('Cannot update Agent Merge state without a running session connection');
-	}
-
-	private async applyAgentMergeOverrides(provider: IAgentHostSessionsProvider, sessionId: string, overrides: AgentMergeSessionOverrides): Promise<void> {
-		await provider.setAgentMergeEnabled(sessionId, true);
-		const currentOverrides = provider.getAgentMergeSessionState(sessionId)?.overrides;
-		await provider.setAgentMergeOverrides(sessionId, {
-			...currentOverrides,
-			...overrides,
-		});
-	}
-
-	private async warmAgentMergeSessionState(provider: IAgentHostSessionsProvider, sessionId: string): Promise<void> {
-		const store = new DisposableStore();
 		try {
-			const state = provider.getAgentMergeClientStateObservable(sessionId);
-			store.add(autorun(reader => {
-				state.read(reader);
-			}));
-			await timeout(250);
+			let result = await this.chatService.sendRequest(session.resource, query, { agentIdSilent: session.resource.scheme });
+			if (ChatSendResult.isQueued(result)) {
+				result = await result.deferred;
+			}
+			return ChatSendResult.isSent(result) ? 'success' : 'failure';
 		} finally {
-			store.dispose();
+			ref.dispose();
 		}
-	}
-
-	private getInlineAgentMergeProvidersForSession(session: { readonly providerId: string; readonly resource: URI }): readonly IAgentHostSessionsProvider[] {
-		const providers: IAgentHostSessionsProvider[] = [];
-		const sessionProvider = this.sessionsProvidersService.getProvider(session.providerId);
-		if (supportsInlineAgentMergeActions(sessionProvider)) {
-			providers.push(sessionProvider);
-		}
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (!supportsInlineAgentMergeActions(provider) || providers.includes(provider)) {
-				continue;
-			}
-			if (!provider.getSessions().some(providerSession => isEqual(providerSession.resource, session.resource))) {
-				continue;
-			}
-			providers.push(provider);
-		}
-		return providers;
 	}
 
 	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
