@@ -294,7 +294,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onDidChangeSentiment = sentimentChanges.event;
 			override readonly sentiment = { hidden: false };
 		}();
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		for (const source of sources) {
 			const enabled = source.id === CustomizationMarketplaceSources.PluginMarketplaces.id ? false : source.id === 'testSource' ? options.enabled : options.otherSourceEnabled ?? options.enabled;
@@ -401,6 +404,54 @@ suite('CustomizationMarketplaceInstallService', () => {
 	}
 
 	suite('source gates', () => {
+		test('Marketplace visibility blocks installs without disabling the source', async () => {
+			const fixture = await createFixture();
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+			const state = fixture.service.getInstallState(pluginResource());
+			await assert.rejects(fixture.service.install(pluginResource()), /Enable the customization marketplace/);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+			await fixture.service.install(pluginResource());
+			assert.deepStrictEqual({
+				state,
+				pluginInstalls: fixture.pluginService.calls,
+				sourceStillEnabled: fixture.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled),
+			}, {
+				state: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
+				pluginInstalls: [{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } }],
+				sourceStillEnabled: true,
+			});
+		});
+
+		test('hiding Marketplace cancels a pending skill import without disabling its feed', async () => {
+			const fixture = await createFixture();
+			const started = new DeferredPromise<void>();
+			const continueRepository = new DeferredPromise<URI>();
+			fixture.repositoryService.onEnsure = async () => {
+				await started.complete();
+				return continueRepository.p;
+			};
+			const result = Promise.allSettled([fixture.service.install(resource())]);
+			await started.p;
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+			const cancelled = fixture.repositoryService.calls[0].options?.token?.isCancellationRequested;
+			await continueRepository.complete(repository);
+			const [outcome] = await result;
+			assert.deepStrictEqual({
+				cancelled,
+				failedWithCancellation: outcome.status === 'rejected' && isCancellationError(outcome.reason),
+				installed: await fixture.fileService.exists(skillDestination),
+				sourceEnabled: fixture.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled),
+			}, {
+				cancelled: true,
+				failedWithCancellation: true,
+				installed: false,
+				sourceEnabled: true,
+			});
+		});
+
 		test('a different enabled source cannot authorize disabled or unknown source installations', async () => {
 			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
 			const candidates = [resource(), pluginResource(), mcpResource(), resource({ sourceId: 'unknown' })];

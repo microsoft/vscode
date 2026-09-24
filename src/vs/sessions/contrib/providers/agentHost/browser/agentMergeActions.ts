@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
@@ -22,8 +22,9 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, SinglePaneChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
+import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -134,25 +135,35 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IChangesViewService changesViewService: IChangesViewService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
+		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
+			if (changesEditorTransitionObs.read(reader)
+				|| changesViewService.activeSessionChangesetsLoadingObs.read(reader)
+				|| changesViewService.activeSessionLoadingObs.read(reader)) {
+				return;
+			}
 			const session = sessionsService.activeSession.read(reader);
 			// Each folder has its own Agent Merge; follow the one the active chat works in.
 			const chat = session?.activeChat.read(reader);
 			const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService, chat).read(reader) : undefined;
 			const enabled = state?.enabled === true;
 			const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
-			enabledKey.set(enabled);
-			for (const [action, key] of actionKeys) {
-				key.set(effective[action]);
-			}
-			mergePullRequestKey.set(effective.mergePullRequest);
+			contextKeyService.bufferChangeEvents(() => {
+				enabledKey.set(enabled);
+				for (const [action, key] of actionKeys) {
+					key.set(effective[action]);
+				}
+				mergePullRequestKey.set(effective.mergePullRequest);
+			});
 			const authorized = agentMergeRepairActions.filter(action => effective[action]);
 			const signature = `${session?.sessionId ?? 'none'}|${chat?.resource.toString() ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
 			if (lastLogged !== signature) {

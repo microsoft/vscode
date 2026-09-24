@@ -839,6 +839,7 @@ interface IRenderEditorOptions {
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly marketplaceEnabled?: boolean;
 	readonly agentFinderPublicFeedEnabled?: boolean;
+	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplace?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -883,8 +884,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
-	const marketplaceEnabled = options.marketplaceEnabled ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
+	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? options.marketplaceEnabled ?? false;
+	const marketplaceEnabled = marketplaceVisibilityEnabled && (agentFinderPublicFeedEnabled || options.otherSourceEnabled === true);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -976,8 +978,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
-				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceEnabled,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
@@ -2523,6 +2525,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersProvenance: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The MCP Servers page shows linked "Plugin: Linear" and "Extension: Acme Agent Tools" provenance labels beneath their installed server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2909,6 +2912,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when Marketplace visibility is disabled, even with a source enabled.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+		}),
+	}),
+
+	OverviewWithMarketplaceDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The original Overview remains available when Marketplace visibility is off, even though the GitHub Feed is enabled by default.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: false,
 		}),
 	}),
 

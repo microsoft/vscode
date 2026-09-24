@@ -9,7 +9,9 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
+import { customizationMarketplaceConfigurationProperties } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -30,6 +32,18 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+	});
+
+	test('Marketplace visibility is default-off while both sources are default-on', () => {
+		assert.deepStrictEqual({
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
+			pluginMarketplaces: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled].default,
+		}, {
+			marketplace: false,
+			publicFeed: true,
+			pluginMarketplaces: true,
+		});
 	});
 
 	test('defaults persistent progress to Draw as an experimental setting', () => {

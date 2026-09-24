@@ -8,7 +8,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -21,8 +21,7 @@ import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelc
 const $ = DOM.$;
 
 export function shouldShowCustomizationDiscover(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
-	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true &&
-		getEnabledCustomizationMarketplaceSources(configurationService, sources).length > 0;
+	return getVisibleCustomizationMarketplaceSources(configurationService, sources).length > 0;
 }
 
 /**

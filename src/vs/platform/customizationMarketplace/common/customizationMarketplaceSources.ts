@@ -35,6 +35,11 @@ export function getEnabledCustomizationMarketplaceSources(configurationService: 
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
 }
 
+export function getVisibleCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+		? getEnabledCustomizationMarketplaceSources(configurationService, sources) : [];
+}
+
 export async function queryEnabledCustomizationMarketplaceSources(
 	configurationService: IConfigurationService,
 	sources: readonly ICustomizationMarketplaceSourceInfo[],

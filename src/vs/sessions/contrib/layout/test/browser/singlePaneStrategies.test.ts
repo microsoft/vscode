@@ -75,6 +75,7 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		multipleSessionsVisibleObs: derived(reader => harness.visibleSessionsObs.read(reader).length > 1),
 		activeSessionResourceObs: derived(reader => harness.activeSessionObs.read(reader)?.resource),
 		hasSavedWorkingSet: sessionResource => savedWorkingSets.has(sessionResource.toString()),
+		completeChangesEditorTransition: () => { },
 	};
 	return { ctx, state };
 }
