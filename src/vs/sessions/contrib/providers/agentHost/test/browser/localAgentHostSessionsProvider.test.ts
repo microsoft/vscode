@@ -6974,6 +6974,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('leaves a recorded pull request that another folder discovered to that folder', () => {
+			const provider = createProviderWithPullRequestModels();
+			const sessionDirectory = URI.file('/work/vscode');
+			const worktreeDirectory = URI.file('/work/vscode.worktrees/feature');
+			const session = setupMultiChatSession(provider, 'multi-peer-recorded-pr', [sessionDirectory, worktreeDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-peer-recorded-pr').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			// The peer chat created pull request 4 from its worktree and recorded it; pull request 1 was discovered in both folders.
+			let meta: SessionState['_meta'] = {
+				githubData: {
+					[sessionDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
+					[worktreeDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4', 'https://github.com/microsoft/vscode/pull/1'] },
+				},
+			};
+			// Without host-published folder keys, as in list metadata.
+			meta = withSessionArtifacts(meta, [
+				{ id: 'peer-pr', type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/4', isGitHub: true },
+				{ id: 'shared-pr', type: SessionArtifactType.PullRequest, label: 'Shared PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true },
+				{ id: 'recorded-pr', type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true },
+			]);
+
+			agentHost.setSessionState('multi-peer-recorded-pr', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [sessionDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [worktreeDirectory.toString()]),
+			], { defaultChat, meta }));
+
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.deepStrictEqual({
+				mainChat: describeFolderGitHubInfo(session.mainChat.get()),
+				peerChat: describeFolderGitHubInfo(peer),
+			}, {
+				mainChat: [{ activePullRequest: 2, pullRequests: [[2, 'recorded-pr'], [1, 'shared-pr']], issues: undefined }],
+				peerChat: [{ activePullRequest: 4, pullRequests: [[4, undefined], [1, undefined]], issues: undefined }],
+			});
+		});
+
 		test('adopts recorded pull requests in every chat of a single-folder session', () => {
 			const provider = createProviderWithPullRequestModels();
 			const sessionDirectory = URI.file('/work/vscode');
