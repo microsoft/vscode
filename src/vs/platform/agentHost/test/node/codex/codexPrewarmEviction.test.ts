@@ -1470,12 +1470,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('turn completion recovery retains large command output before publishing', async () => {
-		const database = new TestSessionDatabase();
-		const agent = await createAgent(disposables, { database });
-		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
-		const chat = defaultChatOf(session);
-		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+	test('turn completion recovery retains large parent output but leaves subagent output inline', async () => {
 		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
 		const command = {
 			type: 'commandExecution', id: 'cmd-recovered',
@@ -1484,41 +1479,65 @@ suite('CodexAgent prewarm eviction', () => {
 			commandActions: [], aggregatedOutput: null,
 			exitCode: null, durationMs: null,
 		};
-		await database.createTurn('turn-1');
-		agent['_handleItemStarted'](entry, { item: command, threadId: 'thread-1', turnId: 'turn-1', startedAtMs: 0 } as never);
+		const results = [];
+		const cases = [
+			{ retainRecoveredOutput: true, session: AgentSession.uri('codex', 'parent-recovery') },
+			{ retainRecoveredOutput: false, session: AgentSession.uri('codex', 'subagent-recovery') },
+		];
+		for (const { retainRecoveredOutput, session: requestedSession } of cases) {
+			const database = new TestSessionDatabase();
+			const agent = await createAgent(disposables, { database });
+			const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL }, session: requestedSession });
+			const chat = defaultChatOf(session);
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			await database.createTurn('turn-1');
+			agent['_handleItemStarted'](entry, { item: command, threadId: 'thread-1', turnId: 'turn-1', startedAtMs: 0 } as never);
 
-		const actions = agent['_handleTurnCompletedNotification'](entry, {
-			threadId: 'thread-1',
-			turn: {
-				id: 'turn-1',
-				items: [{ ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 }],
-				itemsView: { type: 'full' },
-				status: 'completed',
-				error: null,
-				startedAt: null,
-				completedAt: null,
-				durationMs: 1,
-			},
-		} as never);
+			const actions = agent['_handleTurnCompletedNotification'](entry, {
+				threadId: 'thread-1',
+				turn: {
+					id: 'turn-1',
+					items: [{ ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 }],
+					itemsView: { type: 'full' },
+					status: 'completed',
+					error: null,
+					startedAt: null,
+					completedAt: null,
+					durationMs: 1,
+				},
+			} as never, retainRecoveredOutput);
 
-		const completion = actions.find(action => action.type === ActionType.ChatToolCallComplete);
-		const preview = output.slice(0, 400);
-		assert.deepStrictEqual({
-			stored: await database.getTerminalOutputSize('cmd-recovered'),
-			content: completion?.type === ActionType.ChatToolCallComplete ? completion.result.content : undefined,
-		}, {
+			const completion = actions.find(action => action.type === ActionType.ChatToolCallComplete);
+			const content = completion?.type === ActionType.ChatToolCallComplete ? completion.result.content : undefined;
+			results.push({
+				retainRecoveredOutput,
+				stored: await database.getTerminalOutputSize('cmd-recovered'),
+				content: content?.map(part => part.type === ToolResultContentType.Text
+					? { type: part.type, text: part.text }
+					: { type: part.type, resource: part.resource }),
+			});
+		}
+
+		assert.deepStrictEqual(results, [{
+			retainRecoveredOutput: true,
 			stored: output.length,
 			content: [
-				{ type: ToolResultContentType.Text, text: preview },
+				{ type: ToolResultContentType.Text, text: output.slice(0, 400) },
 				{
 					type: ToolResultContentType.Terminal,
-					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, session, chat, 'cmd-recovered'),
-					title: 'Run shell command',
-					isPty: false,
-					result: { exitCode: 0, preview, truncated: true },
+					resource: buildNonPtyShellTerminalUri(
+						AgentSession.uri('codex', 'parent-recovery'),
+						AgentSession.uri('codex', 'parent-recovery'),
+						defaultChatOf(AgentSession.uri('codex', 'parent-recovery')),
+						'cmd-recovered',
+					),
 				},
 			],
-		});
+		}, {
+			retainRecoveredOutput: false,
+			stored: undefined,
+			content: [{ type: ToolResultContentType.Text, text: output }],
+		}]);
 	});
 
 	test('restored large command output reopens its retained terminal resource', async () => {

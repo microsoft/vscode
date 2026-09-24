@@ -3092,14 +3092,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}).finally(() => ref.dispose());
 	}
 
-	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
+	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification, retainRecoveredOutput = true): (SessionAction | ChatAction)[] {
 		const appTurnId = params.turn.id;
 		const hostTurnId = this._hostTurnId(session, appTurnId);
 		// A replacement send can claim the host turn before the interrupted
 		// turn's completion arrives. Preserve the replacement's identity and timer.
 		const isCurrentTurn = session.currentTurnId === hostTurnId;
 		const mapped = this._withHostTurn(session, params);
-		const retainedOutputResources = this._retainRecoveredCommandOutputs(session, mapped.turn.items);
+		const retainedOutputResources = retainRecoveredOutput ? this._retainRecoveredCommandOutputs(session, mapped.turn.items) : undefined;
 		const out = mapTurnCompleted(session.mapState, mapped, isCurrentTurn ? this._clearTurnStopWatch(session) : undefined, retainedOutputResources);
 		// Remember which codex (app-server) turn each workbench turn maps to so
 		// truncateChat can translate a host turn id to a thread rollback even
@@ -3135,6 +3135,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _retainRecoveredCommandOutputs(session: ICodexSession, items: TurnCompletedNotification['turn']['items']): ReadonlyMap<string, string> | undefined {
 		const resources = new Map<string, string>();
 		for (const item of items) {
+			if (item.type !== 'commandExecution' || (item.exitCode === null && item.status === 'completed') || !session.mapState.itemToToolCall.has(item.id)) {
+				continue;
+			}
 			const resource = this._retainCommandOutput(session, item);
 			if (resource) {
 				resources.set(item.id, resource);
@@ -3649,7 +3652,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
-			const actions = this._handleTurnCompletedNotification(subagent.session, params);
+			const actions = this._handleTurnCompletedNotification(subagent.session, params, false);
 			for (const action of actions) {
 				if (action.type === ActionType.ChatTurnComplete) {
 					continue;
