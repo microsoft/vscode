@@ -126,6 +126,10 @@ const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 /** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
 const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 
+function lookupPrimaryCommandKeybinding(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, commandId: string) {
+	return keybindingService.lookupKeybinding(commandId, contextKeyService, true) ?? keybindingService.lookupKeybindings(commandId)[0];
+}
+
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
@@ -1898,7 +1902,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
 		private readonly inboxNotificationCount: IObservable<number> = constObservable(0),
+		private readonly inboxOpenKeybindingLabel: IObservable<string | undefined> = constObservable(undefined),
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
+		private readonly hoverService: IHoverService | undefined = undefined,
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
 	) { }
@@ -2047,6 +2053,16 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		} else if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-inbox');
 			template.icon.style.display = '';
+			if (this.hoverService) {
+				const inboxHover = template.elementDisposables.add(new MutableDisposable<IDisposable>());
+				template.elementDisposables.add(autorun(reader => {
+					const keybindingLabel = this.inboxOpenKeybindingLabel.read(reader);
+					const hoverText = keybindingLabel
+						? localize('inboxNotificationsSectionHoverWithKeybinding', "Open Inbox ({0})", keybindingLabel)
+						: localize('inboxNotificationsSectionHover', "Open Inbox");
+					inboxHover.value = this.hoverService?.setupManagedHover(getDefaultHoverDelegate('element'), template.container, hoverText);
+				}));
+			}
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === INBOX_NOTIFICATIONS_VIEW_ID);
@@ -2378,6 +2394,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly inboxNotificationCount?: IObservable<number>;
+	readonly inboxOpenKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
@@ -2433,16 +2450,24 @@ class SessionsAccessibilityProvider {
 				});
 			}
 			if (element.id === INBOX_NOTIFICATIONS_SECTION_ID) {
-				if (!this.options?.inboxNotificationCount) {
+				if (!this.options?.inboxNotificationCount && !this.options?.inboxOpenKeybindingAriaLabel) {
 					return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
 				}
 				return derived(this, reader => {
 					const count = this.options?.inboxNotificationCount?.read(reader) ?? 0;
+					const keybindingAriaLabel = this.options?.inboxOpenKeybindingAriaLabel?.read(reader);
 					if (count <= 0) {
-						return localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
+						return keybindingAriaLabel
+							? localize('inboxNotificationsAriaLabelWithKeybinding', "{0}, open inbox notifications, keyboard shortcut {1}", element.label, keybindingAriaLabel)
+							: localize('inboxNotificationsAriaLabel', "{0}, open inbox notifications", element.label);
 					}
-					return count === 1
-						? localize('inboxNotificationsAriaLabelOneNotification', "{0}, {1} notification, open inbox notifications", element.label, count)
+					if (count === 1) {
+						return keybindingAriaLabel
+							? localize('inboxNotificationsAriaLabelOneNotificationWithKeybinding', "{0}, {1} notification, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
+							: localize('inboxNotificationsAriaLabelOneNotification', "{0}, {1} notification, open inbox notifications", element.label, count);
+					}
+					return keybindingAriaLabel
+						? localize('inboxNotificationsAriaLabelManyNotificationsWithKeybinding', "{0}, {1} notifications, open inbox notifications, keyboard shortcut {2}", element.label, count, keybindingAriaLabel)
 						: localize('inboxNotificationsAriaLabelManyNotifications', "{0}, {1} notifications, open inbox notifications", element.label, count);
 				});
 			}
@@ -3328,6 +3353,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const inboxNotificationCount = derived(this, reader => this.inboxNotificationsService.notifications.read(reader).length);
+		const inboxOpenKeybindingLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
+			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getLabel() ?? undefined);
+		const inboxOpenKeybindingAriaLabel = observableFromEvent(this, this.keybindingService.onDidUpdateKeybindings, () =>
+			lookupPrimaryCommandKeybinding(this.keybindingService, contextKeyService, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID)?.getAriaLabel() ?? undefined);
 		const customizationsActive = observableFromEvent(this, this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor instanceof AICustomizationManagementEditorInput);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
@@ -3343,7 +3372,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.customViewService,
 			this.menuService,
 			inboxNotificationCount,
+			inboxOpenKeybindingLabel,
 			customizationsActive,
+			hoverService,
 			templateId,
 			rowClassName,
 		);
@@ -3405,6 +3436,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 					inboxNotificationCount,
+					inboxOpenKeybindingAriaLabel,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
 				}),
