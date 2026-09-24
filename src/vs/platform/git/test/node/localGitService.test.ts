@@ -17,6 +17,7 @@ import { LocalGitService } from '../../node/localGitService.js';
 interface IExecFileExpectation {
 	args: string[];
 	environment?: Record<string, string>;
+	absentEnvironment?: string[];
 	stdout?: string;
 	stderr?: string;
 	error?: cp.ExecFileException;
@@ -31,6 +32,9 @@ function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFil
 		assert.deepStrictEqual(args, expectation.args);
 		for (const [key, value] of Object.entries(expectation.environment ?? {})) {
 			assert.strictEqual(options.env?.[key], value);
+		}
+		for (const key of expectation.absentEnvironment ?? []) {
+			assert.strictEqual(options.env?.[key], undefined);
 		}
 
 		queueMicrotask(() => callback(expectation.error ?? null, expectation.stdout ?? '', expectation.stderr ?? ''));
@@ -90,6 +94,40 @@ suite('LocalGitService', () => {
 		});
 
 		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('authenticated Git removes tracing variables case-insensitively', async () => {
+		const inherited = {
+			git_trace_curl: '1',
+			Git_Curl_Verbose: '1',
+			git_trace2_event: '/tmp/git-trace.json',
+		};
+		const previous = Object.fromEntries(Object.keys(inherited).map(key => [key, process.env[key]]));
+		Object.assign(process.env, inherited);
+		try {
+			const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
+				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				absentEnvironment: Object.keys(inherited),
+			}];
+			const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+			await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+				authentication: {
+					urlPrefix: 'https://github.com/',
+					authorizationHeader: 'Authorization: Basic secret',
+				},
+			});
+
+			assert.strictEqual(expectations.length, 0);
+		} finally {
+			for (const [key, value] of Object.entries(previous)) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}
 	});
 
 	test('authenticated Git rejects old versions and rechecks after an upgrade', async () => {

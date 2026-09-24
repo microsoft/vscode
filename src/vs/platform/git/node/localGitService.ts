@@ -77,7 +77,8 @@ export class LocalGitService implements ILocalGitService {
 
 		const environment = { ...process.env };
 		for (const key of Object.keys(environment)) {
-			if (key.startsWith('GIT_TRACE') || key === 'GIT_CURL_VERBOSE') {
+			const normalizedKey = key.toUpperCase();
+			if (normalizedKey.startsWith('GIT_TRACE') || normalizedKey === 'GIT_CURL_VERBOSE') {
 				delete environment[key];
 			}
 		}
