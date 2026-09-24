@@ -7,7 +7,7 @@ const vscode = !isStandalone ? acquireVsCodeApi() : {
         window.postMessage({
           type: 'init',
           tabs: null,
-          packages: ['react', 'lodash', 'axios', 'express', 'vue'],
+          packages: ['react', 'lodash', 'axios', 'express', 'vue', '@angular/core', 'react-native'],
           nodeVersion: 'v24.15.0'
         }, '*');
       }, 10);
@@ -16,27 +16,77 @@ const vscode = !isStandalone ? acquireVsCodeApi() : {
         const outputs = [];
         const logs = [];
         const lines = msg.code.split('\n');
+        
         for (let i = 0; i < lines.length; i++) {
           const lNum = i + 1;
           const tr = lines[i].trim();
           if (!tr || tr.startsWith('//') || tr.startsWith('/*') || tr.startsWith('*') || tr.startsWith('const ') || tr.startsWith('let ') || tr.startsWith('var ') || tr.startsWith('function ') || tr.endsWith('{') || tr === '}') continue;
+          
+          // Fix for console.log/info/warn/error showing undefined!
+          const consoleMatch = tr.match(/^console\.(log|info|warn|error|table)\s*\(([\s\S]*)\);?$/);
+          if (consoleMatch) {
+            const fn = consoleMatch[1];
+            const inside = consoleMatch[2];
+            try {
+              let evalVal;
+              if (!inside.trim()) {
+                evalVal = [''];
+              } else {
+                evalVal = eval(`[${inside}]`);
+              }
+              const displayStr = evalVal.map(v => {
+                if (typeof v === 'string') return `'${v}'`;
+                if (typeof v === 'object') return JSON.stringify(v);
+                return String(v);
+              }).join(' ');
+
+              outputs.push({
+                line: lNum,
+                display: displayStr,
+                type: 'string'
+              });
+              logs.push({ level: fn, text: displayStr });
+              continue;
+            } catch (e) {
+              // fallback
+            }
+          }
+
           try {
             let expr = tr.replace(/;$/, '');
             if (expr.startsWith('await ')) expr = expr.replace(/^await /, '');
             const val = eval(expr);
+            let displayVal;
+            let valType = typeof val;
+
+            if (val === undefined) displayVal = 'undefined';
+            else if (val === null) displayVal = 'null';
+            else if (Array.isArray(val)) {
+              displayVal = JSON.stringify(val);
+              valType = 'array';
+            } else if (typeof val === 'object') {
+              displayVal = JSON.stringify(val);
+              valType = 'object';
+            } else if (typeof val === 'string') {
+              displayVal = `'${val}'`;
+            } else {
+              displayVal = String(val);
+            }
+
             outputs.push({
               line: lNum,
-              display: typeof val === 'object' ? JSON.stringify(val) : String(val),
-              type: Array.isArray(val) ? 'array' : typeof val
+              display: displayVal,
+              type: valType
             });
           } catch (e) {}
         }
+
         window.postMessage({
           type: 'results',
           tabId: msg.tabId,
           outputs,
           logs,
-          timeMs: 3,
+          timeMs: 2,
           error: null
         }, '*');
       }, 20);
@@ -47,36 +97,90 @@ const vscode = !isStandalone ? acquireVsCodeApi() : {
 };
 
 // ==========================================================================
+// Suggestion / Autocomplete Catalog (Ctrl+Space - Sem IA, Snippets e Keywords)
+// ==========================================================================
+const AUTOCOMPLETE_ITEMS = [
+  // Snippets
+  { label: 'clg', insert: "console.log($1);", type: 'snippet', desc: "console.log()" },
+  { label: 'cerror', insert: "console.error($1);", type: 'snippet', desc: "console.error()" },
+  { label: 'cwarn', insert: "console.warn($1);", type: 'snippet', desc: "console.warn()" },
+  { label: 'ush', insert: "const [${1:state}, set${1/(.*)/${1:/capitalize}/}] = useState(${2:initial});", type: 'snippet', desc: "React useState" },
+  { label: 'ueh', insert: "useEffect(() => {\n  $1\n}, [${2:deps}]);", type: 'snippet', desc: "React useEffect" },
+  { label: 'um', insert: "const ${1:memoValue} = useMemo(() => $2, [${3:deps}]);", type: 'snippet', desc: "React useMemo" },
+  { label: 'ucb', insert: "const ${1:cb} = useCallback(() => {\n  $2\n}, [${3:deps}]);", type: 'snippet', desc: "React useCallback" },
+  { label: 'rfc', insert: "export const ${1:MyComponent} = () => {\n  return (\n    <div>\n      $0\n    </div>\n  );\n};", type: 'snippet', desc: "React Component" },
+  { label: 'rnfc', insert: "export const ${1:MyScreen} = () => {\n  return (\n    <View style={styles.container}>\n      <Text>$0</Text>\n    </View>\n  );\n};", type: 'snippet', desc: "React Native Screen" },
+  { label: 'rnstyle', insert: "const styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    justifyContent: 'center',\n    alignItems: 'center',\n  },\n});", type: 'snippet', desc: "React Native StyleSheet" },
+  { label: 'vbase', insert: "<script setup lang=\"ts\">\nimport { ref } from 'vue';\nconst count = ref(0);\n</script>\n\n<template>\n  <div>\n    <h1>Vue 3 SFC</h1>\n    $0\n  </div>\n</template>", type: 'snippet', desc: "Vue 3 SFC Setup" },
+  { label: 'vref', insert: "const ${1:count} = ref(${2:0});", type: 'snippet', desc: "Vue 3 ref()" },
+  { label: 'vcomputed', insert: "const ${1:double} = computed(() => ${2:count}.value * 2);", type: 'snippet', desc: "Vue 3 computed()" },
+  { label: 'ng-component', insert: "@Component({\n  selector: 'app-${1:example}',\n  standalone: true,\n  template: `<div>{{ title() }}</div>`\n})\nexport class ${2:Example}Component {\n  title = signal('${2:Example}');\n}", type: 'snippet', desc: "Angular Component" },
+  { label: 'ng-signal', insert: "const ${1:count} = signal(${2:0});", type: 'snippet', desc: "Angular Signal" },
+  { label: 'fetch', insert: "const res = await fetch('${1:https://api.exemplo.com}');\nconst data = await res.json();", type: 'snippet', desc: "Fetch API Async" },
+  { label: 'promise', insert: "new Promise((resolve, reject) => {\n  $1\n});", type: 'snippet', desc: "New Promise" },
+  { label: 'afn', insert: "async function ${1:name}(${2:params}) {\n  $0\n}", type: 'snippet', desc: "Async Function" },
+  { label: 'arrow', insert: "const ${1:fn} = (${2:params}) => {\n  $0\n};", type: 'snippet', desc: "Arrow Function" },
+  { label: 'try', insert: "try {\n  $1\n} catch (error) {\n  console.error(error);\n}", type: 'snippet', desc: "Try / Catch" },
+  { label: 'forof', insert: "for (const ${1:item} of ${2:items}) {\n  $0\n}", type: 'snippet', desc: "For...of loop" },
+
+  // JavaScript & TypeScript Keywords
+  { label: 'const', insert: 'const ', type: 'keyword', desc: 'Declara constante' },
+  { label: 'let', insert: 'let ', type: 'keyword', desc: 'Declara variável' },
+  { label: 'function', insert: 'function ', type: 'keyword', desc: 'Declara função' },
+  { label: 'async', insert: 'async ', type: 'keyword', desc: 'Função assíncrona' },
+  { label: 'await', insert: 'await ', type: 'keyword', desc: 'Aguardar Promise' },
+  { label: 'import', insert: "import $1 from '$2';", type: 'keyword', desc: 'Importar módulo' },
+  { label: 'export', insert: 'export ', type: 'keyword', desc: 'Exportar declaração' },
+  { label: 'return', insert: 'return ', type: 'keyword', desc: 'Retorno de função' },
+  { label: 'interface', insert: 'interface ${1:Name} {\n  $0\n}', type: 'keyword', desc: 'Interface TypeScript' },
+  { label: 'type', insert: 'type ${1:Name} = $2;', type: 'keyword', desc: 'Type alias TypeScript' },
+  { label: 'class', insert: 'class ${1:Name} {\n  constructor($2) {\n    $0\n  }\n}', type: 'keyword', desc: 'Classe ES6' },
+
+  // Globals & Node.js
+  { label: 'console', insert: 'console.', type: 'global', desc: 'Objeto Console' },
+  { label: 'process', insert: 'process', type: 'global', desc: 'Processo Node.js' },
+  { label: 'require', insert: "require('$1')", type: 'global', desc: 'Importar pacote CommonJS' },
+  { label: 'Buffer', insert: 'Buffer', type: 'global', desc: 'Buffer binário Node.js' },
+  { label: 'Math', insert: 'Math.', type: 'global', desc: 'Funções matemáticas' },
+  { label: 'JSON', insert: 'JSON.', type: 'global', desc: 'JSON parser/stringifier' },
+  { label: 'Promise', insert: 'Promise.', type: 'global', desc: 'Objeto Promise' },
+  { label: 'setTimeout', insert: 'setTimeout(() => {\n  $1\n}, ${2:1000});', type: 'global', desc: 'Temporizador' },
+
+  // Methods
+  { label: 'map', insert: 'map(${1:item} => $2)', type: 'method', desc: 'Transformar array' },
+  { label: 'filter', insert: 'filter(${1:item} => $2)', type: 'method', desc: 'Filtrar array' },
+  { label: 'reduce', insert: 'reduce((${1:acc}, ${2:curr}) => $3, ${4:0})', type: 'method', desc: 'Reduzir array' },
+  { label: 'forEach', insert: 'forEach(${1:item} => {\n  $2\n})', type: 'method', desc: 'Iterar array' },
+  { label: 'find', insert: 'find(${1:item} => $2)', type: 'method', desc: 'Encontrar elemento' },
+  { label: 'includes', insert: 'includes($1)', type: 'method', desc: 'Verificar inclusão' }
+];
+
+// ==========================================================================
 // Templates Catalog
 // ==========================================================================
 const TEMPLATES = {
   'runjs-welcome': `/*
- * Bem-vindo ao RunJS ⚡
- *
- * Para começar, tente escrever algum código.
- * Aqui estão alguns exemplos:
+ * Bem-vindo ao RunJS ⚡ (JS Studio)
+ * Tema Dracula • Suporte a TypeScript & Node.js
  */
 
 const helloWorld = () => 'Olá, Mundo! 🌍';
 
 helloWorld();
 
-// Você verá os resultados à direita 👉
+// Saídas imediatas no painel direito 👉
 
 Math.pow(5, 5);
+
+console.log('Testando console.log sem undefined! 🚀');
 
 await Promise.resolve('Aguarde de nível superior 🤩');
 
 [1, 2, 3, 4].map(num => num * 2);
 
 /*
- * O RunJS OSS é 100% gratuito e open-source:
- *  - Suporte a pacotes NPM
- *  - Múltiplas abas ilimitadas
- *  - Snippets de código e TypeScript nativo
- *  - Sem limites ou licenças pagas!
- *
- * Boa programação! 😊
+ * Pressione Ctrl + Space para snippets e autocomplete!
+ * Suporte a React, React Native, Vue 3, Angular e Node.js.
  */`,
 
   'typescript-types': `// Exemplo TypeScript com Interfaces e Generics
@@ -98,20 +202,18 @@ const time: Usuario[] = [
 
 filtrarUsuarios(time, 'dev');
 
-// Manipulação e cálculo
 const estatisticas = {
   total: time.length,
   devs: filtrarUsuarios(time, 'dev').length
 };
 
-estatisticas;`,
+console.log('Estatísticas calculadas:', estatisticas);`,
 
-  'node-system': `// Acesso completo ao Node.js Standard Library
+  'node-system': `// Acesso ao Node.js Standard Library
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
-// Informações do Sistema
 const sistemaInfo = {
   plataforma: os.platform(),
   arquitetura: os.arch(),
@@ -119,80 +221,61 @@ const sistemaInfo = {
   memoriaLivreMB: Math.round(os.freemem() / 1024 / 1024)
 };
 
-sistemaInfo;
+console.log('Status do Sistema:', sistemaInfo);
 
-// Geração de Hash Criptográfico
-const hash = crypto.createHash('sha256').update('MeuProjetoJSStudio').digest('hex');
+const hash = crypto.createHash('sha256').update('DraculaJS').digest('hex');
+hash;`,
 
-hash;
+  'react-preview': `// Simulação de Componente e Hooks React
+function useState(initial) {
+  let val = initial;
+  const setVal = (newVal) => { val = newVal; };
+  return [val, setVal];
+}
 
-path.join('src', 'components', 'App.tsx');`,
+const [contador, setContador] = useState(42);
 
-  'react-preview': `// Simulação e Teste de Componentes React
-function createMockElement(type, props, ...children) {
+console.log('Valor do estado inicial:', contador);
+
+// Simulação de Componente React
+const MeuComponente = ({ titulo }) => ({
+  tipo: 'div',
+  props: { className: 'card-dracula' },
+  filhos: [titulo, contador]
+});
+
+MeuComponente({ titulo: 'React Native & Web' });`,
+
+  'vue-reactivity': `// Simulação da Reatividade Vue 3 (ref / computed)
+function ref(init) {
+  let val = init;
   return {
-    type,
-    props: { ...props, children: children.flat() },
-    $$typeof: 'react.element'
+    get value() { return val; },
+    set value(v) { val = v; }
   };
 }
 
-// Componente de Botão
-function Button({ label, variant = 'primary' }) {
-  return createMockElement('button', { className: \`btn btn-\${variant}\` }, label);
+function computed(fn) {
+  return { get value() { return fn(); } };
 }
 
-// Simulação de Hook de Estado
-function useStateSimulation(initialValue) {
-  let value = initialValue;
-  const setValue = (newVal) => { value = newVal; };
-  return [value, setValue];
-}
+const preco = ref(150);
+const precoComDesconto = computed(() => preco.value * 0.9);
 
-const [count, setCount] = useStateSimulation(0);
-count;
+console.log('Preço normal:', preco.value);
+console.log('Preço com desconto:', precoComDesconto.value);`,
 
-Button({ label: 'Salvar Alterações', variant: 'success' });`,
-
-  'vue-reactivity': `// Simulação da Reatividade do Vue 3 Composition API
-function ref(initial) {
-  let _val = initial;
-  return {
-    get value() { return _val; },
-    set value(v) { _val = v; }
-  };
-}
-
-function computed(getter) {
-  return {
-    get value() { return getter(); }
-  };
-}
-
-const contador = ref(10);
-const dobro = computed(() => contador.value * 2);
-
-contador.value;
-dobro.value;
-
-contador.value = 25;
-dobro.value;`,
-
-  'async-fetch': `// Operações Assíncronas e Top-Level Await
-async function buscarDadosSimulados() {
-  await new Promise(resolve => setTimeout(resolve, 50));
+  'async-fetch': `// Top-Level Await e Operações Assíncronas
+async function carregarProdutos() {
+  await new Promise(r => setTimeout(r, 60));
   return [
-    { id: 101, produto: 'Notebook Pro', preco: 4500 },
-    { id: 102, produto: 'Monitor 4K', preco: 1800 },
-    { id: 103, produto: 'Teclado Mecânico', preco: 350 }
+    { id: 1, item: 'JS Studio IDE', preco: 0, status: 'Open Source' },
+    { id: 2, item: 'Dracula Theme', preco: 0, status: 'Ativo' }
   ];
 }
 
-const produtos = await buscarDadosSimulados();
-produtos;
-
-const totalValor = produtos.reduce((acc, p) => acc + p.preco, 0);
-\`Total do Carrinho: R$ \${totalValor}\`;`
+const dados = await carregarProdutos();
+console.log('Produtos carregados com sucesso:', dados);`
 };
 
 // ==========================================================================
@@ -210,6 +293,15 @@ let state = {
   activeTabId: 'tab-1',
   autoRun: true,
   packages: []
+};
+
+// Autocomplete State
+let autocompleteState = {
+  active: false,
+  items: [],
+  selectedIndex: 0,
+  prefix: '',
+  cursorStart: 0
 };
 
 // DOM Elements
@@ -239,6 +331,8 @@ const consoleClear = document.getElementById('consoleClear');
 const statusNodeVersion = document.getElementById('statusNodeVersion');
 const statusLineCol = document.getElementById('statusLineCol');
 const statusCharCount = document.getElementById('statusCharCount');
+const suggestionWidget = document.getElementById('suggestionWidget');
+const suggestionList = document.getElementById('suggestionList');
 
 let autoRunTimer = null;
 
@@ -316,7 +410,6 @@ function renderTabs() {
       }
     });
 
-    // Double click to rename
     tabEl.addEventListener('dblclick', () => {
       const newTitle = prompt('Novo nome para a aba:', tab.title);
       if (newTitle && newTitle.trim()) {
@@ -331,7 +424,6 @@ function renderTabs() {
 }
 
 function switchTab(tabId) {
-  // Save current code
   const current = getActiveTab();
   if (current) {
     current.code = codeEditor.value;
@@ -432,13 +524,12 @@ function renderResults(outputs, logs, timeMs, error) {
     });
   }
 
-  // Render a row for each line of the code
   for (let l = 1; l <= totalLines; l++) {
     const row = document.createElement('div');
     row.className = 'result-line-row';
 
     const item = outputsByLine[l];
-    if (item) {
+    if (item && item.display !== undefined) {
       const valSpan = document.createElement('span');
       valSpan.className = `result-value type-${item.type || 'default'}`;
       valSpan.textContent = item.display;
@@ -457,7 +548,6 @@ function renderResults(outputs, logs, timeMs, error) {
     resultsContainer.appendChild(row);
   }
 
-  // Handle Error Banner
   if (error) {
     const errorBanner = document.createElement('div');
     errorBanner.className = 'error-banner';
@@ -468,7 +558,6 @@ function renderResults(outputs, logs, timeMs, error) {
     resultsContainer.appendChild(errorBanner);
   }
 
-  // Handle Console Drawer Logs
   renderConsoleLogs(logs);
 }
 
@@ -490,7 +579,108 @@ function renderConsoleLogs(logs) {
 }
 
 // ==========================================================================
-// Editor Interactions (Indentation, Auto-Brackets, Line Numbers)
+// IntelliSense / Autocomplete Logic (Ctrl+Space)
+// ==========================================================================
+function getWordBeforeCursor() {
+  const pos = codeEditor.selectionStart;
+  const text = codeEditor.value.slice(0, pos);
+  const match = text.match(/([a-zA-Z0-9_$]+)$/);
+  return {
+    word: match ? match[1] : '',
+    start: match ? pos - match[1].length : pos,
+    end: pos
+  };
+}
+
+function showAutocomplete(explicit = false) {
+  const wordInfo = getWordBeforeCursor();
+  const query = wordInfo.word.toLowerCase();
+
+  let matches = AUTOCOMPLETE_ITEMS;
+  if (query.length > 0) {
+    matches = AUTOCOMPLETE_ITEMS.filter(item => item.label.toLowerCase().includes(query));
+  } else if (!explicit) {
+    hideAutocomplete();
+    return;
+  }
+
+  if (matches.length === 0) {
+    hideAutocomplete();
+    return;
+  }
+
+  autocompleteState.active = true;
+  autocompleteState.items = matches;
+  autocompleteState.selectedIndex = 0;
+  autocompleteState.prefix = wordInfo.word;
+  autocompleteState.cursorStart = wordInfo.start;
+
+  renderAutocompleteList();
+
+  // Position suggestion widget near cursor
+  const linesBefore = codeEditor.value.slice(0, wordInfo.start).split('\n');
+  const lineIdx = linesBefore.length - 1;
+  const colIdx = linesBefore[lineIdx].length;
+
+  const topPos = Math.min(codeEditor.clientHeight - 200, (lineIdx + 1) * 22 - codeEditor.scrollTop + 14);
+  const leftPos = Math.min(codeEditor.clientWidth - 300, Math.max(16, colIdx * 8.2 - codeEditor.scrollLeft + 16));
+
+  suggestionWidget.style.top = `${topPos}px`;
+  suggestionWidget.style.left = `${leftPos}px`;
+  suggestionWidget.classList.add('show');
+}
+
+function hideAutocomplete() {
+  autocompleteState.active = false;
+  suggestionWidget.classList.remove('show');
+}
+
+function renderAutocompleteList() {
+  suggestionList.innerHTML = '';
+  autocompleteState.items.forEach((item, idx) => {
+    const el = document.createElement('div');
+    el.className = `suggestion-item ${idx === autocompleteState.selectedIndex ? 'selected' : ''}`;
+    el.innerHTML = `
+      <span class="suggestion-icon ${item.type}">${item.type[0].toUpperCase()}</span>
+      <span class="suggestion-label">${escapeHtml(item.label)}</span>
+      <span class="suggestion-desc">${escapeHtml(item.desc || '')}</span>
+    `;
+
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      applySuggestion(item);
+    });
+
+    suggestionList.appendChild(el);
+  });
+
+  const selectedEl = suggestionList.children[autocompleteState.selectedIndex];
+  if (selectedEl) {
+    selectedEl.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function applySuggestion(item) {
+  const start = autocompleteState.cursorStart;
+  const end = codeEditor.selectionEnd;
+  const val = codeEditor.value;
+
+  // Clean snippet placeholders $1, ${1:default}
+  let insertText = item.insert.replace(/\$\{\d+:([^}]+)\}/g, '$1').replace(/\$\d+/g, '');
+
+  codeEditor.value = val.substring(0, start) + insertText + val.substring(end);
+  const newPos = start + insertText.length;
+  codeEditor.selectionStart = codeEditor.selectionEnd = newPos;
+
+  hideAutocomplete();
+  updateLineNumbers();
+  updateStatusBar();
+  queueAutoRun();
+  codeEditor.focus();
+}
+
+// ==========================================================================
+// Editor Keyboards & Event Handling
 // ==========================================================================
 function updateLineNumbers() {
   const lines = codeEditor.value.split('\n');
@@ -513,23 +703,65 @@ function updateStatusBar() {
   statusCharCount.textContent = `${codeEditor.value.length} caracteres`;
 }
 
-// Synchronize scroll between editor, line numbers and results
 codeEditor.addEventListener('scroll', () => {
   lineNumbers.scrollTop = codeEditor.scrollTop;
   resultsScroll.scrollTop = codeEditor.scrollTop;
+  if (autocompleteState.active) hideAutocomplete();
 });
 
 codeEditor.addEventListener('input', () => {
   updateLineNumbers();
   updateStatusBar();
   queueAutoRun();
+  showAutocomplete(false);
 });
 
-codeEditor.addEventListener('click', updateStatusBar);
-codeEditor.addEventListener('keyup', updateStatusBar);
+codeEditor.addEventListener('click', () => {
+  updateStatusBar();
+  hideAutocomplete();
+});
 
-// Smart indentation and auto-closing pairs
+codeEditor.addEventListener('keyup', (e) => {
+  updateStatusBar();
+});
+
 codeEditor.addEventListener('keydown', (e) => {
+  // Autocomplete navigation when active
+  if (autocompleteState.active) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      autocompleteState.selectedIndex = (autocompleteState.selectedIndex + 1) % autocompleteState.items.length;
+      renderAutocompleteList();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      autocompleteState.selectedIndex = (autocompleteState.selectedIndex - 1 + autocompleteState.items.length) % autocompleteState.items.length;
+      renderAutocompleteList();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const selectedItem = autocompleteState.items[autocompleteState.selectedIndex];
+      if (selectedItem) {
+        applySuggestion(selectedItem);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      hideAutocomplete();
+      return;
+    }
+  }
+
+  // Ctrl + Space to trigger Autocomplete / IntelliSense
+  if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
+    e.preventDefault();
+    showAutocomplete(true);
+    return;
+  }
+
   // Ctrl+Enter or Cmd+Enter to Run
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault();
@@ -559,15 +791,7 @@ codeEditor.addEventListener('keydown', (e) => {
   }
 
   // Auto-close brackets and quotes
-  const pairs = {
-    '(': ')',
-    '[': ']',
-    '{': '}',
-    '"': '"',
-    "'": "'",
-    '`': '`'
-  };
-
+  const pairs = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
   if (pairs[e.key] && start === end) {
     e.preventDefault();
     const closeChar = pairs[e.key];
@@ -672,6 +896,7 @@ btnTemplates.addEventListener('click', (e) => {
 
 document.addEventListener('click', () => {
   templatesMenu.classList.remove('show');
+  hideAutocomplete();
 });
 
 templatesMenu.querySelectorAll('a').forEach(item => {
@@ -702,7 +927,7 @@ packagesModal.addEventListener('click', (e) => {
 function renderPackagesList() {
   packageList.innerHTML = '';
   if (!state.packages || state.packages.length === 0) {
-    packageList.innerHTML = '<li class="modal-desc">Nenhum pacote npm detectado no package.json do workspace atual. Você pode usar qualquer módulo nativo do Node.js (fs, path, crypto, os, etc.).</li>';
+    packageList.innerHTML = '<li class="modal-desc">Nenhum pacote npm detectado no package.json. Você pode usar qualquer módulo nativo do Node.js (fs, path, crypto, os, etc.).</li>';
     return;
   }
 

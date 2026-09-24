@@ -3,22 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JS/TS Scratchpad (RunJS OSS)</title>
+  <title>JS Studio • Scratchpad (RunJS OSS)</title>
   <link rel="stylesheet" href="{{CSS_URI}}">
 </head>
-<body>
+<body class="theme-dracula">
   <div class="app-container">
     <!-- Top Header & Tabs Bar -->
     <header class="top-header">
       <div class="branding">
-        <span class="logo-icon">⚡</span>
-        <span class="logo-text">RunJS <span class="badge-free">OSS</span></span>
+        <img src="./logo.png" class="app-logo-img" alt="JS Studio">
+        <span class="logo-text">JS Studio <span class="badge-free">OSS</span></span>
       </div>
 
       <!-- Tabs Bar -->
-      <div class="tabs-container" id="tabsContainer">
-        <!-- Rendered via JS -->
-      </div>
+      <div class="tabs-container" id="tabsContainer"></div>
       <button class="btn-new-tab" id="btnNewTab" title="Nova Aba (Ctrl+T)">+</button>
 
       <div class="header-actions">
@@ -77,8 +75,17 @@
         <div class="editor-wrapper" id="editorWrapper">
           <div class="line-numbers" id="lineNumbers"></div>
           <div class="editor-area-container">
-            <textarea id="codeEditor" spellcheck="false" placeholder="// Escreva seu código JavaScript ou TypeScript aqui..."></textarea>
-            <pre class="highlight-overlay" id="highlightOverlay" aria-hidden="true"></pre>
+            <textarea id="codeEditor" spellcheck="false" placeholder="// Escreva seu código JavaScript ou TypeScript aqui... (Pressione Ctrl+Space para sugestões)"></textarea>
+            
+            <!-- Autocomplete Suggestion Widget (Ctrl+Space) -->
+            <div class="suggestion-widget" id="suggestionWidget">
+              <div class="suggestion-list" id="suggestionList"></div>
+              <div class="suggestion-footer">
+                <span>↑↓ Navegar</span>
+                <span>Enter/Tab Inserir</span>
+                <span>Esc Fechar</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -91,13 +98,12 @@
         <div class="results-header">
           <span class="pane-title">Resultados em Tempo Real</span>
           <div class="results-meta">
+            <span class="theme-badge">Tema Dracula</span>
             <span class="time-badge" id="execTimeBadge">⚡ 0ms</span>
           </div>
         </div>
         <div class="results-scroll" id="resultsScroll">
-          <div class="results-container" id="resultsContainer">
-            <!-- Results aligned line-by-line rendered via JS -->
-          </div>
+          <div class="results-container" id="resultsContainer"></div>
         </div>
 
         <!-- Bottom Console Logs Panel -->
@@ -114,11 +120,13 @@
     <!-- Status Bar -->
     <footer class="app-status-bar">
       <div class="status-left">
-        <span class="status-item" id="statusNodeVersion">Node.js</span>
+        <span class="status-item" id="statusNodeVersion">Node.js v24</span>
         <span class="status-item" id="statusLineCol">Linha 1, Col 1</span>
         <span class="status-item" id="statusCharCount">0 caracteres</span>
+        <span class="status-item hint-ctrl-space">💡 Pressione <strong>Ctrl + Space</strong> para snippets e sugestões</span>
       </div>
       <div class="status-right">
+        <span class="status-tag tag-dracula">Dracula Theme</span>
         <span class="status-tag tag-success">✓ 100% Gratuito & Ilimitado</span>
         <span class="status-item">Sem IA • Sem Licenças • Sem Bloat</span>
       </div>
@@ -134,9 +142,7 @@
       </div>
       <div class="modal-body">
         <p class="modal-desc">Você pode importar qualquer pacote instalado no projeto diretamente no Scratchpad usando <code>require('pacote')</code>:</p>
-        <ul class="package-list" id="packageList">
-          <!-- Populated via JS -->
-        </ul>
+        <ul class="package-list" id="packageList"></ul>
       </div>
     </div>
   </div>

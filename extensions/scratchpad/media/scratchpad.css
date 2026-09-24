@@ -1,26 +1,41 @@
 /* ==========================================================================
-   RunJS OSS / JS Studio Scratchpad Theme
+   JS Studio • Dracula Official Theme & Scratchpad Styles
    ========================================================================== */
 
 :root {
-  --bg-primary: #181825;
-  --bg-secondary: #1e1e2e;
-  --bg-tertiary: #252538;
-  --bg-hover: #2e2e44;
-  --border-color: #313244;
-  --border-subtle: #27283d;
+  /* Dracula Palette */
+  --dracula-bg: #282a36;
+  --dracula-current: #44475a;
+  --dracula-selection: #44475a;
+  --dracula-fg: #f8f8f2;
+  --dracula-comment: #6272a4;
+  --dracula-cyan: #8be9fd;
+  --dracula-green: #50fa7b;
+  --dracula-orange: #ffb86c;
+  --dracula-pink: #ff79c6;
+  --dracula-purple: #bd93f9;
+  --dracula-red: #ff5555;
+  --dracula-yellow: #f1fa8c;
 
-  --text-main: #cdd6f4;
-  --text-muted: #838ba7;
-  --text-dim: #6c7086;
+  /* Workspace Tokens */
+  --bg-primary: #282a36;
+  --bg-secondary: #21222c;
+  --bg-tertiary: #191a21;
+  --bg-hover: #44475a;
+  --border-color: #343746;
+  --border-subtle: #21222c;
 
-  --accent-cyan: #89dceb;
-  --accent-green: #a6e3a1;
-  --accent-blue: #89b4fa;
-  --accent-yellow: #f9e2af;
-  --accent-purple: #cba6f7;
-  --accent-orange: #fab387;
-  --accent-red: #f38ba8;
+  --text-main: #f8f8f2;
+  --text-muted: #9aa5ce;
+  --text-dim: #6272a4;
+
+  --accent-cyan: #8be9fd;
+  --accent-green: #50fa7b;
+  --accent-yellow: #f1fa8c;
+  --accent-purple: #bd93f9;
+  --accent-pink: #ff79c6;
+  --accent-orange: #ffb86c;
+  --accent-red: #ff5555;
 
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, Monaco, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -38,8 +53,8 @@
 body, html {
   width: 100%;
   height: 100%;
-  background-color: var(--bg-primary);
-  color: var(--text-main);
+  background-color: var(--dracula-bg);
+  color: var(--dracula-fg);
   font-family: var(--font-sans);
   overflow: hidden;
   user-select: none;
@@ -50,11 +65,11 @@ body, html {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background-color: var(--bg-primary);
+  background-color: var(--dracula-bg);
 }
 
 /* ==========================================================================
-   Top Header & Tabs
+   Top Header & Tabs (Dracula Theme)
    ========================================================================== */
 
 .top-header {
@@ -71,29 +86,32 @@ body, html {
 .branding {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding-right: 12px;
   border-right: 1px solid var(--border-color);
 }
 
-.logo-icon {
-  font-size: 18px;
+.app-logo-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
 
 .logo-text {
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.5px;
-  color: var(--text-main);
+  color: var(--dracula-fg);
 }
 
 .badge-free {
   font-size: 10px;
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: #fff;
+  background: linear-gradient(135deg, var(--dracula-purple), var(--dracula-pink));
+  color: #282a36;
   padding: 2px 6px;
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-left: 4px;
@@ -118,22 +136,23 @@ body, html {
   border: 1px solid transparent;
   border-radius: 6px;
   font-size: 12.5px;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
 }
 
 .tab-item:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-main);
+  background-color: var(--dracula-current);
+  color: var(--dracula-fg);
 }
 
 .tab-item.active {
-  background-color: var(--bg-primary);
-  color: var(--text-main);
+  background-color: var(--dracula-bg);
+  color: var(--dracula-fg);
   border-color: var(--border-color);
-  font-weight: 500;
+  border-bottom: 2px solid var(--dracula-pink);
+  font-weight: 600;
 }
 
 .tab-close {
@@ -144,18 +163,18 @@ body, html {
   height: 16px;
   border-radius: 50%;
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--dracula-comment);
 }
 
 .tab-close:hover {
-  background-color: rgba(243, 139, 168, 0.2);
-  color: var(--accent-red);
+  background-color: rgba(255, 85, 85, 0.2);
+  color: var(--dracula-red);
 }
 
 .btn-new-tab {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
   font-size: 18px;
   width: 28px;
   height: 28px;
@@ -168,8 +187,8 @@ body, html {
 }
 
 .btn-new-tab:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-main);
+  background-color: var(--dracula-current);
+  color: var(--dracula-fg);
 }
 
 .header-actions {
@@ -184,12 +203,12 @@ body, html {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
 }
 
 .select-env {
-  background-color: var(--bg-primary);
-  color: var(--text-main);
+  background-color: var(--dracula-bg);
+  color: var(--dracula-cyan);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 4px 8px;
@@ -204,7 +223,7 @@ body, html {
   gap: 6px;
   cursor: pointer;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
 }
 
 .toggle-container input {
@@ -214,7 +233,7 @@ body, html {
 .slider {
   width: 28px;
   height: 16px;
-  background-color: var(--border-color);
+  background-color: var(--dracula-current);
   border-radius: 10px;
   position: relative;
   transition: 0.2s;
@@ -225,7 +244,7 @@ body, html {
   position: absolute;
   width: 12px;
   height: 12px;
-  background-color: #fff;
+  background-color: var(--dracula-fg);
   border-radius: 50%;
   top: 2px;
   left: 2px;
@@ -233,16 +252,17 @@ body, html {
 }
 
 .toggle-container input:checked + .slider {
-  background-color: var(--accent-green);
+  background-color: var(--dracula-green);
 }
 
 .toggle-container input:checked + .slider::after {
   transform: translateX(12px);
+  background-color: #282a36;
 }
 
 .btn-action {
-  background-color: var(--bg-tertiary);
-  color: var(--text-main);
+  background-color: var(--dracula-current);
+  color: var(--dracula-fg);
   border: 1px solid var(--border-color);
   padding: 5px 12px;
   border-radius: 6px;
@@ -256,19 +276,20 @@ body, html {
 }
 
 .btn-action:hover {
-  background-color: var(--bg-hover);
-  border-color: var(--text-dim);
+  background-color: #555870;
+  border-color: var(--dracula-pink);
 }
 
 .btn-run {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: #fff;
+  background: linear-gradient(135deg, var(--dracula-purple), var(--dracula-pink));
+  color: #282a36;
+  font-weight: 700;
   border: none;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 8px rgba(189, 147, 249, 0.4);
 }
 
 .btn-run:hover {
-  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  filter: brightness(1.15);
 }
 
 .dropdown {
@@ -283,9 +304,9 @@ body, html {
   top: 100%;
   margin-top: 4px;
   background-color: var(--bg-secondary);
-  min-width: 220px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border-color);
+  min-width: 230px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--dracula-current);
   border-radius: 8px;
   z-index: 100;
   overflow: hidden;
@@ -296,7 +317,7 @@ body, html {
 }
 
 .dropdown-content a {
-  color: var(--text-main);
+  color: var(--dracula-fg);
   padding: 8px 12px;
   text-decoration: none;
   display: block;
@@ -305,12 +326,12 @@ body, html {
 }
 
 .dropdown-content a:hover {
-  background-color: var(--bg-hover);
-  color: var(--accent-cyan);
+  background-color: var(--dracula-current);
+  color: var(--dracula-cyan);
 }
 
 /* ==========================================================================
-   Workspace Split Layout
+   Workspace Split Layout (Dracula Theme)
    ========================================================================== */
 
 .workspace-split {
@@ -330,26 +351,26 @@ body, html {
 .pane-editor {
   flex: 1;
   min-width: 200px;
-  background-color: var(--bg-primary);
+  background-color: var(--dracula-bg);
 }
 
 .split-gutter {
   width: 5px;
-  background-color: var(--border-subtle);
+  background-color: var(--dracula-current);
   cursor: col-resize;
   flex-shrink: 0;
   transition: background-color 0.15s;
 }
 
 .split-gutter:hover, .split-gutter.dragging {
-  background-color: var(--accent-blue);
+  background-color: var(--dracula-pink);
 }
 
 .pane-results {
   flex: 1;
   min-width: 200px;
-  background-color: #161622;
-  border-left: 1px solid var(--border-subtle);
+  background-color: #21222c;
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
 }
@@ -372,10 +393,10 @@ body, html {
   width: 48px;
   padding: 12px 10px 12px 0;
   text-align: right;
-  color: var(--text-dim);
+  color: var(--dracula-comment);
   font-size: 12px;
-  background-color: var(--bg-primary);
-  border-right: 1px solid var(--border-subtle);
+  background-color: var(--dracula-bg);
+  border-right: 1px solid var(--border-color);
   user-select: none;
   overflow: hidden;
   flex-shrink: 0;
@@ -395,7 +416,7 @@ body, html {
   width: 100%;
   height: 100%;
   background: transparent;
-  color: var(--text-main);
+  color: var(--dracula-fg);
   border: none;
   outline: none;
   resize: none;
@@ -407,8 +428,90 @@ body, html {
   overflow: auto;
   tab-size: 2;
   user-select: text;
-  caret-color: var(--accent-blue);
+  caret-color: var(--dracula-pink);
   z-index: 2;
+}
+
+/* ==========================================================================
+   IntelliSense / Autocomplete Suggestion Widget (Ctrl+Space)
+   ========================================================================== */
+
+.suggestion-widget {
+  display: none;
+  position: absolute;
+  background-color: #21222c;
+  border: 1px solid var(--dracula-current);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  width: 320px;
+  max-height: 250px;
+  z-index: 1000;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.suggestion-widget.show {
+  display: flex;
+}
+
+.suggestion-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 210px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  color: var(--dracula-fg);
+  transition: background-color 0.1s;
+}
+
+.suggestion-item:hover, .suggestion-item.selected {
+  background-color: var(--dracula-current);
+}
+
+.suggestion-icon {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.suggestion-icon.snippet { background-color: rgba(80, 250, 123, 0.2); color: var(--dracula-green); }
+.suggestion-icon.keyword { background-color: rgba(255, 121, 198, 0.2); color: var(--dracula-pink); }
+.suggestion-icon.method  { background-color: rgba(139, 233, 253, 0.2); color: var(--dracula-cyan); }
+.suggestion-icon.global  { background-color: rgba(189, 147, 249, 0.2); color: var(--dracula-purple); }
+
+.suggestion-label {
+  font-weight: 600;
+  color: var(--dracula-fg);
+}
+
+.suggestion-desc {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dracula-comment);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-footer {
+  height: 22px;
+  padding: 0 10px;
+  background-color: var(--dracula-bg);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--dracula-comment);
 }
 
 /* ==========================================================================
@@ -418,11 +521,11 @@ body, html {
 .results-header {
   height: 32px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background-color: rgba(22, 22, 34, 0.8);
+  background-color: #191a21;
   flex-shrink: 0;
 }
 
@@ -431,13 +534,28 @@ body, html {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-dim);
+  color: var(--dracula-comment);
+}
+
+.results-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-badge {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--dracula-current);
+  color: var(--dracula-pink);
+  font-weight: 600;
 }
 
 .time-badge {
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--accent-yellow);
+  color: var(--dracula-yellow);
 }
 
 .results-scroll {
@@ -463,11 +581,10 @@ body, html {
   text-overflow: ellipsis;
   padding: 0 6px;
   border-radius: 4px;
-  animation: fadeIn 0.1s ease-in;
 }
 
 .result-line-row:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--dracula-current);
 }
 
 .result-value {
@@ -476,50 +593,51 @@ body, html {
   user-select: text;
 }
 
+/* Dracula syntax tokens */
 .result-value.type-string {
-  color: var(--accent-green);
+  color: var(--dracula-yellow);
 }
 
 .result-value.type-number {
-  color: var(--accent-yellow);
+  color: var(--dracula-purple);
 }
 
 .result-value.type-boolean {
-  color: var(--accent-purple);
+  color: var(--dracula-pink);
 }
 
 .result-value.type-array {
-  color: var(--accent-cyan);
+  color: var(--dracula-cyan);
 }
 
 .result-value.type-object {
-  color: var(--accent-blue);
+  color: var(--dracula-green);
 }
 
 .result-value.type-function {
-  color: #7aa2f7;
+  color: var(--dracula-green);
   font-style: italic;
 }
 
 .result-value.type-undefined, .result-value.type-null {
-  color: var(--text-dim);
+  color: var(--dracula-comment);
 }
 
 .result-line-tag {
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--dracula-comment);
   margin-left: 12px;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.8;
 }
 
 .error-banner {
   margin: 12px 16px;
   padding: 10px 14px;
-  background-color: rgba(243, 139, 168, 0.1);
-  border: 1px solid var(--accent-red);
+  background-color: rgba(255, 85, 85, 0.15);
+  border: 1px solid var(--dracula-red);
   border-radius: 6px;
-  color: var(--accent-red);
+  color: var(--dracula-red);
   font-family: var(--font-mono);
   font-size: 12px;
 }
@@ -530,7 +648,7 @@ body, html {
 }
 
 /* ==========================================================================
-   Console Drawer
+   Console Drawer (Dracula Theme)
    ========================================================================== */
 
 .console-drawer {
@@ -545,7 +663,7 @@ body, html {
 .console-header {
   height: 28px;
   padding: 0 12px;
-  background-color: var(--bg-tertiary);
+  background-color: #191a21;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -556,17 +674,17 @@ body, html {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
 }
 
 .console-clear {
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--dracula-comment);
   cursor: pointer;
 }
 
 .console-clear:hover {
-  color: var(--text-main);
+  color: var(--dracula-fg);
 }
 
 .console-content {
@@ -584,10 +702,10 @@ body, html {
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.console-entry.log { color: var(--text-main); }
-.console-entry.info { color: var(--accent-cyan); }
-.console-entry.warn { color: var(--accent-yellow); }
-.console-entry.error { color: var(--accent-red); }
+.console-entry.log { color: var(--dracula-fg); }
+.console-entry.info { color: var(--dracula-cyan); }
+.console-entry.warn { color: var(--dracula-orange); }
+.console-entry.error { color: var(--dracula-red); }
 
 /* ==========================================================================
    App Status Bar
@@ -595,14 +713,14 @@ body, html {
 
 .app-status-bar {
   height: 26px;
-  background-color: #11111b;
-  border-top: 1px solid var(--border-subtle);
+  background-color: #191a21;
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--dracula-comment);
   flex-shrink: 0;
 }
 
@@ -612,9 +730,21 @@ body, html {
   gap: 12px;
 }
 
+.hint-ctrl-space {
+  color: var(--dracula-cyan);
+}
+
+.tag-dracula {
+  background-color: rgba(189, 147, 249, 0.2);
+  color: var(--dracula-purple);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
 .tag-success {
-  background-color: rgba(166, 227, 161, 0.15);
-  color: var(--accent-green);
+  background-color: rgba(80, 250, 123, 0.2);
+  color: var(--dracula-green);
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: 600;
@@ -631,7 +761,7 @@ body, html {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   z-index: 200;
   align-items: center;
@@ -643,29 +773,34 @@ body, html {
 }
 
 .modal-dialog {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background-color: var(--dracula-bg);
+  border: 1px solid var(--dracula-current);
   border-radius: 8px;
   width: 480px;
   max-width: 90%;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
 
 .modal-header {
   padding: 14px 18px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--dracula-current);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background-color: #21222c;
 }
 
 .modal-close {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
   font-size: 20px;
   cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--dracula-fg);
 }
 
 .modal-body {
@@ -676,15 +811,15 @@ body, html {
 
 .modal-desc {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--dracula-comment);
   margin-bottom: 12px;
 }
 
 .modal-desc code {
-  background-color: var(--bg-primary);
+  background-color: #191a21;
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--accent-cyan);
+  color: var(--dracula-cyan);
 }
 
 .package-list {
@@ -696,7 +831,7 @@ body, html {
 
 .package-item {
   padding: 8px 12px;
-  background-color: var(--bg-primary);
+  background-color: #21222c;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -706,16 +841,16 @@ body, html {
 }
 
 .package-btn-copy {
-  background-color: var(--bg-tertiary);
+  background-color: var(--dracula-current);
   border: 1px solid var(--border-color);
-  color: var(--text-main);
+  color: var(--dracula-fg);
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-2px); }
-  to { opacity: 1; transform: translateY(0); }
+.package-btn-copy:hover {
+  background-color: var(--dracula-pink);
+  color: #282a36;
 }

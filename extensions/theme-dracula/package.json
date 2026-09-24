@@ -1,0 +1,22 @@
+{
+  "name": "theme-dracula",
+  "displayName": "Dracula Theme",
+  "description": "Dracula Theme oficial para JS Studio",
+  "version": "1.0.0",
+  "publisher": "js-studio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "categories": ["Themes"],
+  "contributes": {
+    "themes": [
+      {
+        "id": "theme-dracula",
+        "label": "Dracula",
+        "uiTheme": "vs-dark",
+        "path": "./themes/dracula-color-theme.json"
+      }
+    ]
+  }
+}
