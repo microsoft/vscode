@@ -343,11 +343,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.getSessionCanvases?.(session.sessionId, chatResource);
 	}
 
-	getSessionContextReference(resource: URI): string | undefined {
-		const ownedChat = this.getSessionForChatResource(resource);
-		return ownedChat ? this._getProvider(ownedChat.session)?.getSessionContextReference?.(ownedChat.chat.resource) : undefined;
-	}
-
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}
@@ -546,7 +541,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
+		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options));
 
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -568,7 +563,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('automationProviderUnavailable', "The selected provider does not currently provide Automation configuration."));
 		}
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
+		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
@@ -636,7 +631,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
+		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
@@ -655,7 +650,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('automationProviderUnavailable', "The selected provider does not currently provide Automation configuration."));
 		}
 		const previousAutomationSession = this._automationSession.get();
-		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
+		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
@@ -663,7 +658,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
-	private _providerCreateSessionOptions(provider: ISessionsProvider, sessionTypeId: string, options: ICreateNewSessionOptions | undefined): ISessionsProviderCreateSessionOptions {
+	private _providerCreateSessionOptions(provider: ISessionsProvider, options: ICreateNewSessionOptions | undefined): ISessionsProviderCreateSessionOptions {
 		const sessionTemplate = options?.sessionTemplate ?? options?.automationConfiguration?.sessionTemplate;
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
@@ -674,23 +669,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (options?.modelConfiguration && provider.supportsModelConfigurationForCreation !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support model configuration during session creation.`);
 		}
-		const permissionOption = options?.permissionId
-			? provider.getPermissionOptionsForCreation?.(sessionTypeId).find(option => option.id === options.permissionId)
-			: undefined;
-		if (options?.permissionId && (!permissionOption || permissionOption.locked)) {
-			throw new Error(`Sessions provider '${provider.id}' does not support permission '${options.permissionId}' for session type '${sessionTypeId}'.`);
-		}
 		const automationConfiguration = sessionTemplate
 			? { sessionTemplate }
 			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
-			...(options?.createdBySession ? { createdBySession: options.createdBySession } : {}),
 			...(options?.modelId && options.modelConfiguration ? {
 				modelId: options.modelId,
 				modelConfiguration: options.modelConfiguration,
 			} : {}),
-			...(permissionOption ? { permissionId: permissionOption.id } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}
@@ -958,7 +945,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new WorkspaceNotTrustedError();
 			}
 		}
-		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
+		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, createOptions));
 		this._unlistedNewSessions.set(session.resource, session);
 		const requestActivity = new MutableDisposable();
 		try {
@@ -982,7 +969,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
-		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
+		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, createOptions));
 		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
 	}
 

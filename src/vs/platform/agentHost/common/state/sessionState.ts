@@ -2266,43 +2266,6 @@ export function withSessionCreationReference(meta: SessionSummaryMeta | undefine
 	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
-export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
-
-export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
-
-export interface IAgentSessionComparisonMetadata {
-	readonly id: string;
-	readonly role: AgentSessionComparisonRole;
-	readonly attemptIndex?: number;
-	readonly attemptCount: number;
-}
-
-export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
-	const value = meta?.[SESSION_META_COMPARISON_KEY];
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const candidate = value as { [key: string]: unknown };
-	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
-		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
-		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
-		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
-		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
-	) {
-		return undefined;
-	}
-	return {
-		id: candidate.id,
-		role: candidate.role,
-		attemptIndex: candidate.attemptIndex as number | undefined,
-		attemptCount: candidate.attemptCount as number,
-	};
-}
-
-export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
-	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
-}
-
 /**
  * Reserved key under {@link SessionSummaryMeta} marking a session as
  * workspace-less: a session with no workspace/folder binding (surfaced in the
