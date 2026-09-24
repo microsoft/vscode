@@ -168,7 +168,8 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsContainer.setAttribute('role', 'tablist');
 		this._tabsContainer.setAttribute('aria-label', localize('chatTabsAriaLabel', "Chats"));
 		this._tabsScrollbar = this._register(new ScrollableElement(this._tabsContainer, {
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: ScrollbarVisibility.Auto,
+			horizontalScrollbarSize: 3,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,

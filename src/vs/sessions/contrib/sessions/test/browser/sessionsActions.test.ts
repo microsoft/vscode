@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
@@ -22,6 +23,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -525,6 +527,22 @@ suite('Sessions - Actions', () => {
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 		]);
+	});
+
+	test('uses the same small close icon for chat and side-panel tabs', () => {
+		const chatClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
+
+		assert.deepStrictEqual({
+			chatIcon: chatClose?.command.icon,
+			editorClass: editorClose.class,
+		}, {
+			chatIcon: Codicon.closeSmall,
+			editorClass: 'codicon codicon-close-small',
+		});
 	});
 
 	test('uses mutually exclusive close actions for session and chat group headers', () => {

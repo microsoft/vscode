@@ -101,7 +101,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 						onDidChange: Event.None,
 						dispose: () => { },
 						getActions: menuOptions => id === Menus.SessionChatTab ? [['navigation', [
-							instantiationService.createInstance(MenuItemAction, { id: 'sessions.fixture.closeChat', title: 'Close Chat', icon: Codicon.close }, undefined, menuOptions, undefined, undefined),
+							instantiationService.createInstance(MenuItemAction, { id: 'sessions.fixture.closeChat', title: 'Close Chat', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
 						]]] : [],
 					};
 				}

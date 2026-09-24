@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
-import { addDisposableListener, EventType } from '../../../base/browser/dom.js';
+import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Separator } from '../../../base/common/actions.js';
+import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -259,6 +260,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			'--vscode-focusBorder': '#00ff00',
 			'--vscode-contrastBorder': '#ffffff',
 			'--vscode-editorGroupHeader-tabsBackground': '#202122',
+			'--vscode-editorGroupHeader-tabsBorder': '#445566',
 			'--vscode-foreground': '#cccccc',
 			'--session-view-background': '#123456',
 			'--session-view-foreground': '#cccccc',
@@ -294,7 +296,7 @@ suite('Sessions - ChatCompositeBar', () => {
 					harness.activeChatResource.set(harness.tabs[1].dataset.chatResource!, undefined);
 					const fillStyle = mainWindow.getComputedStyle(fill);
 					const shoulderStyle = mainWindow.getComputedStyle(fill, '::after');
-					const border = theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : 'rgb(18, 52, 86)';
+					const border = theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : 'rgb(68, 85, 102)';
 					assert.deepStrictEqual({
 						height: row.getBoundingClientRect().height,
 						width: harness.bar.element.getBoundingClientRect().width,
@@ -303,6 +305,7 @@ suite('Sessions - ChatCompositeBar', () => {
 						background: fillStyle.backgroundColor,
 						radius: fillStyle.borderTopRightRadius,
 						border: fillStyle.borderTopColor,
+						strokeWidth: fillStyle.borderTopWidth,
 						bottomBorder: fillStyle.borderBottomColor,
 						shoulder: [shoulderStyle.width, shoulderStyle.borderBottomColor],
 						actionBackground: mainWindow.getComputedStyle(actions).backgroundColor,
@@ -317,6 +320,7 @@ suite('Sessions - ChatCompositeBar', () => {
 						background: 'rgb(18, 52, 86)',
 						radius: '5px',
 						border,
+						strokeWidth: '1px',
 						bottomBorder: 'rgba(0, 0, 0, 0)',
 						shoulder: ['5px', border],
 						actionBackground: 'rgb(18, 52, 86)',
@@ -336,6 +340,30 @@ suite('Sessions - ChatCompositeBar', () => {
 			shoulder: mainWindow.getComputedStyle(fill, '::after').content,
 			closeOpacity: mainWindow.getComputedStyle(actions.querySelector<HTMLElement>('.action-label')!).opacity,
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
+	});
+
+	test('uses the side-panel border color fallback for the chat cap, shoulders, and separator', () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		root.style.setProperty('--vscode-tab-border', '#778899');
+		harness.activeChatResource.set(harness.tabs[1].dataset.chatResource!, undefined);
+		const fill = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+		const row = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+		const readStroke = () => ({
+			cap: mainWindow.getComputedStyle(fill).borderTopColor,
+			shoulder: mainWindow.getComputedStyle(fill, '::after').borderBottomColor,
+			separator: mainWindow.getComputedStyle(row, '::after').backgroundColor,
+		});
+		const headerBorder = readStroke();
+		root.style.removeProperty('--vscode-editorGroupHeader-tabsBorder');
+		const tabBorder = readStroke();
+		root.style.removeProperty('--vscode-tab-border');
+
+		assert.deepStrictEqual({ headerBorder, tabBorder, surfaceFallback: readStroke() }, {
+			headerBorder: { cap: 'rgb(68, 85, 102)', shoulder: 'rgb(68, 85, 102)', separator: 'rgb(68, 85, 102)' },
+			tabBorder: { cap: 'rgb(119, 136, 153)', shoulder: 'rgb(119, 136, 153)', separator: 'rgb(119, 136, 153)' },
+			surfaceFallback: { cap: 'rgb(18, 52, 86)', shoulder: 'rgb(18, 52, 86)', separator: 'rgb(18, 52, 86)' },
+		});
 	});
 
 	test('connected chat tabs retain clipped outlines and reveal the full terminal shoulder', () => {
@@ -381,6 +409,71 @@ suite('Sessions - ChatCompositeBar', () => {
 			decorativeOutline: 'true',
 			previousTabClippingCleared: false,
 		}, JSON.stringify({ remaining, scrollLeft: tabsContainer.scrollLeft, scrollWidth: tabsContainer.scrollWidth, width: tabsContainer.clientWidth }));
+	});
+
+	test('shows a draggable scrollbar only when chat tabs overflow, without changing tab height', async () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		const chats = Array.from({ length: 6 }, (_, index) => createChat(`chat-${index}`, `Chat with a long title ${index}`));
+		harness.activeChatResource.set(chats[0].resource.toString(), undefined);
+		const row = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+		const scrollable = row.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+		const tabs = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs')!;
+		const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+		const slider = scrollbar.querySelector<HTMLElement>('.slider')!;
+		const results = [];
+
+		for (const connected of [true, false]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const compact of [false, true]) {
+				harness.editorGroupsService.setTabHeight(compact ? 'compact' : 'default');
+				harness.chats.set([...chats], undefined);
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+				await timeout(0);
+				const thumb = slider.getBoundingClientRect();
+				const point = { clientX: thumb.x + thumb.width / 2, clientY: thumb.y + thumb.height / 2 };
+				const visible = scrollbar.classList.contains('visible');
+				const hitTarget = mainWindow.document.elementFromPoint(point.clientX, point.clientY);
+				const initialScrollLeft = tabs.scrollLeft;
+				slider.dispatchEvent(new PointerEvent(EventType.POINTER_DOWN, { ...point, bubbles: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1 }));
+				slider.dispatchEvent(new PointerEvent(EventType.POINTER_MOVE, { ...point, clientX: point.clientX + 30, bubbles: true, pointerId: 1, pointerType: 'mouse', buttons: 1 }));
+				slider.dispatchEvent(new PointerEvent(EventType.POINTER_UP, { ...point, bubbles: true, pointerId: 1, pointerType: 'mouse', button: 0 }));
+				results.push({
+					connected,
+					compact,
+					visible,
+					scrollbarHeight: scrollbar.getBoundingClientRect().height,
+					tabHeight: row.getBoundingClientRect().height,
+					thumbReceivesPointer: hitTarget === slider,
+					dragScrolledTabs: tabs.scrollLeft > initialScrollLeft,
+					dragFinished: !slider.classList.contains('active'),
+				});
+			}
+		}
+		root.classList.add('modern-ui-connected-editor-tabs');
+		root.style.width = '2000px';
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => {
+			disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve()));
+		})));
+
+		assert.deepStrictEqual({
+			results,
+			hiddenWhenTabsFit: !scrollbar.classList.contains('visible'),
+			openedChats: harness.sessionsService.openedChats,
+		}, {
+			results: [true, false].flatMap(connected => [false, true].map(compact => ({
+				connected,
+				compact,
+				visible: true,
+				scrollbarHeight: 3,
+				tabHeight: (compact ? 28 : 32) + (connected ? 1 : 0),
+				thumbReceivesPointer: true,
+				dragScrolledTabs: true,
+				dragFinished: true,
+			}))),
+			hiddenWhenTabsFit: true,
+			openedChats: [],
+		});
 	});
 
 	test('creates scoped chat tab presentation elements', () => {
