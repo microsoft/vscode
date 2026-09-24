@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import type { ArtifactOrigin } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
 
 /** The fields an agent supplies when adding an artifact or reference. */
@@ -150,8 +151,8 @@ export class SessionArtifactCollection {
 	 * Adds an artifact or reference unless one with the same value already
 	 * exists, in which case the existing entry is returned unchanged.
 	 */
-	add(input: ISessionArtifactInput, createId: () => string): IAddSessionArtifactResult {
-		const artifact = this._create(input, createId);
+	add(input: ISessionArtifactInput, createId: () => string, origin?: ArtifactOrigin): IAddSessionArtifactResult {
+		const artifact = this._create(input, createId, origin);
 		const value = getSessionArtifactValue(artifact);
 		const existing = this._artifacts.find(candidate => getSessionArtifactValue(candidate) === value);
 		if (existing) {
@@ -161,12 +162,12 @@ export class SessionArtifactCollection {
 	}
 
 	/** Adds an entry, or promotes an existing reference with the same value when the input is an artifact. */
-	addOrPromoteArtifact(input: ISessionArtifactInput, createId: () => string): IAddSessionArtifactResult {
-		const result = this.add(input, createId);
+	addOrPromoteArtifact(input: ISessionArtifactInput, createId: () => string, origin?: ArtifactOrigin): IAddSessionArtifactResult {
+		const result = this.add(input, createId, origin);
 		if (result.added || result.artifact.isArtifact || !input.isArtifact) {
 			return result;
 		}
-		const artifact = this._create(input, () => result.artifact.id);
+		const artifact = this._create(input, () => result.artifact.id, result.artifact.origin);
 		return {
 			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
 			artifact,
@@ -182,7 +183,7 @@ export class SessionArtifactCollection {
 		};
 	}
 
-	private _create(input: ISessionArtifactInput, createId: () => string): ISessionArtifact {
+	private _create(input: ISessionArtifactInput, createId: () => string, origin?: ArtifactOrigin): ISessionArtifact {
 		const artifact: {
 			id: string;
 			type: SessionArtifactType;
@@ -192,12 +193,14 @@ export class SessionArtifactCollection {
 			uri?: string;
 			commitHash?: string;
 			isGitHub?: boolean;
+			origin?: ArtifactOrigin;
 		} = { id: createId(), type: input.type, label: input.label, isArtifact: input.isArtifact };
 
 		if (input.link !== undefined) { artifact.link = input.link; }
 		if (input.uri !== undefined) { artifact.uri = input.uri; }
 		if (input.commitHash !== undefined) { artifact.commitHash = input.commitHash; }
 		if (input.link !== undefined && gitHubTypes.has(input.type)) { artifact.isGitHub = isGitHubArtifactLink(input.link); }
+		if (origin) { artifact.origin = origin; }
 		return artifact;
 	}
 }

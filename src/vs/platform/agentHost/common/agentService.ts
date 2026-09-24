@@ -6,6 +6,9 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
+import type { IArtifactIntegrationAccess } from '../../artifactIntegrations/common/artifactIntegration.js';
+import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import type { ArtifactChatAction } from './artifactIntegrationChat.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { isWindows } from '../../../base/common/platform.js';
@@ -788,6 +791,7 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
 export interface IAgentService {
+	readonly artifactIntegrations?: IArtifactIntegrationAccess;
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -1043,6 +1047,11 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	readonly connectionAvailable?: IObservable<boolean>;
+	readonly onDidArtifactIntegrationUpdate?: Event<ArtifactIntegrationUpdate>;
+	readonly onDidArtifactIntegrationReset?: Event<void>;
+	artifactIntegrationRequest?(request: ArtifactIntegrationRequest): Promise<ArtifactIntegrationResponse>;
+	dispatchBackgroundChatAction?(chat: string, action: ArtifactChatAction): Promise<void>;
 
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;

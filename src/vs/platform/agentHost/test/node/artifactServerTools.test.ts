@@ -225,8 +225,8 @@ suite('Artifact Server Tools', () => {
 			messages: [`Added reference: ${artifacts[0].id}`, `Added artifact: ${artifacts[1].id}`, `Already recorded: ${artifacts[0].id}`],
 			persistCalls: 1,
 			artifacts: [
-				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
-				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
+				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs', origin: { chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' } },
+				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md', origin: { chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' } },
 			],
 		});
 	});
@@ -251,7 +251,7 @@ suite('Artifact Server Tools', () => {
 		}, {
 			result: [`Promoted artifact: ${id}`, `Already recorded: ${id}`, `Already recorded: ${id}`].join('\n'),
 			repeated: `Already recorded: ${id}`,
-			artifacts: [{ ...artifact, id, isGitHub: true }],
+			artifacts: [{ ...artifact, id, isGitHub: true, origin: { chat: buildDefaultChatUri('copilot:/artifacts') } }],
 			persistCalls: 2,
 		});
 	});
@@ -266,8 +266,8 @@ suite('Artifact Server Tools', () => {
 
 		assert.deepStrictEqual({ result, artifacts: artifacts(), persisted }, {
 			result: [`Added reference: ${id}`, `Promoted artifact: ${id}`, `Already recorded: ${id}`].join('\n'),
-			artifacts: [{ ...reference, id, isArtifact: true }],
-			persisted: [[{ ...reference, id, isArtifact: true }]],
+			artifacts: [{ ...reference, id, isArtifact: true, origin: { chat: buildDefaultChatUri('copilot:/artifacts') } }],
+			persisted: [[{ ...reference, id, isArtifact: true, origin: { chat: buildDefaultChatUri('copilot:/artifacts') } }]],
 		});
 	});
 

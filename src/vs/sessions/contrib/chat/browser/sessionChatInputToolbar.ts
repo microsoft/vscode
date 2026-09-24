@@ -363,7 +363,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
-		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls, gitHubReferences));
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls, gitHubReferences, this._chat));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);

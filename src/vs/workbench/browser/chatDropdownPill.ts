@@ -448,7 +448,11 @@ export function createChatSectionPill(
 		createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, viewItemOptions, sections, options),
 	};
 
-	return derived<IChatPill>(reader => isResource.read(reader)
-		? resourcePill
-		: dropdownPill);
+	return derived<IChatPill>(reader => {
+		const entries = getChatPillEntries(sections.read(reader));
+		if (entries.length === 1 && entries[0].inlinePill) {
+			return entries[0].inlinePill;
+		}
+		return isResource.read(reader) ? resourcePill : dropdownPill;
+	});
 }

@@ -3793,6 +3793,33 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('background artifact prompts are never replayed after losing their acknowledgement', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connecting = client.connect();
+				await completeHandshake(transports[0], connecting);
+				let resets = 0;
+				const listener = disposables.add(client.onDidArtifactIntegrationReset(() => resets++));
+				const pending = client.dispatchBackgroundChatAction(buildChatUri(URI.parse('copilot:/session'), 'default'), {
+					type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'artifact-run',
+					message: { text: 'Analyse', origin: { kind: MessageKind.User } },
+				});
+				const rejected = assert.rejects(pending, /uncertain/);
+				transports[0].fireClose();
+				await rejected;
+				await waitForReconnecting(client);
+				const next = await waitForTransport(transports, 1);
+				next.connectDeferred.complete();
+				const reconnect = await waitForRequest(next, 'reconnect');
+				next.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				assert.deepStrictEqual({ replayed: findDispatchAction(next, ActionType.ChatPendingMessageSet), resets }, { replayed: undefined, resets: 1 });
+				listener.dispose();
+				client.dispose();
+			});
+		});
+
 		test('attachment grant remains available when a pending turn is replayed after reconnect', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {

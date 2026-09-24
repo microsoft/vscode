@@ -14,6 +14,8 @@ import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from 
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
+import { AgentHostArtifactIntegrationsCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
+import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -51,12 +53,15 @@ export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifac
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
+export const ArtifactIntegrationExtensionMethod = 'vscode/artifactIntegrations';
+export const ArtifactIntegrationUpdateNotification = 'vscode/artifactIntegrations/update';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostArtifactIntegrationsCapabilityMetaKey]?: 1;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
@@ -73,7 +78,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, artifactIntegrations = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
@@ -83,6 +88,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
+		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const } : {}),
 	};
 }
 
@@ -115,6 +121,7 @@ export interface IAgentHostExtensionCommandMap {
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
+	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
@@ -163,6 +170,7 @@ export interface IAgentHostExtensionCommandMap {
 }
 
 export interface IAgentHostExtensionNotificationMap {
+	[ArtifactIntegrationUpdateNotification]: ArtifactIntegrationUpdate;
 	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;

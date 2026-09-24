@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -596,6 +598,7 @@ export interface ISessionsManagementService {
 
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
+	acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

@@ -1,0 +1,73 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.artifact-integration-pill,
+.artifact-pill-sections {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.artifact-pill-sections .monaco-button {
+	width: auto;
+	border-radius: var(--vscode-cornerRadius-circle);
+	gap: var(--vscode-spacing-size40);
+}
+
+.artifact-button-label {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.artifact-integration-panel {
+	padding: var(--vscode-spacing-size120);
+	max-width: 36em;
+	font-size: var(--vscode-fontSize-body1);
+	overflow-wrap: anywhere;
+}
+
+.artifact-integration-panel h3,
+.artifact-integration-panel h4 {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.artifact-integration-panel p {
+	white-space: pre-wrap;
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.artifact-integration-panel .artifact-scope {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.artifact-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.artifact-controls[hidden],
+.artifact-pill-sections[hidden] {
+	display: none;
+}
+
+.artifact-controls .monaco-button {
+	width: auto;
+	max-width: 100%;
+	gap: var(--vscode-spacing-size40);
+}
+
+.artifact-controls .monaco-button:focus-visible,
+.artifact-pill-sections .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

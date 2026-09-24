@@ -85,6 +85,8 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. */
+	readonly inlinePill?: IChatPill;
 	open(): void;
 }
 

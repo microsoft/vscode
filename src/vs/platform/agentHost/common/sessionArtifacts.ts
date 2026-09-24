@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionSummaryMeta } from './state/sessionState.js';
+import type { ArtifactOrigin } from '../../artifactIntegrations/common/artifactIntegration.js';
 
 /**
  * The kinds an agent can record on its session, as either an artifact (the
@@ -47,6 +48,7 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue link points at GitHub. Host-computed. */
 	readonly isGitHub?: boolean;
+	readonly origin?: ArtifactOrigin;
 }
 
 /**
@@ -84,6 +86,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		uri?: string;
 		commitHash?: string;
 		isGitHub?: boolean;
+		origin?: ArtifactOrigin;
 	} = {
 		id: raw['id'],
 		type: raw['type'],
@@ -95,6 +98,10 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['uri'] === 'string') { artifact.uri = raw['uri']; }
 	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
 	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
+	const origin = raw['origin'];
+	if (origin && typeof origin === 'object' && 'chat' in origin && typeof origin.chat === 'string' && origin.chat.length > 0) {
+		artifact.origin = { chat: origin.chat, ...('turnId' in origin && typeof origin.turnId === 'string' ? { turnId: origin.turnId } : {}) };
+	}
 	return artifact;
 }
 
