@@ -935,6 +935,29 @@ suite('HoverService', () => {
 			});
 		}));
 
+		test('should retain replacement managed HTML content when updating a visible hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const tokens: CancellationToken[] = [];
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, {
+				element: token => {
+					tokens.push(token);
+					return mainWindow.document.createElement('div');
+				},
+			}));
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+
+			await hover.update({
+				element: token => {
+					tokens.push(token);
+					return mainWindow.document.createElement('div');
+				},
+			});
+
+			assert.deepStrictEqual(tokens.map(token => token.isCancellationRequested), [true, false]);
+		}));
+
 		test('should not re-show hover on focus when relatedTarget is from a dismissed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
