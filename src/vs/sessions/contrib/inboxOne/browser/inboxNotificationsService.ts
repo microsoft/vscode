@@ -45,11 +45,13 @@ import {
 	IInboxNotificationToolConfirmationButton,
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
+	IInboxInteractionTelemetryContext,
 	InboxNotificationActionKind,
 	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
+import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
 
@@ -470,6 +472,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		if (changed) {
 			this._detailSummaries.set(next, undefined);
 		}
+	}
+
+	getInteractionTelemetryContext(item: IInboxNotificationItem): IInboxInteractionTelemetryContext {
+		const session = item.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
+		if (!session) {
+			return { agentSessionId: 'none', providerId: 'none' };
+		}
+		return {
+			agentSessionId: hashSessionIdForTelemetry(session.sessionId),
+			providerId: getSessionsTelemetryProviderId(session.providerId),
+		};
 	}
 
 	requestPreview(item: IInboxNotificationItem): void {

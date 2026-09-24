@@ -888,6 +888,28 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(fixture.service.notifications.get().length, 0);
 	});
 
+	test('derives a hashed session id and bounded provider for interaction telemetry', () => {
+		const fixture = createFixture([
+			createSession({ id: 'telemetry-session', providerId: 'local-agent-host', status: SessionStatus.NeedsInput, updatedAt: 200 }),
+		]);
+		const item = fixture.service.notifications.get()[0];
+		const context = fixture.service.getInteractionTelemetryContext(item);
+		// The raw session id is never emitted; a stable non-empty hash is used instead.
+		assert.notStrictEqual(context.agentSessionId, 'telemetry-session');
+		assert.ok(context.agentSessionId.length > 0 && context.agentSessionId !== 'none');
+		assert.strictEqual(context.providerId, 'local-agent-host');
+		// Deterministic for the same session.
+		assert.strictEqual(fixture.service.getInteractionTelemetryContext(item).agentSessionId, context.agentSessionId);
+	});
+
+	test('reports a none telemetry identity for items without a resolvable session', () => {
+		const fixture = createFixture([]);
+		fixture.service.publishExternalNotification({ id: 'external-telemetry', title: 'External', description: 'No session' });
+		const item = fixture.service.notifications.get()[0];
+		const context = fixture.service.getInteractionTelemetryContext(item);
+		assert.deepStrictEqual(context, { agentSessionId: 'none', providerId: 'none' });
+	});
+
 	test('reloads dismissals when application storage changes externally', () => {
 		class TestStorageService extends InMemoryStorageService {
 			emitExternalApplicationChange(key: string): void {

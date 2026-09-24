@@ -181,6 +181,22 @@ export interface IInboxNotificationsService {
 	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
 	 */
 	requestDetailSummary(item: IInboxNotificationItem): void;
+
+	/**
+	 * Privacy-safe telemetry identity for the item's session: a hashed session id and a bounded
+	 * provider category (reusing the shared Agents-window telemetry helpers so inbox events
+	 * correlate with `agents/sessionSummary` and friends by the same key). Returns `'none'` for
+	 * both when the item has no resolvable session.
+	 */
+	getInteractionTelemetryContext(item: IInboxNotificationItem): IInboxInteractionTelemetryContext;
+}
+
+/** Privacy-safe telemetry identity for an inbox item's underlying session. */
+export interface IInboxInteractionTelemetryContext {
+	/** SHA-1 hash of the session id (or `'none'`). */
+	readonly agentSessionId: string;
+	/** Bounded provider category (or `'none'`). */
+	readonly providerId: string;
 }
 
 export interface IInboxNotificationRevealRequest {

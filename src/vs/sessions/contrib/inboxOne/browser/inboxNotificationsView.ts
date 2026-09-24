@@ -111,6 +111,12 @@ type InboxInteractionTelemetryEvent = {
 	notificationKind: string;
 	notificationActionKind: string;
 	hasSession: string;
+	agentSessionId: string;
+	providerId: string;
+	priorityTier: string;
+	answerKind: string;
+	answerCharCount: number;
+	evidenceArtifactKind: string;
 	commandId: string;
 	viewInstanceId: string;
 	sequence: number;
@@ -126,6 +132,12 @@ type InboxInteractionTelemetryClassification = {
 	notificationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification kind when the interaction came from a card, otherwise none.' };
 	notificationActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded notification action kind when the interaction came from an action button, otherwise none.' };
 	hasSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification had an associated session resource.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the associated session id (or none), used to correlate inbox interactions with the same session across events without exposing resource details.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the associated session: default-copilot, local-agent-host, remote-agent-host, other, or none.' };
+	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded priority tier of the card the interaction came from: now, next, later, or none.' };
+	answerKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded shape of a submitted needs-input answer: option, freeText, skip, approve, deny, or none.' };
+	answerCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character count of a submitted free-text answer (never the text itself); 0 otherwise.' };
+	evidenceArtifactKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of an opened evidence artifact: file, session, or none.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Command identifier for command-backed inbox actions, or none for other interactions.' };
 	viewInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Per-inbox-view UUID used to correlate interaction trajectories inside a single view instance.' };
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic interaction sequence number within the inbox view instance.' };
@@ -133,6 +145,8 @@ type InboxInteractionTelemetryClassification = {
 };
 
 type InboxInteractionResult = 'attempt' | 'success' | 'failure' | 'skipped';
+
+type InboxAnswerKind = 'option' | 'freeText' | 'skip' | 'approve' | 'deny' | 'none';
 
 interface ISelectionTelemetryState {
 	readonly notificationKind: string;
@@ -146,6 +160,9 @@ interface IInboxInteractionTelemetryOptions {
 	readonly commandId?: string;
 	readonly notificationKind?: string;
 	readonly hasSession?: string;
+	readonly answerKind?: InboxAnswerKind;
+	readonly answerCharCount?: number;
+	readonly evidenceArtifactKind?: 'file' | 'session' | 'none';
 }
 
 export class InboxNotificationsView extends AbstractCustomView {
@@ -907,7 +924,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (ChatSendResult.isSent(sendResult)) {
 			confirmationPart.isUsed = true;
 			await this.completeNeedsInputNotification(item);
-			this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+			this.logInboxInteraction('submitConfirmation.result', 'inlineConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime, answerKind: buttonIndex === 0 ? 'approve' : 'deny' });
 			return;
 		}
 
@@ -957,7 +974,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			return;
 		}
 		await this.completeNeedsInputNotification(item);
-		this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+		this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'success', durationMs: Date.now() - startTime, answerKind: button.kind });
 	}
 
 	private async submitQuestionCarouselPart(
@@ -994,7 +1011,27 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 		this.chatService.notifyQuestionCarouselAnswer(part.requestId, part.resolveId, answersRecord);
 		await this.completeNeedsInputNotification(item);
-		this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+		const answerShape = this.classifyCarouselAnswers(answers);
+		this.logInboxInteraction('submitQuestionCarousel.result', 'inlineQuestionCarousel', item, 'none', { result: 'success', durationMs: Date.now() - startTime, answerKind: answerShape.answerKind, answerCharCount: answerShape.answerCharCount });
+	}
+
+	/**
+	 * Bounded shape of submitted carousel answers for telemetry: whether the user picked options,
+	 * typed free text (and how many characters — never the text itself), or skipped.
+	 */
+	private classifyCarouselAnswers(answers: Map<string, IChatQuestionAnswerValue> | undefined): { answerKind: InboxAnswerKind; answerCharCount: number } {
+		if (!answers || answers.size === 0) {
+			return { answerKind: 'skip', answerCharCount: 0 };
+		}
+		let answerCharCount = 0;
+		let hasFreeText = false;
+		for (const value of answers.values()) {
+			if (typeof value === 'string') {
+				hasFreeText = true;
+				answerCharCount += value.length;
+			}
+		}
+		return { answerKind: hasFreeText ? 'freeText' : 'option', answerCharCount };
 	}
 
 	private getNeedsInputRequestContext(chatResource: URI, requestId: string): { request: IChatRequestModel; response: IChatResponseModel } | undefined {
@@ -1307,6 +1344,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	): void {
 		const notificationKind = options?.notificationKind ?? item?.kind ?? 'none';
 		const hasSession = options?.hasSession ?? (item?.sessionResource ? 'yes' : 'no');
+		const telemetryContext = item
+			? this.inboxNotificationsService.getInteractionTelemetryContext(item)
+			: { agentSessionId: 'none', providerId: 'none' };
 		const sequence = ++this.interactionSequence;
 		this.telemetryService.publicLog2<InboxInteractionTelemetryEvent, InboxInteractionTelemetryClassification>('agents/inboxInteraction', {
 			interaction,
@@ -1315,11 +1355,27 @@ export class InboxNotificationsView extends AbstractCustomView {
 			notificationKind,
 			notificationActionKind: actionKind,
 			hasSession,
+			agentSessionId: telemetryContext.agentSessionId,
+			providerId: telemetryContext.providerId,
+			priorityTier: this.priorityTierId(item),
+			answerKind: options?.answerKind ?? 'none',
+			answerCharCount: options?.answerCharCount ?? 0,
+			evidenceArtifactKind: options?.evidenceArtifactKind ?? 'none',
 			commandId: options?.commandId ?? 'none',
 			viewInstanceId: this.inboxViewInstanceId,
 			sequence,
 			durationMs: options?.durationMs,
 		});
+	}
+
+	/** Bounded priority-tier identifier for telemetry, or 'none' when there is no item. */
+	private priorityTierId(item?: IInboxNotificationItem): 'now' | 'next' | 'later' | 'none' {
+		switch (item?.priority) {
+			case InboxNotificationPriority.Now: return 'now';
+			case InboxNotificationPriority.Next: return 'next';
+			case InboxNotificationPriority.Later: return 'later';
+			default: return 'none';
+		}
 	}
 
 	private canShowAlwaysDropdown(item: IInboxNotificationItem, actionKind: InboxNotificationActionKind): actionKind is InboxAgentMergeActionKind | InboxMergedSessionCleanupActionKind {
@@ -1904,13 +1960,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private openEvidenceArtifact(item: IInboxNotificationItem, artifact: IInboxEvidenceArtifact): void {
-		this.logInboxInteraction('detail.openEvidence', 'detailEvidence', item);
+		this.logInboxInteraction('detail.openEvidence', 'detailEvidence', item, 'none', { evidenceArtifactKind: artifact.kind });
 		if (artifact.kind === 'file' && artifact.uri) {
 			const startTime = Date.now();
 			void this.openerService.open(artifact.uri).then(() => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
 			}, error => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
 				onUnexpectedError(error);
 			});
 			return;
@@ -1918,14 +1974,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (item.sessionResource) {
 			const startTime = Date.now();
 			void this.sessionsService.openSession(item.sessionResource, { source: 'notification' }).then(() => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
 			}, error => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
+				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
 				onUnexpectedError(error);
 			});
 			return;
 		}
-		this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'skipped' });
+		this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'skipped', evidenceArtifactKind: artifact.kind });
 	}
 
 	private renderConversationThread(body: HTMLElement, item: IInboxNotificationItem): void {
