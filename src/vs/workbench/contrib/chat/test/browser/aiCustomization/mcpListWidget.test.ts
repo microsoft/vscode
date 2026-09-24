@@ -1164,12 +1164,15 @@ suite('mcpListWidget', () => {
 			const templateData = renderer.renderTemplate(container);
 			store.add({ dispose: () => renderer.disposeTemplate(templateData) });
 			const widget = Object.create(McpListWidget.prototype) as {
+				appendInstalledServerRow(parent: HTMLElement, presentation: { entry: Entry }): void;
 				createInstalledMcpServerDetailInput(entry: Entry): ReturnType<typeof createInstalledMcpServerDetailInput>;
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
 				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
 			};
 			Object.assign(widget, {
+				cardDisposables: store,
+				cardListControllers: new Map<HTMLElement, never>(),
 				agentHostCustomizationService,
 				agentPluginService,
 				extensionsWorkbenchService,
@@ -1234,6 +1237,7 @@ suite('mcpListWidget', () => {
 					const label = widget.getMcpEntryAriaLabel(entry);
 					ariaSubscription.value = autorun(reader => { ariaLabel = label.read(reader); });
 				},
+				renderInstalledRow: (parent: HTMLElement, entry: Entry) => widget.appendInstalledServerRow(parent, { entry }),
 				read: () => ({
 					text: templateData.description.textContent,
 					error: templateData.description.classList.contains('error'),
@@ -1554,12 +1558,21 @@ suite('mcpListWidget', () => {
 			});
 		}
 
-		for (const width of [350, 600]) {
-			test(`sign-in keeps the server name visible in a ${width}px row`, () => {
+		for (const { layout, width } of [
+			{ layout: 'list', width: 350 },
+			{ layout: 'list', width: 600 },
+			{ layout: 'installed-home', width: 350 },
+			{ layout: 'installed-home', width: 600 },
+		]) {
+			test(`sign-in keeps the server name visible in a ${width}px ${layout} row`, () => {
 				const server = createAgentHostServer({
 					name: 'Slack',
 					status: McpServerStatus.AuthRequired,
-					state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required },
+					state: {
+						kind: McpServerStatus.AuthRequired,
+						reason: McpAuthRequiredReason.Required,
+						resource: { resource: 'https://mcp.example.com' },
+					},
 				});
 				const ctx = createRenderer(server, true, true);
 				disposables.add(ctx.store);
@@ -1567,12 +1580,17 @@ suite('mcpListWidget', () => {
 				ctx.menu(entry);
 				const widget = DOM.append(document.body, DOM.$('.plugin-list-widget'));
 				disposables.add({ dispose: () => widget.remove() });
-				widget.appendChild(ctx.templateData.container);
-				ctx.templateData.container.style.width = `${width}px`;
-				ctx.render(entry);
+				widget.style.width = `${width}px`;
+				if (layout === 'list') {
+					widget.appendChild(ctx.templateData.container);
+					ctx.templateData.container.style.width = '100%';
+					ctx.render(entry);
+				} else {
+					ctx.renderInstalledRow(widget, entry);
+				}
 
-				const name = ctx.templateData.name;
-				const button = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-sign-in')!;
+				const name = widget.querySelector<HTMLElement>('.mcp-server-name, .plugin-list-item-name')!;
+				const button = widget.querySelector<HTMLElement>('.mcp-server-sign-in')!;
 				assert.deepStrictEqual({
 					name: name.textContent,
 					nameVisible: name.clientWidth > 0 && name.clientWidth >= name.scrollWidth,
