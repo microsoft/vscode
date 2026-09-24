@@ -37,10 +37,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2c851fee83faeab7c101991da8241f81c01cc2a6013837fe55284cf3bee111bf)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/ConfiguredLocationsMigration/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/7ac464e030f814c5b2f5196dee9f014262264422f393f19975baf5b145dff859)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/445be4551133dcaec974786316b4fb9fb79c38c6173e7ac6ccb31fd0b97def97)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/ConfiguredLocationsMigration/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/654f038412268c49dfcd61d7ec47303fec965c52ad9c6d5e346e6588c8539b48)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b0a48d05fed0b11361b4617b7b3baa4aef32fa7979dcd557d81af2c3d8a399af)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/DiscoverSearchResults/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/64f2249432e0b524b169618f3f79f7c69787cddcf69d3dde6e10cd9fdcba81cb)
@@ -97,10 +97,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/90ecdc4d853f146d5269ac4449838f3cf088de9fda9653bca1c6153f9d6b4900)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/MigrationDashboard/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8eba35e058923cb3a908dac8664261d33dc62a2935450bc8247b71bd2a0d52e9)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0bbc15957bf3e2635ade91baac52495e6ec471982afdc2246f58dcfae704933f)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/MigrationDashboard/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3a418adb11331e855649f8d19ce789bbd85c3d2541402ff96f626dcbaa2be0c3)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4881296d7379c1aa54c227eb729988f6ccb8a45def2104658470ece4e2ce010b)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogHome/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/e5cf78f7ce4dae7451676114ff4950013846759f0e1104529509fd7ff018a1e6)
