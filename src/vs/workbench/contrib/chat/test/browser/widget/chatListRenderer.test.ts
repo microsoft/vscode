@@ -2458,6 +2458,82 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	for (const animation of [ChatProgressAnimation.Weave, ChatProgressAnimation.Off]) {
+		test(`progress action stays inline and keyboard-focused as progress updates (${animation})`, () => {
+			const calls: string[] = [];
+			const action = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
+			const { configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+			configurePersistentProgressTypography(container, 13);
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString('Starting Dev Container'), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			action.set({ label: 'Show Log', run: () => calls.push('old') }, undefined);
+			const link = template.value.querySelector<HTMLElement>('.chat-progress-action .monaco-link')!;
+			link.focus();
+			action.set({ label: 'Show Log', run: () => calls.push('new') }, undefined);
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString('Initializing Agent Host session'), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			const detail = template.value.querySelector<HTMLElement>('.chat-progress-action')!;
+			const message = detail.parentElement!.querySelector<HTMLElement>('.rendered-markdown')!;
+			const messageBounds = message.getBoundingClientRect();
+			const linkBounds = link.getBoundingClientRect();
+			assert.deepStrictEqual({
+				detail: detail.textContent,
+				message: message.textContent?.trim(),
+				sameLink: detail.contains(link),
+				focused: dom.getActiveElement() === link,
+				tabIndex: link.tabIndex,
+				outsideLiveRegion: !link.closest('[aria-live], [role="status"]'),
+				sameLine: linkBounds.top < messageBounds.bottom && linkBounds.bottom > messageBounds.top && linkBounds.left >= messageBounds.right,
+				calls,
+			}, {
+				detail: '\u00b7 Show Log',
+				message: 'Initializing Agent Host session',
+				sameLink: true,
+				focused: true,
+				tabIndex: 0,
+				outsideLiveRegion: true,
+				sameLine: true,
+				calls: ['new'],
+			});
+			action.set(undefined, undefined);
+			assert.strictEqual(detail.hidden, true);
+		});
+	}
+
+	test('in-place progress announces changed phases only when verbose progress is enabled', () => {
+		const action = observableValue('progressAction', { label: 'Show Log', run: () => { } });
+		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		const update = (message: string) => {
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'preparation', content: new MarkdownString(message), shimmer: true });
+			renderer.renderElement(node, 0, template);
+			return [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent).filter(Boolean);
+		};
+		const initial = update('Starting Dev Container');
+		const link = template.value.querySelector<HTMLElement>('.chat-progress-action .monaco-link')!;
+		link.focus();
+		const changed = update('Initializing Agent Host session');
+		const repeated = update('Initializing Agent Host session');
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', false);
+		const quiet = update('Finishing preparation');
+		assert.deepStrictEqual({
+			initial, changed, repeated, quiet,
+			focused: dom.getActiveElement() === link,
+		}, {
+			initial: ['Starting Dev Container'],
+			changed: ['Initializing Agent Host session'],
+			repeated: ['Initializing Agent Host session'],
+			quiet: ['Initializing Agent Host session'],
+			focused: true,
+		});
+	});
+
 	test('trailing progress labels come from the last progress message only', () => {
 		const message = (text: string) => ({ kind: 'progressMessage' as const, content: new MarkdownString(text) });
 		const task = (text: string, settled: boolean): IChatTask => {
@@ -6589,6 +6665,9 @@ suite('ChatListRenderer', () => {
 				override removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
 					carousels.get(sessionResource.toString())?.removeToolInvocation(tool);
 				}
+				override dispose(): void {
+					carousels.clearAndDisposeAll();
+				}
 			}();
 			let widgetInputPart: ChatInputPart | undefined = inputPart;
 			const widget = new class extends mock<IChatWidget>() {
@@ -6641,6 +6720,27 @@ suite('ChatListRenderer', () => {
 				.filter(part => part.style.display !== 'none' && !part.closest('[style*="display: none"]'));
 			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
+
+		test('disposes pending confirmations after the widget input part has been cleared', () => {
+			const context = createConfirmationRenderer();
+			const tool = createPendingTool('pending-at-disposal');
+			context.model.acceptResponseProgress(context.request, tool);
+			const pendingBeforeDisposal = context.carousel?.pendingCount;
+
+			context.inputPart.dispose();
+			context.clearWidgetInputPart();
+			context.renderer.dispose();
+
+			assert.deepStrictEqual({
+				pendingBeforeDisposal,
+				pendingAfterDisposal: context.carousel?.pendingCount ?? 0,
+				toolState: tool.state.get().type,
+			}, {
+				pendingBeforeDisposal: 1,
+				pendingAfterDisposal: 0,
+				toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		test('removes confirmations when the widget input is cleared before renderer disposal', () => {
 			const context = createConfirmationRenderer();

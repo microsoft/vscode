@@ -4,7 +4,7 @@
 
 ## Scope
 
-`CopilotChatSessionsProvider` adapts the existing Copilot agent-session infrastructure into `ISessionsProvider`. It supports Copilot Cloud and provides the local Copilot CLI path when Agent Host is unavailable.
+`CopilotChatSessionsProvider` adapts the existing Copilot agent-session infrastructure into `ISessionsProvider`. It supports Copilot Cloud only. Local Copilot CLI sessions contributed by the Copilot extension are not surfaced in the Agents Window; local Copilot sessions are owned by the Agent Host providers.
 
 ## Registration and identity
 
@@ -14,25 +14,19 @@
 |----------|----------|
 | Provider ID | `default-copilot` |
 | Label | Copilot Chat |
-| Cloud session type | Always advertised when available |
-| Local CLI session type | Advertised only when Agent Host does not own it |
+| Cloud session type | The only session type advertised |
 
-The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes. Workspace URI schemes select the applicable draft implementation.
+The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes.
 
 On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while cloud sandboxes and remote agent hosts are enabled and AI features are visible. This instance owns repository-backed drafts, not existing Cloud or CLI history. It advertises the Copilot sandbox creation type.
 
 ## Drafts
 
-Local and cloud drafts implement the same `ISession` contract while adapting different backend options:
-
-- local drafts resolve repository and local execution configuration;
-- cloud drafts expose provider-declared option groups and remote workspace metadata.
-
-Both expose observable loading, workspace, model, mode, and capabilities. Shared new-session UI consumes those contracts and does not branch on draft classes.
+Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
 ## Existing sessions
 
-`AgentSessionAdapter` projects an existing `IAgentSession` into a stable `ISession` facade. It updates observable state in a transaction and preserves resource identity while metadata changes.
+`AgentSessionAdapter` projects an existing Copilot Cloud `IAgentSession` into a stable `ISession` facade. Agent sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes.
 
 The provider cache is keyed by resource identity. Refreshing the backing agent session list updates existing adapters and emits added, removed, changed, or replacement catalog notifications as appropriate.
 
@@ -56,7 +50,7 @@ sendRequest
 
 The provider never opens chat UI directly. Presentation and focus remain owned by `ISessionsService`.
 
-Committed sessions send against their existing chat resources. Multi-chat creation is capability-gated and follows the shared management lifecycle.
+Each session has a single chat; the provider does not advertise multiple chats, rename, or delete. Follow-up turns go through the committed session's existing chat resource.
 
 Sandbox creation reuses the remote draft and optimistic replacement lifecycle. Repository selection creates only a draft. The first send provisions through `CloudSandboxAgentHostContribution`, sends the prompt once into the provisioned session's existing main chat, and transfers ownership to that environment's provider. Until that handoff, the creation provider owns an extension-independent, read-only transcript. The creation provider does not supply the regular Cloud model catalog; the connected host owns model selection. Explicit sandbox drafts fail when sandbox creation is disabled rather than falling back to the server-run Cloud agent. If the first send fails after provisioning, the environment's session is published so it remains recoverable.
 
