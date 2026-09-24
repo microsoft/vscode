@@ -1223,19 +1223,29 @@ suite('Agent Host Session Config Picker', () => {
 		services.provider.config = makeDynamicBranchConfig('main');
 		services.provider.completions = [{ value: 'main', label: 'main' }];
 		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
 		await new Promise(resolve => setTimeout(resolve));
 		const oldDelegate = services.actionWidget.delegate;
+		const listFocus = document.createElement('input');
+		document.body.appendChild(listFocus);
+		store.add(toDisposable(() => listFocus.remove()));
+		listFocus.focus();
 
 		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+		const replacementTrigger = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+		const focusRestored = document.activeElement === replacementTrigger;
 		oldDelegate?.onSelect({ value: 'main', label: 'main' });
 
 		assert.deepStrictEqual({
 			events: services.actionWidget.events,
 			updates: services.provider.setSessionConfigValueArguments,
+			focusRestored,
 		}, {
 			events: ['hide', 'hide'],
 			updates: [],
+			focusRestored: true,
 		});
 	});
 

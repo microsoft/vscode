@@ -562,7 +562,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 
-		const restoreFocus = this._focusableElement === dom.getActiveElement();
+		const session = this._session.get();
+		const pickerClosedBySessionChange = !!this._openedPickerSessionId && this._openedPickerSessionId !== session?.sessionId;
+		const restoreFocus = this._focusableElement === dom.getActiveElement() || pickerClosedBySessionChange;
 		this._renderDisposables.clear();
 		this._focusableElement = undefined;
 		const checkboxSlots = new Set([
@@ -574,8 +576,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 		}
 
-		const session = this._session.get();
-		if (this._openedPickerSessionId && this._openedPickerSessionId !== session?.sessionId) {
+		if (pickerClosedBySessionChange) {
 			this._actionWidgetService.hide(true);
 			this._openedPickerSessionId = undefined;
 		}
