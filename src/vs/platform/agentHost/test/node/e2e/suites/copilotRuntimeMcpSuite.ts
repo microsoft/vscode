@@ -15,7 +15,7 @@ import type { SubscribeResult } from '../../../../common/state/protocol/commands
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -96,9 +96,8 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			const state = await pluginState(sessionUri, pluginUri);
 			assert.ok(state.children?.some(child => child.type === CustomizationType.McpServer));
 		}, 100, 100);
-		const initializationChat = buildChatUri(sessionUri, 'runtime-mcp-initialization');
-		await context.client.call('createChat', { channel: sessionUri, chat: initializationChat }, 30_000);
-		await context.client.call<SubscribeResult>('subscribe', { channel: initializationChat });
+		const warmup = await driveTurnToCompletion(context.client, sessionUri, 'runtime-mcp-warmup', 'Reply exactly RUNTIME_MCP_READY. Do not call tools.', 1);
+		assert.strictEqual(warmup.responseText.trim(), 'RUNTIME_MCP_READY');
 		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 100);
 		return { sessionUri, pluginUri, workspace, calls, customization };
 	}
@@ -125,9 +124,8 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			assert.strictEqual(plugin.clientId, clientId);
 			assert.ok(plugin.children?.some(child => child.type === CustomizationType.McpServer));
 		}, 100, 100);
-		const initializationChat = buildChatUri(session.sessionUri, 'runtime-mcp-resume-initialization');
-		await context.client.call('createChat', { channel: session.sessionUri, chat: initializationChat }, 30_000);
-		await context.client.call<SubscribeResult>('subscribe', { channel: initializationChat });
+		const warmup = await driveTurnToCompletion(context.client, session.sessionUri, 'runtime-mcp-resume-warmup', 'Reply exactly RUNTIME_MCP_RESUMED_READY. Do not call tools.', 1);
+		assert.strictEqual(warmup.responseText.trim(), 'RUNTIME_MCP_RESUMED_READY');
 		await retry(async () => assert.strictEqual((await serverState(session.sessionUri, session.pluginUri)).state.kind, McpServerStatus.Ready), 100, 100);
 	}
 
