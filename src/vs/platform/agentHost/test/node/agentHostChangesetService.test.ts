@@ -3064,6 +3064,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 			const db = new GatedSessionDatabase();
 			db.addEdit({
+				turnId: 'removed-turn', toolCallId: 'removed-tool', filePath: '/repo/removed.txt', kind: FileEditKind.Edit,
+				addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+			});
+			db.addEdit({
 				turnId: 'turn-1', toolCallId: 'current-tool', filePath: '/repo/current.txt', kind: FileEditKind.Edit,
 				addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
 			});
@@ -3074,15 +3078,14 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				checkpoint: NULL_CHECKPOINT_SERVICE,
 				db,
 			});
-			svc.restoreStaticChangeset(sessionStr, 'session', [gitDiff('/repo/removed.txt')]);
+			svc.refreshSessionChangeset(sessionStr, 'fileEditTracker');
+			await waitForChangesetReady(stateManager, sessionChangeset);
 
 			svc.onTurnComplete(sessionStr, 'turn-1');
 			await db.incrementalStarted.p;
+			await db.deleteTurn('removed-turn');
 			svc.onSessionTruncated(sessionStr);
 			db.releaseIncremental.complete();
-			for (let i = 0; i < 500 && db.getAllFileEditsCalls === 0; i++) {
-				await timeout(1);
-			}
 			for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset)?.files.some(file => file.id === URI.file('/repo/removed.txt').toString()); i++) {
 				await timeout(1);
 			}
@@ -3093,7 +3096,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 			}, {
 				incrementalReads: 1,
-				fullReads: 1,
+				fullReads: 3,
 				files: [URI.file('/repo/current.txt').toString()],
 			});
 		});
@@ -3310,6 +3313,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		for (const isolation of ['folder', 'worktree'] as const) {
 			test(`implicit and explicit ${isolation} summary subscriptions trigger only one compute`, async () => {
 				let calls = 0;
+				const db = new TestSessionDatabase();
 				const git = createNoopGitService();
 				git.computeFileDiffsBetweenRefs = async () => { calls++; return [gitDiff('/wd/session.ts', 3, 1)]; };
 				git.computeSessionFileDiffs = async () => { calls++; return [gitDiff('/wd/branch.ts', 100, 20)]; };
@@ -3317,13 +3321,15 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					? buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///wd'])))
 					: sessionChangeset;
 				const { svc, stateManager } = build({
-					workingDirectories: ['file:///wd'], isolation, git, checkpoint: summaryCheckpoint(),
+					workingDirectories: ['file:///wd'], isolation, git, checkpoint: summaryCheckpoint(), db,
 					subscriptions: [sessionStr, selected],
 				});
 				completeTurn(stateManager);
 				svc.recomputeSubscribedChangesets(sessionStr);
 				await waitForChangesetReady(stateManager, selected);
-				assert.strictEqual(calls, 1);
+				assert.deepStrictEqual({ git: calls, tracked: db.getAllFileEditsCalls }, isolation === 'worktree'
+					? { git: 1, tracked: 0 }
+					: { git: 0, tracked: 1 });
 			});
 		}
 
@@ -3361,11 +3367,18 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				};
 				git.computeFileDiffsBetweenRefs = compute;
 				git.computeSessionFileDiffs = compute;
+				class GatedDatabase extends TestSessionDatabase {
+					override async getAllFileEdits() {
+						void started.complete();
+						await result.p;
+						return super.getAllFileEdits();
+					}
+				}
 				const kind = isolation === 'worktree' ? 'branch' : 'session';
 				const selected = isolation === 'worktree'
 					? buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repoA'])))
 					: sessionChangeset;
-				const db = new TestSessionDatabase();
+				const db = new GatedDatabase();
 				await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(oldSummary));
 				const { svc, stateManager } = build({
 					workingDirectories: ['file:///repoA'], isolation, git, checkpoint: summaryCheckpoint(), db, subscriptions: [sessionStr],
@@ -3535,7 +3548,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		});
 
-		test('changesetComputed (turn) carries the multi-root fan-out fields for a multi-root turn', async () => {
+		test('changesetComputed (turn) omits Git fan-out fields for a tracked multi-root turn', async () => {
 			const telemetry = new CapturingTelemetryService();
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -3565,9 +3578,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				outcome: 'computed',
 				isMultiRoot: true,
 				folderCount: 2,
-				uniqueGitFolderCount: 2,
-				nonGitFolderCount: 0,
-				trackedEditFallbackFolderCount: 0,
+				uniqueGitFolderCount: undefined,
+				nonGitFolderCount: undefined,
+				trackedEditFallbackFolderCount: undefined,
 			});
 		});
 	});
