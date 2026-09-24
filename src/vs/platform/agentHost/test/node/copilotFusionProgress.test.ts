@@ -50,18 +50,21 @@ suite('CopilotFusionProgress', () => {
 		const started = progress.accept(event('assistant.fusion_phase_started', data.started));
 		const phase = progress.accept(event('assistant.fusion_phase_completed', data.phaseCompleted));
 		const completed = progress.accept(event('session.fusion_completed', data.completed));
+		const degraded = new CopilotFusionProgress().accept(event('session.fusion_completed', { ...data.completed, outcome: 'degraded' }));
 		assert.deepStrictEqual({
 			activity: started?.activity,
 			progress: started?.phase && readToolCallMeta(started.phase.toolCall).progressMessage,
 			model: phase?.phase && readToolCallMeta(phase.phase.toolCall).fusionPhase?.model,
 			phaseContent: phase?.phase?.toolCall.status === 'completed' ? phase.phase.toolCall.content : undefined,
-			completedContent: completed?.part?.content,
+			completedPart: completed?.part,
+			degradedContent: degraded?.part?.content,
 		}, {
 			activity: 'Main pass running',
 			progress: 'Main pass running',
 			model: 'model-a',
 			phaseContent: [{ type: 'text', text: 'Main&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
-			completedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed\n\nDuration:&nbsp;2.3s' },
+			completedPart: undefined,
+			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
 		});
 	});
 

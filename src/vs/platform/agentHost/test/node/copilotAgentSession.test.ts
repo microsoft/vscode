@@ -11415,7 +11415,7 @@ Use the attached image as context.
 				activity,
 				leaksPhaseContent: JSON.stringify(signals).includes('PRIVATE'),
 			}, {
-				statuses: ['selected', 'completed'],
+				statuses: ['selected'],
 				phaseModels: ['model-a'],
 				phaseActions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
 				phaseParts: [],
@@ -11704,7 +11704,7 @@ Use the attached image as context.
 				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, turnId: 'sdk-shared' });
 				const lateEvents = signals.length - beforeLate;
 				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2', activity: 'tool_started' });
-				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared' });
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared', outcome: 'degraded' });
 
 				assert.deepStrictEqual({
 					lateEvents,
@@ -11718,7 +11718,7 @@ Use the attached image as context.
 					latestTelemetryOwner: 'second',
 					pendingEvents: 0,
 					activity: ['Main pass: running a tool', undefined],
-					statuses: ['completed'],
+					statuses: ['degraded'],
 				});
 			});
 		}
@@ -11771,7 +11771,7 @@ Use the attached image as context.
 				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
 				mockSession.fire(phaseEvent, phaseEvent === 'assistant.fusion_phase_completed'
 					? { ...fusionTestData.phaseCompleted, verdict: 'PRIVATE VERDICT' } : fusionTestData.phaseFailed);
-				mockSession.fire('session.fusion_completed', fusionTestData.completed);
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, outcome: 'degraded' });
 				const buffered = {
 					count: session['_pendingFusionEvents'].length,
 					leaksContent: JSON.stringify(session['_pendingFusionEvents']).includes('PRIVATE'),
@@ -11799,7 +11799,7 @@ Use the attached image as context.
 			mockSession.fire('abort', { reason: 'user_initiated' });
 			session.resetTurnState('second');
 			const beforeCompletion = signals.length;
-			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, outcome: 'degraded' });
 			const beforeMapping = signals.length - beforeCompletion;
 			mockSession.fire('user.message', { content: 'Second request', turnId: 'sdk-turn' });
 			assert.deepStrictEqual({
@@ -11810,7 +11810,7 @@ Use the attached image as context.
 			}, {
 				beforeMapping: 0,
 				pendingEvents: 0,
-				statuses: ['completed'],
+				statuses: ['degraded'],
 			});
 		});
 
