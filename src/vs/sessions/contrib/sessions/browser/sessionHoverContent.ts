@@ -65,8 +65,7 @@ export function getSessionSummaryHoverData(
 			sessionSummary: {
 				workspaces: getWorkspaceSummaries(sessionWorkspace, session.worktreePending?.get() ?? false, labelService),
 				changes: getSessionDiffStats(session),
-				// The summary follows the main chat's section in the same hover, so
-				// it lists only the pull requests that section does not already show.
+				// The session-wide union includes the main chat's folders, whose pull requests are listed above.
 				pullRequests: toHoverPullRequests(
 					[...getSessionPullRequestRefs(session, sessionWorkspace)].filter(([uri]) => !topPullRequestRefs.has(uri)).map(([, ref]) => ref),
 					openerService,
