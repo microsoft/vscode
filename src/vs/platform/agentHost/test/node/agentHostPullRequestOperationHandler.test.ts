@@ -1443,6 +1443,29 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 	});
 
+	// Absolute worktree paths repeat a long prefix on every line; they must not
+	// crowd whole areas of the change (here, every Sessions file) out of the
+	// bounded change summary.
+	test('lists changed files relative to the repository so a large change fits the prompt', async () => {
+		const gitService = new TestGitService();
+		const workingDirectory = URI.file('/Users/someone/work/vscode.worktrees/move-chat-session-implementation-plan-60e97a62');
+		const files = [
+			...Array.from({ length: 27 }, (_, i) => `src/vs/platform/agentHost/node/agentHostFile${i}.ts`),
+			...Array.from({ length: 19 }, (_, i) => `src/vs/sessions/contrib/sessions/browser/sessionsFile${i}.ts`),
+		];
+		gitService.branchChanges = files.map(file => {
+			const uri = URI.joinPath(workingDirectory, file).toString();
+			return { before: { uri, content: { uri } }, after: { uri, content: { uri } }, diff: { added: 12, removed: 3 } };
+		});
+		const { handler, session, copilotApiService } = setup(disposables, gitService, new TestOctoKitService(), { withCopilotToken: true, workingDirectory: workingDirectory.toString() });
+
+		await handler.prepare({ channel: buildSessionChangesetUri(session.toString()), operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None);
+
+		const userContent = copilotApiService.calls[0]?.request.messages.find(m => m.role === 'user')?.content ?? '';
+		const changedFiles = /Changed files:\n(?<list>[\s\S]*?)(?:\n\n|$)/.exec(userContent)?.groups?.list.split('\n') ?? [];
+		assert.deepStrictEqual(changedFiles, files.map(file => `- Edit: ${file} (+12 -3)`));
+	});
+
 	// Without a Copilot token the model is never called and the handler falls
 	// back to the branch-name based title/description.
 	test('falls back to branch-name title and description without a Copilot token', async () => {

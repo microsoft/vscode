@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { equals } from '../../../base/common/objects.js';
+import { isEqualOrParent, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -130,7 +131,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			let description = '';
 			let generationError: string | undefined;
 			try {
-				({ title, description } = await this._generateTitleAndDescription(conversationState, branchName, baseBranchName, branchChanges, signal, token));
+				({ title, description } = await this._generateTitleAndDescription(conversationState, workingDirectory, branchName, baseBranchName, branchChanges, signal, token));
 			} catch (err) {
 				this._throwIfCancelled(token);
 				generationError = this._reportGenerationError(err);
@@ -383,7 +384,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		let generated: { title: string; description: string } | undefined;
 		if (!submitted) {
 			try {
-				generated = await this._generateTitleAndDescription(conversationState, branchName, baseBranchName, branchChanges, signal, token);
+				generated = await this._generateTitleAndDescription(conversationState, workingDirectory, branchName, baseBranchName, branchChanges, signal, token);
 			} catch (err) {
 				this._throwIfCancelled(token);
 				this._reportGenerationError(err);
@@ -613,6 +614,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	/** Generates from bounded conversation and file context; callers decide how to surface failures. */
 	private async _generateTitleAndDescription(
 		sessionState: ISessionWithDefaultChat,
+		workingDirectory: URI,
 		branchName: string,
 		base: string,
 		branchChanges: readonly ISessionFileDiff[],
@@ -629,7 +631,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		const conversation = buildConversationContext(sessionState.turns, { maxChars: MAX_PR_CONVERSATION_CONTEXT_CHARS });
-		const changeSummary = this._summarizeDiffsForPrompt(branchChanges);
+		const changeSummary = this._summarizeDiffsForPrompt(branchChanges, workingDirectory);
 		if (!conversation && !changeSummary) {
 			throw new Error(localize('agentHost.changeset.pr.generationNoContext', "There is no conversation or change context to generate a pull request title and description."));
 		}
@@ -680,7 +682,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		];
 	}
 
-	private _summarizeDiffsForPrompt(diffs: readonly ISessionFileDiff[]): string {
+	private _summarizeDiffsForPrompt(diffs: readonly ISessionFileDiff[], workingDirectory: URI): string {
 		const lines: string[] = [];
 		let length = 0;
 		for (const diff of diffs) {
@@ -695,7 +697,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			} else if (before && after && before !== after) {
 				kind = 'Rename';
 			}
-			const line = `- ${kind}: ${this._displayUri(path)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`;
+			const line = `- ${kind}: ${this._displayUri(path, workingDirectory)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`;
 			lines.push(line);
 			// `+ 1` accounts for the newline that joins this line to the previous one.
 			length += line.length + (lines.length > 1 ? 1 : 0);
@@ -707,9 +709,18 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		return lines.join('\n');
 	}
 
-	private _displayUri(uri: string): string {
+	/**
+	 * Paths inside the repository are shown relative to it: absolute worktree
+	 * paths repeat a long prefix on every line, so far fewer files fit in the
+	 * bounded change summary and whole areas of the change could be cut off.
+	 */
+	private _displayUri(uri: string, workingDirectory: URI): string {
 		try {
 			const parsed = URI.parse(uri);
+			const relative = isEqualOrParent(parsed, workingDirectory) ? relativePath(workingDirectory, parsed) : undefined;
+			if (relative) {
+				return relative;
+			}
 			return parsed.scheme === 'file' ? parsed.fsPath : parsed.path || uri;
 		} catch {
 			return uri;
