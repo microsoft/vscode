@@ -68,6 +68,17 @@ suite('CopilotFusionProgress', () => {
 		});
 	});
 
+	test('keeps an abnormal ending as a degraded row without a duration', () => {
+		const ended = new CopilotFusionProgress().accept(event('session.fusion_completed', { ...data.completed, outcome: 'failed' }));
+		assert.deepStrictEqual({
+			content: ended?.part?.content,
+			status: ended?.part && readAgentSystemNotificationMeta(ended.part).fusionStatus,
+		}, {
+			content: { markdown: 'HydraFusion&nbsp;workflow&nbsp;ended:&nbsp;failed' },
+			status: 'degraded',
+		});
+	});
+
 	test('handles failures, cancellation, and interruption without success icons', () => {
 		const progress = new CopilotFusionProgress();
 		progress.accept(event('session.fusion_route_started', data.routeStarted));
