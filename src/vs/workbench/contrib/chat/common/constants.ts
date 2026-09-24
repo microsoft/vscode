@@ -142,6 +142,7 @@ export enum ChatConfiguration {
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
+	BtwTipEnabled = 'chat.btwTip.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
