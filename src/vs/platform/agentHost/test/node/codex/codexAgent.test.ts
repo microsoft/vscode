@@ -85,6 +85,12 @@ interface ICodexAuthenticateHarness {
 	authenticate(resource: string, token: string): Promise<boolean>;
 }
 
+interface ICodexMcpRefreshHarness {
+	readonly _mcpConnectorsService: {
+		refresh(): Promise<readonly never[]>;
+	};
+}
+
 interface ICodexGuardianWarningHarness {
 	readonly _logService: NullLogService;
 }
@@ -115,6 +121,13 @@ function resolveConversationSession(harness: ICodexConversationResolverHarness, 
 		_resolveConversationSession(this: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined;
 	})._resolveConversationSession;
 	return resolver.call(harness, address, context);
+}
+
+function refreshSessionMcpDiscovery(harness: ICodexMcpRefreshHarness): Promise<void> {
+	const refresh = (CodexAgent.prototype as unknown as {
+		_refreshSessionMcpDiscovery(this: ICodexMcpRefreshHarness, session: { readonly sessionId: string; readonly workingDirectory: undefined; readonly workingDirectories: undefined }): Promise<void>;
+	})._refreshSessionMcpDiscovery;
+	return refresh.call(harness, { sessionId: 'session', workingDirectory: undefined, workingDirectories: undefined });
 }
 
 function getOrCreateMcpController(harness: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController | undefined {
@@ -437,6 +450,20 @@ suite('CodexAgent', () => {
 			mail: { url: 'https://connectors.example.test/mail', http_headers: { Authorization: 'Bearer connector-token' } },
 			collision: { url: 'https://user.example.test/mcp', http_headers: { 'X-Source': 'user' } },
 		});
+	});
+
+	test('refreshes connector MCP servers before session discovery', async () => {
+		let connectorRefreshes = 0;
+		await refreshSessionMcpDiscovery({
+			_mcpConnectorsService: {
+				refresh: async () => {
+					connectorRefreshes++;
+					return [];
+				},
+			},
+		});
+
+		assert.strictEqual(connectorRefreshes, 1);
 	});
 
 	test('clears GitHub MCP credentials when the GitHub endpoint changes', () => {

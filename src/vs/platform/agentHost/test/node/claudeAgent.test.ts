@@ -8666,11 +8666,23 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			configuration: { type: McpServerType.REMOTE, url, headers: { Authorization: 'Bearer connector-token' } },
 			scopes: [],
 		});
-		const pm = new FakeAgentPluginManager();
-		const { agent, sdk, fileService } = buildCtxWith(pm, createTestMcpConnectorsService([
+		const connectors = [
 			connector('mail', 'https://connectors.example.test/mail'),
 			connector('collision', 'https://connectors.example.test/collision'),
-		]));
+		];
+		const mcpConnectorsService = createTestMcpConnectorsService();
+		let connectorRefreshes = 0;
+		let cachedConnectorReads = 0;
+		mcpConnectorsService.refresh = async () => {
+			connectorRefreshes++;
+			return connectors;
+		};
+		mcpConnectorsService.getConnectors = async () => {
+			cachedConnectorReads++;
+			return [];
+		};
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService } = buildCtxWith(pm, mcpConnectorsService);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const workspace = URI.file('/work');
 		await fileService.createFolder(workspace);
@@ -8683,6 +8695,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
+		assert.deepStrictEqual({ connectorRefreshes, cachedConnectorReads }, { connectorRefreshes: 1, cachedConnectorReads: 0 });
 		const servers = sdk.capturedStartupOptions[0].mcpServers;
 		assert.deepStrictEqual({
 			mail: servers?.mail,

@@ -11211,13 +11211,25 @@ suite('CopilotAgent', () => {
 				configuration: { type: McpServerType.REMOTE, url, headers: { Authorization: 'Bearer connector-token' } },
 				scopes: [],
 			});
+			const connectors = [
+				connector('mail', 'https://connectors.example.test/mail'),
+				connector('collision', 'https://connectors.example.test/collision'),
+			];
+			const mcpConnectorsService = createTestMcpConnectorsService();
+			let connectorRefreshes = 0;
+			let cachedConnectorReads = 0;
+			mcpConnectorsService.refresh = async () => {
+				connectorRefreshes++;
+				return connectors;
+			};
+			mcpConnectorsService.getConnectors = async () => {
+				cachedConnectorReads++;
+				return [];
+			};
 			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				mcpConnectorsService: createTestMcpConnectorsService([
-					connector('mail', 'https://connectors.example.test/mail'),
-					connector('collision', 'https://connectors.example.test/collision'),
-				]),
+				mcpConnectorsService,
 				rootConfig: {
 					[AgentHostMcpServersConfigKey]: {
 						collision: { type: McpServerType.REMOTE, url: 'https://user.example.test/mcp', headers: { 'X-Source': 'user' } },
@@ -11233,6 +11245,7 @@ suite('CopilotAgent', () => {
 				});
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
 
+				assert.deepStrictEqual({ connectorRefreshes, cachedConnectorReads }, { connectorRefreshes: 1, cachedConnectorReads: 0 });
 				assert.deepStrictEqual(capturedConfig?.mcpServers, {
 					mail: { type: 'http', url: 'https://connectors.example.test/mail', headers: { Authorization: 'Bearer connector-token' }, tools: ['*'] },
 					collision: { type: 'http', url: 'https://user.example.test/mcp', headers: { 'X-Source': 'user' }, tools: ['*'] },

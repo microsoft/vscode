@@ -7365,7 +7365,7 @@ class ActiveClient extends Disposable {
 	}
 
 	private async _getMcpServers(): Promise<AgentHostMcpServers> {
-		const connectorServers = toMcpServerConfigurationMap(await this._mcpConnectorsService.getConnectors());
+		const connectorServers = toMcpServerConfigurationMap(await this._mcpConnectorsService.refresh());
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
 
 		return structuredClone({ ...connectorServers, ...servers });
