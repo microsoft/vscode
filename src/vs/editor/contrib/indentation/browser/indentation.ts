@@ -19,9 +19,8 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContr
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import { TextEdit } from '../../../common/languages.js';
-import { getGoodIndentForLine, getIndentMetadata } from '../../../common/languages/autoIndent.js';
+import { getGoodIndentForLine } from '../../../common/languages/autoIndent.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
-import { IndentConsts } from '../../../common/languages/supports/indentRules.js';
 import { EndOfLineSequence, ITextModel } from '../../../common/model.js';
 import { IModelService } from '../../../common/services/model.js';
 import { getStandardTokenTypeAtPosition } from '../../../common/tokens/lineTokens.js';
@@ -453,16 +452,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						text: newIndent
 					});
 					firstLineText = newIndent + firstLineText.substring(oldIndentation.length);
-				} else {
-					const indentMetadata = getIndentMetadata(model, startLineNumber, this._languageConfigurationService);
-
-					if (indentMetadata === 0 || indentMetadata === IndentConsts.UNINDENT_MASK) {
-						// we paste content into a line where only contains whitespaces
-						// after pasting, the indentation of the first line is already correct
-						// the first line doesn't match any indentation rule
-						// then no-op.
-						return;
-					}
 				}
 			}
 		}
