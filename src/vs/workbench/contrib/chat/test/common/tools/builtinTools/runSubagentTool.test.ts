@@ -39,10 +39,14 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
-/** Resolves each tool name of an agent's `tools` to an enabled tool with that id. */
+/** Like the real service, includes every known tool and enables only the ones an agent's `tools` lists. */
 class EnablementMapToolsService extends MockLanguageModelToolsService {
+	constructor(private readonly knownToolIds: readonly string[]) {
+		super();
+	}
+
 	override toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): ToolAndToolSetEnablementMap {
-		return ToolAndToolSetEnablementMap.fromEntries(toolOrToolSetNames.map(id => [{ id } as IToolData, true]));
+		return ToolAndToolSetEnablementMap.fromEntries(this.knownToolIds.map(id => [{ id } as IToolData, toolOrToolSetNames.includes(id)]));
 	}
 }
 
@@ -1316,7 +1320,7 @@ suite('RunSubagentTool', () => {
 			onInvokeAgent?: (request: IChatAgentRequest) => Promise<void>;
 			languageModelsService?: ILanguageModelsService;
 		}) {
-			const mockToolsService = testDisposables.add(new EnablementMapToolsService());
+			const mockToolsService = testDisposables.add(new EnablementMapToolsService(['readTool', RunSubagentTool.Id, 'topLevelTool']));
 			const promptsService = new MockPromptsService();
 			promptsService.setCustomModes(opts.customAgents);
 
@@ -1576,7 +1580,7 @@ suite('RunSubagentTool', () => {
 					{
 						...createAgent('B', ['C']),
 						model: [modelName],
-						tools: ['readTool'],
+						tools: ['readTool', RunSubagentTool.Id],
 						hooks: { [HookType.PreToolUse]: [{ command: 'guard-read' }], [HookType.Stop]: [{ command: 'on-stop' }] },
 					},
 					createAgent('C'),
@@ -1599,7 +1603,7 @@ suite('RunSubagentTool', () => {
 
 			await tool.invoke(inTopLevelRequest(createInvocation('B')), countTokens, noProgress, CancellationToken.None);
 
-			const bTools = { readTool: true, runSubagent: true, manage_todo_list: false, copilot_askQuestions: false };
+			const bTools = { readTool: true, runSubagent: true, topLevelTool: false, manage_todo_list: false, copilot_askQuestions: false };
 			const bHooks = { [HookType.PreToolUse]: [{ command: 'guard-read' }], [HookType.Stop]: undefined, [HookType.SubagentStop]: [{ command: 'on-stop' }] };
 			assert.deepStrictEqual({
 				preparedAgentName,
