@@ -30,8 +30,6 @@ suite('ModelPickerActionItem', () => {
 			minimumWidth: 60,
 			setSelectedModel: () => { },
 			setCompact: () => { },
-			setContextViewLayer: () => { },
-			setForceTabbedPicker: () => { },
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
