@@ -93,23 +93,19 @@ export interface IAgentHostChangesetService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Registers the two static changeset URIs (`uncommitted`, `session`)
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`state.changesets`) is seeded
-	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
-	 * deals with the state-manager-side per-changeset entries.
-	 *
-	 * Idempotent; safe to call on every create and restore path.
+	 * Registers static repository changesets for any owner and the cumulative
+	 * Session Changes resource for session owners, initially in `Computing`.
+	 * Idempotent; does not modify catalogue entries.
 	 */
 	registerStaticChangesets(session: ProtocolURI): void;
 
 	/**
-	 * Re-seed a static changeset (`uncommitted` or `session`) from a
+	 * Re-seed a static changeset from a
 	 * previously persisted file list (e.g. read out of the session DB on
 	 * restore / listSessions). Idempotently registers the changeset URI
 	 * on the state manager, fans the persisted files out as
 	 * `changeset/fileSet` actions, and transitions the status to `Ready`.
+	 * Session Changes are restored only for session owners.
 	 */
 	restoreStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[]): void;
 
@@ -128,9 +124,8 @@ export interface IAgentHostChangesetService {
 	 * persisted restore and should only be used on real restore/subscribe
 	 * paths that need a subscribable changeset snapshot.
 	 *
-	 * Honours `seedIfEmpty`: when a live changeset state already has files
-	 * for the same kind, persisted diffs are NOT applied (they would
-	 * otherwise overwrite the live state).
+	 * Honours `seedIfEmpty`: a completed live result, including an empty
+	 * one, takes precedence over persisted diffs.
 	 */
 	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void;
 
@@ -193,7 +188,7 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`. Skips computation while
+	 * first subscribes to a folder-scoped Branch Changes resource. Skips computation while
 	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
 	 * recomputes the current subscriptions after materialization or restore.
 	 */
@@ -227,6 +222,8 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
+	 * A subscription starts this computation without waiting for the result;
+	 * the snapshot has `Computing` or `Recomputing` status until publication.
 	 * Per-turn changesets are not persisted.
 	 */
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;
@@ -283,5 +280,8 @@ export interface IAgentHostChangesetService {
 	 * `changedTurnId`, no incremental reuse).
 	 */
 	onSessionTruncated(session: ProtocolURI): void;
+
+	/** Cancels pending changeset work after a chat or folder owner is removed. */
+	onChangesetOwnerRemoved?(owner: ProtocolURI): void;
 
 }

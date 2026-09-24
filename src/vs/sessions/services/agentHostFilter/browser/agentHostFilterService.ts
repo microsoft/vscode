@@ -253,6 +253,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				icon: ThemeIcon;
 				status: AgentHostFilterConnectionStatus;
 				connectable: boolean;
+				sessionCreationProviderId?: string;
 				order: number;
 			}
 
@@ -266,13 +267,14 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 					// identity of that rollup, so an empty group reads as such.
 					entry = {
 						id: group.id,
-						providerIds: [],
+						providerIds: group.sessionCreationProviderId && this._sessionsProvidersService.getProvider(group.sessionCreationProviderId) ? [group.sessionCreationProviderId] : [],
 						label: group.label,
 						grouped: true,
 						address: undefined,
 						icon: group.icon ?? Codicon.remote,
 						status: AgentHostFilterConnectionStatus.Disconnected,
 						connectable: group.connectable !== false,
+						sessionCreationProviderId: group.sessionCreationProviderId,
 						order: group.order ?? 0,
 					};
 					grouped.set(group.id, entry);
@@ -321,6 +323,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				|| h.label !== this._hosts[i].label
 				|| h.address !== this._hosts[i].address
 				|| h.status !== this._hosts[i].status
+				|| h.sessionCreationProviderId !== this._hosts[i].sessionCreationProviderId
 				|| h.providerIds.length !== this._hosts[i].providerIds.length
 				|| h.providerIds.some((p, j) => p !== this._hosts[i].providerIds[j]));
 

@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { SymbolKind } from '../../../../../../editor/common/languages.js';
+import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -29,7 +30,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
@@ -288,6 +289,47 @@ suite('ChatModel', () => {
 			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
 			completionTokenCount: 5,
 			responseContent: '',
+		});
+	});
+
+	test('retained terminal identity survives chat serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
+		const terminal = URI.parse('agenthost-terminal://shell/session/tool');
+		model.acceptResponseProgress(request, {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'terminal-full-output',
+			toolName: 'bash',
+			isComplete: true,
+			invocationMessage: 'Running command',
+			pastTenseMessage: 'Ran command',
+			toolSpecificData: {
+				kind: 'terminal',
+				language: 'shellscript',
+				commandLine: { original: 'build' },
+				terminalCommandUri: terminal,
+				terminalCommandOutput: { text: 'Saved to: /artifact/output.txt', truncated: true, fullOutputPreview: 'preview' },
+			},
+		});
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.ok(invocation?.kind === 'toolInvocationSerialized' && invocation.toolSpecificData?.kind === 'terminal');
+		const output = invocation.toolSpecificData.terminalCommandOutput;
+		assert.deepStrictEqual({
+			text: output?.text,
+			truncated: output?.truncated,
+			fullOutputPreview: output?.fullOutputPreview,
+			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
+		}, {
+			text: 'Saved to: /artifact/output.txt',
+			truncated: true,
+			fullOutputPreview: 'preview',
+			terminal: terminal.toString(),
 		});
 	});
 
@@ -1656,6 +1698,10 @@ suite('isExportableSessionData', () => {
 	test('invalid - undefined', () => {
 		assert.strictEqual(isExportableSessionData(undefined), false);
 	});
+});
+
+suite('parseChatImport', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('extracts only exportable session fields', () => {
 		const data = {
@@ -1667,11 +1713,118 @@ suite('isExportableSessionData', () => {
 			customTitle: 'Injected title',
 		};
 
-		assert.deepStrictEqual(extractExportableSessionData(data), {
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'assistant',
 		});
+	});
+
+	for (const isTrusted of [true, false, { enabledCommands: ['test.chatImport'] }, 'true']) {
+		test(`removes nested trust permissions: ${JSON.stringify(isTrusted)}`, () => {
+			const createData = (trust: typeof isTrusted) => {
+				const markdown = { value: '[Details](command:test.chatImport)', isTrusted: trust };
+				return {
+					initialLocation: ChatAgentLocation.Chat,
+					responderUsername: 'assistant',
+					requests: [{
+						requestId: 'request',
+						message: 'hello',
+						variableData: { variables: [] },
+						response: [
+							markdown,
+							{ kind: 'markdownContent', content: markdown },
+							{ kind: 'markdownVuln', content: markdown, vulnerabilities: [] },
+							{
+								kind: 'toolInvocationSerialized',
+								toolId: 'test',
+								toolCallId: 'call',
+								invocationMessage: markdown,
+								pastTenseMessage: markdown,
+								originMessage: markdown,
+								isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: markdown },
+								isComplete: true,
+							},
+						],
+						result: { metadata: { nested: [null, { markdown }] } },
+					}],
+				};
+			};
+
+			assert.deepStrictEqual(parseChatImport(JSON.stringify(createData(isTrusted))), createData(false));
+		});
+	}
+
+	test('preserves ordinary content and revives resource URIs', () => {
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [
+					{ value: '**Text** [website](https://example.com/)', supportHtml: false, supportThemeIcons: true },
+					{ kind: 'inlineReference', inlineReference: URI.file('/workspace/example.ts'), name: 'example.ts' },
+				],
+			}],
+		};
+
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	test('preserves unrelated isTrusted properties', () => {
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [],
+				result: {
+					metadata: {
+						isTrusted: true,
+						nested: [
+							{ isTrusted: { enabledCommands: ['test.metadata'] } },
+							{ value: 42, isTrusted: true },
+							{ value: null, isTrusted: 'metadata' },
+						],
+					},
+				},
+			}],
+		};
+
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	for (const options of [{ supportThemeIcons: 'invalid' }, { supportAlertSyntax: 'invalid' }]) {
+		test(`removes markdown trust even with malformed options: ${JSON.stringify(options)}`, () => {
+			const data = {
+				initialLocation: ChatAgentLocation.Chat,
+				responderUsername: 'assistant',
+				requests: [{
+					requestId: 'request',
+					message: 'hello',
+					variableData: { variables: [] },
+					response: [{
+						kind: 'markdownContent',
+						content: { value: '[Details](command:test.chatImport)', isTrusted: true, ...options },
+					}],
+				}],
+			};
+			const imported = parseChatImport(JSON.stringify(data));
+			data.requests[0].response[0].content.isTrusted = false;
+
+			assert.deepStrictEqual(imported, data);
+		});
+	}
+
+	test('rejects invalid JSON and invalid session data', () => {
+		assert.throws(() => parseChatImport('{'), SyntaxError);
+		for (const data of [null, {}, { requests: [], responderUsername: 1 }, { requests: {}, responderUsername: 'assistant' }]) {
+			assert.throws(() => parseChatImport(JSON.stringify(data)), /Invalid chat session data/);
+		}
 	});
 });
 
@@ -2540,6 +2693,40 @@ suite('ChatModel - Pending Requests', () => {
 
 		assert.strictEqual(restoredOptions.instructionContext?.modeKind, ChatModeKind.Agent);
 		assert.deepStrictEqual(restoredOptions.instructionContext?.enabledTools, enabledTools);
+	});
+
+	test('pending requests restore Agent Host message provenance', () => {
+		const model = createModel();
+		const provenance = {
+			agentHostMessageOrigin: { kind: MessageKind.SystemNotification },
+			metadata: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' },
+			isSystemInitiated: true,
+			systemInitiatedLabel: 'Background task completed',
+		};
+		const request = new ChatRequestModel({
+			session: model,
+			message: { text: 'background task', parts: [] },
+			variableData: { variables: [] },
+			timestamp: 0,
+			isSystemInitiated: provenance.isSystemInitiated,
+			systemInitiatedLabel: provenance.systemInitiatedLabel,
+		});
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, provenance);
+		const operationLog = new ChatSessionOperationLog();
+		const serializedData = operationLog.read(operationLog.createInitial(model));
+		const restoredModel = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const restored = restoredModel.getPendingRequests()[0].sendOptions;
+
+		assert.deepStrictEqual({
+			agentHostMessageOrigin: restored.agentHostMessageOrigin,
+			metadata: restored.metadata,
+			isSystemInitiated: restored.isSystemInitiated,
+			systemInitiatedLabel: restored.systemInitiatedLabel,
+		}, provenance);
 	});
 });
 

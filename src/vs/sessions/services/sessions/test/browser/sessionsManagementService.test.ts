@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -41,13 +41,13 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, IActiveSession, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { SessionsService } from '../../browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { OpenSessionsInGridOutcome, SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
-import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { ISessionsPartService, SessionGridLayout } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -61,6 +61,7 @@ const stubChat = {
 	updatedAt: constObservable(new Date()),
 	status: constObservable(0),
 	changes: constObservable([]),
+	changesets: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	modelSource: constObservable(undefined),
@@ -82,8 +83,6 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		title: constObservable('Test'),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(0),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -180,7 +179,7 @@ class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 		super();
 	}
 
-	override registerProvider(): never {
+	override registerProvider(_provider: ISessionsProvider): IDisposable {
 		throw new Error('not implemented');
 	}
 
@@ -232,25 +231,26 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
-	provider: ISessionsProvider | readonly ISessionsProvider[] = new TestSessionsProvider(session),
+	provider: ISessionsProvider | readonly ISessionsProvider[] | TestSessionsProvidersService = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; instantiationService: TestInstantiationService; storage: InMemoryStorageService; partService: TestSessionsPartService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
-	const providers = Array.isArray(provider) ? provider : [provider];
+	const providersService = provider instanceof TestSessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
+	const storage = disposables.add(new InMemoryStorageService());
 
-	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
-	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
+	instantiationService.stub(ISessionsProvidersService, providersService);
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IProgressService, new TestProgressService());
@@ -267,11 +267,12 @@ function createSessionsManagementService(
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = new TestSessionsPartService(focusSession.event);
 	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, instantiationService, storage, partService: sessionsPartService, focusSession, sessionsPartService, notifications };
 }
 
 /** Sessions part stub that records focus requests without rendering views. */
 class TestSessionsPartService extends mock<ISessionsPartService>() {
+	readonly updates: { ids: (string | undefined)[]; layout: SessionGridLayout | undefined }[] = [];
 	readonly sessionViews = new Map<string | undefined, SessionView>();
 	readonly focusedSessions: (string | undefined)[] = [];
 	focusedSessionView: SessionView | undefined;
@@ -279,7 +280,9 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
-	override updateVisibleSessions(): void { }
+	override updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], _active: IActiveSession | undefined, layout?: SessionGridLayout): void {
+		this.updates.push({ ids: visible.map(session => session?.sessionId), layout });
+	}
 	override focusSession(session: IActiveSession | undefined): void { this.focusedSessions.push(session?.sessionId); }
 	override getSessionView(sessionId: string | undefined): SessionView | undefined { return this.sessionViews.get(sessionId); }
 	override getFocusedSessionView(): SessionView | undefined { return this.focusedSessionView; }
@@ -323,6 +326,313 @@ function createView(
 suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('provider catalogue changes', () => {
+
+		function createProvidersService(): TestSessionsProvidersService {
+			const providers: ISessionsProvider[] = [];
+			const onDidChangeProviders = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
+			return new class extends TestSessionsProvidersService {
+				override readonly onDidChangeProviders = onDidChangeProviders.event;
+				override registerProvider(provider: ISessionsProvider): IDisposable {
+					providers.push(provider);
+					onDidChangeProviders.fire({ added: [provider], removed: [] });
+					return toDisposable(() => {
+						providers.splice(providers.indexOf(provider), 1);
+						onDidChangeProviders.fire({ added: [], removed: [provider] });
+					});
+				}
+			}(providers);
+		}
+
+		test('announces cached sessions when a provider registers', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const changes: ISessionChangeEvent[] = [];
+			let listed = service.getSessions();
+			disposables.add(service.onDidChangeSessions(e => {
+				changes.push(e);
+				listed = service.getSessions();
+			}));
+
+			disposables.add(providersService.registerProvider(new TestSessionsProvider(session)));
+
+			assert.deepStrictEqual({
+				changes,
+				listed,
+				sameSession: service.getSession(session.resource) === session,
+			}, {
+				changes: [{ added: [session], removed: [], changed: [] }],
+				listed: [session],
+				sameSession: true,
+			});
+		});
+
+		test('seeds cached sessions before subscribing to reentrant provider changes', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			let reads = 0;
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+				override getSessions(): ISession[] {
+					if (++reads === 1) {
+						onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+					}
+					return [session];
+				}
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const changes: ISessionChangeEvent[] = [];
+			const snapshots: ISession[][] = [];
+			disposables.add(service.onDidChangeSessions(e => {
+				changes.push(e);
+				snapshots.push(service.getSessions());
+			}));
+
+			disposables.add(providersService.registerProvider(provider));
+
+			assert.deepStrictEqual({ changes, snapshots, reads }, {
+				changes: [{ added: [session], removed: [], changed: [] }],
+				snapshots: [[session]],
+				reads: 2,
+			});
+		});
+
+		test('refreshes the catalogue without deletions when a provider clears its cache and unregisters', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const sessions = [session];
+			let reads = 0;
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] {
+					reads++;
+					return sessions;
+				}
+			}(session);
+			const providersService = createProvidersService();
+			const registration = disposables.add(providersService.registerProvider(provider));
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const changes: ISessionChangeEvent[] = [];
+			disposables.add(service.onDidChangeSessions(e => changes.push(e)));
+			const readsBeforeRemoval = reads;
+
+			sessions.length = 0;
+			registration.dispose();
+
+			assert.deepStrictEqual({
+				changes,
+				listed: service.getSessions(),
+				readsAfterRemoval: reads - readsBeforeRemoval,
+			}, {
+				changes: [{ added: [], removed: [], changed: [] }],
+				listed: [],
+				readsAfterRemoval: 0,
+			});
+		});
+
+		test('does not subscribe to a provider removed while its cached sessions are read', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+				override getSessions(): ISession[] {
+					registration.dispose();
+					return [session];
+				}
+			}(session);
+			const providersService = createProvidersService();
+			const registration = disposables.add(providersService.registerProvider(provider));
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const changes: ISessionChangeEvent[] = [];
+			disposables.add(service.onDidChangeSessions(e => changes.push(e)));
+
+			onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+
+			assert.deepStrictEqual({ changes, listed: service.getSessions(), listening: onDidChangeSessions.hasListeners() }, {
+				changes: [],
+				listed: [],
+				listening: false,
+			});
+		});
+
+		test('keeps session reads live and deduplicated across provider changes', () => {
+			const legacy = stubSession({
+				sessionId: 'legacy', providerId: 'test',
+				resource: URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/shared' }),
+			});
+			const migrated = stubSession({
+				sessionId: 'migrated', providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/shared' }),
+			});
+			const added = stubSession({ sessionId: 'added', providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+			const sessions = [migrated];
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+				override getSessions(): ISession[] { return sessions; }
+			}(migrated);
+			const providersService = createProvidersService();
+			disposables.add(providersService.registerProvider(new TestSessionsProvider(legacy)));
+			const { service } = createSessionsManagementService(legacy, disposables, providersService);
+			const changes: ISessionChangeEvent[] = [];
+			const snapshots: ISession[][] = [];
+			disposables.add(service.onDidChangeSessions(e => {
+				changes.push(e);
+				snapshots.push(service.getSessions());
+			}));
+
+			const registration = disposables.add(providersService.registerProvider(provider));
+			const sameLegacySession = service.getSession(legacy.resource) === legacy;
+			const sameMigratedSession = service.getSession(migrated.resource) === migrated;
+			sessions.push(added);
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+			registration.dispose();
+
+			assert.deepStrictEqual({ changes, snapshots, sameLegacySession, sameMigratedSession }, {
+				changes: [
+					{ added: [migrated], removed: [], changed: [] },
+					{ added: [], removed: [], changed: [] },
+					{ added: [], removed: [], changed: [] },
+				],
+				snapshots: [[migrated], [migrated, added], [legacy]],
+				sameLegacySession: true,
+				sameMigratedSession: true,
+			});
+		});
+
+		test('forwards real removals and replacements without treating provider loss as deletion', () => {
+			const removed = stubSession({ sessionId: 'removed', providerId: 'test' });
+			const original = stubSession({ sessionId: 'original', providerId: 'test' });
+			const changed = stubSession({ sessionId: 'original', providerId: 'test', title: constObservable('Changed') });
+			const added = stubSession({ sessionId: 'added', providerId: 'test' });
+			const replacement = stubSession({ sessionId: 'replacement', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+			let reads = 0;
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+				override readonly onDidReplaceSession = onDidReplaceSession.event;
+				override getSessions(): ISession[] {
+					reads++;
+					return [removed, original];
+				}
+			}(original);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(original, disposables, providersService);
+			const registration = disposables.add(providersService.registerProvider(provider));
+			const changes: ISessionChangeEvent[] = [];
+			disposables.add(service.onDidChangeSessions(e => changes.push(e)));
+			const readsBeforeChanges = reads;
+
+			const change = { added: [added], removed: [removed], changed: [changed] };
+			onDidChangeSessions.fire(change);
+			onDidReplaceSession.fire({ from: added, to: replacement });
+			registration.dispose();
+
+			assert.deepStrictEqual({ changes, readsAfterChanges: reads - readsBeforeChanges }, {
+				changes: [
+					change,
+					{ added: [], removed: [added], changed: [replacement] },
+					{ added: [], removed: [], changed: [] },
+				],
+				readsAfterChanges: 0,
+			});
+		});
+
+		test('preserves visible sessions and pending drafts when their provider unregisters', async () => {
+			const active = stubSession({ sessionId: 'active', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test' });
+			const automation = stubSession({ sessionId: 'automation', providerId: 'test' });
+			const fallback = stubSession({ sessionId: 'fallback', providerId: 'retained' });
+			const folderUri = URI.parse('test:///folder');
+			let draftsCreated = 0;
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override readonly automations = upcastPartial<NonNullable<ISessionsProvider['automations']>>({
+					catalogueState: constObservable('ready'),
+				});
+				override resolveWorkspace(): ISessionWorkspace {
+					return { uri: folderUri, label: 'Folder', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override createNewSession(): ISession { return draftsCreated++ === 0 ? draft : automation; }
+				override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+			}(active);
+			const retainedProvider = new class extends TestSessionsProvider {
+				override readonly id = 'retained';
+			}(fallback);
+			const providersService = createProvidersService();
+			disposables.add(providersService.registerProvider(retainedProvider));
+			const registration = disposables.add(providersService.registerProvider(provider));
+			const { service, view } = createSessionsManagementService(active, disposables, providersService);
+			await view.openSession(fallback.resource);
+			await view.openSessionToSide(active);
+			service.createNewSession(folderUri);
+			service.createAutomationSession(folderUri);
+			const changes: ISessionChangeEvent[] = [];
+			disposables.add(service.onDidChangeSessions(e => changes.push(e)));
+
+			registration.dispose();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				changes,
+				listed: service.getSessions(),
+				draft: service.newSession.get(),
+				automation: service.automationSession.get(),
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				active: view.activeSession.get()?.sessionId,
+				deleted,
+			}, {
+				changes: [{ added: [], removed: [], changed: [] }],
+				listed: [fallback],
+				draft,
+				automation,
+				visible: ['fallback', 'active'],
+				active: 'active',
+				deleted: [],
+			});
+		});
+
+		test('ignores events from an unregistered provider after its ID is reused', () => {
+			const original = stubSession({ sessionId: 'original', providerId: 'test' });
+			const current = stubSession({ sessionId: 'current', providerId: 'test' });
+			const stale = stubSession({ sessionId: 'stale', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+			const onDidChangeSessionTypes = disposables.add(new Emitter<void>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+				override readonly onDidReplaceSession = onDidReplaceSession.event;
+				override readonly onDidChangeSessionTypes = onDidChangeSessionTypes.event;
+			}(original);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(original, disposables, providersService);
+			const registration = disposables.add(providersService.registerProvider(provider));
+			registration.dispose();
+			const currentRegistration = disposables.add(providersService.registerProvider(new TestSessionsProvider(current)));
+			const changes: ISessionChangeEvent[] = [];
+			const replacements: { readonly from: ISession; readonly to: ISession }[] = [];
+			let typeChanges = 0;
+			disposables.add(service.onDidChangeSessions(e => changes.push(e)));
+			disposables.add(service.onDidReplaceSession(e => replacements.push(e)));
+			disposables.add(service.onDidChangeSessionTypes(() => typeChanges++));
+
+			onDidChangeSessions.fire({ added: [stale], removed: [], changed: [] });
+			onDidReplaceSession.fire({ from: original, to: stale });
+			onDidChangeSessionTypes.fire();
+			const listed = service.getSessions();
+			currentRegistration.dispose();
+
+			assert.deepStrictEqual({ changes, replacements, typeChanges, listed }, {
+				changes: [{ added: [], removed: [], changed: [] }],
+				replacements: [],
+				typeChanges: 1,
+				listed: [current],
+			});
+		});
+	});
 
 	test('activates an existing empty composer from part focus without replacing its sibling session', async () => {
 		const session = stubSession({ sessionId: 'existing', providerId: 'test' });
@@ -416,6 +726,85 @@ suite('SessionsManagementService', () => {
 			cancelled: [],
 			disposedModelRefs: 0,
 		});
+	});
+
+	test('archiving an active session stops each running chat before archiving', async () => {
+		const mainChat = { ...stubChat, status: constObservable(SessionStatus.InProgress) };
+		const peerChat = { ...stubChat, resource: URI.parse('test:///peer'), status: constObservable(SessionStatus.NeedsInput) };
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test',
+			status: constObservable(SessionStatus.InProgress),
+			mainChat: constObservable(mainChat),
+			chats: constObservable([mainChat, peerChat]),
+		});
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(): Promise<void> {
+				calls.push('archive');
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		chatService.cancelCurrentRequestForSession = async resource => {
+			calls.push(`stop ${resource.path}`);
+		};
+
+		await service.archiveSession(session);
+
+		assert.deepStrictEqual(calls, ['stop /chat', 'stop /peer', 'archive']);
+	});
+
+	test('archiving an idle session stops an active peer chat before archiving', async () => {
+		const peerChat = { ...stubChat, resource: URI.parse('test:///peer'), status: constObservable(SessionStatus.InProgress) };
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats: constObservable([stubChat, peerChat]),
+		});
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(): Promise<void> {
+				calls.push('archive');
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		chatService.cancelCurrentRequestForSession = async resource => {
+			calls.push(`stop ${resource.path}`);
+		};
+
+		await service.archiveSession(session);
+
+		assert.deepStrictEqual(calls, ['stop /peer', 'archive']);
+	});
+
+	test('archiving a running session with unloaded chats cancels its main chat before archiving', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+
+		await service.archiveSession(session);
+
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [stubChat.resource],
+		});
+	});
+
+	test('failed cancellation does not archive a running session', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(): Promise<void> {
+				calls.push('archive');
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		chatService.cancelError = new Error('cancel failed');
+
+		await assert.rejects(() => service.archiveSession(session), /cancel failed/);
+
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('openSession waits for a loading session before opening chat content', async () => {
@@ -1584,6 +1973,94 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('openSessionsInGrid atomically opens only the requested sessions and restores the tiled mode', async () => {
+		const sessions = ['a', 'b', 'c', 'd', 'unrelated'].map(sessionId => stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Completed) }));
+		const prepared: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return sessions; }
+			override async prepareSessionForOpen(session: ISession): Promise<void> { prepared.push(session.sessionId); }
+		}(sessions[0]);
+		const fixture = createSessionsManagementService(sessions[0], disposables, provider);
+		await fixture.view.openSession(sessions[4].resource);
+		fixture.partService.updates.length = 0;
+		prepared.length = 0;
+		const states: { layout: string; sessions: (string | null)[] }[] = [];
+		disposables.add(autorun(reader => {
+			states.push({
+				layout: fixture.view.sessionGridLayout.read(reader),
+				sessions: fixture.view.visibleSessions.read(reader).map(session => session?.sessionId ?? null),
+			});
+		}));
+		const outcome = await fixture.view.openSessionsInGrid([...sessions.slice(0, 4), sessions[0]]);
+		const showedGridSessionsInColumns = states.some(state =>
+			state.layout === 'columns' && state.sessions.join(',') === 'a,b,c,d');
+		const initialUpdates = [...fixture.partService.updates];
+		await fixture.storage.flush();
+		fixture.view.dispose();
+		const restoredParts = new TestSessionsPartService();
+		const restored = createView(fixture.instantiationService, fixture.service, disposables, fixture.customViewService, restoredParts);
+		await restored.restoreVisibleSessions();
+		const restoredLayout = restoredParts.updates.at(-1);
+		await restored.openSession(sessions[4].resource);
+		assert.deepStrictEqual({
+			initialUpdates,
+			outcome,
+			showedGridSessionsInColumns,
+			prepared: prepared.slice(0, 4),
+			restoredLayout,
+			ordinaryLayout: restoredParts.updates.at(-1)?.layout,
+		}, {
+			initialUpdates: [{ ids: ['a', 'b', 'c', 'd'], layout: 'grid' }],
+			outcome: OpenSessionsInGridOutcome.Committed,
+			showedGridSessionsInColumns: false,
+			prepared: ['a', 'b', 'c', 'd'],
+			restoredLayout: { ids: ['a', 'b', 'c', 'd'], layout: 'grid' },
+			ordinaryLayout: 'columns',
+		});
+	});
+
+	test('openSessionsInGrid preserves the current layout when preparing an attempt fails', async () => {
+		const sessions = ['a', 'b'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return sessions; }
+			override async prepareSessionForOpen(session: ISession): Promise<void> {
+				if (session === sessions[1]) { throw new Error('Provider disconnected'); }
+			}
+		}(sessions[0]);
+		const { view } = createSessionsManagementService(sessions[0], disposables, provider);
+		await view.openSession(sessions[0].resource);
+		await assert.rejects(view.openSessionsInGrid(sessions), /Provider disconnected/);
+		assert.deepStrictEqual(view.visibleSessions.get().map(session => session?.sessionId), ['a']);
+	});
+
+	test('openSessionsInGrid does not supersede a newer explicit navigation', async () => {
+		const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+		const started = new DeferredPromise<void>();
+		const pending = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return sessions; }
+			override async prepareSessionForOpen(session: ISession): Promise<void> {
+				if (session === sessions[1]) {
+					started.complete();
+					await pending.p;
+				}
+			}
+		}(sessions[0]);
+		const { view } = createSessionsManagementService(sessions[0], disposables, provider);
+		const opening = view.openSessionsInGrid(sessions.slice(0, 2));
+		await started.p;
+		await view.openSession(sessions[2].resource);
+		pending.complete();
+		const outcome = await opening;
+		assert.deepStrictEqual({
+			outcome,
+			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId),
+		}, {
+			outcome: OpenSessionsInGridOutcome.NotCommitted,
+			visibleSessions: ['c'],
+		});
+	});
+
 	test('restoreVisibleSessions prepares only the active session', async () => {
 		const session = stubSession({
 			sessionId: 'remote',
@@ -1711,8 +2188,8 @@ suite('SessionsManagementService', () => {
 		storage.store(
 			'agentSessions.activeSessionStates',
 			JSON.stringify([
-				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false },
-				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true },
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false, gridLayout: 'grid' },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true, gridLayout: 'grid' },
 			]),
 			1 /* StorageScope.WORKSPACE */,
 			1 /* StorageTarget.MACHINE */,
@@ -1733,25 +2210,33 @@ suite('SessionsManagementService', () => {
 		const view = createView(instantiationService, service, disposables);
 
 		// Record every grid state published while restoring.
-		const states: (string | null)[][] = [];
+		const states: { layout: string; sessions: (string | null)[] }[] = [];
 		disposables.add(autorun(reader => {
-			states.push(view.visibleSessions.read(reader).map(s => s?.sessionId ?? null));
+			states.push({
+				layout: view.sessionGridLayout.read(reader),
+				sessions: view.visibleSessions.read(reader).map(s => s?.sessionId ?? null),
+			});
 		}));
 
 		await view.restoreVisibleSessions();
 
 		// The grid must never go through a state showing only the active
 		// session 'b' on its own — that intermediate layout is the flicker.
-		const showedActiveAlone = states.some(s => s.length === 1 && s[0] === 'b');
+		const showedActiveAlone = states.some(state => state.sessions.length === 1 && state.sessions[0] === 'b');
+		const showedGridSessionsInColumns = states.some(state => state.layout === 'columns' && state.sessions.join(',') === 'a,b');
 
 		assert.deepStrictEqual({
 			showedActiveAlone,
+			showedGridSessionsInColumns,
 			final: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			active: view.activeSession.get()?.sessionId,
+			layout: view.sessionGridLayout.get(),
 		}, {
 			showedActiveAlone: false,
+			showedGridSessionsInColumns: false,
 			final: ['a', 'b'],
 			active: 'b',
+			layout: 'grid',
 		});
 	});
 
@@ -2415,6 +2900,95 @@ suite('SessionsManagementService', () => {
 			metadata: undefined,
 			automationConfiguration: { sessionTemplate },
 		});
+	});
+
+	test('createNewSession forwards model configuration only to supporting providers', () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let providerOptions: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsModelConfigurationForCreation = true;
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		service.createNewSession(URI.parse('test:///folder'), {
+			modelId: 'model',
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
+
+		assert.deepStrictEqual(providerOptions, {
+			metadata: undefined,
+			modelId: 'model',
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
+	});
+
+	test('createNewSession rejects model configuration without provider support or a model', () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
+			modelConfiguration: { thinkingLevel: 'high' },
+		}), /requires a model identifier/);
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
+			modelId: 'model',
+			modelConfiguration: { thinkingLevel: 'high' },
+		}), /does not support model configuration/);
+	});
+
+	test('createNewSession forwards exact permission choices and rejects unavailable permissions', () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		const providerOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly sessionTypes: readonly ISessionType[] = [
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'supported', label: 'Supported', icon: Codicon.vm },
+				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'unsupported', label: 'Unsupported', icon: Codicon.vm },
+			];
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override getPermissionOptionsForCreation(sessionTypeId: string) {
+				return sessionTypeId === 'supported' ? [{
+					id: 'allowAll',
+					label: 'Allow all',
+					description: 'Allow all tools.',
+					isAllowAll: true,
+				}] : [];
+			}
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions.push(options);
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		service.createNewSession(URI.parse('test:///folder'), {
+			sessionTypeId: 'supported',
+			permissionId: 'allowAll',
+		});
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
+			sessionTypeId: 'unsupported',
+			permissionId: 'allowAll',
+		}), /does not support permission 'allowAll'/);
+
+		assert.deepStrictEqual(providerOptions, [{
+			metadata: undefined,
+			permissionId: 'allowAll',
+		}]);
 	});
 
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
@@ -4667,6 +5241,27 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ afterClose, afterReopen: grid(view) }, {
 				afterClose: { visible: ['B'], sticky: [false], active: 'B' },
 				afterReopen: { visible: ['A', 'B'], sticky: [true, false], active: 'A' },
+			});
+		});
+
+		test('showOnlySession replaces visible slots without recording them as closed', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view, canReopen } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			view.toggleSessionStickiness(sessionA);
+			await view.openSession(sessionB.resource);
+			view.showOnlySession(sessionB);
+
+			assert.deepStrictEqual({
+				grid: grid(view),
+				layout: view.sessionGridLayout.get(),
+				canReopen: canReopen(),
+			}, {
+				grid: { visible: ['B'], sticky: [false], active: 'B' },
+				layout: 'columns',
+				canReopen: false,
 			});
 		});
 

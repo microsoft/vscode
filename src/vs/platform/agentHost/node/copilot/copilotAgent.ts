@@ -7,7 +7,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
@@ -40,7 +40,7 @@ import { createContextSizeConfigSchemaProperty } from '../../common/agentModelCo
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -373,6 +373,12 @@ interface IWorkingDirectoryChangeTransactionOptions {
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
+
+class CopilotSessionConfigurationBusyError extends Error {
+	constructor(readonly session: CopilotAgentSession) {
+		super('Cannot refresh Copilot session configuration while the session has an active turn.');
+	}
+}
 
 /** Coordinates all per-session work, resumption, and teardown. */
 class CopilotSessionLifetime {
@@ -1039,7 +1045,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
-			// window reload), so nothing reacts to it here.
+			// window reload), so nothing reacts to it here. Refreshing BYOK models
+			// republishes the whole catalog, which also re-applies the Claude default
+			// thinking level (see `_withClaudeDefaultReasoningEffort`).
 			this._refreshByokModels();
 		}));
 
@@ -1677,11 +1685,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._findSessionChat(session)?.mcpServerOwners();
 	}
 
-	async startMcpServer(session: URI, id: string): Promise<void> {
-		await this._findSessionChat(session)?.startMcpServer(id);
+	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
+		while (true) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const controlChat = this._resolveMcpServerControlChat(session);
+			if (!controlChat) {
+				throw new Error('Cannot start an MCP server before the session runtime has been created. Send a message first.');
+			}
+			try {
+				const refreshed = await raceCancellationError(this._queueChat(AgentSession.id(session), controlChat.sdkSessionId, 'prepareStartMcpServer', async () => {
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					const current = this._findSessionChat(session);
+					if (!current) {
+						throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
+					}
+					return this._refreshSessionConfiguration(
+						this._resolveSendChatContext(controlChat.chat),
+						current,
+						undefined,
+						{ operation: 'startMcpServer', allowRestart: 'whenIdle', token },
+					);
+				}), token);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (this._findSessionChat(session) !== refreshed || refreshed.isDisposed) {
+					continue;
+				}
+				await refreshed.startMcpServer(id, token);
+				return;
+			} catch (error) {
+				if (!(error instanceof CopilotSessionConfigurationBusyError)) {
+					throw error;
+				}
+				if (!await error.session.waitForIdle(token)) {
+					throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
+				}
+			}
+		}
 	}
 
 	async stopMcpServer(session: URI, id: string): Promise<void> {
+		const controlChat = this._resolveMcpServerControlChat(session);
+		if (!controlChat) {
+			return;
+		}
+		// A refresh can still expose the old runtime while its disconnect is pending.
+		await this._queueChat(AgentSession.id(session), controlChat.sdkSessionId, 'prepareStopMcpServer', async () => { });
 		await this._findSessionChat(session)?.stopMcpServer(id);
 	}
 
@@ -2132,7 +2186,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: true,
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
-		this._models.set([...this._capiModels, ...hydraFusionModels, ...this._byokModels], undefined);
+		this._models.set([...this._withClaudeDefaultReasoningEffort(this._capiModels), ...hydraFusionModels, ...this._byokModels], undefined);
+	}
+
+	private _getClaudeDefaultReasoningEffort(): string | undefined {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeDefaultReasoningEffort) || undefined;
+	}
+
+	/**
+	 * Applies {@link CopilotCliConfigKey.ClaudeDefaultReasoningEffort} to the Claude models'
+	 * thinking-level picker at publish time, so a setting change takes effect without re-listing.
+	 * Models that do not support the configured level keep their built-in default.
+	 *
+	 * The SDK model list carries no family, so a model is classified by its configured
+	 * `family` capability override when present, falling back to its id.
+	 */
+	private _withClaudeDefaultReasoningEffort(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+		const effort = this._getClaudeDefaultReasoningEffort();
+		if (!effort) {
+			return models;
+		}
+		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+		const isClaudeFamily = (modelId: string) => {
+			const family = resolveModelCapabilityOverrideField(capabilityOverrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
+			return (family ?? modelId).toLowerCase().startsWith('claude');
+		};
+		return models.map(model => {
+			const configSchema = model.configSchema;
+			const thinkingLevel = configSchema?.properties[ThinkingLevelConfigKey];
+			if (!configSchema || !thinkingLevel?.enum?.includes(effort) || !isClaudeFamily(model.id)) {
+				return model;
+			}
+			return {
+				...model,
+				configSchema: { ...configSchema, properties: { ...configSchema.properties, [ThinkingLevelConfigKey]: { ...thinkingLevel, default: effort } } },
+			};
+		});
 	}
 
 	/**
@@ -2792,8 +2881,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * - a non-adoptable chat is external only when its persisted `clientName`
 	 *   identifies the standalone CLI or GitHub Copilot app. This value records
 	 *   the runtime client that created or last resumed the chat, not immutable
-	 *   creator provenance. External chats must also have repository metadata
-	 *   and have been modified within the last seven days.
+	 *   creator provenance. External chats must also have been modified within
+	 *   the last seven days.
 	 *
 	 * Registered chats are filtered by the host, with stored metadata as a
 	 * fallback when no host filter is installed. A chat the SDK reports
@@ -2828,7 +2917,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let withoutWorkingDirectory = 0;
 		let unsupportedClientName = 0;
 		let outsideImportWindow = 0;
-		let withoutRepository = 0;
 		let suppressedAdoptable = 0;
 		let suppressedArchived = 0;
 		let failed = 0;
@@ -2875,10 +2963,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 						outsideImportWindow++;
 						return undefined;
 					}
-					if (typeof s.context?.repository !== 'string' || s.context.repository.trim().length === 0) {
-						withoutRepository++;
-						return undefined;
-					}
 					externalClientName = clientName;
 				}
 				const discoveredChat = {
@@ -2918,7 +3002,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				publish(chats);
 			}
 		}
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
 		return true;
 	}
 
@@ -3162,6 +3246,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Returns the chat URI bound to the session-backed chat, if any. */
 	private _findSessionChatUri(session: URI): URI | undefined {
 		return this._findBoundSessionChatUri(this._sdkConversationId(session));
+	}
+
+	private _resolveMcpServerControlChat(session: URI): { readonly chat: URI; readonly sdkSessionId: string } | undefined {
+		const liveSession = this._findSessionChat(session);
+		if (liveSession) {
+			return { chat: liveSession.chatChannelUri, sdkSessionId: liveSession.sessionId };
+		}
+		if (this._provisionalSessions.has(AgentSession.id(session))) {
+			return undefined;
+		}
+		const chat = this._findSessionChatUri(session);
+		const backing = chat ? this._chatBackings.get(chat.toString()) : undefined;
+		return chat && backing ? { chat, sdkSessionId: backing.sdkSessionId } : undefined;
 	}
 
 	/** Normalizes an addressed chat operation and refreshes any host snapshot carried in its context. */
@@ -4242,54 +4339,66 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private async _refreshSessionConfiguration(
+		context: IResolvedCopilotChatContext,
+		entry: CopilotAgentSession,
+		workingDirectories: readonly URI[] | undefined,
+		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
+	): Promise<CopilotAgentSession> {
+		const activeClient = this._activeClients.get(context.configurationResource);
+		await activeClient?.pluginController.retryFailedClientSyncIfNeeded();
+		const { operation, allowRestart, turnId } = options;
+		const rootsChanged = workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
+		const currentSnapshot = activeClient ? await activeClient.snapshot(context.chatKey) : undefined;
+		const structuralRestartReason = activeClient && currentSnapshot ? await activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot) : undefined;
+		const currentDisabledRootMcpServers = currentSnapshot
+			? await this._disabledRootMcpServers(context.configurationResource, entry.sessionId, currentSnapshot)
+			: undefined;
+		const disabledRootMcpServersChanged = !!currentDisabledRootMcpServers && !equals(
+			[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
+			[...new Set(currentDisabledRootMcpServers)].sort(),
+		);
+		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
+			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
+			?? structuralRestartReason
+			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
+			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
+			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined);
+		if (!refreshReason) {
+			return entry;
+		}
+		if (options.token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (allowRestart === 'whenIdle' && entry.hasActiveTurn) {
+			throw new CopilotSessionConfigurationBusyError(entry);
+		}
+		this._logService.info(`[Copilot:${context.configurationId}] Session configuration changed, refreshing session: operation=${operation}, sdkSessionId=${entry.sessionId}, chat=${context.chatKey}, turnId=${turnId ?? '(none)'}, reason=${refreshReason}, clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
+		await this._destroyLiveSession(entry, true);
+		if (entry.sessionId === context.configurationId) {
+			return this._resumeSession(context.configurationId, context.chat, workingDirectories);
+		}
+		if (workingDirectories) {
+			activeClient?.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(workingDirectories));
+		}
+		const refreshed = await this._ensureResolvedChatSession(context, workingDirectories);
+		if (!refreshed) {
+			throw new Error(`Cannot refresh Copilot session configuration for chat: ${context.chat.toString()}`);
+		}
+		return refreshed;
+	}
+
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const context = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChat(context.configurationId, context.sequencerKey, 'sendMessage', async enterUnboundedPhase => {
 			const current = this._resolveSendChatContext(chat, operationContext);
-			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded();
-
 			let entry: CopilotAgentSession | undefined = current.target;
-			if (!entry) {
-				entry = await this._ensureResolvedChatSession(current, workingDirectories);
-			}
-
-			// If the active client's config changed (tools or plugins),
-			// dispose this session so it gets resumed with the updated config.
-			const activeClient = this._activeClients.get(current.configurationResource);
 			const hadCachedEntry = !!entry;
-			this._logService.info(`[Copilot:${current.configurationId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
-			const rootsChanged = !!entry && workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-			const currentSnapshot = entry && activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
-			const structuralRestartReason = entry && activeClient && currentSnapshot ? await activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot) : undefined;
-			const currentDisabledRootMcpServers = entry && currentSnapshot
-				? await this._disabledRootMcpServers(current.configurationResource, entry.sessionId, currentSnapshot)
-				: undefined;
-			const disabledRootMcpServersChanged = !!entry && !!currentDisabledRootMcpServers && !equals(
-				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
-				[...new Set(currentDisabledRootMcpServers)].sort(),
-			);
-			const refreshReason = (entry?.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
-				?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
-				?? structuralRestartReason
-				?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
-				?? (entry?.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
-				?? (entry?.requiresControlPlaneResync ? 'controlPlaneResync' : undefined);
-			if (entry && refreshReason) {
-				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session: operation=sendMessage, sdkSessionId=${entry.sessionId}, chat=${current.chatKey}, turnId=${turnId ?? '(none)'}, reason=${refreshReason}, clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
-				// Finish disconnecting before resuming the SAME SDK session id with
-				// the updated config. Routing is preserved so the session identity
-				// is recoverable; peer chats keep their own entries and are left
-				// intact. Resume explicitly (rather than via the generic re-resolve
-				// below) so the refreshed config is re-applied deterministically.
-				await this._destroyLiveSession(entry, true);
-				if (entry.sessionId === current.configurationId) {
-					entry = await this._resumeSession(current.configurationId, current.chat, workingDirectories);
-				} else {
-					if (workingDirectories) {
-						activeClient?.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(workingDirectories));
-					}
-					entry = await this._ensureResolvedChatSession(current, workingDirectories);
-				}
+			if (entry) {
+				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId });
+			} else {
+				await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded();
+				entry = await this._ensureResolvedChatSession(current, workingDirectories);
 			}
 			if (!entry) {
 				this._logService.info(`[Copilot:${current.configurationId}] No cached entry${hadCachedEntry ? ' (was evicted by configuration refresh)' : ''}, calling _resumeSession`);
@@ -4564,6 +4673,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sdkSessionId: string;
 			let inheritedTurnId: string | undefined;
 			let sourceEntry: CopilotAgentSession | undefined;
+			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
 				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
@@ -4610,7 +4720,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let project: IAgentSessionProjectInfo | undefined;
 			if (inheritsFromOtherSession) {
 				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				const inheritedWorkingDirectories = sourceMetadata?.workingDirectories
+				inheritedWorkingDirectories = sourceMetadata?.workingDirectories
 					?? (sourceEntry?.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
 				await this._storeSessionMetadata(session, model, workingDirectory, inheritedWorkingDirectories, workingDirectory, project);
 				if (agent !== undefined) {
@@ -4652,7 +4762,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// the parent's review progress (best-effort; a failure just means
 				// the fork starts unreviewed).
 				try {
-					await this._reviewService.copyReviewedRef(forkSourceScope!.toString(), session.toString(), workingDirectory);
+					const sourceWorkingDirectories = inheritedWorkingDirectories ?? [workingDirectory];
+					await this._reviewService.copyReviewedRef(forkSourceScope!.toString(), session.toString(), sourceWorkingDirectories, sourceWorkingDirectories);
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
@@ -6494,13 +6605,22 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _resolveCustomizationEnablement() {
+		const hostCustomizations = this._parent.hostCustomizations();
+		const clientCustomizations = this._flattenClientCustomizations();
+		const explicitPluginIds = new Set([
+			...hostCustomizations,
+			...clientCustomizations,
+		].map(item => item.customization.id));
 		const result: Customization[] = [
-			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
-			...this._flattenClientCustomizations().map(item => this._projectForPublish(item.customization)),
+			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
+			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
 		const entry = this._discoveredEntry();
 		const discovered = entry?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
+			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
+				continue;
+			}
 			result.push(this._projectForPublish(customization));
 		}
 		for (const definition of this._mcpDiscoveryEntry()?.definitions ?? []) {
@@ -6643,9 +6763,9 @@ class SessionPluginController extends Disposable {
 		if (!client) {
 			client = { revision: 0, customizations: [], sync: Promise.resolve([]), inputs: [] };
 			this._clients.set(clientId, client);
-		} else if (equals(client.inputs, customizations)) {
+		} else if (equals(client.inputs, customizations) && !client.customizations.some(item => item.customization.load?.kind === CustomizationLoadStatus.Error)) {
 			// No-op re-sync: a window re-subscribing (e.g. navigating away from
-			// and back to a session) re-publishes the same customizations. Skip
+			// and back to a session) re-publishes healthy customizations. Skip
 			// the revision bump, the `SessionCustomizationsChanged` emit, and the
 			// redundant plugin-manager re-sync (which otherwise re-parses plugins
 			// from disk on every navigation). Genuine changes still publish, and
@@ -6752,8 +6872,8 @@ class SessionPluginController extends Disposable {
 	 * Re-issue each client's last sync if any of its previously-synced
 	 * customizations is currently in an error state. Used to recover from
 	 * transient sync failures (e.g. a `vscode-agent-host://` connection drop
-	 * during reconnection) at message boundaries. Re-syncs **only** the
-	 * errored items and always non-quiet so listeners observe recovery.
+	 * during reconnection) at message boundaries. Re-syncs each client's full
+	 * contribution so retrying failures does not replace successful siblings.
 	 */
 	public async retryFailedClientSyncIfNeeded(): Promise<void> {
 		await Promise.all([...this._clients.values()].map(client => client.sync.catch(() => { })));
@@ -6765,8 +6885,8 @@ class SessionPluginController extends Disposable {
 			if (errored.length === 0) {
 				continue;
 			}
-			const inputs = errored.map(item => item.input!);
-			this._logService.info(`[Copilot:SessionPluginController] Retrying ${inputs.length} previously-failed client customization(s) for ${clientId}`);
+			const inputs = [...client.inputs];
+			this._logService.info(`[Copilot:SessionPluginController] Retrying ${errored.length} previously-failed client customization(s) for ${clientId}`);
 			await this.sync(clientId, inputs).catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Retried client customization sync failed', err);
 			});
