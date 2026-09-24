@@ -16,7 +16,7 @@ import { IGitCommitMessageService } from '../../../platform/git/common/gitCommit
 import { ILogService } from '../../../platform/log/common/logService';
 import { ISettingsEditorSearchService } from '../../../platform/settingsEditor/common/settingsEditorSearchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { quoteShellArgument } from '../../../platform/terminal/common/shellQuoting';
+import { buildGitCommitCommand } from '../../../platform/terminal/common/shellQuoting';
 import { ChatExtGlobalPerfMark, markChatExtGlobal } from '../../../util/common/performance';
 import { isUri } from '../../../util/common/types';
 import { DeferredPromise } from '../../../util/vs/base/common/async';
@@ -295,18 +295,12 @@ export class ConversationFeature implements IExtensionContribution {
 				}
 
 				const commitMessage = await this.gitCommitMessageService.generateCommitMessage(repository, CancellationToken.None);
-				if (!commitMessage) {
-					return;
-				}
-
 				const terminal = vscode.window.activeTerminal;
-				const quotedMessage = terminal ? quoteShellArgument(commitMessage, terminal.state.shell) : undefined;
-				if (terminal && quotedMessage) {
-					terminal.sendText(`git commit -m ${quotedMessage}`, false);
-				} else {
-					// Can't be typed into this terminal safely, so use the commit box.
-					repository.inputBox.value = commitMessage;
-					await vscode.commands.executeCommand('workbench.view.scm');
+				if (commitMessage && terminal) {
+					const command = buildGitCommitCommand(commitMessage, terminal.state.shell);
+					if (command) {
+						terminal.sendText(command, false);
+					}
 				}
 			}),
 			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: unknown, cancellationToken: vscode.CancellationToken | undefined) => {

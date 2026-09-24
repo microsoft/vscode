@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { quoteShellArgument } from '../../common/shellQuoting';
+import { buildGitCommitCommand } from '../../common/shellQuoting';
 
-describe('quoteShellArgument', () => {
+describe('buildGitCommitCommand', () => {
 
 	// Generated commit messages are derived from repository content, so treat them as hostile.
-	const values = [
+	const messages = [
 		'plain message',
 		'test" --flag injected "',
 		'fix: `id -u` and $HOME and $(whoami) and %PATH%',
@@ -20,57 +20,91 @@ describe('quoteShellArgument', () => {
 		'ends with a backslash \\',
 	];
 
-	it('quotes POSIX shell arguments literally', () => {
-		expect(values.map(v => quoteShellArgument(v, 'bash'))).toEqual([
-			`'plain message'`,
-			`'test" --flag injected "'`,
-			`'fix: \`id -u\` and $HOME and $(whoami) and %PATH%'`,
-			`'don'\\''t; rm -rf /'`,
-			`'typographic \u2018quotes\u2019 \u201alike\u201b these'`,
-			`'x\\'\\''; echo pwned #'`,
-			`'subject\n\nbody line'`,
-			`'ends with a backslash \\'`,
+	it('keeps the message intact in single quotes for POSIX shells', () => {
+		expect(messages.map(m => buildGitCommitCommand(m, 'bash'))).toEqual([
+			`git commit -m 'plain message'`,
+			`git commit -m 'test" --flag injected "'`,
+			`git commit -m 'fix: \`id -u\` and $HOME and $(whoami) and %PATH%'`,
+			`git commit -m 'don'\\''t; rm -rf /'`,
+			`git commit -m 'typographic \u2018quotes\u2019 \u201alike\u201b these'`,
+			`git commit -m 'x\\'\\''; echo pwned #'`,
+			`git commit -m 'subject\n\nbody line'`,
+			`git commit -m 'ends with a backslash \\'`,
 		]);
 	});
 
 	it('quotes every POSIX shell the same way', () => {
-		const bash = values.map(v => quoteShellArgument(v, 'bash'));
-		expect(['gitbash', 'ksh', 'sh', 'zsh'].map(shell => values.map(v => quoteShellArgument(v, shell)))).toEqual([bash, bash, bash, bash]);
+		const bash = messages.map(m => buildGitCommitCommand(m, 'bash'));
+		expect(['gitbash', 'ksh', 'sh', 'zsh'].map(shell => messages.map(m => buildGitCommitCommand(m, shell)))).toEqual([bash, bash, bash, bash]);
 	});
 
-	it('escapes backslashes and single quotes for fish, which treats both as escapes inside single quotes', () => {
-		expect(values.map(v => quoteShellArgument(v, 'fish'))).toEqual([
-			`'plain message'`,
-			`'test" --flag injected "'`,
-			`'fix: \`id -u\` and $HOME and $(whoami) and %PATH%'`,
-			`'don\\'t; rm -rf /'`,
-			`'typographic \u2018quotes\u2019 \u201alike\u201b these'`,
-			`'x\\\\\\'; echo pwned #'`,
-			`'subject\n\nbody line'`,
-			`'ends with a backslash \\\\'`,
+	it('escapes backslashes and single quotes for fish', () => {
+		expect(messages.map(m => buildGitCommitCommand(m, 'fish'))).toEqual([
+			`git commit -m 'plain message'`,
+			`git commit -m 'test" --flag injected "'`,
+			`git commit -m 'fix: \`id -u\` and $HOME and $(whoami) and %PATH%'`,
+			`git commit -m 'don\\'t; rm -rf /'`,
+			`git commit -m 'typographic \u2018quotes\u2019 \u201alike\u201b these'`,
+			`git commit -m 'x\\\\\\'; echo pwned #'`,
+			`git commit -m 'subject\n\nbody line'`,
+			`git commit -m 'ends with a backslash \\\\'`,
 		]);
 	});
 
-	it('doubles every kind of single quote for PowerShell, and refuses values its legacy native argument passing would mangle', () => {
-		expect(values.map(v => quoteShellArgument(v, 'pwsh'))).toEqual([
-			`'plain message'`,
-			undefined,
-			`'fix: \`id -u\` and $HOME and $(whoami) and %PATH%'`,
-			`'don''t; rm -rf /'`,
-			`'typographic \u2018\u2018quotes\u2019\u2019 \u201a\u201alike\u201b\u201b these'`,
-			`'x\\''; echo pwned #'`,
-			`'subject\n\nbody line'`,
-			undefined,
+	it('replaces double quotes, pads a trailing backslash and doubles every single quote for PowerShell', () => {
+		expect(messages.map(m => buildGitCommitCommand(m, 'pwsh'))).toEqual([
+			`git commit -m 'plain message'`,
+			`git commit -m 'test'' --flag injected '''`,
+			`git commit -m 'fix: \`id -u\` and $HOME and $(whoami) and %PATH%'`,
+			`git commit -m 'don''t; rm -rf /'`,
+			`git commit -m 'typographic \u2018\u2018quotes\u2019\u2019 \u201a\u201alike\u201b\u201b these'`,
+			`git commit -m 'x\\''; echo pwned #'`,
+			`git commit -m 'subject\n\nbody line'`,
+			`git commit -m 'ends with a backslash \\ '`,
 		]);
 	});
 
-	it('refuses shells it has no safe quoting rules for', () => {
-		const shells = ['cmd', 'csh', 'nu', 'wsl', 'xonsh', 'python', 'copilot', 'unknown', undefined];
-		expect(shells.map(shell => quoteShellArgument('plain message', shell))).toEqual(shells.map(() => undefined));
+	it('reduces the message to literal text, one -m per paragraph, for other shells', () => {
+		expect(messages.map(m => buildGitCommitCommand(m, 'cmd'))).toEqual([
+			`git commit -m "plain message"`,
+			`git commit -m "test' --flag injected '"`,
+			`git commit -m "fix: 'id -u' and HOME and (whoami) and PATH"`,
+			`git commit -m "don't; rm -rf /"`,
+			`git commit -m "typographic 'quotes' 'like' these"`,
+			`git commit -m "x/'; echo pwned #"`,
+			`git commit -m "subject" -m "body line"`,
+			`git commit -m "ends with a backslash /"`,
+		]);
 	});
 
-	it('refuses control characters in every shell, since the line editor acts on them', () => {
-		const controls = ['\t', '\r', '\b', '\x1b', '\x7f', '\x9b'];
-		expect(controls.map(c => ['bash', 'fish', 'pwsh'].map(shell => quoteShellArgument(`a${c}b`, shell)))).toEqual(controls.map(() => [undefined, undefined, undefined]));
+	it('treats every other or undetected shell like cmd', () => {
+		const cmd = messages.map(m => buildGitCommitCommand(m, 'cmd'));
+		const shells = ['csh', 'nu', 'wsl', 'xonsh', 'python', 'unknown', undefined];
+		expect(shells.map(shell => messages.map(m => buildGitCommitCommand(m, shell)))).toEqual(shells.map(() => cmd));
+	});
+
+	it('joins the lines of each paragraph for other shells', () => {
+		expect(buildGitCommitCommand('Subject\n\nline one\nline two\n \n\npara two', 'cmd')).toBe(`git commit -m "Subject" -m "line one line two" -m "para two"`);
+	});
+
+	it('strips control characters, since the line editor acts on them', () => {
+		expect(['a\tb', 'a\bb', 'a\x1bb', 'a\x7fb', 'a\x9bb', 'a\r\nb', 'a\rb'].map(m => buildGitCommitCommand(m, 'bash'))).toEqual([
+			`git commit -m 'a b'`,
+			`git commit -m 'ab'`,
+			`git commit -m 'ab'`,
+			`git commit -m 'ab'`,
+			`git commit -m 'ab'`,
+			`git commit -m 'a\nb'`,
+			`git commit -m 'a\nb'`,
+		]);
+	});
+
+	it('returns undefined for agent CLIs and when no text is left', () => {
+		expect([
+			buildGitCommitCommand('plain message', 'copilot'),
+			buildGitCommitCommand('plain message', 'claude'),
+			buildGitCommitCommand('\x1b\x07', 'bash'),
+			buildGitCommitCommand('$!%', 'cmd'),
+		]).toEqual([undefined, undefined, undefined, undefined]);
 	});
 });
