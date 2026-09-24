@@ -14,13 +14,12 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { IActionListHeaderLink, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
@@ -122,8 +121,6 @@ export class ModelPickerWidget extends Disposable {
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 	private _minimal: IObservable<boolean> | undefined;
-	private _contextViewLayer: number | undefined;
-	private _forceTabbedPicker = false;
 	private _workspaceTrustInitialized = false;
 	private _activatingAfterTrust = false;
 	private readonly _activatingTimer = this._register(new MutableDisposable());
@@ -187,7 +184,6 @@ export class ModelPickerWidget extends Disposable {
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
 			dismissCacheBreakHint: () => this.dismissCacheBreakHint(),
-			getContextViewLayer: () => this._contextViewLayer,
 		});
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
@@ -272,14 +268,6 @@ export class ModelPickerWidget extends Disposable {
 			this._domNode?.classList.toggle('minimal', isMinimal);
 			this._renderLabel();
 		}));
-	}
-
-	setContextViewLayer(contextViewLayer: number | undefined): void {
-		this._contextViewLayer = contextViewLayer;
-	}
-
-	setForceTabbedPicker(forceTabbedPicker: boolean): void {
-		this._forceTabbedPicker = forceTabbedPicker;
 	}
 
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
@@ -485,7 +473,7 @@ export class ModelPickerWidget extends Disposable {
 
 	/** Whether the user opted into the tabbed picker, which folds model configuration into the list. */
 	isTabbedPickerEnabled(): boolean {
-		return this._forceTabbedPicker || this._configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID) === true;
+		return this._configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID) === true;
 	}
 
 	/**
@@ -522,7 +510,7 @@ export class ModelPickerWidget extends Disposable {
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
 		this._domNode?.classList.toggle('model-picker-name-active', !detailsModelId);
-		picker.show(anchor, context, this._contextViewLayer, detailsModelId, focusConfiguration);
+		picker.show(anchor, context, detailsModelId, focusConfiguration);
 	}
 
 	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false): void {
@@ -683,7 +671,7 @@ export class ModelPickerWidget extends Disposable {
 		// heading).
 		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
-		const baseListOptions: IActionListOptions = {
+		const listOptions = withChatInputPickerMotion({
 			className: 'chat-model-picker-dropdown',
 			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
 			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
@@ -701,13 +689,7 @@ export class ModelPickerWidget extends Disposable {
 			},
 			linkHandler: onLinkClick,
 			minWidth: 200,
-		};
-		const listOptions = anchorElement.closest('.monaco-dialog-box')
-			? {
-				...withChatInputPickerMotion(baseListOptions),
-				anchorPosition: AnchorPosition.BELOW,
-			}
-			: withChatInputPickerMotion(baseListOptions);
+		});
 		const previouslyFocusedElement = dom.getActiveElement();
 
 		const delegate = {
@@ -735,8 +717,7 @@ export class ModelPickerWidget extends Disposable {
 			undefined,
 			[],
 			getModelPickerAccessibilityProvider(!unavailable),
-			listOptions,
-			this._contextViewLayer,
+			listOptions
 		);
 	}
 

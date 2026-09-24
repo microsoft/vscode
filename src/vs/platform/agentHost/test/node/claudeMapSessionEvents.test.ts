@@ -878,10 +878,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 						outputTokens: 34,
 						cacheReadTokens: 5,
 						model: 'claude-test',
-						_meta: {
-							turnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
-							directTurnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
-						},
 					},
 				},
 			},
