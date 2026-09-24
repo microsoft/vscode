@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { unavailableCanvases } from '../common/agentHostCanvasesTestUtils.js';
+import { IAgentHostCanvasesService } from '../../node/agentHostCanvasesService.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -192,6 +194,7 @@ function createTestSideEffects(
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
 		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostCanvasesService, unavailableCanvases],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,

@@ -52,6 +52,18 @@ Imported prompts retain Automation provenance through `MessageKind.Automation`. 
 
 The host-owned executor creates run sessions from this template. The Automation editor's configuration draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved, without dispatching an Automation prompt. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
 
+## Canvases
+
+The local desktop provider can project the optional provider-neutral [canvas facet](../../canvases/README.md) for supported Copilot CLI sessions when presentation is opted in and the connection negotiates canvas support. Other providers and agent types do not inherit that authority from a root capability alone.
+
+The provider owns exact session/chat resource translation and the canonical six-route canvas connection. Session state supplies logical membership; full canvas subscriptions and source pulls are separate. Catalog/source reads do not keep a session backing alive or initialize/recover a provider. Explicit effects use their captured revision/incarnation and unique request identity, without automatic retries.
+
+Collections follow session/chat membership and connection generations, including local host replacements that reuse the service object. Stable-ID draft promotion retains the collection; discarded/replaced drafts and removed chats/sessions release it. Editor visibility is not a provider-membership signal.
+
+Canvas facets are exposed only for committed sessions and committed chats. Untitled drafts do not advertise canvas capability and cannot initialize or open providers before their first request creates the conversation. Initial SDK session creation does not request extensions; explicit initialization starts them on the resident committed session, while cold resume can request them during resume. Existing persisted canvas membership can still hydrate and restore through the normal committed-session lifecycle.
+
+Initialize, open, action, and provider restart reuse the Sessions execution-admission gate before provider materialization or dispatch, including for an already-active session after trust revocation. The Agent Host also rejects executable canvas commands for an unused draft. Catalog/source reads do not enter execution, and logical close remains available for cleanup.
+
 ## Identity
 
 The local provider uses:

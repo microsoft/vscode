@@ -26,8 +26,8 @@ export interface IAgentHostSubscriptionService {
 	hasSessionSubscribers(resource: URI): boolean;
 }
 
-export function resolveAgentHostSession(resource: URI): URI {
-	const resourceString = resource.toString();
+export function resolveAgentHostSession(resource: URI, canvasChat?: string): URI {
+	const resourceString = canvasChat ?? resource.toString();
 	const changesetSession = parseChangesetUri(resourceString)?.sessionUri;
 	const annotationsSession = parseAnnotationsUri(resourceString)?.sessionUri;
 	const folderSession = parseFolderChangesetOwnerUri(resourceString)?.sessionUri;

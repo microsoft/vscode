@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
@@ -147,6 +147,25 @@ export interface IBrowserViewTheme {
 	readonly reducedMotion?: boolean;
 }
 
+/** Value-only, one-way theme defaults for an external canvas's main frame. */
+export interface IBrowserCanvasTheme {
+	readonly cssVariables: Readonly<Record<string, string>>;
+	readonly attributes: Readonly<Record<string, string>>;
+	readonly colorScheme: 'dark' | 'light';
+	readonly stylesheets: Readonly<Record<string, string>>;
+}
+
+/** Schemes suitable for opening a user-initiated external canvas link in an OS application. */
+export function isExternalCanvasLinkAllowed(value: string): boolean {
+	try {
+		const uri = URI.parse(value, true);
+		return ['http', 'https', 'mailto'].includes(uri.scheme) && !uri.authority.includes('@')
+			&& (uri.scheme === 'mailto' || !!uri.authority);
+	} catch {
+		return false;
+	}
+}
+
 /**
  * The full set of configuration a window contributes for the browser views it
  * owns. Sent as a single unit by the owning window.
@@ -154,6 +173,7 @@ export interface IBrowserViewTheme {
 export interface IBrowserViewWindowConfiguration {
 	/** Theme variables for injected UI. */
 	readonly theme: IBrowserViewTheme;
+	readonly canvasTheme?: IBrowserCanvasTheme;
 	/** Map of command ID to accelerator label for context menus. */
 	readonly keybindings: { [commandId: string]: string };
 
@@ -228,6 +248,13 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	awaitNextPaint?: boolean;
 }
 
+/** Bounded semantic text from Chromium, without page URLs, console logs, or automation handles. */
+export interface IBrowserViewAccessibilitySnapshot {
+	readonly text: string;
+	readonly truncated: boolean;
+	readonly scope: 'main-frame';
+}
+
 /** Identifies who controls a browser view. */
 export type IBrowserViewOwner =
 	| { readonly type: 'user' }
@@ -262,12 +289,59 @@ export interface IBrowserViewHost {
 	readonly sessionId?: string;
 }
 
+/** A native page whose editor and logical identity belong to another workbench component. */
+export interface IBrowserViewExternalPresentation {
+	readonly type: 'external';
+	readonly resource: UriComponents;
+}
+
+/** Snap absolute CSS bounds to the native view's host-zoom pixel grid. */
+export function snapBrowserViewBounds(bounds: IBrowserViewRect, zoom: number): IBrowserViewRect {
+	const snap = (value: number) => Math.floor(value * zoom) / zoom;
+	return { x: snap(bounds.x), y: snap(bounds.y), width: snap(bounds.width), height: snap(bounds.height) };
+}
+
+export function externalBrowserViewStorageAffinity(resource: UriComponents): string {
+	return `external:${URI.revive(resource).toString()}`;
+}
+
+/** Reject changes to the presentation or owning window of an existing native page. */
+export function validateBrowserViewReuse(existing: IBrowserViewInfo, options: IBrowserViewCreateOptions): void {
+	if (!existing.presentation && !options.presentation) {
+		return;
+	}
+	if (existing.host.windowId !== options.host.windowId
+		|| !existing.presentation || !options.presentation
+		|| !isEqual(URI.revive(existing.presentation.resource), URI.revive(options.presentation.resource))) {
+		throw new Error('Native browser presentation or owning window does not match.');
+	}
+}
+
+/** External presentations never inherit ordinary browser storage or an automation audience. */
+export function validateExternalBrowserViewOptions(options: IBrowserViewCreateOptions, existingViews: Iterable<{ readonly presentation?: IBrowserViewExternalPresentation }> = []): void {
+	if (!options.presentation) {
+		return;
+	}
+	if (options.owner.type !== 'user' || options.initialAudiences?.length !== 0
+		|| typeof options.session === 'string' || options.session.scope !== BrowserViewStorageScope.Agent
+		|| options.session.affinity !== externalBrowserViewStorageAffinity(options.presentation.resource)
+		|| options.associatedResource) {
+		throw new Error('External browser presentations require isolated storage and no agent access.');
+	}
+	for (const view of existingViews) {
+		if (view.presentation && isEqual(URI.revive(view.presentation.resource), URI.revive(options.presentation.resource))) {
+			throw new Error('A native view for this logical canvas is already attached. Hide that view before opening another.');
+		}
+	}
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
+	readonly presentation?: IBrowserViewExternalPresentation;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource?: UriComponents;
@@ -303,6 +377,7 @@ export interface IBrowserViewCreationContext {
 
 /** Complete main-process creation contract for a browser view. */
 export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
+	readonly presentation?: IBrowserViewExternalPresentation;
 	readonly associatedResource?: UriComponents;
 	readonly initialUrl?: string;
 	readonly openSource?: IntegratedBrowserOpenSource;
@@ -365,6 +440,8 @@ export interface IBrowserViewLoadError {
 	errorCode: number;
 	errorDescription: string;
 	certificateError?: IBrowserViewCertificateError;
+	/** Workspace Trust denied access to this local file. */
+	fileAccessDenied?: boolean;
 }
 
 export interface IBrowserViewCertificateError {
@@ -505,6 +582,8 @@ export interface IBrowserDeviceProfile {
 export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
+	/** Read-only user accessibility; does not grant agent access or expose a CDP connection. */
+	getAccessibilitySnapshot(id: string, expectedHostWindowId: number): Promise<IBrowserViewAccessibilitySnapshot>;
 	/**
 	 * Fires when a new browser view is created.
 	 */

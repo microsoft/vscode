@@ -13,6 +13,7 @@ import type { IObservable, IReader } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
+import type { IAgentCanvases } from './agentHostCanvases.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -817,7 +818,7 @@ export interface IAgentChats {
 	resumeTurn?(chat: URI, turnId: string, context: AgentChatOperationContext, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
-	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
+	abort(chat: URI, context: AgentChatOperationContext, turnId?: string): Promise<void>;
 
 	/** Return the model currently bound to `chat`, when the provider knows it. */
 	getModel?(chat: URI, context: AgentChatOperationContext): ModelSelection | undefined;
@@ -1204,6 +1205,7 @@ export interface IAgentTelemetryContext {
  * the agent id.
  */
 export interface IAgent {
+	readonly canvases?: IAgentCanvases;
 	// ---- Identity and catalog -----------------------------------------------
 
 	/** Unique provider identifier. */
@@ -1282,10 +1284,10 @@ export interface IAgent {
 	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void;
 
 	/** Respond to a pending permission request from the SDK. */
-	respondToPermissionRequest(requestId: string, approved: boolean): void;
+	respondToPermissionRequest(requestId: string, approved: boolean, chat?: URI): void;
 
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>, chat?: URI): void;
 
 	// ---- Configuration and customizations ----------------------------------
 

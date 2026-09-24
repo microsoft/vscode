@@ -26,6 +26,9 @@ export class LocalCommandContribution extends Disposable implements IAgentHostCh
 	}
 
 	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition | undefined {
+		if (request.phase === 'preparation') {
+			return this._localCommands.canHandle({ turnChannel: request.turnChannel, turnId: request.turnId, text: request.message.text }) ? { kind: 'handled' } : undefined;
+		}
 		const handled = this._localCommands.tryHandle({
 			turnChannel: request.turnChannel,
 			turnId: request.turnId,

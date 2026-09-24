@@ -5,11 +5,12 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
+import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings, IBrowserCanvasTheme } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
 import { localize } from '../../../nls.js';
+import { ILogService } from '../../log/common/log.js';
 
 const localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 	addComment: localize('browserView.addComment', "Add Comment"),
@@ -81,6 +82,7 @@ export class BrowserViewInspector extends Disposable {
 	private readonly _activeSelection = this._register(new MutableDisposable<IActiveSelection>());
 	private _inspectionOperation: Promise<void> = Promise.resolve();
 	private _theme: IBrowserViewTheme = {};
+	private _canvasTheme: IBrowserCanvasTheme | undefined;
 
 	// Area selection — drag-to-select a rectangle on the top frame.
 	// `onDidPickArea` fires exactly once per session, terminating it.
@@ -102,7 +104,7 @@ export class BrowserViewInspector extends Disposable {
 
 	private readonly _registry = this._register(new FrameInspectorRegistry());
 
-	constructor(private readonly browser: BrowserView) {
+	constructor(private readonly browser: BrowserView, private readonly logService: ILogService) {
 		super();
 
 		const webContents = this.browser.webContents;
@@ -133,6 +135,7 @@ export class BrowserViewInspector extends Disposable {
 				// Apply theme immediately regardless of inspector state
 				senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
 				senderFrame.postMessage('vscode:browserView:setLocalizedStrings', localizedStrings);
+				this._sendCanvasTheme(senderFrame);
 
 				this._registry.notifyFrameReady(senderFrame, frameToken);
 
@@ -286,6 +289,28 @@ export class BrowserViewInspector extends Disposable {
 		// Broadcast to all known inspectors
 		for (const inspector of this._registry.inspectors) {
 			inspector.setTheme(theme);
+		}
+	}
+
+	setCanvasTheme(theme: IBrowserCanvasTheme | undefined): void {
+		if (this.browser.presentation?.type !== 'external') {
+			return;
+		}
+		this._canvasTheme = theme;
+		this._sendCanvasTheme();
+	}
+
+	private _sendCanvasTheme(senderFrame?: Electron.WebFrameMain): void {
+		if (!this._canvasTheme || this._store.isDisposed) {
+			return;
+		}
+		try {
+			const webContents = this.browser.webContents;
+			if (!webContents.isDestroyed() && (!senderFrame || senderFrame === webContents.mainFrame)) {
+				webContents.mainFrame.postMessage('vscode:browserView:canvasTheme', this._canvasTheme);
+			}
+		} catch {
+			this.logService.debug('BrowserViewInspector: Canvas frame unavailable for theme update; retained for the next main-frame preload.');
 		}
 	}
 

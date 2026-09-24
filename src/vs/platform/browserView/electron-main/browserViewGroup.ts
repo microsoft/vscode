@@ -120,7 +120,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	}
 
 	private async _reconcileView(view: BrowserView): Promise<void> {
-		const matches = matchesBrowserViewGroupFilter(view.id, view.audiences, this.filter);
+		const matches = matchesBrowserViewGroupFilter(view.id, view.audiences, this.filter, view.presentation);
 		if (matches) {
 			await this.addView(view.id);
 		} else {
@@ -158,6 +158,9 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		const view = this.browserViewMainService.tryGetBrowserView(viewId);
 		if (!view) {
 			throw new Error(`Browser view ${viewId} not found`);
+		}
+		if (view.presentation) {
+			throw new Error('Externally presented pages are not available to browser automation.');
 		}
 		if (this.filter.audience?.type === 'agent') {
 			this.browserViewMainService.validateAgentAccess(view);

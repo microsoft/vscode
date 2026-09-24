@@ -42,6 +42,7 @@ import { AgentHostChangesetOperationService } from './agentHostChangesetOperatio
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
+import { AgentHostCanvasesService, IAgentHostCanvasesService } from './agentHostCanvasesService.js';
 import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
@@ -113,6 +114,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	services.set(IAgentHostCanvasesService, new SyncDescriptor(AgentHostCanvasesService));
 	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));

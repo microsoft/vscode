@@ -8,14 +8,16 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction, isCanvasAction } from './sessionActions.js';
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
-import { terminalReducer } from './protocol/reducers.js';
+import { canvasReducer, terminalReducer } from './protocol/reducers.js';
+import type { CanvasState } from './protocol/channels-canvas/state.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
-import type { IStateSnapshot } from './sessionProtocol.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { AhpErrorCodes, ProtocolError, type IStateSnapshot } from './sessionProtocol.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, parseChatUri, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
 // --- Public API --------------------------------------------------------------
@@ -613,6 +615,22 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
+/** Host-authoritative canvas state, with no optimistic effect replay. */
+export class CanvasStateSubscription extends BaseAgentSubscription<CanvasState> {
+
+	constructor(private readonly _resource: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: CanvasState, action: StateAction): CanvasState {
+		return isCanvasAction(action) ? canvasReducer(state, action, this._log) : state;
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isCanvasAction(envelope.action) && envelope.channel === this._resource;
+	}
+}
+
 /** Subscription to the singleton host-owned automation catalogue. */
 export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
 
@@ -758,7 +776,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription | CanvasStateSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -887,7 +905,14 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 	}
 }
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
+type ManagedSubscriptionEntry = {
+	sub: ManagedSubscription;
+	kind: StateComponents;
+	refCount: number;
+	holders: Map<number, string>;
+	isSubscribing: boolean;
+	canvasRecoveryIncarnation?: string;
+};
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -993,7 +1018,7 @@ export class AgentSubscriptionManager extends Disposable {
 	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
 		const existing = this._subscriptions.get(resource);
 		if (existing) {
-			if (existing.sub.value instanceof Error) {
+			if (existing.sub.value instanceof Error && !existing.isSubscribing) {
 				// Failed subscriptions should not poison the resource forever. Evict
 				// the errored entry so this acquire performs a fresh subscribe.
 				this._subscriptions.delete(resource);
@@ -1007,36 +1032,82 @@ export class AgentSubscriptionManager extends Disposable {
 		// Create new subscription based on caller-specified kind
 		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
-		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
+		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map(), isSubscribing: false };
 		this._subscriptions.set(resource, entry);
 
-		// Kick off server subscription asynchronously.
-		// Capture the entry reference so we can validate it hasn't been
-		// replaced by a new subscription for the same key (race guard).
-		void (async () => {
-			const inflight = this._inflightCreates.get(resource);
-			if (inflight) {
-				try {
-					await inflight;
-				} catch {
-					// Swallow — fall through to subscribe so the error
-					// surfaces consistently via setError() on the
-					// subscription, matching the no-inflight path.
-				}
-			}
-			try {
-				const snapshot = await this._subscribe(resource);
-				if (this._subscriptions.get(resource) === entry) {
-					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
-				}
-			} catch (err) {
-				if (this._subscriptions.get(resource) === entry) {
-					sub.setError(err instanceof Error ? err : new Error(String(err)));
-				}
-			}
-		})();
+		void this._subscribeEntry(resource, entry);
 
 		return this._acquireReference<T>(resource, entry, owner);
+	}
+
+	private async _subscribeEntry(resource: URI, entry: ManagedSubscriptionEntry): Promise<void> {
+		entry.isSubscribing = true;
+		const inflight = this._inflightCreates.get(resource);
+		if (inflight) {
+			try {
+				await inflight;
+			} catch {
+				// Fall through to subscribe so errors surface on the
+				// subscription consistently with the no-inflight path.
+			}
+		}
+		try {
+			if (this._subscriptions.get(resource) !== entry) {
+				return;
+			}
+			const snapshot = await this._subscribe(resource);
+			if (this._subscriptions.get(resource) === entry) {
+				entry.sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				if (entry.sub instanceof SessionStateSubscription) {
+					this._recoverMissingCanvasSubscriptions(resource, entry.sub);
+				}
+			}
+		} catch (err) {
+			if (this._subscriptions.get(resource) === entry) {
+				entry.isSubscribing = false;
+				entry.sub.setError(err instanceof Error ? err : new Error(String(err)));
+			}
+		} finally {
+			entry.isSubscribing = false;
+			if (this._subscriptions.get(resource) === entry && entry.sub instanceof CanvasStateSubscription && entry.sub.value instanceof Error) {
+				// The owner snapshot may have arrived before the initial
+				// NotFound response. Reconcile either delivery order.
+				for (const [owner, { sub }] of this._subscriptions) {
+					if (sub instanceof SessionStateSubscription) {
+						this._recoverMissingCanvasSubscriptions(owner, sub);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * An opaque canvas URI can be subscribed before its owner's durable
+	 * membership is hydrated. Once that exact owner confirms the membership,
+	 * retry only the failed initial state read, once per incarnation. Keep
+	 * the held subscription and its original error until a real snapshot lands.
+	 */
+	private _recoverMissingCanvasSubscriptions(owner: URI, sub: SessionStateSubscription): void {
+		if (sub.value instanceof Error) {
+			return;
+		}
+		for (const canvas of sub.verifiedValue?.canvases ?? []) {
+			const chat = parseChatUri(canvas.identity.chat);
+			if (!chat || !isEqual(URI.parse(chat.session), owner)) {
+				continue;
+			}
+			const resource = URI.parse(canvas.resource);
+			const entry = this._subscriptions.get(resource);
+			if (!entry || !(entry.sub instanceof CanvasStateSubscription) || entry.isSubscribing || entry.sub.verifiedValue !== undefined) {
+				continue;
+			}
+			const error = entry.sub.value;
+			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound || entry.canvasRecoveryIncarnation === canvas.identity.incarnation) {
+				continue;
+			}
+			entry.canvasRecoveryIncarnation = canvas.identity.incarnation;
+			void this._subscribeEntry(resource, entry);
+		}
 	}
 
 	/**
@@ -1089,6 +1160,13 @@ export class AgentSubscriptionManager extends Disposable {
 		// Other subscriptions get filtered actions
 		for (const { sub } of this._subscriptions.values()) {
 			sub.receiveEnvelope(envelope);
+		}
+		if (envelope.action.type === ActionType.SessionCanvasSet && !envelope.rejectionReason) {
+			const owner = URI.parse(envelope.channel);
+			const sub = this._subscriptions.get(owner)?.sub;
+			if (sub instanceof SessionStateSubscription) {
+				this._recoverMissingCanvasSubscriptions(owner, sub);
+			}
 		}
 	}
 
@@ -1264,6 +1342,8 @@ export class AgentSubscriptionManager extends Disposable {
 				return new AutomationCatalogSubscription(this._clientId, this._log);
 			case StateComponents.AutomationRun:
 				return new AutomationRunSubscription(key, this._clientId, this._log);
+			case StateComponents.Canvas:
+				return new CanvasStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { Attachment, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
@@ -88,10 +88,11 @@ import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestricte
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
-import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, mapSessionEvents, sdkAttachmentsToProtocol } from './mapSessionEvents.js';
+import { CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN } from '../../common/agentHostCanvases.js';
+import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType, readExtensionContext } from './copilotAttachmentUtils.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
-import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
@@ -106,7 +107,7 @@ import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js'
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 
-type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
+type CopilotSdkAttachment = Extract<Attachment, { type: 'file' | 'directory' | 'selection' | 'extension_context' }> | (Extract<Attachment, { type: 'blob' }> & { data: string });
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
@@ -746,6 +747,10 @@ class CopilotTurn extends Disposable {
 		return this._eventId.p;
 	}
 
+	get hasEventId(): boolean {
+		return this._eventId.isSettled;
+	}
+
 	constructor(
 		readonly id: string,
 		readonly ordinal: number,
@@ -1113,6 +1118,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	private readonly _observedNativeMessages = new LRUCache<string, boolean>(2048);
+	private readonly _hostMessageIds = new LRUCache<string, { turnId: string; senderClientId?: string; clientContext: IAgentHostClientTelemetryContext; observed: boolean }>(2048);
+	private readonly _steeringMessageIds = new LRUCache<string, string>(2048);
 	private _workingDirectoryMutationInProgress = false;
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
@@ -1500,15 +1508,23 @@ export class CopilotAgentSession extends Disposable {
 	 * rather than being folded into the original turn.
 	 */
 	private _beginSteeringTurn(steering: IPendingSteering): void {
+		this._beginNativeTurn(steering.pendingMessage.message, steering.pendingMessage.id, undefined, steering.sender);
+	}
+
+	private _beginNativeTurn(message: Message, queuedMessageId?: string, eventId?: string, sender?: IAgentPendingMessageSender): string {
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
-		this._completeActiveTurn();
-		const newTurnId = generateUuid();
+		if (eventId && this._currentTurn.value && !this._currentTurn.value.hasEventId) {
+			this._clearActiveTurn();
+		} else {
+			this._completeActiveTurn();
+		}
+		const newTurnId = eventId ?? generateUuid();
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
 			turnId: newTurnId,
 			startedAt: new Date().toISOString(),
-			message: steering.pendingMessage.message,
-			queuedMessageId: steering.pendingMessage.id,
+			message,
+			queuedMessageId,
 		});
 		// Mirror `resetTurnState` so per-turn counters/mappings (usage total,
 		// streaming part ids) don't bleed from the preempted turn into the new
@@ -1517,10 +1533,10 @@ export class CopilotAgentSession extends Disposable {
 		// response: mark it `running` immediately rather than leaving it
 		// `pending`, otherwise an abort during the steering turn would treat it
 		// as a not-yet-started queued turn and leave it open.
-		this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
+		this.resetTurnState(newTurnId, sender?.clientId, sender?.clientContext.clientType, sender?.clientContext);
 		const turn = this._currentTurn.value;
 		if (turn) {
-			turn.messageCharLen = steering.pendingMessage.message.text.length;
+			turn.messageCharLen = message.text.length;
 			turn.markRunning();
 		}
 		if (activeSdkTurnId && turn) {
@@ -1530,6 +1546,7 @@ export class CopilotAgentSession extends Disposable {
 		if (activeSdkTurnId) {
 			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
 		}
+		return newTurnId;
 	}
 
 	/**
@@ -2586,9 +2603,12 @@ export class CopilotAgentSession extends Disposable {
 			wrapper.dispose();
 			throw new CancellationError();
 		}
-		this._wrapper = this._register(wrapper);
+		const eventHandlersInstalledBeforeReady = this._wrapper === wrapper;
+		this._installSessionEventHandlers(wrapper);
 		const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
 		if (this._store.isDisposed) {
+			await wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle });
+			wrapper.dispose();
 			throw new CancellationError();
 		}
 		wrapper.setBeforeDisconnect(async () => {
@@ -2599,6 +2619,9 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
 			}
 		});
+		if (eventHandlersInstalledBeforeReady) {
+			this._seedMcpServersFromRpc();
+		}
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			if (!event.sessions.includes(this._ownerSessionUri.toString())) {
 				return;
@@ -2606,11 +2629,8 @@ export class CopilotAgentSession extends Disposable {
 			this._markMcpLaunchConfigurationDirty();
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
-		this._subscribeToEvents();
-		this._subscribeToSdkEvents();
-		this._subscribeForMemoInvalidation();
-		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
+		wrapper.releaseBufferedEvents();
 		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
@@ -2644,8 +2664,24 @@ export class CopilotAgentSession extends Disposable {
 		this._promptCacheState = this._promptCache.write(this.resourceUri, promptCache);
 	}
 
+	private _installSessionEventHandlers(wrapper: CopilotSessionWrapper): void {
+		if (this._wrapper === wrapper) {
+			return;
+		}
+		if (this._store.isDisposed) {
+			wrapper.dispose();
+			throw new CancellationError();
+		}
+		this._wrapper = this._register(wrapper);
+		this._subscribeToEvents();
+		this._subscribeToSdkEvents();
+		this._subscribeForMemoInvalidation();
+		this._subscribeForInstructionsCollectedTelemetry();
+	}
+
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
+			onSessionStarting: wrapper => this._installSessionEventHandlers(wrapper),
 			chatUri: this._chatChannelUri,
 			configurationResource: this._ownerSessionUri,
 			handlePermissionRequest: this._guarded(request => this._handlePermissionRequest(request), { kind: 'reject' } satisfies PermissionRequestResult, 'permission'),
@@ -3236,21 +3272,37 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 		sendingTurn?.markProviderCallPending();
+		const observations = this._wrapper.acceptsExternalMessages ? this._wrapper.bufferEventsUntilAcknowledged() : undefined;
 		try {
-			await this._otelService.withTraceContext(traceContext, () => {
+			const sent = await this._otelService.withTraceContext(traceContext, () => {
 				if (!this._environmentService.isBuilt && prompt === '$error') {
 					return this._wrapper.session.rpc.sendMessages({
 						messages: [{ prompt }],
 						requestHeaders: { Authorization: '******' },
 					});
 				}
-				return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+				if (sdkAttachments?.some(attachment => attachment.type === 'extension_context')) {
+					return this._wrapper.session.rpc.sendMessages({ messages: [{ prompt, attachments: sdkAttachments }] });
+				}
+				return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.filter(attachment => attachment.type !== 'extension_context') });
 			});
+			if (this._wrapper.acceptsExternalMessages && sendingTurn) {
+				const hostMessage = { turnId: sendingTurn.id, senderClientId: sendingTurn.senderClientId, clientContext: sendingTurn.clientContext, observed: false };
+				for (const id of typeof sent === 'string' ? [sent] : sent.messageIds) {
+					this._hostMessageIds.set(id, hostMessage);
+				}
+			}
 			sendingTurn?.markProviderCallResolved();
 		} catch (error) {
 			sendingTurn?.markProviderCallRejected();
+			try {
+				observations?.dispose();
+			} catch (observationError) {
+				this._logService.error('[Copilot] Failed to reconcile observations after a rejected send', observationError);
+			}
 			throw error;
 		}
+		observations?.dispose();
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -3508,6 +3560,10 @@ export class CopilotAgentSession extends Disposable {
 	 * or just the selected text for a selection), so it is forwarded as-is without further slicing.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		const extensionContext = readExtensionContext(attachment, this._chatChannelUri.toString());
+		if (extensionContext) {
+			return extensionContext;
+		}
 		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
 			const rendered = renderAgentFeedbackAnnotationsAttachment(attachment);
 			if (!rendered) {
@@ -3622,6 +3678,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._steeringMessagesInFlight.add(steeringMessage.id);
+		let observations: IDisposable | undefined;
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
@@ -3635,15 +3692,24 @@ export class CopilotAgentSession extends Disposable {
 			const steeringPrompt = snapshotReminder
 				? `${steeringMessage.message.text}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
 				: steeringMessage.message.text;
-			await this._wrapper.session.send({
-				prompt: steeringPrompt,
-				attachments: sdkAttachments?.length ? sdkAttachments : undefined,
-				mode: 'immediate',
-			});
+			observations = this._wrapper.acceptsExternalMessages ? this._wrapper.bufferEventsUntilAcknowledged() : undefined;
+			const sent = sdkAttachments?.some(attachment => attachment.type === 'extension_context')
+				? await this._wrapper.session.rpc.sendMessages({ messages: [{ prompt: steeringPrompt, attachments: sdkAttachments }], mode: 'immediate' })
+				: await this._wrapper.session.send({
+					prompt: steeringPrompt,
+					attachments: sdkAttachments?.filter(attachment => attachment.type !== 'extension_context'),
+					mode: 'immediate',
+				});
+			if (this._wrapper.acceptsExternalMessages) {
+				for (const id of typeof sent === 'string' ? [sent] : sent.messageIds) {
+					this._steeringMessageIds.set(id, steeringMessage.id);
+				}
+			}
 		} catch (err) {
 			this._pendingSteeringFlips.delete(steeringMessage.id);
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
 		} finally {
+			observations?.dispose();
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
 		}
 	}
@@ -3790,7 +3856,23 @@ export class CopilotAgentSession extends Disposable {
 		this._mappedEventsMemo.clear();
 	}
 
-	async abort(): Promise<void> {
+	async abort(turnId?: string): Promise<void> {
+		if (turnId && this._wrapper.acceptsExternalMessages) {
+			await this._wrapper.whenMessagesAcknowledged();
+			if (this._currentTurn.value?.id !== turnId) {
+				const { items } = await this._wrapper.session.rpc.queue.pendingItems();
+				const targets = items.filter(item => item.messageId && this._hostMessageIds.get(item.messageId)?.turnId === turnId);
+				for (const id of new Set(targets.map(item => item.id))) {
+					if (items.some(item => item.id === id && (!item.messageId || this._hostMessageIds.get(item.messageId)?.turnId !== turnId))) {
+						throw new Error('A queued batch contains another turn and cannot be cancelled as a unit.');
+					}
+					await this._wrapper.session.rpc.queue.removeAt({ id });
+				}
+				if (this._currentTurn.value?.id !== turnId) {
+					return;
+				}
+			}
+		}
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		const abortingTurn = this._currentTurn.value;
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
@@ -4197,6 +4279,9 @@ export class CopilotAgentSession extends Disposable {
 		request: PermissionRequest,
 	): Promise<PermissionRequestResult> {
 		try {
+			if (this._wrapper?.acceptsExternalMessages) {
+				await this._wrapper.whenMessagesAcknowledged();
+			}
 			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
 			if (!toolCallId) {
@@ -4933,6 +5018,9 @@ export class CopilotAgentSession extends Disposable {
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
+		if (this._wrapper?.acceptsExternalMessages) {
+			await this._wrapper.whenMessagesAcknowledged();
+		}
 		const requestId = generateUuid();
 		const questionId = generateUuid();
 		const inputRequest: ChatInputRequest = {
@@ -5420,17 +5508,50 @@ export class CopilotAgentSession extends Disposable {
 			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
 				return;
 			}
+			if (wrapper.acceptsExternalMessages) {
+				if (this._observedNativeMessages.has(e.id)) {
+					return;
+				}
+				this._observedNativeMessages.set(e.id, true);
+			}
 			// A genuine root user-message echo is the provider boundary for a
 			// normal send. Zero-message continuation has no such echo and remains
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
-			// First SDK event for the loop: promote the turn out of `pending`.
 			this._currentTurn.value?.markRunning();
-			const steering = this._takeMatchingPendingSteering(e.data.content);
+			const steeringId = e.data.messageId ? this._steeringMessageIds.get(e.data.messageId) : undefined;
+			const steering = wrapper.acceptsExternalMessages
+				? steeringId ? this._pendingSteeringFlips.get(steeringId) : undefined
+				: this._takeMatchingPendingSteering(e.data.content);
+			const hostMessage = e.data.messageId ? this._hostMessageIds.get(e.data.messageId) : undefined;
 			if (steering) {
+				this._pendingSteeringFlips.delete(steering.pendingMessage.id);
 				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
 					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
+				}
+			} else if (wrapper.acceptsExternalMessages && hostMessage && !e.data.isAutopilotContinuation) {
+				if (hostMessage.observed) {
+					return;
+				}
+				hostMessage.observed = true;
+				if (this._turnId !== hostMessage.turnId) {
+					this._completeActiveTurn();
+					this.resetTurnState(hostMessage.turnId, hostMessage.senderClientId, hostMessage.clientContext.clientType, hostMessage.clientContext);
+				}
+				this._emitAction({
+					type: ActionType.ChatTurnStarted, turnId: hostMessage.turnId, startedAt: e.timestamp,
+					message: { text: e.data.content, origin: { kind: MessageKind.User } },
+				});
+			} else if (wrapper.acceptsExternalMessages && !e.data.isAutopilotContinuation) {
+				// This is a genuine, unmatched runtime message, not an authenticated extension ID.
+				this._beginNativeTurn({
+					text: e.data.content, origin: { kind: MessageKind.Tool },
+					attachments: sdkAttachmentsToProtocol(e.data.attachments, this._chatChannelUri.toString()),
+					_meta: { copilotOrigin: CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN, sdkEventId: e.id },
+				}, undefined, e.id);
+				if (this._turnId) {
+					void this._databaseRef.object.setTurnMessageOrigin(this._turnId, CANVAS_EXTERNAL_RUNTIME_MESSAGE_ORIGIN).catch(error => this._logService.warn('[Copilot] Failed to persist native message provenance', error));
 				}
 			}
 			if (this._turnId) {
@@ -6758,7 +6879,9 @@ export class CopilotAgentSession extends Disposable {
 		// have fired before our subscription (e.g. for restored sessions or
 		// when servers are configured at session-creation time), and there
 		// is no replay. Later loaded events invalidate this RPC inventory.
-		this._seedMcpServersFromRpc();
+		if (wrapper.isReady) {
+			this._seedMcpServersFromRpc();
+		}
 	}
 
 	/**
@@ -6773,6 +6896,9 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Refreshes live inventory, retrying snapshots overtaken by lifecycle events without superseding a newer refresh. */
 	private async _refreshMcpServersFromRpc(): Promise<void> {
+		if (!this._wrapper.isReady) {
+			return;
+		}
 		const mcpRpc = this._wrapper.session.rpc?.mcp;
 		if (!mcpRpc) {
 			return;
@@ -7148,7 +7274,11 @@ export class CopilotAgentSession extends Disposable {
 			void (async () => {
 				let sources;
 				try {
-					sources = (await wrapper.session.rpc.instructions.getSources()).sources;
+					const session = await wrapper.whenReady;
+					if (!session || this._store.isDisposed) {
+						return;
+					}
+					sources = (await session.rpc.instructions.getSources()).sources;
 				} catch (err) {
 					this._logService.trace(`[Copilot:${sessionId}] Failed to fetch instruction sources for telemetry: ${getErrorMessage(err)}`);
 					return;
@@ -7488,6 +7618,10 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
 
 		this._register(wrapper.onUnhandledEvent(e => {
+			if (e.type.startsWith('session.canvas.') || e.type === 'session.extensions.attachments_pushed') {
+				this._logService.trace(`[Copilot:${sessionId}] Runtime canvas notification: ${e.type}`);
+				return;
+			}
 			// Fusion handoffs/internal events can contain model-visible prompts,
 			// including event types not yet represented in the SDK union.
 			const loggedEvent = e.type.startsWith('session.fusion_') || e.type.startsWith('assistant.fusion_')

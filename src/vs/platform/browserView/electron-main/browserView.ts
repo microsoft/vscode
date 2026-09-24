@@ -7,11 +7,11 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, IBrowserViewExternalPresentation, isExternalCanvasLinkAllowed } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
@@ -23,6 +23,7 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { URI } from '../../../base/common/uri.js';
+import { registerBrowserViewWindowLifecycle } from './browserViewWindowLifecycle.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -129,7 +130,9 @@ export class BrowserView extends Disposable {
 		public readonly session: BrowserSession,
 		private readonly _createChildView: (owner: IBrowserViewOwner, url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, editorOptions: IBrowserViewEditorOpenOptions) => BrowserView,
 		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
+		private readonly _openExternalCanvasLink: (url: string) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
+		public readonly presentation: IBrowserViewExternalPresentation | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@ILogService private readonly logService: ILogService,
@@ -171,19 +174,18 @@ export class BrowserView extends Disposable {
 		if (!this._ownerWindow) {
 			throw new Error(`Window with ID ${host.windowId} not found`);
 		}
-		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
-		this._register(this._ownerWindow.onWillLoad((e) => {
-			if (e.reason === LoadReason.LOAD) {
-				this.dispose(); // Dispose when switching workspaces.
-			} else if (e.reason === LoadReason.RELOAD) {
-				this.setVisible(false); // Hide when reloading.
-			}
-		}));
+		this._register(registerBrowserViewWindowLifecycle(this._ownerWindow, this));
 
 		this._view.setVisible(false);
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
+			if (this.presentation) {
+				if (isExternalCanvasLinkAllowed(details.url) && this.consumePopupPermission(NewPageLocation.NewWindow)) {
+					this._openExternalCanvasLink(details.url);
+				}
+				return { action: 'deny' };
+			}
 			const location = (() => {
 				switch (details.disposition) {
 					case 'background-tab': return NewPageLocation.Background;
@@ -237,7 +239,7 @@ export class BrowserView extends Disposable {
 
 		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
-		this.inspector = this._register(new BrowserViewInspector(this));
+		this.inspector = this._register(new BrowserViewInspector(this, this.logService));
 
 		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(this.session.remote.isRemote);
 		this._register(this.session.remote.onDidStart(fireRemoteStatus));
@@ -366,7 +368,9 @@ export class BrowserView extends Disposable {
 
 		// Loading state events
 		webContents.on('did-start-loading', () => {
-			this._lastError = undefined;
+			if (!this._lastError?.fileAccessDenied) {
+				this._lastError = undefined;
+			}
 
 			// Don't fire loading events for e.g. same-document navigations
 			if (webContents.isLoadingMainFrame()) {
@@ -382,7 +386,7 @@ export class BrowserView extends Disposable {
 					return;
 				}
 
-				this._lastError = {
+				this._lastError = BrowserSession.fileAccess.getError(validatedURL, errorCode, errorDescription) ?? {
 					url: validatedURL,
 					errorCode,
 					errorDescription,
@@ -427,7 +431,13 @@ export class BrowserView extends Disposable {
 		});
 
 		// Navigation events (when URL actually changes)
-		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url));
+		webContents.on('did-navigate', (_, url) => {
+			if (this._lastError?.fileAccessDenied) {
+				this._lastError = BrowserSession.fileAccess.getError(url);
+				fireLoadingEvent(webContents.isLoadingMainFrame());
+			}
+			fireNavigationEvent(url);
+		});
 		webContents.on('did-navigate-in-page', (_, url, isMainFrame) => {
 			// Ignore subframe (iframe) navigations: they must not rewrite the
 			// main frame's URL bar or its history entry.
@@ -740,6 +750,20 @@ export class BrowserView extends Disposable {
 	 */
 	getConsoleLogs(): string {
 		return this._consoleLogs.join('\n');
+	}
+
+	revalidateFileAccess(): void {
+		if (this._isDisposed || this._view.webContents.isDestroyed()) {
+			return;
+		}
+		const error = BrowserSession.fileAccess.getError(this.getURL());
+		if (!error || this._lastError?.fileAccessDenied) {
+			return;
+		}
+		this._lastError = error;
+		this.setVisible(false);
+		this._onDidChangeLoadingState.fire({ loading: false, error });
+		this._view.webContents.reloadIgnoringCache();
 	}
 
 	/**

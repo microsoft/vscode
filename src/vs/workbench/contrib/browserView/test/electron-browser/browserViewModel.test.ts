@@ -97,6 +97,7 @@ suite('BrowserViewModel', () => {
 				undefined,
 				{ ...initialState, url },
 				browserViewService,
+				undefined,
 				browserViewWorkbenchService,
 				NullTelemetryService,
 				dialogService,

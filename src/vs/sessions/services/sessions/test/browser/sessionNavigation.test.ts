@@ -166,6 +166,8 @@ class MockSessionStore implements ISessionsManagementService {
 		return this._sessions.get(resource.toString());
 	}
 
+	getSessionCanvases(): undefined { return undefined; }
+
 	async resolveSessionResource(resource: URI): Promise<URI> {
 		return resource;
 	}

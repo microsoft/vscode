@@ -19,6 +19,7 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHost
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
+import type { CanvasState } from './protocol/channels-canvas/state.js';
 import {
 	MessageKind,
 	ResponsePartKind,
@@ -58,6 +59,8 @@ import {
 	type UsageInfo,
 	type Message,
 } from './protocol/state.js';
+
+export type { CanvasState, CanvasEntry, CanvasIdentityKey, CanvasSource } from './protocol/channels-canvas/state.js';
 
 // Re-export everything from the protocol state module
 export {
@@ -1138,6 +1141,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -1149,6 +1153,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------

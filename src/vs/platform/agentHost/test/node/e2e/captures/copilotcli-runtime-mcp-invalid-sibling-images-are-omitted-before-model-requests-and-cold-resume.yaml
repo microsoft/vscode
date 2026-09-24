@@ -6,6 +6,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+    response:
+      content: RUNTIME_MCP_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
     response:
       content:
@@ -19,6 +32,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
         - role: assistant
@@ -45,6 +62,10 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
         - role: assistant
           content:
@@ -64,6 +85,43 @@ exchanges:
                 - type: image
         - role: assistant
           content: MCP_IMAGES_READY
+        - role: user
+          content: Reply exactly RUNTIME_MCP_RESUMED_READY. Do not call tools.
+    response:
+      content: RUNTIME_MCP_RESUMED_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
+          content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: images
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: text
+                  text: |-
+                    MCP_PROBE:images
+                    [MCP image omitted because its data was invalid or its MIME type unsupported]
+                - type: image
+        - role: assistant
+          content: MCP_IMAGES_READY
+        - role: user
+          content: Reply exactly RUNTIME_MCP_RESUMED_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_RESUMED_READY
         - role: user
           content: Reply exactly MCP_IMAGES_RESUMED. Do not call tools.
     response:

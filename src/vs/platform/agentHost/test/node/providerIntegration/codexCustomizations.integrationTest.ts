@@ -21,6 +21,7 @@ import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import type { DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 import { driveTurnToCompletion } from '../e2e/harness/agentHostE2ETestHarness.js';
@@ -165,7 +166,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 	teardown(async function () {
 		for (const session of createdSessions) {
 			try {
-				await client.call('disposeSession', { session }, 5000);
+				await client.call('disposeSession', { channel: session } satisfies DisposeSessionParams, 5000);
 			} catch { /* best-effort */ }
 		}
 		createdSessions.length = 0;

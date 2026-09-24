@@ -96,7 +96,7 @@ export class AgentSessionResidency extends Disposable {
 
 	private _getResidencySession(resource: URI): URI | undefined {
 		// Annotation ownership does not imply a dependency on the resident conversation; changesets still do.
-		return parseAnnotationsUri(resource.toString()) ? undefined : resolveAgentHostSession(resource);
+		return parseAnnotationsUri(resource.toString()) ? undefined : resolveAgentHostSession(resource, this._stateManager.getCanvasState(resource.toString())?.identity.chat);
 	}
 
 	private _hasResidencySubscribers(resource: URI): boolean {

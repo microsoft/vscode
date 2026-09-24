@@ -10,6 +10,28 @@ import { suite, test } from 'node:test';
 
 suite('hygiene', () => {
 
+	test('checks generated canvas SDK inputs without applying source indentation or copyright rules', () => {
+		const repositoryRoot = path.join(import.meta.dirname, '../../..');
+		const result = spawnSync(process.execPath, [
+			'--experimental-strip-types',
+			'build/hygiene.ts',
+			'build/npm/copilot-sdk-canvas.json',
+			'build/npm/copilot-sdk-canvas.patch',
+			'build/npm/copilot-sdk-canvas.source.patch',
+		], {
+			cwd: repositoryRoot,
+			encoding: 'utf8',
+		});
+
+		assert.deepStrictEqual({
+			status: result.status,
+			checkedBothPayloads: result.stdout.includes('Hygiene checked 2 files'),
+		}, {
+			status: 0,
+			checkedBothPayloads: true,
+		});
+	});
+
 	test('rejects requested files that enter no hygiene checker', () => {
 		const repositoryRoot = path.join(import.meta.dirname, '../../..');
 		const result = spawnSync(process.execPath, [

@@ -9,9 +9,11 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -20,12 +22,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { getAgentHostExtensionInitializeResultMeta, type InitializeCanvasChatParams } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ListCanvasTypesParams, OpenCanvasParams, OpenCanvasResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -51,6 +54,7 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { SessionCanvasesEnabledSettingId } from '../../../../../services/sessions/common/sessionCanvases.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -72,6 +76,7 @@ import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessi
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
+import { canvasEntry, createCanvasState } from '../../../../canvases/test/common/sessionCanvasTestUtils.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -108,6 +113,21 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	});
 
 	override readonly clientId = 'test-local-client';
+	readonly canvasInitializations: InitializeCanvasChatParams[] = [];
+	override async initializeCanvasChat(params: InitializeCanvasChatParams): Promise<void> {
+		this.canvasInitializations.push(params);
+	}
+	readonly canvasListings: ListCanvasTypesParams[] = [];
+	override async listCanvasTypes(params: ListCanvasTypesParams) {
+		this.canvasListings.push(params);
+		return { types: [] };
+	}
+	readonly canvasOpens: OpenCanvasParams[] = [];
+	override async openCanvas(params: OpenCanvasParams): Promise<OpenCanvasResult> {
+		this.canvasOpens.push(params);
+		const canvas = canvasEntry(createCanvasState(params.identity.chat, params.canvas));
+		return { canvas: { ...canvas, identity: { ...params.identity, incarnation: canvas.identity.incarnation } } };
+	}
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public automationCatalog: AutomationState = { entries: [] };
 	public disposedSessions: URI[] = [];
@@ -536,7 +556,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; canExecuteSession?: (session: ISession) => Promise<boolean>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -607,6 +627,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
+		override canExecuteSession(session: ISession): Promise<boolean> {
+			return options?.canExecuteSession?.(session) ?? Promise.resolve(true);
+		}
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireScope = (sessionType: string, roots: readonly URI[]) => options?.activeClientScope?.(sessionType, roots) ?? ({
@@ -741,6 +764,189 @@ suite('LocalAgentHostSessionsProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Provider identity -------
+
+	const nativeCanvasTest = isWeb ? test.skip : test;
+
+	test('canvas presentation follows the native platform boundary', async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
+		agentHost.addSession(createSession('canvas-platform'));
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			supported: session.capabilities.get().supportsCanvases,
+			hasFacet: provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource) !== undefined,
+			opens: agentHost.canvasOpens,
+		}, { supported: !isWeb, hasFacet: !isWeb, opens: [] });
+	});
+
+	nativeCanvasTest('canvas capability requires the opt-in and negotiated runtime and rolls back on disconnect', async () => {
+		agentHost.addSession(createSession('canvas-capability'));
+		const configuration = new TestConfigurationService();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configuration });
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const states = [session.capabilities.get().supportsCanvases];
+		configuration.setUserConfiguration(SessionCanvasesEnabledSettingId, true);
+		fireConfigChange(configuration, SessionCanvasesEnabledSettingId);
+		states.push(session.capabilities.get().supportsCanvases);
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
+		states.push(session.capabilities.get().supportsCanvases);
+		const canvases = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
+		const firstGeneration = canvases.generation.get();
+		agentHost.fireAgentHostExit();
+		states.push(session.capabilities.get().supportsCanvases);
+		const disconnected = canvases.availability.get();
+		agentHost.fireAgentHostStart();
+		states.push(session.capabilities.get().supportsCanvases);
+		configuration.setUserConfiguration(SessionCanvasesEnabledSettingId, false);
+		fireConfigChange(configuration, SessionCanvasesEnabledSettingId);
+		states.push(session.capabilities.get().supportsCanvases);
+		assert.deepStrictEqual({
+			states, disconnected, changedGeneration: canvases.generation.get() > firstGeneration,
+			disabledFacet: provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource),
+		}, { states: [false, false, true, false, true, false], disconnected: 'disconnected', changedGeneration: true, disabledFacet: undefined });
+	});
+
+	nativeCanvasTest('canvas initialization rechecks session execution admission after trust revocation', async () => {
+		const workspace = URI.file('/home/user/project');
+		agentHost.addSession(createSession('canvas-trust', {
+			project: { uri: workspace, displayName: 'project' },
+			workingDirectory: workspace,
+		}));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {}, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true) }, undefined);
+		let allowed = true;
+		const checked: string[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
+			canExecuteSession: async session => {
+				checked.push(session.sessionId);
+				return allowed;
+			},
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const canvases = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
+
+		allowed = false;
+		await assert.rejects(canvases.initialize(CancellationToken.None), isCancellationError);
+		const denied = agentHost.canvasInitializations.length;
+
+		allowed = true;
+		await canvases.initialize(CancellationToken.None);
+		assert.deepStrictEqual({
+			denied,
+			initializations: agentHost.canvasInitializations.map(request => request.channel),
+			checked,
+		}, {
+			denied: 0,
+			initializations: [buildDefaultChatUri(AgentSession.uri('copilotcli', 'canvas-trust').toString())],
+			checked: [session.sessionId, session.sessionId],
+		});
+	});
+
+	nativeCanvasTest('canvas initialization waits for workspace metadata unless the session is workspaceless', async () => {
+		agentHost.addSession(createSession('canvas-workspace-pending'));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {}, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true) }, undefined);
+		let checks = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
+			canExecuteSession: async () => {
+				checks++;
+				return true;
+			},
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const canvases = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
+
+		await assert.rejects(canvases.initialize(CancellationToken.None), isCancellationError);
+		fireSessionSummaryChanged(agentHost, 'canvas-workspace-pending', {
+			workingDirectories: [URI.file('/home/user/project').toString()],
+		});
+		await canvases.initialize(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			checks,
+			initializations: agentHost.canvasInitializations.length,
+			workspace: session.workspace.get()?.uri.toString(),
+		}, {
+			checks: 1,
+			initializations: 1,
+			workspace: URI.file('/home/user/project').toString(),
+		});
+	});
+
+	test('canvas presentation remains unsupported outside Agents and for other local agent types', async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
+		agentHost.addSession(createSession('canvas-workbench'));
+		agentHost.addSession(createSession('canvas-claude', { provider: 'claude' }));
+		const configuration = new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true });
+		const workbench = createProvider(disposables, agentHost, undefined, { configurationService: configuration, isSessionsWindow: false });
+		const agents = createProvider(disposables, agentHost, undefined, { configurationService: configuration });
+		await timeout(0);
+		const workbenchSession = workbench.getSessions().find(session => session.sessionType === 'copilotcli')!;
+		const claudeSession = agents.getSessions().find(session => session.sessionType === 'claude')!;
+		assert.deepStrictEqual({
+			workbench: workbenchSession.capabilities.get().supportsCanvases, otherAgent: claudeSession.capabilities.get().supportsCanvases,
+			workbenchFacet: workbench.getSessionCanvases(workbenchSession.sessionId, workbenchSession.mainChat.get().resource),
+			otherAgentFacet: agents.getSessionCanvases(claudeSession.sessionId, claudeSession.mainChat.get().resource),
+		}, { workbench: false, otherAgent: false, workbenchFacet: undefined, otherAgentFacet: undefined });
+	});
+
+	nativeCanvasTest('canvas presentation is unavailable for a draft before its first turn', () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
+		const draft = provider.createNewSession(URI.file('/home/user/project'), 'copilotcli');
+		assert.deepStrictEqual({
+			supported: draft.capabilities.get().supportsCanvases,
+			facet: provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource),
+			effects: agentHost.canvasOpens,
+		}, {
+			supported: false,
+			facet: undefined,
+			effects: [],
+		});
+	});
+
+	nativeCanvasTest('canvas mirror and catalog use exact peer resources without pure reads subscribing the session', async () => {
+		const rawId = 'canvas-peers';
+		const backend = AgentSession.uri('copilotcli', rawId);
+		agentHost.addSession(createSession(rawId));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = [...agentHost.sessionSubscribeCounts];
+		const main = provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource)!;
+		await main.refresh();
+		const pureReadsSubscribed = JSON.stringify([...agentHost.sessionSubscribeCounts]) !== JSON.stringify(before);
+		provider.getSessionConfig(session.sessionId);
+		const defaultChat = buildDefaultChatUri(backend.toString());
+		const peerChat = buildChatUri(backend.toString(), 'peer');
+		const summary = (resource: string): ChatSummary => ({ resource, title: resource, status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' });
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Canvases', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
+			defaultChat, chats: [summary(defaultChat), summary(peerChat)],
+			canvases: [canvasEntry(createCanvasState(defaultChat)), canvasEntry(createCanvasState(peerChat, 'ahp-canvas:/peer'))],
+		};
+		agentHost.setSessionState(rawId, 'copilotcli', state);
+		const peer = session.chats.get().find(chat => !isEqual(chat.resource, session.mainChat.get().resource))!;
+		const peerCanvases = provider.getSessionCanvases(session.sessionId, peer.resource)!;
+		await peerCanvases.refresh();
+		const members = { main: main.entries.get().map(entry => entry.resource), peer: peerCanvases.entries.get().map(entry => entry.resource) };
+		agentHost.setSessionState(rawId, 'copilotcli', { ...state, chats: [summary(defaultChat)], canvases: state.canvases?.slice(0, 1) });
+		fireSessionRemoved(agentHost, rawId);
+		assert.deepStrictEqual({
+			pureReadsSubscribed, members, listings: agentHost.canvasListings.map(list => list.channel),
+			removedPeer: peerCanvases.availability.get(), removedSession: main.availability.get(),
+		}, {
+			pureReadsSubscribed: false, members: { main: ['ahp-canvas:/counter'], peer: ['ahp-canvas:/peer'] }, listings: [defaultChat, peerChat],
+			removedPeer: 'unsupported', removedSession: 'unsupported',
+		});
+	});
 
 	test('Automation catalogue state follows local Agent Host connection lifetime', () => {
 		agentHost.automationCatalog = { entries: [] };
@@ -3488,7 +3694,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true, supportsCanvases: false });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -7245,7 +7451,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peer = () => session.chats.get().find(c => c.resource.fragment === 'peer-1');
 			const whileNew = peer()!.status.get();
 
-			(session as AgentHostSessionAdapter).markChatAsSent('peer-1');
+			(session as AgentHostSessionAdapter).markChatAsCreated('peer-1');
 			const afterSent = peer()!.status.get();
 
 			assert.deepStrictEqual({ whileNew, afterSent }, {

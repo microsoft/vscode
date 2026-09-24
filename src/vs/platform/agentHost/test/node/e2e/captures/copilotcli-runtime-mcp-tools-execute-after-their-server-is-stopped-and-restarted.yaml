@@ -6,6 +6,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+    response:
+      content: RUNTIME_MCP_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
     response:
       content:
@@ -20,10 +33,13 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: runtime-probe-runtime_probe
               input:
@@ -41,10 +57,13 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: runtime-probe-runtime_probe
               input:
@@ -71,10 +90,13 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: runtime-probe-runtime_probe
               input:

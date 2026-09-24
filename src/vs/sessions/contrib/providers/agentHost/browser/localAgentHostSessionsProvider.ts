@@ -13,6 +13,8 @@ import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { SessionCanvasesEnabledSettingId } from '../../../../services/sessions/common/sessionCanvases.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
@@ -160,6 +162,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		this.automations = automations;
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		const updateCanvasPresentationEnabled = () => this._canvasEnabled.set(
+			this._isSessionsWindow && !isWeb && this._configurationService.getValue<boolean>(SessionCanvasesEnabledSettingId) === true, undefined);
+		updateCanvasPresentationEnabled();
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
@@ -211,6 +216,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();
+			this._canvasBinding.set({ connection: this._agentHostService }, undefined);
 			automations.setConnection(this._agentHostService);
 			this._attachConnectionListeners(this._agentHostService, connectionListeners);
 
@@ -230,6 +236,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostExit(() => {
+			this._canvasBinding.set(undefined, undefined);
 			connectionListeners.clear();
 			automations.clearConnection();
 		}));
@@ -252,6 +259,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SessionCanvasesEnabledSettingId)) {
+				updateCanvasPresentationEnabled();
+			}
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
 			}

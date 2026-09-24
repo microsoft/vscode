@@ -29,6 +29,33 @@ suite('SessionDatabase', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('native message provenance', () => {
+		test('restores both boundary IDs and follows fork remapping and cascade deletion', async () => {
+			db = await SessionDatabase.open(':memory:');
+			await db.setTurnMessageOrigin('first', 'external-runtime-participant');
+			await db.setTurnEventId('first', 'sdk-first');
+			await db.setTurnMessageOrigin('discarded', 'external-runtime-participant');
+			const before = await db.getTurnMessageOrigins();
+			await db.remapTurnIds(new Map([['first', 'forked']]), new Map([['forked', 'sdk-forked']]));
+			const forked = await db.getTurnMessageOrigins();
+			await db.deleteAllTurns();
+			assert.deepStrictEqual([before, forked, await db.getTurnMessageOrigins()], [
+				new Map([['first', 'external-runtime-participant'], ['sdk-first', 'external-runtime-participant'], ['discarded', 'external-runtime-participant']]),
+				new Map([['forked', 'external-runtime-participant'], ['sdk-forked', 'external-runtime-participant']]),
+				new Map(),
+			]);
+		});
+
+		test('reads observe preceding fire-and-forget writes and pruning', async () => {
+			db = await SessionDatabase.open(':memory:');
+			const written = db.setTurnMessageOrigin('native', 'external-runtime-participant');
+			const removed = db.deleteTurn('native');
+			const restored = db.getTurnMessageOrigins();
+			await Promise.all([written, removed]);
+			assert.deepStrictEqual(await restored, new Map());
+		});
+	});
+
 	suite('initialization', () => {
 
 		test('retries after a transient initialization failure', async () => {
@@ -706,6 +733,11 @@ suite('SessionDatabase', () => {
 		test('migration v14 creates the terminal_outputs table', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			assert.ok((await db.getAllTables()).includes('terminal_outputs'));
+		});
+
+		test('migration v15 creates the turn_message_origin table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			assert.ok((await db.getAllTables()).includes('turn_message_origin'));
 		});
 	});
 
@@ -1526,7 +1558,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_message_origin', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -1553,7 +1585,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_message_origin', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});

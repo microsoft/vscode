@@ -61,6 +61,7 @@ The view service:
 
 - owns the active session and visible-session arrangement;
 - opens sessions and chats;
+- owns reusable session execution admission, including Workspace Trust checks that still apply to executable effects on an already-active session;
 - presents new-session and peer-chat composers;
 - owns session navigation, focus, and visible-session restoration.
 
@@ -127,6 +128,12 @@ Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionAr
 
 Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside the repository-discovered associations of the focused chat's workspace (or the session workspace for session-wide consumers). A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. References retain their optional recorded-reference ID; presentation uses that ID for per-item removal and never infers record identity from a title or URL.
 
+### Canvases
+
+Provider-owned application instances are exposed separately from artifacts through the optional `ISessionsProvider.getSessionCanvases(sessionId, chat)` facet. Management verifies the exact session/chat pair before routing it, without a main-chat fallback. The observable facade separates live declarations, logical membership, and full instance state; provider-specific resource translation and execution remain in the provider.
+
+Executable canvas effects reuse `ISessionsService` session execution admission before provider materialization or dispatch, including after Workspace Trust is revoked from an active session. Catalog/source reads remain non-starting, and logical close remains available for cleanup. Canvas editors persist only provider/session/chat/member references. Presentation leases follow the represented owner and visibility; disposing an editor or restoring a working set does not logically close a canvas or execute its provider. The owning [canvas contribution](contrib/canvases/README.md) specifies explicit close/recovery, source resolution, and native isolation.
+
 ## Provider contract
 
 `ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
@@ -150,6 +157,10 @@ A provider that must establish backend state before presenting a session may imp
 ### Drafts
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+
+Replacing a pending draft with a committed facade releases the management service's draft pointer without discarding the backend owner. The visible session and its working set follow the ordinary replacement lifecycle.
+
+Within a committed session, authoritative canvas membership likewise makes its owning chat non-empty. Providers must not continue advertising that chat as an untitled draft eligible for reuse.
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 

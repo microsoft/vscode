@@ -5,8 +5,10 @@
 
 import * as child_process from 'child_process';
 import { root, isUpToDate, forceInstallMessage } from './installStateHash.ts';
+import { ensureCopilotSdkCanvasPatch } from './copilotSdkCanvasPatch.ts';
 
 if (!process.argv.includes('--force') && isUpToDate()) {
+	ensureCopilotSdkCanvasPatch(root);
 	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
 	process.exit(0);
 }

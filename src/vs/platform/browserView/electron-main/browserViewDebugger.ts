@@ -7,6 +7,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
+import type { AXNode } from '../../webContentExtractor/electron-main/cdpAccessibilityDomain.js';
 
 /**
  * Intercepts a CDP command before it is forwarded to the Electron debugger.
@@ -105,6 +106,12 @@ export class BrowserViewDebugger extends Disposable {
 		this.ensureAttached();
 		const result = await this._electronDebugger.sendCommand('Target.getTargetInfo') as { targetInfo: CDPTargetInfo };
 		return result.targetInfo;
+	}
+
+	async getAccessibilityTree(): Promise<AXNode[]> {
+		this.ensureAttached();
+		const result: { nodes: AXNode[] } = await this._electronDebugger.sendCommand('Accessibility.getFullAXTree', { depth: 20 });
+		return result.nodes;
 	}
 
 	/**

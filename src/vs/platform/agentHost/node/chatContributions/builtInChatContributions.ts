@@ -8,6 +8,7 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
+import { CanvasesContribution } from './canvases/canvasesContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
@@ -47,6 +48,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(SessionTitleContribution));
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
+	registrations.add(contributions.registerContribution(CanvasesContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));

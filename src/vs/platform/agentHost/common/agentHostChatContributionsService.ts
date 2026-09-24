@@ -11,6 +11,7 @@ import type { IAgent } from './agent.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { StateAction } from './state/sessionActions.js';
 import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
+import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -72,8 +73,10 @@ export interface IOutgoingTurnContributionResult {
 	readonly message: Message;
 }
 
-/** A turn request that has entered host state and is asking to proceed to a provider. */
+/** A turn request asking to proceed to a provider. */
 export interface IIncomingRequest {
+	/** A synchronous preflight before runtime initialization; no turn has been admitted and handlers must not execute local commands. */
+	readonly phase?: 'preparation';
 	readonly session: ProtocolURI;
 	/** The chat the turn targets. */
 	readonly chat: ProtocolURI;
@@ -124,6 +127,7 @@ export interface IHydrationContext {
 export interface IRestoredChat {
 	readonly title?: string;
 	readonly draft?: Message;
+	readonly canvases?: readonly CanvasState[];
 }
 
 /** A client action after it has been reduced into host state. */

@@ -6,6 +6,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+    response:
+      content: RUNTIME_MCP_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
+        - role: user
           content: Invoke the runtime-reference skill exactly once, follow its instructions to read the plugin reference file, then reply with its exact contents.
     response:
       content:
@@ -19,6 +32,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
         - role: user
           content: Invoke the runtime-reference skill exactly once, follow its instructions to read the plugin reference file, then reply with its exact contents.
         - role: assistant
@@ -52,6 +69,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly RUNTIME_MCP_READY. Do not call tools.
+        - role: assistant
+          content: RUNTIME_MCP_READY
         - role: user
           content: Invoke the runtime-reference skill exactly once, follow its instructions to read the plugin reference file, then reply with its exact contents.
         - role: assistant

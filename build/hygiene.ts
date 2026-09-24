@@ -205,6 +205,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
+	const generatedCanvasSdkInputFilter = filter([
+		'build/npm/copilot-sdk-canvas.patch',
+		'build/npm/copilot-sdk-canvas.source.patch',
+	], { restore: true });
 	const checkedFiles = new Set<string>();
 	const trackCheckedFile = () => es.through(function (file: VinylFile) {
 		checkedFiles.add(file.relative);
@@ -222,6 +226,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		.pipe(trackCheckedFile())
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
+		// Foreign generated payloads are validated byte-for-byte by the carrier tests.
+		.pipe(generatedCanvasSdkInputFilter)
+		.pipe(trackCheckedFile())
+		.pipe(generatedCanvasSdkInputFilter.restore)
 		.pipe(filter(Array.from(indentationFilter)))
 		.pipe(trackCheckedFile())
 		.pipe(indentation)

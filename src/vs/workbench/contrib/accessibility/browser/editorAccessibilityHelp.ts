@@ -25,7 +25,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
-	static ID: 'editorAccessibilityHelpContribution';
+	static readonly ID = 'editorAccessibilityHelpContribution';
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(90, 'editor', async accessor => {

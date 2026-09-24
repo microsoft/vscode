@@ -51,6 +51,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { ISessionCanvases } from '../../common/sessionCanvases.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 
 const stubChat = {
@@ -322,6 +323,112 @@ function createView(
 suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getSessionCanvases routes exact peers to their provider and never falls back to the main chat', () => {
+		const peer = { ...stubChat, resource: URI.parse('test:/owned#peer'), status: constObservable(SessionStatus.Completed) };
+		const draftPeer = { ...stubChat, resource: URI.parse('test:/owned#draft'), status: constObservable(SessionStatus.Untitled) };
+		const session = stubSession({
+			sessionId: 'canvases',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats: constObservable([stubChat, peer, draftPeer]),
+		});
+		const collection = new class extends mock<ISessionCanvases>() { }();
+		const calls: { session: string; chat: string }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessionCanvases(sessionId: string, chat: URI): ISessionCanvases {
+				calls.push({ session: sessionId, chat: chat.toString() });
+				return collection;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const found = service.getSessionCanvases(session.resource, peer.resource);
+		const draftChat = service.getSessionCanvases(session.resource, draftPeer.resource);
+		const unknownChat = service.getSessionCanvases(session.resource, URI.parse('test:/other#peer'));
+		const unknownSession = service.getSessionCanvases(URI.parse('test:/unknown'), peer.resource);
+		assert.deepStrictEqual({ found: found === collection, draftChat, unknownChat, unknownSession, calls }, {
+			found: true, draftChat: undefined, unknownChat: undefined, unknownSession: undefined,
+			calls: [{ session: session.sessionId, chat: peer.resource.toString() }],
+		});
+	});
+
+	test('getSessionCanvases leaves providers without the optional facet unsupported', () => {
+		const session = stubSession({ sessionId: 'no-canvases', providerId: 'test', chats: constObservable([stubChat]) });
+		const { service } = createSessionsManagementService(session, disposables);
+		assert.strictEqual(service.getSessionCanvases(session.resource, stubChat.resource), undefined);
+	});
+
+	test('getSessionCanvases does not expose the composer draft before its first turn', async () => {
+		const draft = stubSession({
+			sessionId: 'canvas-draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+			chats: constObservable([stubChat]),
+		});
+		const collection = new class extends mock<ISessionCanvases>() { }();
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return []; }
+			override resolveWorkspace(folder: URI): ISessionWorkspace {
+				return { uri: folder, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override getSessionCanvases(sessionId: string, chat: URI): ISessionCanvases {
+				calls.push(`${sessionId}/${chat.toString()}`);
+				return collection;
+			}
+		}(draft);
+		const { service, view } = createSessionsManagementService(draft, disposables, provider);
+		await view.openNewSession({ folderUri: URI.parse('test:///folder') });
+
+		assert.deepStrictEqual({
+			active: extUriBiasedIgnorePathCase.isEqual(view.activeSession.get()?.resource, draft.resource),
+			listed: service.getSessions(),
+			defaultLookup: service.getSession(draft.resource),
+			draftLookup: service.getSession(draft.resource, { includeDrafts: true }) === draft,
+			canvases: service.getSessionCanvases(draft.resource, stubChat.resource),
+			otherChat: service.getSessionCanvases(draft.resource, URI.parse('test:///other-chat')),
+			calls,
+		}, {
+			active: true, listed: [], defaultLookup: undefined, draftLookup: true,
+			canvases: undefined, otherChat: undefined, calls: [],
+		});
+	});
+
+	test('draft lookup follows replacement and disposal without changing catalog lookup', () => {
+		const drafts = ['first', 'automation', 'replacement'].map(sessionId =>
+			stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Untitled) }));
+		let nextDraft = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly automations = upcastPartial<NonNullable<ISessionsProvider['automations']>>({
+				catalogueState: constObservable('ready'),
+			});
+			override getSessions(): ISession[] { return []; }
+			override createNewSession(): ISession { return drafts[nextDraft++]; }
+			override resolveWorkspace(folder: URI): ISessionWorkspace {
+				return { uri: folder, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const folder = URI.parse('test:///folder');
+		service.createNewSession(folder);
+		service.createAutomationSession(folder);
+		const lookup = () => drafts.map(draft => service.getSession(draft.resource, { includeDrafts: true })?.sessionId);
+		const states = [lookup()];
+		service.createNewSession(folder);
+		states.push(lookup());
+		service.discardNewSession();
+		states.push(lookup());
+		service.discardAutomationSession(drafts[1]);
+		states.push(lookup());
+
+		assert.deepStrictEqual({ states, catalog: service.getSessions() }, {
+			states: [
+				['first', 'automation', undefined],
+				[undefined, 'automation', 'replacement'],
+				[undefined, 'automation', undefined],
+				[undefined, undefined, undefined],
+			],
+			catalog: [],
+		});
+	});
 
 	suite('provider catalogue changes', () => {
 
@@ -1775,6 +1882,47 @@ suite('SessionsManagementService', () => {
 			pendingSession: 'quick',
 			activeSession: 'quick',
 			isQuickChat: true,
+		});
+	});
+
+	test('canExecuteSession rechecks an active session and permits retry after trust is granted', async () => {
+		const folder = URI.file('/revoked');
+		const session = stubSession({
+			sessionId: 'active-revoked',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: folder,
+				label: 'revoked',
+				icon: Codicon.folder,
+				folders: [{ root: folder, workingDirectory: folder, name: 'revoked', description: undefined }],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			}),
+		});
+		const trustManagement = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
+		};
+		let grantTrust = false;
+		const prompts: string[] = [];
+		const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions) {
+				prompts.push(options.uri.toString());
+				return grantTrust;
+			}
+		};
+		const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session), trustManagement, trustRequest);
+		view.showSession(session.resource);
+
+		const open = await view.canOpenSession(session);
+		const denied = await view.canExecuteSession(session);
+		grantTrust = true;
+		const retried = await view.canExecuteSession(session);
+
+		assert.deepStrictEqual({ open, denied, retried, prompts }, {
+			open: true,
+			denied: false,
+			retried: true,
+			prompts: [folder.toString(), folder.toString()],
 		});
 	});
 
@@ -4272,6 +4420,38 @@ suite('SessionsManagementService', () => {
 			});
 		});
 	}
+
+	test('provider replacement clears the pending draft without discarding the committed owner', async () => {
+		const draft = stubSession({ sessionId: 'replacement', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		const committed = { ...draft, status: constObservable(SessionStatus.Completed) };
+		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		const discarded: string[] = [];
+		let sent = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidReplaceSession = onDidReplaceSession.event;
+			constructor() { super(draft); }
+			override resolveWorkspace(folder: URI): ISessionWorkspace {
+				return { uri: folder, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override deleteNewSession(sessionId: string): void { discarded.push(sessionId); }
+			override async sendRequest(): Promise<ISession> { sent++; return committed; }
+		};
+		const { service, view } = createSessionsManagementService(draft, disposables, provider);
+		let discardedEvents = 0;
+		disposables.add(service.onDidDiscardNewSession(() => discardedEvents++));
+		await view.openNewSession({ folderUri: URI.parse('test:///folder') });
+		const before = service.newSession.get()?.sessionId;
+		onDidReplaceSession.fire({ from: draft, to: committed });
+		service.discardNewSession(draft);
+
+		assert.deepStrictEqual({
+			before, pending: service.newSession.get(), active: view.activeSession.get()?.sessionId,
+			status: view.activeSession.get()?.status.get(), discarded, discardedEvents, sent,
+		}, {
+			before: draft.sessionId, pending: undefined, active: committed.sessionId,
+			status: SessionStatus.Completed, discarded: [], discardedEvents: 0, sent: 0,
+		});
+	});
 
 	test('replacing a non-active session leaves the active session unchanged', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });

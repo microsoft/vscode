@@ -6,14 +6,8 @@
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
-import type { InitializeResult } from './state/protocol/common/commands.js';
-import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
-import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
-import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
-import { AgentHostTimingCapabilityMetaKey } from './meta/agentHostTimingMeta.js';
+export { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCanvasChatInitialization, supportsAgentHostChatStateFile, supportsAgentHostDetachedWorktrees, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionInitializeResultMeta } from './meta/agentHostExtensionProtocolMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
-import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
-
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 
@@ -46,51 +40,21 @@ export const ReconcileAgentHostDetachedWorktreesExtensionMethod = 'vscode/reconc
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
+export const RequestAgentHostCanvasApprovalExtensionMethod = 'vscode/requestCanvasApproval';
+export const CancelAgentHostCanvasApprovalExtensionMethod = 'vscode/cancelCanvasApproval';
+export const InitializeCanvasChatExtensionMethod = 'vscode/initializeCanvasChat';
+export const CancelCanvasChatInitializationExtensionMethod = 'vscode/cancelCanvasChatInitialization';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
-const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
-const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
+export const initializeCanvasChatParamsValidator = vObj({
+	channel: vString(),
+	requestId: vString(),
+});
 
-/** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
-export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
-	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
-	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
-	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
-	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
-	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
-	readonly [AgentHostTimingCapabilityMetaKey]?: true;
-	/** Present when Automation execution does not require a client activation or migration handshake. */
-	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
-}
-
-/** Standard AHP initialize response with typed VS Code-specific capability metadata. */
-export interface IAgentHostExtensionInitializeResult extends InitializeResult {
-	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
-}
-
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false): IAgentHostExtensionInitializeResultMeta {
-	return {
-		[AgentHostChatStateFileCapabilityMetaKey]: true,
-		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
-		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
-		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
-		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
-		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
-		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
-	};
-}
-
-export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitializeResult | undefined): boolean {
-	const meta = result?._meta;
-	return meta?.[AgentHostChatStateFileCapabilityMetaKey] === true;
-}
-
-export function supportsAgentHostDetachedWorktrees(result: IAgentHostExtensionInitializeResult | undefined): boolean {
-	const meta = result?._meta;
-	return meta?.[AgentHostDetachedWorktreeCapabilityMetaKey] === true;
-}
+/** An exact chat and transport-scoped idempotency key for executable registry initialization. */
+export type InitializeCanvasChatParams = ValidatorType<typeof initializeCanvasChatParamsValidator>;
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({
 	session: vOptionalProp(vString()),
@@ -108,6 +72,8 @@ export const removeSessionArtifactParamsValidator = vObj({
 export const importSessionParamsValidator = vObj({ session: vString() });
 
 export interface IAgentHostExtensionCommandMap {
+	[InitializeCanvasChatExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
+	[CancelCanvasChatInitializationExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
@@ -169,7 +135,18 @@ export interface IAgentHostWorkspaceTrustRequest {
 	readonly trustedParent?: string;
 }
 
+/** Out-of-turn, user-only approval. The nonce and exact chat are connection-bound. */
+export interface IAgentHostCanvasApprovalRequest {
+	readonly requestId: string;
+	readonly chat: string;
+	readonly message: string;
+}
+
 export interface IAgentHostExtensionServerCommandMap {
+	[RequestAgentHostCanvasApprovalExtensionMethod]: {
+		params: IAgentHostCanvasApprovalRequest;
+		result: { requestId: string; approved: boolean };
+	};
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };
