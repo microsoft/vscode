@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import type { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { NKeyMap } from '../../../base/common/map.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { LRUCache, NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
@@ -123,6 +125,38 @@ interface IPendingSubagentSignal {
 	readonly agent: IAgent;
 }
 
+const MAX_PENDING_SUBAGENT_SIGNALS = 1000;
+const MAX_FAILED_SUBAGENT_ROUTES = 1000;
+const SUBAGENT_START_TIMEOUT = 30_000;
+
+class PendingSubagentSignals extends Disposable {
+	readonly entries: IPendingSubagentSignal[] = [];
+	failed = false;
+	private readonly timeout: RunOnceScheduler;
+
+	constructor(readonly parentChatUri: ProtocolURI, onTimeout: () => void) {
+		super();
+		this.timeout = this._register(new RunOnceScheduler(onTimeout, SUBAGENT_START_TIMEOUT));
+		this.timeout.schedule();
+	}
+
+	take(): IPendingSubagentSignal[] {
+		this.timeout.cancel();
+		return this.entries.splice(0);
+	}
+
+	override dispose(): void {
+		this.failed = true;
+		const entries = this.take();
+		super.dispose();
+		for (const { signal, agent } of entries) {
+			if (signal.kind === 'pending_confirmation') {
+				agent.respondToPermissionRequest(signal.state.toolCallId, false);
+			}
+		}
+	}
+}
+
 interface ISubagentSessionRef {
 	readonly parentChatUri: ProtocolURI;
 	readonly immediateParentChatUri: ProtocolURI | undefined;
@@ -222,7 +256,8 @@ export class AgentSideEffects extends Disposable {
 	 * grouping them under the subagent. Drained by `_handleSubagentStarted`.
 	 *
 	 */
-	private readonly _pendingSubagentSignals = new NKeyMap<IPendingSubagentSignal[], [ProtocolURI, string]>();
+	private readonly _pendingSubagentSignals = this._register(new DisposableMap<string, PendingSubagentSignals>());
+	private readonly _failedSubagentRoutes = new LRUCache<string, ProtocolURI>(MAX_FAILED_SUBAGENT_ROUTES);
 	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	/**
 	 * Fires with the provider id whenever a turn starts. Surfaced so
@@ -250,7 +285,12 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
-		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
+		this._inputRequestTracker = new AgentHostInputRequestTracker(
+			this._telemetryReporter,
+			undefined,
+			(session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId),
+			(session, turnId) => this._turnTracker.getTelemetryContext(session, turnId),
+		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
@@ -636,6 +676,13 @@ export class AgentSideEffects extends Disposable {
 		// parent session, which has no matching ChatToolCallStart).
 		const parentToolCallId = signal.parentToolCallId;
 		if (parentToolCallId) {
+			if (!this._stateManager.getChatState(sessionKey)) {
+				this._logService.warn(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for disposed parent chat ${sessionKey}`);
+				if (signal.kind === 'pending_confirmation') {
+					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				}
+				return;
+			}
 			const subagentSession = this._subagentChats.get(sessionKey, parentToolCallId);
 			if (subagentSession) {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
@@ -656,22 +703,29 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 
-			const pendingSignals = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
-			if (signal.kind === 'pending_confirmation' && !pendingSignals) {
-				this._logService.error(`[AgentSideEffects] Denying permission for unroutable subagent ${sessionKey}/${parentToolCallId}: toolCallId=${signal.state.toolCallId}`);
-				agent.respondToPermissionRequest(signal.state.toolCallId, false);
+			const key = `${sessionKey}\0${parentToolCallId}`;
+			if (this._failedSubagentRoutes.get(key) !== undefined) {
+				if (signal.kind === 'pending_confirmation') {
+					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				}
+				return;
+			}
+			const hadPendingSignals = this._pendingSubagentSignals.has(key);
+			const buffer = this._getPendingSubagentSignals(sessionKey, parentToolCallId);
+			if (buffer.failed) {
+				if (signal.kind === 'pending_confirmation') {
+					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				}
 				return;
 			}
 
-			// Subagent session does not exist yet — buffer the signal so we can
-			// replay it after `subagent_started` arrives.
 			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${sessionKey}/${parentToolCallId}`);
-			let buffer = pendingSignals;
-			if (!buffer) {
-				buffer = [];
-				this._pendingSubagentSignals.set(buffer, sessionKey, parentToolCallId);
+			buffer.entries.push({ signal, agent });
+			if (signal.kind === 'pending_confirmation' && !hadPendingSignals) {
+				this._failPendingSubagentSignals(sessionKey, parentToolCallId, 'Permission requested before subagent startup');
+			} else if (buffer.entries.length > MAX_PENDING_SUBAGENT_SIGNALS) {
+				this._failPendingSubagentSignals(sessionKey, parentToolCallId, 'Too many signals before subagent startup');
 			}
-			buffer.push({ signal, agent });
 			return;
 		}
 
@@ -918,11 +972,10 @@ export class AgentSideEffects extends Disposable {
 			// subagent-content merge above (which only touches `result.content`).
 			this._toolCallTracker.toolCallCompleted(sessionKey, action.toolCallId, action.result);
 
-			// Drop any events that were buffered for a subagent whose
-			// `subagent_started` never arrived (e.g. the parent tool failed
-			// before the subagent was created). A registered child chat remains
-			// available across completed turns so it can be steered again.
-			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
+			// A successful background launch can return before its child starts.
+			if (!action.result.success) {
+				this._pendingSubagentSignals.deleteAndDispose(`${sessionKey}\0${action.toolCallId}`);
+			}
 			if (getToolFileEdits(action.result).length > 0) {
 				const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 				this._changesets.onToolCallEditsApplied(sessionKey, turnId, clientContext);
@@ -1011,19 +1064,61 @@ export class AgentSideEffects extends Disposable {
 		return signal.kind === 'action' ? `action(${signal.action.type})` : signal.kind;
 	}
 
+	private _getPendingSubagentSignals(parentChatURI: ProtocolURI, toolCallId: string): PendingSubagentSignals {
+		const key = `${parentChatURI}\0${toolCallId}`;
+		let buffer = this._pendingSubagentSignals.get(key);
+		if (!buffer) {
+			buffer = new PendingSubagentSignals(parentChatURI, () =>
+				this._failPendingSubagentSignals(parentChatURI, toolCallId, 'Timed out waiting for subagent startup'));
+			this._pendingSubagentSignals.set(key, buffer);
+		}
+		return buffer;
+	}
+
+	private _failPendingSubagentSignals(parentChatURI: ProtocolURI, toolCallId: string, reason: string): void {
+		const key = `${parentChatURI}\0${toolCallId}`;
+		if (!this._stateManager.getChatState(parentChatURI)) {
+			this._logService.warn(`[AgentSideEffects] ${reason} for disposed parent chat ${parentChatURI}/${toolCallId}`);
+			this._failedSubagentRoutes.delete(key);
+			this._pendingSubagentSignals.deleteAndDispose(key);
+			return;
+		}
+		if (this._failedSubagentRoutes.get(key) !== undefined || this._pendingSubagentSignals.get(key)?.failed) {
+			return;
+		}
+		this._logService.error(`[AgentSideEffects] ${reason}: ${parentChatURI}/${toolCallId}`);
+		// Suppress recent failed routes before denying their permissions, which can emit more signals.
+		this._failedSubagentRoutes.set(key, parentChatURI);
+		this._pendingSubagentSignals.deleteAndDispose(key);
+		const turnId = this._stateManager.getActiveTurnId(parentChatURI);
+		if (turnId) {
+			this._stateManager.dispatchServerAction(parentChatURI, {
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: {
+					kind: ResponsePartKind.SystemNotification,
+					content: localize('agentHost.subagentUnavailable', "A subagent could not be started or resumed. Its pending approval requests were cancelled. Start a new subagent to continue."),
+				},
+			});
+		}
+	}
+
 	/**
 	 * Replays any signals that were buffered while waiting for
 	 * `subagent_started` to create the subagent session. Called immediately
 	 * after `_handleSubagentStarted`.
 	 */
 	private _drainPendingSubagentSignals(parentChatURI: ProtocolURI, parentToolCallId: string): void {
-		const buffer = this._pendingSubagentSignals.get(parentChatURI, parentToolCallId);
+		const key = `${parentChatURI}\0${parentToolCallId}`;
+		this._failedSubagentRoutes.delete(key);
+		const buffer = this._pendingSubagentSignals.get(key);
 		if (!buffer) {
 			return;
 		}
-		this._pendingSubagentSignals.delete(parentChatURI, parentToolCallId);
-		this._logService.trace(`[AgentSideEffects] Draining ${buffer.length} buffered signal(s) for subagent ${parentChatURI}/${parentToolCallId}`);
-		for (const { signal, agent } of buffer) {
+		const entries = buffer.take();
+		this._pendingSubagentSignals.deleteAndDispose(key);
+		this._logService.trace(`[AgentSideEffects] Draining ${entries.length} buffered signal(s) for subagent ${parentChatURI}/${parentToolCallId}`);
+		for (const { signal, agent } of entries) {
 			this._handleAgentSignal(agent, signal);
 		}
 	}
@@ -1141,7 +1236,7 @@ export class AgentSideEffects extends Disposable {
 	private _resumeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string, message: Message | undefined, immediateParentChatURI?: ProtocolURI): void {
 		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
 		if (!subagent) {
-			this._logService.error(`[AgentSideEffects] Cannot resume unknown subagent ${parentChatURI}/${toolCallId}`);
+			this._failPendingSubagentSignals(parentChatURI, toolCallId, 'Cannot resume unknown subagent');
 			return;
 		}
 		if (this._stateManager.getActiveTurnId(subagent.chatUri)) {
@@ -1185,9 +1280,9 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Cancels all active subagent sessions for a given parent session.
+	 * Cancels child executions, retaining reusable routing only when requested by a parent turn cancellation.
 	 */
-	cancelSubagentSessions(parentChatURI: ProtocolURI): void {
+	cancelSubagentSessions(parentChatURI: ProtocolURI, options?: { retainRegistrations: boolean }): void {
 		for (const subagent of this._subagentChats.getAll(parentChatURI)) {
 			const turnId = this._stateManager.getActiveTurnId(subagent.chatUri);
 			if (turnId) {
@@ -1201,9 +1296,19 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallTracker.clearSession(subagent.chatUri);
 			this._turnTracker.clearSession(subagent.chatUri);
 		}
-		this._subagentChats.deleteAll(parentChatURI);
-		// Drop any buffered events targeted at subagents that never started.
-		this._pendingSubagentSignals.deleteAll(parentChatURI);
+		if (!options?.retainRegistrations) {
+			this._subagentChats.deleteAll(parentChatURI);
+		}
+		for (const [key, buffer] of this._pendingSubagentSignals) {
+			if (buffer.parentChatUri === parentChatURI) {
+				this._pendingSubagentSignals.deleteAndDispose(key);
+			}
+		}
+		for (const [key, parent] of [...this._failedSubagentRoutes]) {
+			if (parent === parentChatURI) {
+				this._failedSubagentRoutes.delete(key);
+			}
+		}
 	}
 
 	/**
@@ -1211,11 +1316,9 @@ export class AgentSideEffects extends Disposable {
 	 * call. The chat remains registered so a later steered turn can resume it.
 	 */
 	completeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string): void {
-		// Drop any events that were buffered waiting for a `subagent_started`
-		// that never arrived (e.g. the parent tool failed before the subagent
-		// was created). Without this, the buffer entry would leak until the
-		// parent session is disposed.
-		this._pendingSubagentSignals.delete(parentChatURI, toolCallId);
+		const key = `${parentChatURI}\0${toolCallId}`;
+		this._failedSubagentRoutes.delete(key);
+		this._pendingSubagentSignals.deleteAndDispose(key);
 
 		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
 		if (!subagent) {
@@ -1255,7 +1358,16 @@ export class AgentSideEffects extends Disposable {
 		}
 		for (const parentChatURI of parentChatURIs) {
 			this._subagentChats.deleteAll(parentChatURI);
-			this._pendingSubagentSignals.deleteAll(parentChatURI);
+		}
+		for (const [key, buffer] of this._pendingSubagentSignals) {
+			if (parseRequiredSessionUriFromChatUri(buffer.parentChatUri) === parentSession) {
+				this._pendingSubagentSignals.deleteAndDispose(key);
+			}
+		}
+		for (const [key, parent] of [...this._failedSubagentRoutes]) {
+			if (parseRequiredSessionUriFromChatUri(parent) === parentSession) {
+				this._failedSubagentRoutes.delete(key);
+			}
 		}
 	}
 
@@ -1593,8 +1705,7 @@ export class AgentSideEffects extends Disposable {
 					});
 				}
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
-				// Cancel all subagent sessions for this parent
-				this.cancelSubagentSessions(channel);
+				this.cancelSubagentSessions(channel, { retainRegistrations: true });
 				const agent = this._options.getAgent(sessionChannel);
 				if (agent) {
 					const chat = URI.parse(channel);

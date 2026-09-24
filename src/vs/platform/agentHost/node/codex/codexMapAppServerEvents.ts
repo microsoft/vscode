@@ -504,20 +504,6 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 			_meta: {
 				reasoningOutputTokens: last.reasoningOutputTokens,
 				modelContextWindow: params.tokenUsage.modelContextWindow,
-				...(modelId ? {
-					turnTokenTotals: [{
-						model: modelId,
-						inputTokens: last.inputTokens,
-						cachedTokens: last.cachedInputTokens,
-						outputTokens: last.outputTokens,
-					}],
-					directTurnTokenTotals: [{
-						model: modelId,
-						inputTokens: last.inputTokens,
-						cachedTokens: last.cachedInputTokens,
-						outputTokens: last.outputTokens,
-					}],
-				} : {}),
 			},
 		},
 	}];

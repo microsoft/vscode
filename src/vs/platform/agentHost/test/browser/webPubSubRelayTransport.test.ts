@@ -146,4 +146,34 @@ suite('WebPubSubRelayTransport', () => {
 		transport.dispose();
 		assert.throws(() => transport.send({ jsonrpc: '2.0', id: 1, method: 'x' } as never));
 	});
+
+	test('counts inbound frames without retaining payloads or counting stale callbacks', async () => {
+		const fake = new FakeWebSocket();
+		let frames = 0;
+		const errors: unknown[] = [];
+		const transport = store.add(new WebPubSubRelayTransport({
+			url: 'wss://wps.example',
+			toHostGroup: TO_HOST,
+			joinGroups: [BROADCAST, TO_CLIENT],
+			webSocketFactory: () => fake,
+			onDidReceiveFrame: () => frames++,
+			onProtocolError: error => errors.push(error),
+		}));
+		const connecting = transport.connect();
+		fake.onmessage?.({ data: '{invalid' });
+		fake.emit({ type: 'system', event: 'connected' });
+		for (const join of fake.sentOfType('joinGroup')) {
+			fake.emit({ type: 'ack', ackId: join['ackId'], success: true });
+		}
+		await connecting;
+		fake.emit({ type: 'ack', ackId: 99, success: true });
+		fake.onmessage?.({ data: '{invalid' });
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'message', data: { jsonrpc: '2.0', id: 1, result: null } } });
+		const staleMessage = fake.onmessage;
+		fake.emitClose();
+		staleMessage?.({ data: '{}' });
+		transport.dispose();
+		staleMessage?.({ data: '{}' });
+		assert.deepStrictEqual({ frames, parseErrors: errors.length }, { frames: 7, parseErrors: 2 });
+	});
 });

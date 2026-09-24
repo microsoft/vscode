@@ -187,7 +187,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
+		this._register(this._compositeBar.onDidChangeVisibility(() => {
+			this._contentContainer.classList.toggle('modern-ui-editor-tab-content', this._compositeBar.visible);
+			this._layoutChildren();
+		}));
 		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
 
 		const focusTracker = this._register(trackFocus(this.element));

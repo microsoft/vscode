@@ -588,21 +588,21 @@ A user can select a secondary folder for a Copilot peer chat and continue the co
 - Gate: Copilot requires `context.runKnownIssueTests`.
 - Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts --grep 'workspace lifecycle: peer folder selection survives'`.
 
-### Copilot session debug export omits provider log entries
+### Copilot session debug export omits the process log
 
-A user can export debug logs for a completed Copilot session to diagnose provider behavior. The export reports that provider logs were included, but its manifest contains only Agent Host process logs, so the provider-specific evidence needed for troubleshooting is absent.
+A user can export debug logs for a Copilot session to diagnose lower-level SDK runtime behavior. The export omits the SDK `process.log`, so startup, authentication, and runtime diagnostics are unavailable even after the provider session has been created.
 
-- Test: `materialized Copilot debug collection includes provider log entries`.
+- Test: `materialized Copilot debug collection includes process log`.
 - Scope: Copilot sessions on all platforms.
-- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and lists at least one provider log in addition to the Agent Host process log.
-- Observed: the export reports `providerLogsIncluded: true`, but every manifest entry is an Agent Host process log.
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1` in fixture-recording mode.
+- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and contains a non-empty `process.log` entry.
+- Observed: the export reports `providerLogsIncluded: false` and contains no `process.log`.
+- Gate: the model-free scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
 - Reproduce:
 
   ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "materialized Copilot debug collection includes provider log entries"
+    --grep "materialized Copilot debug collection includes process log"
   ```
 
 ### Resource reads ignore the requested base64 encoding

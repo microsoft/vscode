@@ -50,6 +50,48 @@ suite('ChatResponseAccessibleView', () => {
 		]);
 	});
 
+	for (const error of [true, 'Connection refused'] as const) {
+		test(`describes failures without output details in live and restored content (${error})`, async () => {
+			const invocation = createMcpToolInvocation();
+			await invocation.didExecuteTool({ content: [], toolResultError: error });
+			const item = upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+			});
+			const message = error === true ? 'Tool execution failed' : `Tool execution failed: ${error}`;
+
+			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+				{ partIndex: 0, text: `${message}. Read issue. GitHub (MCP Server)` },
+				{ partIndex: 1, text: `${message}. Read issue. GitHub (MCP Server)` },
+			]);
+		});
+	}
+
+	for (const exitCode of [undefined, 0, 2]) {
+		test(`describes terminal outcomes in live and restored content (exit code: ${exitCode})`, async () => {
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Run tests',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'bash',
+					terminalCommandState: { exitCode },
+				},
+			}, {
+				id: 'terminal', displayName: 'Terminal', modelDescription: 'Run a command', source: ToolDataSource.Internal,
+			}, 'terminal', undefined, {});
+			await invocation.didExecuteTool(undefined);
+			const item = upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+			});
+			const message = exitCode === 2 ? 'Tool execution failed with exit code 2. Run tests. npm test' : 'Run tests. npm test';
+
+			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+				{ partIndex: 0, text: message },
+				{ partIndex: 1, text: message },
+			]);
+		});
+	}
+
 	test('includes the canonical MCP title and origin while waiting for authentication', () => {
 		const invocation = createMcpToolInvocation();
 		invocation.invocationMessage = new MarkdownString('**Read issue**');

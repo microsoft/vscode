@@ -436,6 +436,26 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('clears default-chat Git state when no working directory can be resolved', async () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const previous: ISessionGitState = { branchName: 'stale-feature', baseBranchName: 'main' };
+		seedSession(h.stateManager, { gitState: previous });
+		await h.db.setMetadata(META_GIT_STATE, JSON.stringify(previous));
+
+		await h.service.refreshSessionGitState(defaultChat, undefined);
+
+		assert.deepStrictEqual({
+			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+			persisted: await h.db.getMetadata(META_GIT_STATE),
+			runEvents: h.runEvents,
+		}, {
+			gitState: undefined,
+			persisted: undefined,
+			runEvents: [defaultChat],
+		});
+	});
+
 	test('persists chat Git state by folder scope separately from the containing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const chat = buildChatUri(SESSION, 'peer');
@@ -562,6 +582,67 @@ suite('AgentHostGitStateService', () => {
 			persisted: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: sessionGitHubState, [folderKey]: { owner: 'contoso', repo: 'tools', pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'chat-feature' } },
 			allPullRequests: ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/contoso/tools/pull/7'],
 			pullRequestCalls: ['chat-feature'],
+		});
+	}));
+
+	test('attaches a peer-folder pull request using the peer folder branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerFolder = 'file:///peer';
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: { branchName: 'session-feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
+		h.setPullRequest('peer-feature', { url: 'https://github.com/contoso/tools/pull/9', number: 9 });
+
+		await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+
+		assert.deepStrictEqual({
+			pullRequestCalls: h.pullRequestCalls,
+			peerGitState: h.service.getSessionGitState(peer),
+			peerGitHubState: h.service.getGitHubState(peer),
+		}, {
+			pullRequestCalls: ['peer-feature'],
+			peerGitState: { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' },
+			peerGitHubState: {
+				owner: 'contoso',
+				repo: 'tools',
+				pullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
+				pullRequestBranchName: 'peer-feature',
+			},
+		});
+	}));
+
+	test('keeps a pre-existing other-folder pull request out of the related set', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerFolder = 'file:///peer';
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			createdAt: 600_000,
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
+		h.setPullRequest('peer-feature', { url: 'https://github.com/contoso/tools/pull/9', number: 9, createdAt: 1_000 });
+
+		await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+
+		const github = h.service.getGitHubState(peer);
+		assert.deepStrictEqual({
+			github,
+			related: [...getSessionRelatedPullRequestUrls(github)],
+		}, {
+			github: {
+				owner: 'contoso',
+				repo: 'tools',
+				pullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
+				initialPullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
+				pullRequestBranchName: 'peer-feature',
+			},
+			related: [],
 		});
 	}));
 
