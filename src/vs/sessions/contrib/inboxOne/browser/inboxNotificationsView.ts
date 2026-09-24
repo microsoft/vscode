@@ -40,6 +40,7 @@ import { SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -1425,12 +1426,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private canShowAlwaysDropdown(item: IInboxNotificationItem, actionKind: InboxNotificationActionKind): actionKind is InboxAgentMergeActionKind | InboxMergedSessionCleanupActionKind {
 		if (isInboxAgentMergeActionKind(actionKind)) {
-			return !this.agentMergeAlwaysOptInService.isAlwaysEnabled(actionKind);
+			// The "Always" opt-in writes global Agent Merge defaults, which only
+			// take effect for agent-host sessions. Hide the dropdown for cloud
+			// sessions, where it would have no effect.
+			return this.isAgentHostSession(item) && !this.agentMergeAlwaysOptInService.isAlwaysEnabled(actionKind);
 		}
 		if (isInboxMergedSessionCleanupActionKind(actionKind)) {
 			return !!item.sessionResource && !this.isMergedSessionCleanupAlwaysEnabled(actionKind);
 		}
 		return false;
+	}
+
+	private isAgentHostSession(item: IInboxNotificationItem): boolean {
+		if (!item.sessionResource) {
+			return false;
+		}
+		const session = this.sessionsManagementService.getSession(item.sessionResource);
+		return !!session && isAgentHostProviderId(session.providerId);
 	}
 
 	private isMergedSessionCleanupAlwaysEnabled(actionKind: InboxMergedSessionCleanupActionKind): boolean {
