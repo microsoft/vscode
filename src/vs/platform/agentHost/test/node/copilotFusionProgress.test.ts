@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { CopilotFusionProgress } from '../../node/copilot/copilotFusionProgress.js';
+import { CopilotFusionProgress, formatFusionReviewContent } from '../../node/copilot/copilotFusionProgress.js';
 import { fusionTestData as data, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 
 suite('CopilotFusionProgress', () => {
@@ -153,6 +153,24 @@ suite('CopilotFusionProgress', () => {
 		}), terminalEvents.map(() => ({
 			duration: 1500, interruptedPhase: undefined, completedInterruption: undefined,
 		})));
+	});
+
+	test('renders critic and judge output as readable markdown and keeps unstructured text', () => {
+		assert.deepStrictEqual({
+			approved: formatFusionReviewContent(JSON.stringify({ assessment: 'approve', feedback: 'All 13 tests pass.', defect: null })),
+			revise: formatFusionReviewContent(JSON.stringify({ assessment: 'revise', feedback: 'Negative input is accepted.', defect: { target: 'parseDuration', evidence: '"-5s" returns -5000' } })),
+			judge: formatFusionReviewContent(JSON.stringify({ score: 3, rationale: 'Missing edge cases.' })),
+			text: formatFusionReviewContent('Looks right to me.'),
+			array: formatFusionReviewContent('[1, 2]'),
+			empty: formatFusionReviewContent('  '),
+		}, {
+			approved: '**Approved**\n\nAll 13 tests pass.',
+			revise: '**Changes requested**\n\nNegative input is accepted.\n\n**Issue:** parseDuration — "-5s" returns -5000',
+			judge: '**Score: 3/5**\n\nMissing edge cases.',
+			text: 'Looks right to me.',
+			array: '[1, 2]',
+			empty: undefined,
+		});
 	});
 
 });
