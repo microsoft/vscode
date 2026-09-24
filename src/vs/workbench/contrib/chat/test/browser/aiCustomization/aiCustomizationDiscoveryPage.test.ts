@@ -8,7 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -32,7 +32,7 @@ import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCus
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -101,12 +101,27 @@ suite('AICustomizationDiscoveryPage', () => {
 				return result.p;
 			}
 		}());
+		const installChanges = store.add(new Emitter<void>());
+		const installStates = new Map<string, CustomizationMarketplaceInstallState>();
+		const repairs: string[] = [];
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
-			override readonly onDidChange = Event.None;
-			override getInstallState(resource: ICustomizationMarketplaceResource) {
+			override readonly onDidChange = installChanges.event;
+			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 				return setupUrl && resource.identifier === 'unity'
-					? { kind: 'unavailable' as const, message: 'Manual setup required', setupUrl }
-					: { kind: 'available' as const };
+					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
+					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+			}
+			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				const state = installStates.get(key);
+				if (state?.kind !== 'missing') {
+					throw new Error('Only missing installations can be repaired.');
+				}
+				repairs.push(resource.identifier);
+				installStates.set(key, { kind: 'repairing', target: state.target });
+				installChanges.fire();
+				installStates.set(key, { kind: 'installed', target: state.target });
+				installChanges.fire();
 			}
 		}());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -142,7 +157,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
 		return {
-			page, container, configuration, requests, listService, creationEvents, opened, deletions,
+			page, container, configuration, requests, listService, creationEvents, opened, deletions, repairs,
+			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => installStates.set(getCustomizationMarketplaceResourceKey(resource), state),
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryAction = action; },
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
@@ -369,6 +385,57 @@ suite('AICustomizationDiscoveryPage', () => {
 			await deletion.complete();
 		}
 		assert.deepStrictEqual({ pending, calls }, { pending: { label: 'Uninstalling...', disabled: 'true', busy: 'true' }, calls: 1 });
+	});
+
+	test('keeps an available marketplace resource separate from a same-name local item', async () => {
+		const candidate = resource('marketplace-mail', {
+			displayName: 'Local mail skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/mail' },
+		});
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, {
+			rows: ['Local mail skill', 'Local mail skill'],
+			actions: ['Uninstall', 'Install'],
+		});
+	});
+
+	test('shows and repairs a recorded installation whose exact target is missing', async () => {
+		const candidate = resource('repair-mail', {
+			displayName: 'Repair mail skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/repair-mail' },
+		});
+		const fixture = createPage();
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/repair-mail/SKILL.md') } });
+		fixture.page.setSearchQuery('repair mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const before = {
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		};
+		const repair = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Repair');
+		assert.ok(repair);
+		repair.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			before,
+			repairs: fixture.repairs,
+			actionsAfter: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, {
+			before: { detail: 'Skill · GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
+			repairs: ['repair-mail'],
+			actionsAfter: ['Uninstall'],
+		});
 	});
 
 	for (const query of ['', '@type:plugin demo']) {

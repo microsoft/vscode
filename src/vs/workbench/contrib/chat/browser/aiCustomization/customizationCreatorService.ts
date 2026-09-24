@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -147,6 +147,11 @@ export class CustomizationLocationPicker {
 	 *          or `null` when the user cancelled the picker.
 	 */
 	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<URI | undefined | null> {
+		const folder = await this.resolveTargetFolderWithPicker(sessionResource, type, target);
+		return folder ? folder.uri : folder;
+	}
+
+	public async resolveTargetFolderWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<ICustomizationSourceFolder | undefined | null> {
 		const sessionType = getChatSessionType(sessionResource);
 		const descriptor = this.harnessService.findHarnessById(sessionType);
 		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
@@ -167,21 +172,21 @@ export class CustomizationLocationPicker {
 		}
 
 		if (matchingFolders.length === 1) {
-			return matchingFolders[0].uri;
+			return matchingFolders[0];
 		}
 
 		// Multiple directories — ask the user which one to use
-		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
+		const items: (IQuickPickItem & { folder: ICustomizationSourceFolder })[] = matchingFolders.map(folder => ({
 			label: folder.label,
 			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
-			uri: folder.uri,
+			folder,
 		}));
 
 		const picked = await this.quickInputService.pick(items, {
 			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
 		});
 
-		return picked?.uri ?? null;
+		return picked?.folder ?? null;
 	}
 }
 
