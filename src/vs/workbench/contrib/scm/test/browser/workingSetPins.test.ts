@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IUntypedEditorInput } from '../../../../common/editor.js';
 import type { EditorInput } from '../../../../common/editor/editorInput.js';
 import type { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -33,7 +34,8 @@ function testEditor(id: string, untyped = true): ITestEditor {
 	return {
 		testId: id,
 		matches(other: EditorInput | IUntypedEditorInput): boolean {
-			return ('testId' in other ? other.testId : 'resource' in other ? other.resource?.path : undefined) === id;
+			const candidate = other as { testId?: string; resource?: { path?: string } };
+			return (candidate.testId ?? candidate.resource?.path) === id;
 		},
 		toUntyped(): IUntypedEditorInput | undefined {
 			return untyped ? { resource: { path: id } } as IUntypedEditorInput : undefined;
@@ -97,7 +99,7 @@ function testServices(initial: ITestGroup[], restored: ITestGroup[], applySuccee
 	} as unknown as IEditorGroupsService;
 	const editorService = {
 		async openEditor(untyped: IUntypedEditorInput, groupId: number) {
-			const name = ('resource' in untyped ? untyped.resource?.path : undefined) ?? '';
+			const name = (untyped as { resource?: { path?: string } }).resource?.path ?? '';
 			const group = groups.find(group => group.id === groupId)!;
 			opened.push({ name, groupId, sticky: untyped.options?.sticky, inactive: untyped.options?.inactive, preserveFocus: untyped.options?.preserveFocus });
 			await group.openEditor(testEditor(name), untyped.options);
@@ -108,6 +110,7 @@ function testServices(initial: ITestGroup[], restored: ITestGroup[], applySuccee
 }
 
 suite('SCM working sets - pinned editors', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('switches between saved branches, preserving pinned tabs and only the target unpinned tabs', async () => {
 		const a = testGroup(1, [['pinned.ts', true], ['a.ts', false]]);
 		const b = testGroup(1, [['old-pin.ts', true], ['b.ts', false]]);
