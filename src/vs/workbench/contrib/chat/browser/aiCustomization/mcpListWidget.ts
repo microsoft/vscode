@@ -21,7 +21,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -831,6 +831,20 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 	}
 	if (entry.type === 'builtin-item' && entry.extensionId) {
 		return 'extensions';
+	}
+	if (entry.type === 'builtin-item') {
+		const collection = entry.localServer?.readDefinitions().get().collection;
+		if (collection?.provenance === McpCollectionProvenance.ExternalConfiguration) {
+			return McpCollectionDefinition.isWorkspaceDiscovered(collection) ? 'workspace' : 'user';
+		}
+	}
+	switch (getActiveSessionServer(entry)?.source) {
+		case 'user':
+			return 'user';
+		case 'workspace':
+			return 'workspace';
+		case 'plugin':
+			return 'plugins';
 	}
 	return 'builtin';
 }
@@ -2568,6 +2582,7 @@ export class McpListWidget extends Disposable {
 	private getInstalledEntryMembershipSignature(): string {
 		return this.installedEntries.map(({ entry }) => [
 			getMcpRowKey(entry),
+			getMcpEntryGroup(entry),
 			getActiveSessionServer(entry) ? 'session' : '',
 			entry.type !== 'session-server-item' && entry.localServer ? 'local' : '',
 			getMcpEntrySourceUri(entry)?.toString() ?? '',

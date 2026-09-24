@@ -6838,7 +6838,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+	private _applyMcpServerList(servers: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers']): void {
 		const serverNames = new Set(servers.map(server => server.name));
 		for (const serverName of this._lastMcpAuthRequirements.keys()) {
 			if (!serverNames.has(serverName)) {
@@ -6846,7 +6846,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		const sdkServers = servers
-			.map(s => this._toSdkMcpServer(s.name, s.status, s.error));
+			.map(s => ({ ...this._toSdkMcpServer(s.name, s.status, s.error), source: s.source }));
 		this._mcpCustomizations.applyAll(sdkServers);
 	}
 

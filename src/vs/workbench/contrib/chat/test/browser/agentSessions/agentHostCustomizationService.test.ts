@@ -14,6 +14,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { toMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -286,6 +287,21 @@ suite('AbstractAgentHostCustomizationService', () => {
 			resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(),
 			undefined,
 		]);
+	});
+
+	test('preserves host-only MCP configuration sources without requiring a source file', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const sources = ['user', 'workspace', 'plugin', 'builtin', 'managed'] as const;
+		sut.setTarget(session, new FakeTarget(sources.map(source => ({
+			...mcpServer(source, source),
+			uri: `mcp-top-level:copilot:session-1:${source}`,
+			_meta: toMcpServerSourceMeta(source),
+		}))));
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
+			source: server.source, sourceUri: server.sourceUri,
+		})), sources.map(source => ({ source, sourceUri: undefined })));
 	});
 
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {
