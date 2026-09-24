@@ -15,6 +15,7 @@ import { dirname, getComparisonKey, isEqual, joinPath } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -23,9 +24,10 @@ import { FileChangeType, IFileService } from '../../../../../platform/files/comm
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { UnsupportedMcpGalleryPackageError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -50,6 +52,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private readonly pending = new Map<string, Promise<void>>();
 	private readonly pendingUninstalls = new Map<string, Promise<void>>();
 	private readonly installedSkills = new Map<string, { readonly uri: URI; readonly sourceId: string }>();
+	private readonly manualMcpSetups = new Map<string, { readonly sourceId: string; readonly url?: URI }>();
 	private readonly lifetimeToken = cancelOnDispose(this._store);
 	private readonly enabledDisposables = this._register(new DisposableStore());
 	private observingInstallations = false;
@@ -94,10 +97,24 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return !!source && this.configurationService.getValue<boolean>(source.enablementSetting) === true;
 	}
 
+	private getInstalledMcpServer(name: string, version: string): IWorkbenchMcpServer | undefined {
+		return this.mcpWorkbenchService.local.find(server => server.name === name &&
+			server.local?.name === name &&
+			server.local?.galleryUrl === agentFinderMcpRegistryManifest.url &&
+			server.local.version === version &&
+			(!server.gallery || server.gallery.name === name) &&
+			server.installState === McpServerInstallState.Installed);
+	}
+
 	private updateEnablement(): void {
 		for (const [key, skill] of this.installedSkills) {
 			if (!this.isSourceEnabled(skill.sourceId)) {
 				this.installedSkills.delete(key);
+			}
+		}
+		for (const [key, setup] of this.manualMcpSetups) {
+			if (!this.isSourceEnabled(setup.sourceId)) {
+				this.manualMcpSetups.delete(key);
 			}
 		}
 		const enabled = this.isEnabled();
@@ -173,8 +190,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return { kind: installed ? 'installed' : 'available' };
 		}
 		if (source.kind === 'mcp') {
-			const server = this.mcpWorkbenchService.local.find(server => server.name === source.name && server.gallery?.name === source.name);
-			return { kind: server?.installState === McpServerInstallState.Installed ? 'installed' : 'available' };
+			if (this.getInstalledMcpServer(source.name, source.version)) {
+				return { kind: 'installed' };
+			}
+			const manualSetup = this.manualMcpSetups.get(resourceKey);
+			if (manualSetup) {
+				return {
+					kind: 'unavailable',
+					message: manualSetup.url
+						? localize('customizationMarketplace.mcpManualSetup', "This MCP server requires manual setup. Review the publisher's instructions before adding it.")
+						: localize('customizationMarketplace.mcpManualSetupUnavailable', "This MCP server requires manual setup, but no publisher instructions are available."),
+					setupUrl: manualSetup.url,
+				};
+			}
+			return { kind: 'available' };
 		}
 		return { kind: this.installedSkills.has(this.getSkillKey(resource)) ? 'installed' : 'available' };
 	}
@@ -265,8 +294,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'mcp') {
-			const server = this.mcpWorkbenchService.local.find(server => server.name === source.name && server.gallery?.name === source.name);
-			if (server?.installState !== McpServerInstallState.Installed) {
+			const server = this.getInstalledMcpServer(source.name, source.version);
+			if (!server) {
 				return;
 			}
 			await this.mcpWorkbenchService.uninstall(server);
@@ -312,10 +341,24 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'mcp') {
-			const server = await this.mcpWorkbenchService.getMcpServerFromGallery(source.name);
+			let server: IWorkbenchMcpServer | undefined;
+			try {
+				server = await this.mcpWorkbenchService.getMcpServerFromAgentFinder(source.name, source.version, token);
+			} catch (error) {
+				this.checkEnabled(resource.sourceId, token);
+				if (error instanceof UnsupportedMcpGalleryPackageError) {
+					const setupUrl = error.repositoryUrl ?? resource.repository;
+					this.manualMcpSetups.set(getCustomizationMarketplaceResourceKey(resource), { sourceId: resource.sourceId, url: setupUrl });
+					this._onDidChange.fire();
+					throw new Error(setupUrl
+						? localize('customizationMarketplace.mcpManualSetupRequired', "This MCP server requires manual setup. Open the publisher's instructions to configure it.")
+						: localize('customizationMarketplace.mcpManualSetupUnavailable', "This MCP server requires manual setup, but no publisher instructions are available."));
+				}
+				throw error;
+			}
 			this.checkEnabled(resource.sourceId, token);
 			if (!server) {
-				throw new Error(localize('customizationMarketplace.mcpUnavailable', "The MCP server '{0}' is not available in the configured registry.", source.name));
+				throw new Error(localize('customizationMarketplace.mcpUnavailable', "The MCP server '{0}' is no longer available from the GitHub Feed.", source.name));
 			}
 			const canInstall = this.mcpWorkbenchService.canInstall(server);
 			if (canInstall !== true) {

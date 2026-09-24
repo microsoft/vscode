@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { agentFinderMcpRegistryManifest } from '../../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -29,10 +30,12 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGalleryMcpServer } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { UnsupportedMcpGalleryPackageError } from '../../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
+import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -86,7 +89,7 @@ function mcpResource(): ICustomizationMarketplaceResource {
 		identifier: 'mcp-resource',
 		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		url: URI.parse('https://untrusted.example/server.json'),
-		installation: { kind: 'mcp', name: 'io.example/demo' },
+		installation: { kind: 'mcp', name: 'io.example/demo', version: '1.0.0' },
 	});
 }
 
@@ -111,11 +114,18 @@ function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'pl
 function mcpServer(name = 'io.example/demo', installState = McpServerInstallState.Uninstalled, galleryName: string | null = name): IWorkbenchMcpServer {
 	const gallery = new class extends mock<IGalleryMcpServer>() {
 		override readonly name = galleryName ?? name;
+		override readonly version = '1.0.0';
+		override readonly galleryUrl = agentFinderMcpRegistryManifest.url;
 	}();
 	return new class extends mock<IWorkbenchMcpServer>() {
 		override readonly name = name;
 		override readonly installState = installState;
 		override readonly gallery = galleryName === null ? undefined : gallery;
+		override readonly local = installState === McpServerInstallState.Installed ? new class extends mock<IWorkbenchLocalMcpServer>() {
+			override readonly name = name;
+			override readonly version = '1.0.0';
+			override readonly galleryUrl = galleryName === null ? undefined : agentFinderMcpRegistryManifest.url;
+		}() : undefined;
 	}();
 }
 
@@ -210,6 +220,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onChange = mcpChanges.event;
 			override local: IWorkbenchMcpServer[] = [];
 			readonly lookups: string[] = [];
+			readonly feedVersions: string[] = [];
 			readonly eligibilityChecks: IWorkbenchMcpServer[] = [];
 			readonly installs: IWorkbenchMcpServer[] = [];
 			readonly uninstalls: IWorkbenchMcpServer[] = [];
@@ -218,7 +229,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 			installError: Error | undefined;
 			onLookup: (() => Promise<IWorkbenchMcpServer | undefined>) | undefined;
 			override async getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined> {
+				throw new Error(`Configured registry must not be queried for ${name}`);
+			}
+			override async getMcpServerFromAgentFinder(name: string, version: string): Promise<IWorkbenchMcpServer | undefined> {
 				this.lookups.push(name);
+				this.feedVersions.push(version);
 				return this.onLookup ? this.onLookup() : this.galleryServer;
 			}
 			override canInstall(server: IWorkbenchMcpServer): true | IMarkdownString {
@@ -993,19 +1008,21 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('MCP servers', () => {
-		test('uses the configured registry by name and the existing eligibility and install flow', async () => {
+		test('uses the versioned feed record and the existing eligibility and install flow', async () => {
 			const fixture = await createFixture();
 			const candidate = mcpResource();
 			await fixture.service.install(candidate);
 			await fixture.service.install(candidate);
 			assert.deepStrictEqual({
 				lookups: fixture.mcpService.lookups,
-				checkedRegistryServer: fixture.mcpService.eligibilityChecks[0] === fixture.mcpService.galleryServer,
-				installedRegistryServer: fixture.mcpService.installs[0] === fixture.mcpService.galleryServer,
+				versions: fixture.mcpService.feedVersions,
+				checkedFeedServer: fixture.mcpService.eligibilityChecks[0] === fixture.mcpService.galleryServer,
+				installedFeedServer: fixture.mcpService.installs[0] === fixture.mcpService.galleryServer,
 				installCount: fixture.mcpService.installs.length,
 				state: fixture.service.getInstallState(candidate),
 			}, {
-				lookups: ['io.example/demo'], checkedRegistryServer: true, installedRegistryServer: true, installCount: 1, state: { kind: 'installed' },
+				lookups: ['io.example/demo'], versions: ['1.0.0'], checkedFeedServer: true, installedFeedServer: true,
+				installCount: 1, state: { kind: 'installed' },
 			});
 		});
 
@@ -1040,16 +1057,58 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual(states, ['available', 'available', 'available', 'available', 'installed']);
 		});
 
-		test('reports a missing registry entry without trying a catalog URL', async () => {
+		test('recognizes feed installs after the configured registry changes without conflating versions', async () => {
+			const fixture = await createFixture();
+			const installed = mcpServer('io.example/demo', McpServerInstallState.Installed);
+			fixture.mcpService.local = [{ ...installed, gallery: undefined }];
+			const firstVersion = fixture.service.getInstallState(mcpResource());
+			const otherVersion = fixture.service.getInstallState(resource({
+				...mcpResource(),
+				installation: { kind: 'mcp', name: 'io.example/demo', version: '2.0.0' },
+			}));
+			assert.deepStrictEqual({ firstVersion, otherVersion }, {
+				firstVersion: { kind: 'installed' }, otherVersion: { kind: 'available' },
+			});
+		});
+
+		test('reports a missing feed entry without falling back to the configured registry', async () => {
 			const fixture = await createFixture();
 			fixture.mcpService.galleryServer = undefined;
-			await assert.rejects(fixture.service.install(mcpResource()), /not available in the configured registry/);
+			await assert.rejects(fixture.service.install(mcpResource()), /no longer available from the GitHub Feed/);
 			assert.deepStrictEqual({
 				lookups: fixture.mcpService.lookups,
 				checks: fixture.mcpService.eligibilityChecks,
 				installs: fixture.mcpService.installs,
 				state: fixture.service.getInstallState(mcpResource()),
 			}, { lookups: ['io.example/demo'], checks: [], installs: [], state: { kind: 'available' } });
+		});
+
+		test('offers publisher setup instructions when the feed MCP package requires an unsupported local runtime', async () => {
+			const fixture = await createFixture();
+			const candidate = mcpResource();
+			const instructions = URI.parse('https://github.com/owner/mcp-server');
+			fixture.mcpService.onLookup = async () => { throw new UnsupportedMcpGalleryPackageError(instructions); };
+			await assert.rejects(fixture.service.install(candidate), /requires manual setup/);
+			const state = fixture.service.getInstallState(candidate);
+			await assert.rejects(fixture.service.install(candidate), /requires manual setup/);
+			assert.deepStrictEqual({
+				state,
+				lookups: fixture.mcpService.lookups,
+			}, {
+				state: { kind: 'unavailable', message: 'This MCP server requires manual setup. Review the publisher\'s instructions before adding it.', setupUrl: instructions },
+				lookups: ['io.example/demo'],
+			});
+		});
+
+		test('does not offer a setup link when an unsupported MCP package has no publisher instructions', async () => {
+			const fixture = await createFixture();
+			fixture.mcpService.onLookup = async () => { throw new UnsupportedMcpGalleryPackageError(undefined); };
+			await assert.rejects(fixture.service.install(mcpResource()), /no publisher instructions are available/);
+			assert.deepStrictEqual(fixture.service.getInstallState(mcpResource()), {
+				kind: 'unavailable',
+				message: 'This MCP server requires manual setup, but no publisher instructions are available.',
+				setupUrl: undefined,
+			});
 		});
 
 		test('surfaces registry policy rejection without installing', async () => {

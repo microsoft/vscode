@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, raceCancellationError } from '../../../base/common/async.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { listenStream } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
-import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
+import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl, isValidAgentFinderMcpIdentity } from './agentFinderMcpRegistry.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IRequestService } from '../../request/common/request.js';
+import { IRequestService, readBoundedResponse } from '../../request/common/request.js';
 
 const endpoint = 'https://agentfinder.github.com/api/v1';
 const requestTimeout = 30_000;
@@ -31,8 +30,6 @@ const maxCursorLength = maxPageTokenLength * 6 + 64;
 const maxResourceTextLength = 4096;
 const maxMetadataEntries = 32;
 const maxMetadataTextLength = 512;
-const maxMcpServerNameLength = 512;
-const maxMcpVersionLength = 128;
 const maxSourcePathLength = 4096;
 const maxGitRefLength = 1024;
 
@@ -126,7 +123,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 			if (!status || status < 200 || status >= 300) {
 				throw new AgentFinderError(localize('agentFinder.httpError', "The customization catalog could not complete the request (HTTP {0}). Try again later.", status ?? '—'));
 			}
-			const text = await raceCancellationError(readResponse(context), token);
+			const text = await raceCancellationError(readBoundedResponse(context, maxResponseBytes, () => new AgentFinderError(localize('agentFinder.responseTooLarge', "The customization catalog response is too large. Try a smaller page."))), token);
 			try {
 				return JSON.parse(text);
 			} catch {
@@ -136,26 +133,6 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 			context.stream.destroy();
 		}
 	}
-}
-
-function readResponse(context: IRequestContext): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const chunks: VSBuffer[] = [];
-		let bytes = 0;
-		listenStream(context.stream, {
-			onData: chunk => {
-				bytes += chunk.byteLength;
-				if (bytes > maxResponseBytes) {
-					reject(new AgentFinderError(localize('agentFinder.responseTooLarge', "The customization catalog response is too large. Try a smaller page.")));
-					context.stream.destroy();
-				} else {
-					chunks.push(chunk);
-				}
-			},
-			onError: reject,
-			onEnd: () => resolve(VSBuffer.concat(chunks).toString()),
-		});
-	});
 }
 
 function invalidResponse(): AgentFinderError {
@@ -284,14 +261,11 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 	}
 	if (mediaType === CustomizationMarketplaceMediaType.McpServer) {
 		const name = metadata.serverName;
-		if (typeof name !== 'string' || name.length > maxMcpServerNameLength || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name) || !isSafeSourcePath(name)) {
-			return undefined;
-		}
-		const prefix = `https://api.mcp.github.com/oss/v0.1/servers/${encodeURIComponent(name)}/versions/`;
 		const version = metadata.version;
-		if (externalUrl === `${prefix}latest` || (typeof version === 'string' && version.length <= maxMcpVersionLength &&
-			!version.includes('/') && isSafeSourcePath(version) && externalUrl === `${prefix}${encodeURIComponent(version)}`)) {
-			return { kind: 'mcp', name };
+		if (typeof name === 'string' && typeof version === 'string' && isValidAgentFinderMcpIdentity(name, version) &&
+			(externalUrl === `${agentFinderMcpRegistryManifest.url}/${encodeURIComponent(name)}/versions/latest` ||
+				externalUrl === getAgentFinderMcpServerUrl(name, version))) {
+			return { kind: 'mcp', name, version };
 		}
 		return undefined;
 	}
