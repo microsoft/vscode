@@ -46,6 +46,13 @@ model server, not a mocked policy service or simulated telemetry producer.
   `/v1/traces` URL. The receiver rejects incorrect routes and requires a
   successful native `github-copilot` `invoke_agent` span from the test turn
   with the managed header; synthetic host spans and warm-up spans cannot pass.
+- **Sandbox (macOS/Linux):** device policy enforces `enabled: true` and
+  `allowBypass: false`. Separate fresh-process cases start with local sandboxing
+  off and on, both with `allowUnsandboxedCommands: true`. The SDK shell must
+  complete without a policy conflict and fail to write a disposable file
+  outside its writable sandbox. The test first proves that file is writable
+  from the smoke process and verifies its contents remain unchanged. No
+  confirmation is accepted to bypass the sandbox.
 
 CI separately provisions an empty managed-settings directory, refusing any
 existing directory:
@@ -69,5 +76,5 @@ VSCODE_SMOKE_TEST_POLICY=1 npm run smoketest-no-compile -- --tracing -g "Policy 
 ```
 
 These are behavioral regression tests: a locked toggle, a configuration log,
-or a successful chat response without the required export does not
+or a successful chat response without the required export/containment does not
 pass. There are no expected-failure skips or local-setting workarounds.

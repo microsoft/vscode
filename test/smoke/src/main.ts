@@ -37,6 +37,7 @@ import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWind
 import { setup as setupBrowserViewTests } from './areas/browserView/browserView.test';
 import { setup as setupPolicyTests } from './areas/policy/policy.test';
 import { setup as setupAgentHostManagedOTelTests } from './areas/policy/agentHostManagedOTel.test';
+import { setup as setupAgentHostManagedSandboxTests } from './areas/policy/agentHostManagedSandbox.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -451,6 +452,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote && process.env.VSCODE_SMOKE_TEST_POLICY === '1') {
 		setupPolicyTests(logger);
 		setupAgentHostManagedOTelTests(logger);
+		setupAgentHostManagedSandboxTests(logger);
 	}
 	setupAccessibilityTests(logger, opts, quality);
 });
