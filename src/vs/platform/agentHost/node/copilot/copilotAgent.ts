@@ -93,6 +93,7 @@ import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
+import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
@@ -889,6 +890,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _authenticationSequencer = new Sequencer();
 	private _updatingGitHubCredentials = false;
 	private readonly _githubCredentials = this._register(new CopilotGitHubCredentials());
+	private _githubCredentialInvalid = false;
+	private _telemetryAuthenticationGeneration = 0;
+	private _gitHubEndpointGeneration = 0;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
 	setServerToolHost(host: IAgentServerToolHost): void {
@@ -1003,7 +1007,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
-		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired()));
+		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
+		if (isAgentHostTelemetryService(this._telemetryService)) {
+			this._register(this._telemetryService.registerCopilotSkuProvider(this.id, () => this.getTelemetryContext().copilotSku));
+		}
 		this._worktree = worktree;
 		this._lastStartupConfig = this._readClientStartupConfig();
 		const canvasRuntimePath = process.env['VSCODE_AGENT_HOST_CANVAS_RUNTIME_PATH'];
@@ -1096,7 +1103,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// service's `onDidChange` (which fires after its endpoints are recomputed)
 		// rather than the raw config event, so `getEnterpriseHost()` is current here.
 		this._register(this._gitHubEndpointService.onDidChange(() => {
-			this._restartClientIfStartupConfigChanged().catch(err =>
+			this._gitHubEndpointGeneration++;
+			this._telemetryAuthenticationGeneration++;
+			Promise.all([
+				this._applyGitHubToken(undefined, undefined),
+				this._restartClientIfStartupConfigChanged(),
+			]).catch(err =>
 				this._logService.error('[Copilot] Failed to restart client after endpoint change', err)
 			);
 		}));
@@ -1838,6 +1850,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	getTelemetryContext() {
+		const token = this._githubCredentials.token;
+		const generation = this._telemetryAuthenticationGeneration;
+		return captureCopilotTelemetryContext(this._copilotApiService, token,
+			() => generation === this._telemetryAuthenticationGeneration && this._githubCredentials.token === token && !this._githubCredentialInvalid && !this._store.isDisposed);
+	}
+
 	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
 		const authenticated = this._automationAuthenticationReady.read(reader) && this._authenticationRequired.read(reader) === undefined;
 		if (authenticated) {
@@ -1859,13 +1878,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
+		const endpointGeneration = this._gitHubEndpointGeneration;
 		await this._authenticationSequencer.queue(async () => {
+			if (endpointGeneration !== this._gitHubEndpointGeneration) {
+				return;
+			}
 			this._automationAuthenticationReady.set(false, undefined);
 			// Only a supplied credential rearms the requirement. Clearing it for an
 			// empty token would silence the outstanding requirement when a second
 			// revocation arrives while the agent is already tokenless, because
 			// `_applyGitHubToken` returns early for an unchanged token.
 			if (token) {
+				this._githubCredentialInvalid = false;
 				this._authenticationRequired.set(undefined, undefined);
 			}
 			await this._applyGitHubToken(token || undefined, expiresIn);
@@ -1875,12 +1899,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _applyGitHubToken(token: string | undefined, expiresIn: number | undefined): Promise<void> {
+		const endpointGeneration = this._gitHubEndpointGeneration;
 		const { tokenChanged, modeChanged: tokenProviderModeChanged } = this._githubCredentials.update(token, expiresIn);
 		if (!tokenChanged && !tokenProviderModeChanged) {
+			if (token) {
+				await this._resolveCopilotSku(token);
+			}
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
-		this._telemetryService.setCommonProperty('copilotSku', undefined);
+		this._telemetryAuthenticationGeneration++;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
 		if (!token) {
@@ -1931,11 +1959,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (restartRequired) {
 			await this._requestClientRestart(tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
 		}
+		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== token) {
+			return;
+		}
 		await this._resolveCopilotSku(token);
 		void this._scheduleModelRefresh();
 	}
 
-	private _handleCopilotSessionAuthRequired(): void {
+	private _handleCopilotSessionAuthRequired(credentialInvalid = true): void {
+		if (credentialInvalid && !this._githubCredentialInvalid) {
+			this._telemetryAuthenticationGeneration++;
+		}
+		this._githubCredentialInvalid ||= credentialInvalid;
 		this._authenticationRequired.set({
 			resource: this._gitHubEndpointService.getCopilotResource(),
 			reason: AuthRequiredReason.Expired,
@@ -1944,10 +1979,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _resolveCopilotSku(githubToken: string): Promise<void> {
 		try {
-			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
-			if (copilotSku && this._githubCredentials.token === githubToken) {
-				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
-			}
+			await this._copilotApiService.resolveCopilotSku?.(githubToken);
 		} catch (err) {
 			this._logService.debug(`[Copilot] SKU resolution failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
@@ -2057,11 +2089,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (notification.event.kind === 'response.success' || notification.event.kind === 'response.error') {
 			await this._forwardResponseTelemetry(notification);
 		} else {
-			this._gitHubTelemetryForwarder.forward(notification);
+			this._gitHubTelemetryForwarder.forward(notification, undefined, undefined, this.getTelemetryContext());
 		}
 	}
 
 	private async _forwardResponseTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const telemetryContext = this.getTelemetryContext();
 		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
 		const fallbackTurnId = session?.currentTurnId;
 		const event = notification.event;
@@ -2073,7 +2106,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				ahCorrelationWaitMs: waitMs,
 				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
 				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
-			});
+			}, telemetryContext);
 		};
 		if (!session) {
 			forward(undefined, 'sessionNotFound');
@@ -5686,6 +5719,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				telemetryContext: () => this.getTelemetryContext(),
 			},
 		);
 		return agentSession;
