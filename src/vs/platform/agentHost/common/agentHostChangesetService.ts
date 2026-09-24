@@ -49,6 +49,9 @@ export const CHANGES_SUMMARY_METADATA_KEYS: Record<string, true> = {
 /** The two static changeset kinds we publish by default. */
 export type StaticChangesetKind = 'branch' | 'session';
 
+/** Selects Git-first computation with fallback, Git only, or tracked file edits only. */
+export type ChangesetDiffStrategy = 'auto' | 'git' | 'fileEditTracker';
+
 /**
  * Raw metadata values for the persisted changeset blobs, batch-read
  * by the caller (`AgentService.listSessions` / `AgentService.restoreSession`).
@@ -195,14 +198,10 @@ export interface IAgentHostChangesetService {
 	refreshBranchChangeset(session: ProtocolURI): void;
 
 	/**
-	 * Lazy refresh of the session changeset, kicked off when a
-	 * client first subscribes to `<session>/changeset/session` or the
-	 * session URI itself (e.g. Agents Window observing the session). The
-	 * recompute keeps the catalogue chip fresh across session opens even
-	 * when no turn has run since process start. Skips computation while the
-	 * working directory is unavailable.
+	 * Refreshes the session changeset once its working directory is available.
+	 * The strategy defaults to `auto`; overrides apply only to this computation.
 	 */
-	refreshSessionChangeset(session: ProtocolURI): void;
+	refreshSessionChangeset(session: ProtocolURI, strategy?: ChangesetDiffStrategy): void;
 
 	/**
 	 * Recomputes every changeset currently subscribed when a session is
@@ -225,8 +224,9 @@ export interface IAgentHostChangesetService {
 	 * A subscription starts this computation without waiting for the result;
 	 * the snapshot has `Computing` or `Recomputing` status until publication.
 	 * Per-turn changesets are not persisted.
+	 * The strategy defaults to `auto`; overrides apply only to this computation.
 	 */
-	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;
+	computeTurnChangeset(session: ProtocolURI, turnId: string, strategy?: ChangesetDiffStrategy): Promise<ProtocolURI>;
 
 	/**
 	 * Computes and publishes the compare-turns changeset between
