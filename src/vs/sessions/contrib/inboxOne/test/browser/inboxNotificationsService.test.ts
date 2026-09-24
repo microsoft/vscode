@@ -389,6 +389,34 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(latest?.[0].description, 'Answer the pending questions below.');
 	});
 
+	test('preview input summarizes the context leading up to a pending question, not the question turn', () => {
+		const chatResource = URI.parse('test:///chat/context-preview');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'context-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setConversationWithPendingQuestion(chatResource, {
+			priorResponses: [
+				{ requestId: 'turn-1', markdown: 'We configured the staging deployment pipeline together.' },
+			],
+			pending: {
+				requestId: 'turn-2',
+				resolveId: 'resolve-2',
+				message: 'One more thing before I continue.',
+				questionTitle: 'Which release color?',
+			},
+		});
+
+		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
+		// The preview input feeds the utility model: it should carry the earlier context so the
+		// card reminds the user what the decision is about...
+		assert.ok(input.includes('staging deployment pipeline'), `expected prior context in preview input, got: ${input}`);
+		// ...and must not carry the pending turn's own message/question, which would make the
+		// model restate the latest assistant message instead of summarizing the context.
+		assert.ok(!input.includes('One more thing before I continue.'), `did not expect the pending turn message in preview input, got: ${input}`);
+		assert.ok(!input.includes('Which release color?'), `did not expect the pending question in preview input, got: ${input}`);
+	});
+
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
 		const chatResource = URI.parse('test:///chat/repeat-question');
 		const chatService = new TestChatService();
@@ -1123,7 +1151,51 @@ class TestChatService {
 		};
 	}
 
+	/**
+	 * Loads a model with one or more prior completed turns followed by a pending question turn.
+	 * Used to verify the card preview summarizes the context leading up to the request rather
+	 * than the request turn's own message.
+	 */
+	setConversationWithPendingQuestion(chatResource: URI, options: {
+		readonly priorResponses: readonly { readonly requestId: string; readonly markdown: string }[];
+		readonly pending: { readonly requestId: string; readonly resolveId: string; readonly message: string; readonly questionTitle: string };
+	}): void {
+		const requests: IChatRequestModel[] = options.priorResponses.map(prior => this._buildRequest({
+			requestId: prior.requestId,
+			isComplete: true,
+			parts: [{ kind: 'markdownContent', content: { value: prior.markdown } }],
+		}));
+		requests.push(this._buildRequest({
+			requestId: options.pending.requestId,
+			startedWaitingAt: 10,
+			parts: [
+				{ kind: 'markdownContent', content: { value: options.pending.message } },
+				{
+					kind: 'questionCarousel',
+					resolveId: options.pending.resolveId,
+					allowSkip: true,
+					message: options.pending.message,
+					questions: [{ id: 'q1', type: 'text', title: options.pending.questionTitle, required: true }],
+					isUsed: false,
+				},
+			],
+		}));
+		this._chatModels.set(chatResource.toString(), upcastPartial<IChatModel>({
+			onDidChange: Event.None,
+			getRequests: () => requests,
+		}));
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
+	}
+
 	private _createChatModel(options: { readonly requestId: string; readonly parts: IChatResponseModel['response']['value']; readonly startedWaitingAt?: number; readonly isComplete?: boolean }): IChatModel {
+		const request = this._buildRequest(options);
+		return upcastPartial<IChatModel>({
+			onDidChange: Event.None,
+			getRequests: () => [request],
+		});
+	}
+
+	private _buildRequest(options: { readonly requestId: string; readonly parts: IChatResponseModel['response']['value']; readonly startedWaitingAt?: number; readonly isComplete?: boolean }): IChatRequestModel {
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: options.requestId,
 			isCanceled: false,
@@ -1136,15 +1208,11 @@ class TestChatService {
 			},
 			isPendingConfirmation: observableValue(`test.pendingConfirmation.${options.requestId}`, options.startedWaitingAt === undefined ? undefined : { startedWaitingAt: options.startedWaitingAt }),
 		});
-		const request = upcastPartial<IChatRequestModel>({
+		return upcastPartial<IChatRequestModel>({
 			id: `request.${options.requestId}`,
 			response,
 			isHiddenFromTranscript: false,
 			shouldBeRemovedOnSend: undefined,
-		});
-		return upcastPartial<IChatModel>({
-			onDidChange: Event.None,
-			getRequests: () => [request],
 		});
 	}
 }

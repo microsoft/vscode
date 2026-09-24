@@ -601,9 +601,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		if (!chatModel) {
 			return undefined;
 		}
+		// Summarize the turns leading *up to* the pending request, not the request turn itself.
+		// The card should remind the user what the decision is about; the request is already
+		// shown in the on-card widget. Dropping the response that holds the pending needs-input
+		// part keeps that latest assistant message from dominating (and being restated by) the
+		// preview.
+		const pendingRequestId = item.needsInputPart?.requestId;
 		const responses = chatModel.getRequests()
 			.map(request => request.response)
-			.filter(response => !!response && !response.isCanceled);
+			.filter(response => !!response && !response.isCanceled && response.requestId !== pendingRequestId);
 		const recent: string[] = [];
 		for (const response of responses.slice(-3)) {
 			const parts: string[] = [];
