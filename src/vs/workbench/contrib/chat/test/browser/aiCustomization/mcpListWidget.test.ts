@@ -26,6 +26,7 @@ import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -69,6 +70,7 @@ import {
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -466,12 +468,133 @@ suite('mcpListWidget', () => {
 
 	test('loads gallery snapshots only for visible MCP sections', () => {
 		assert.deepStrictEqual([
-			shouldLoadMcpGallerySnapshot(false, '', 0, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
-			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
-		], [false, true, false, false, false]);
+			shouldLoadMcpGallerySnapshot(false, '', 0, false, false, true, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, true, true),
+			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false, true, true),
+			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false, true),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, true, false),
+		], [false, true, false, false, false, false]);
+	});
+
+	test('hides Available groups when unified marketplace discovery is enabled', () => {
+		const renderGroups = (legacyMarketplaceEnabled: boolean) => {
+			const widget = Object.assign(Object.create(McpListWidget.prototype), {
+				legacyMarketplaceEnabled,
+				configurationService: {
+					getValue: (key: string) => key === ChatConfiguration.ChatCustomizationsListLayout ? 'tree' : undefined,
+				},
+				element: document.createElement('div'),
+				installedEntries: [],
+				galleryServers: [],
+				currentTreeGroups: [],
+				cardScrollableNode: document.createElement('div'),
+				cardDisposables: { clear() { } },
+				treeTabs: {
+					element: document.createElement('div'),
+					clearActions() { },
+				},
+				list: {
+					setChildren() { },
+				},
+				updateMcpTreeEmptyState() { },
+			}) as {
+				currentTreeGroups: readonly { id: string }[];
+			};
+
+			Reflect.get(McpListWidget.prototype, 'renderMcpTree').call(widget);
+			return widget.currentTreeGroups.map(group => group.id);
+		};
+
+		assert.deepStrictEqual({
+			legacy: renderGroups(true),
+			unified: renderGroups(false),
+		}, {
+			legacy: ['installed', 'available'],
+			unified: ['installed'],
+		});
+	});
+
+	test('cancels legacy gallery work and restores it when unified sources are toggled', () => {
+		const settings = new Map<string, boolean>([
+			['test.marketplace.first.enabled', false],
+			['test.marketplace.second.enabled', false],
+		]);
+		const state = {
+			refreshCount: 0,
+			delayedCancelCount: 0,
+			requestCancelCount: 0,
+		};
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			legacyMarketplaceEnabled: true,
+			configurationService: {
+				getValue: (key: string) => settings.get(key),
+			},
+			customizationMarketplaceService: new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [
+					{ id: 'first', enablementSetting: 'test.marketplace.first.enabled' },
+					{ id: 'second', enablementSetting: 'test.marketplace.second.enabled' },
+				];
+			}(),
+			delayedGallerySearch: { cancel: () => state.delayedCancelCount++ },
+			galleryCts: { dispose: (cancel?: boolean) => state.requestCancelCount += cancel ? 1 : 0 },
+			gallerySnapshotServers: [{ id: 'legacy' }],
+			galleryServers: [{ id: 'legacy' }],
+			gallerySnapshotFailed: true,
+			gallerySnapshotLoading: true,
+			gallerySearchLoading: true,
+			searchInput: { hideMessage() { } },
+			refresh: async () => { state.refreshCount++; },
+		}) as {
+			legacyMarketplaceEnabled: boolean;
+			gallerySnapshotServers: readonly object[];
+			galleryServers: readonly object[];
+			gallerySnapshotFailed: boolean;
+			gallerySnapshotLoading: boolean;
+			gallerySearchLoading: boolean;
+		};
+		const update = Reflect.get(McpListWidget.prototype, 'updateLegacyMarketplaceState') as (this: object) => void;
+
+		settings.set('test.marketplace.second.enabled', true);
+		update.call(widget);
+		const unified = {
+			enabled: widget.legacyMarketplaceEnabled,
+			snapshot: widget.gallerySnapshotServers,
+			results: widget.galleryServers,
+			failed: widget.gallerySnapshotFailed,
+			snapshotLoading: widget.gallerySnapshotLoading,
+			searchLoading: widget.gallerySearchLoading,
+			...state,
+		};
+
+		settings.set('test.marketplace.second.enabled', false);
+		update.call(widget);
+
+		assert.deepStrictEqual({
+			unified,
+			restored: {
+				enabled: widget.legacyMarketplaceEnabled,
+				...state,
+			},
+		}, {
+			unified: {
+				enabled: false,
+				snapshot: [],
+				results: [],
+				failed: false,
+				snapshotLoading: false,
+				searchLoading: false,
+				refreshCount: 1,
+				delayedCancelCount: 1,
+				requestCancelCount: 1,
+			},
+			restored: {
+				enabled: true,
+				refreshCount: 2,
+				delayedCancelCount: 2,
+				requestCancelCount: 1,
+			},
+		});
 	});
 
 	test('shows access-disabled UI before gallery work starts', () => {

@@ -1859,6 +1859,9 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
 				override async showChannel() { }
 			}());
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+			}());
 		},
 	});
 
@@ -2145,6 +2148,9 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService());
 			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
 				override async showChannel() { }
+			}());
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
 			}());
 		},
 	});
@@ -2500,7 +2506,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page shows User, Workspace, and Available tabs with count badges. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
+		expectedVisualDescriptions: ['With unified Discover enabled, the MCP Servers page shows installed/configured groups without the legacy Available tab. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2509,10 +2515,31 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTree: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
+		expectedVisualDescriptions: ['With unified Discover enabled, the MCP Servers page uses a classic tree with only the collapsible Installed group.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+		}),
+	}),
+
+	McpServersLegacyMarketplaceTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['With all unified marketplace sources disabled, the MCP Servers page restores the legacy Available tab beside User and Workspace.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			agentFinderPublicFeedEnabled: false,
+		}),
+	}),
+
+	McpServersLegacyMarketplaceTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['With all unified marketplace sources disabled, the MCP Servers page restores the classic tree with Installed and Available groups.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			agentFinderPublicFeedEnabled: false,
 			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
