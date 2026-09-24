@@ -1413,7 +1413,7 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
-/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+/** Reserved key for whether a provider-native session has not yet been adopted. */
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
@@ -1586,6 +1586,8 @@ export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, d
  * "unknown" from "known to be zero".
  */
 export interface ISessionGitState {
+	/** Whether the working directory has any Git remote. */
+	readonly hasGitRemote?: boolean;
 	/** Whether the working directory has a `github.com` git remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
@@ -1807,6 +1809,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	}
 	const raw = value as Record<string, unknown>;
 	const result: {
+		hasGitRemote?: boolean;
 		hasGitHubRemote?: boolean;
 		branchName?: string;
 		isDetachedHead?: boolean;
@@ -1820,6 +1823,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
+	if (typeof raw['hasGitRemote'] === 'boolean') { result.hasGitRemote = raw['hasGitRemote']; }
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
@@ -2155,6 +2159,43 @@ export function withSessionCreationReference(meta: SessionSummaryMeta | undefine
 	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
+export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
+
+export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
+
+export interface IAgentSessionComparisonMetadata {
+	readonly id: string;
+	readonly role: AgentSessionComparisonRole;
+	readonly attemptIndex?: number;
+	readonly attemptCount: number;
+}
+
+export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
+	const value = meta?.[SESSION_META_COMPARISON_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
+		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
+		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
+		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
+		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
+	) {
+		return undefined;
+	}
+	return {
+		id: candidate.id,
+		role: candidate.role,
+		attemptIndex: candidate.attemptIndex as number | undefined,
+		attemptCount: candidate.attemptCount as number,
+	};
+}
+
+export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
+}
+
 /**
  * Reserved key under {@link SessionSummaryMeta} marking a session as
  * workspace-less: a session with no workspace/folder binding (surfaced in the
@@ -2260,20 +2301,14 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Whether the session was first discovered in a provider-native catalog. */
+/** Whether a provider-native session has not yet been adopted by sending a user message. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
 }
 
-/** Returns a copy of `meta` with the external-session provenance marker updated. */
-export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
-	const next: { [key: string]: unknown } = { ...meta };
-	if (external) {
-		next[SESSION_META_EXTERNAL_KEY] = true;
-	} else {
-		delete next[SESSION_META_EXTERNAL_KEY];
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
+/** Writes an explicit external flag so clearing it survives serialization and metadata-only refreshes. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EXTERNAL_KEY]: external };
 }
 
 /**

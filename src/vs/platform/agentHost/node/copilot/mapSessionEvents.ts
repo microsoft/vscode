@@ -16,7 +16,6 @@ import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../commo
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -27,6 +26,7 @@ import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -82,13 +82,14 @@ function stripPromptScaffolding(text: string): string {
 export interface ISdkShellExit {
 	readonly shellId: string;
 	readonly result: TerminalCommandResult;
+	readonly outputFilePath?: string;
 }
 
 type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
 	readonly outputPreview?: string | null;
 });
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
@@ -105,7 +106,11 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
 				};
-				shellExit = { shellId: sdkContent.shellId, result };
+				shellExit = {
+					shellId: sdkContent.shellId,
+					result,
+					...(sdkContent.outputFilePath ? { outputFilePath: sdkContent.outputFilePath } : {}),
+				};
 				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 				if (terminalIndex !== -1) {
 					const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
@@ -113,7 +118,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 				} else if (terminal) {
 					content.push({
 						type: ToolResultContentType.Terminal,
-						resource: buildNonPtyShellTerminalUri(terminal.session, terminal.toolCallId),
+						resource: buildNonPtyShellTerminalUri(terminal.storage, terminal.session, terminal.chat, terminal.toolCallId),
 						title: terminal.title,
 						isPty: false,
 						result,
@@ -1005,7 +1010,13 @@ function makeCompletedToolCallPart(
 	appendSdkToolResultContent(
 		content,
 		d.result?.contents,
-		info.toolKind === 'terminal' ? { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName } : undefined,
+		info.toolKind === 'terminal' ? {
+			storage: sessionUriStr,
+			session: AgentSession.uri(providerId, rawSessionId),
+			chat: chatURI,
+			toolCallId: d.toolCallId,
+			title: info.displayName,
+		} : undefined,
 	);
 
 	// Restore file edit content references from the database.

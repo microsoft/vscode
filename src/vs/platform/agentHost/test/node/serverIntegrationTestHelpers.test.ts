@@ -134,9 +134,24 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
+	test('ignores a failed descendant kill after the process list catches up', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true, false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
 	test('preserves a failed descendant kill when the same process identity is still present', async function () {
 		this.timeout(15_000);
-		const result = await runDescendantKillFailureTest([true, true]);
+		const result = await runDescendantKillFailureTest([true, true, true, true, true, true]);
 
 		assert.deepStrictEqual({
 			error: result.error?.message,
@@ -146,6 +161,10 @@ suite('Agent Host test server cleanup', () => {
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
 		});

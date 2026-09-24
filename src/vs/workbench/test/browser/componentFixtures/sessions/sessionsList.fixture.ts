@@ -39,6 +39,8 @@ import { IAgentHostFilterService } from '../../../../../sessions/services/agentH
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionGroup, ISessionGroupsService } from '../../../../../sessions/services/sessions/browser/sessionGroupsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionComparisonService } from '../../../../../sessions/services/sessions/common/sessionComparison.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionSectionOrderService } from '../../../../../sessions/services/sessions/browser/sessionSectionOrderService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
@@ -174,6 +176,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 	}
 	return new class extends mock<IChat>() {
 		override readonly resource = resource;
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(undefined);
 		override readonly title: IObservable<string> = constObservable(spec.title);
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
@@ -357,6 +360,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
+			}());
+			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;

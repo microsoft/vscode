@@ -454,9 +454,7 @@ class InlineChatToolCalling {
 			requestOptions,
 			modelCapabilities: {
 				enableThinking: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatEnableThinking, this._experimentationService),
-				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string'
-					? request.modelConfiguration.reasoningEffort
-					: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatReasoningEffort, this._experimentationService),
+				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string' ? request.modelConfiguration.reasoningEffort : undefined,
 			},
 			telemetryProperties: {
 				messageId: telemetry.telemetryMessageId,
