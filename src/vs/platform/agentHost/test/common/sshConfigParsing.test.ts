@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput } from '../../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../../common/sshConfigParsing.js';
 
 suite('SSH Config Parsing', () => {
 
@@ -121,6 +121,16 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), []);
 		});
 
+		test('keeps # inside quoted host names', () => {
+			const config = 'Host "Dev # Instance"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
+		});
+
+		test('strips inline comments after quoted host names', () => {
+			const config = 'Host "Dev # Instance" # my server';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
+		});
+
 		test('ignores non-Host directives', () => {
 			const config = [
 				'Host myserver',
@@ -132,6 +142,21 @@ suite('SSH Config Parsing', () => {
 			].join('\n');
 
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver']);
+		});
+	});
+
+	suite('stripSSHComment', () => {
+
+		test('strips plain inline comments', () => {
+			assert.strictEqual(stripSSHComment('myserver # my favorite server'), 'myserver');
+		});
+
+		test('keeps # inside double quotes', () => {
+			assert.strictEqual(stripSSHComment('"Dev # Instance"'), '"Dev # Instance"');
+		});
+
+		test('strips comments after closing quotes', () => {
+			assert.strictEqual(stripSSHComment('"Dev # Instance" # my server'), '"Dev # Instance"');
 		});
 	});
 

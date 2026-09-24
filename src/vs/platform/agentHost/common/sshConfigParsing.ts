@@ -5,10 +5,17 @@
 
 import { isSSHStrictHostKeyChecking, type ISSHResolvedConfig } from './sshRemoteAgentHost.js';
 
-/** Strip inline comments from an SSH config value. */
+/** Strip inline comments from an SSH config value. A ' #' inside double quotes is part of the value. */
 export function stripSSHComment(s: string): string {
-	const idx = s.indexOf(' #');
-	return idx !== -1 ? s.substring(0, idx).trim() : s;
+	let inQuotes = false;
+	for (let i = 0; i + 1 < s.length; i++) {
+		if (s[i] === '"') {
+			inQuotes = !inQuotes;
+		} else if (s[i] === ' ' && s[i + 1] === '#' && !inQuotes) {
+			return s.substring(0, i).trim();
+		}
+	}
+	return s;
 }
 
 /**
