@@ -785,17 +785,21 @@ export async function stopServer(
 		throw snapshotError;
 	}
 
-	await Promises.settled(descendants.map(async descendant => {
+	const failedKills = await Promises.settled(descendants.map(async descendant => {
 		if (!await processOperations.isSameProcessRunning(descendant)) {
 			return;
 		}
 		try {
 			await processOperations.killTree(descendant.pid, true);
 		} catch (error) {
-			if (!await processOperations.isSameProcessRunning(descendant)) {
-				return;
-			}
-			throw error;
+			return { descendant, error };
+		}
+	}));
+	// Concurrent process-list queries can share a snapshot taken before another kill completed.
+	// Recheck failures only after all kills finish so that snapshot cannot report stale identities.
+	await Promises.settled(failedKills.map(async failure => {
+		if (failure && await processOperations.isSameProcessRunning(failure.descendant)) {
+			throw failure.error;
 		}
 	}));
 }
