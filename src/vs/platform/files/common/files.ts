@@ -84,6 +84,13 @@ export interface IFileService {
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	/**
+	 * Resolves if the path is case-sensitive for the given resource, querying the file system
+	 * provider dynamically if possible, and caching the result for future synchronous checks via
+	 * `hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive)`.
+	 */
+	resolvePathCaseSensitive(resource: URI): Promise<boolean>;
+
+	/**
 	 * List the schemes and capabilities for registered file system providers
 	 */
 	listCapabilities(): Iterable<{ scheme: string; capabilities: FileSystemProviderCapabilities }>;
@@ -703,6 +710,13 @@ export interface IFileSystemProvider {
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 
 	cloneFile?(from: URI, to: URI): Promise<void>;
+
+	/**
+	 * Optionally probe whether paths under this provider are case-sensitive.
+	 * When implemented, the result is cached by `IFileService.resolvePathCaseSensitive`
+	 * and exposed via `IFileService.hasCapability(resource, PathCaseSensitive)`.
+	 */
+	isPathCaseSensitive?(resource: URI): Promise<boolean>;
 }
 
 export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {

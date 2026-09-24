@@ -12,7 +12,7 @@ import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
-import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions, FileSystemProviderCapabilities } from '../common/files.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IRecursiveWatcherOptions } from '../common/watcher.js';
@@ -53,6 +53,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'delete': return this.delete(uriTransformer, args[0] as UriComponents, args[1] as IFileDeleteOptions) as Promise<TResult>;
 			case 'watch': return this.watch(uriTransformer, args[0] as string, args[1] as number, args[2] as UriComponents, args[3] as IWatchOptions) as Promise<TResult>;
 			case 'unwatch': return this.unwatch(args[0] as string, args[1] as number) as Promise<TResult>;
+			case 'isPathCaseSensitive': return this.isPathCaseSensitive(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -91,6 +92,16 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const resource = this.transformIncoming(uriTransformer, _resource);
 
 		return this.provider.readdir(resource);
+	}
+
+	private async isPathCaseSensitive(uriTransformer: IURITransformer, _resource: UriComponents): Promise<boolean> {
+		const resource = this.transformIncoming(uriTransformer, _resource);
+
+		if (typeof this.provider.isPathCaseSensitive === 'function') {
+			return this.provider.isPathCaseSensitive(resource);
+		}
+
+		return !!(this.provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 	}
 
 	//#endregion
