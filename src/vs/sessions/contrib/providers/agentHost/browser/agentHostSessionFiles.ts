@@ -64,10 +64,7 @@ export interface ISessionOutputObs {
 	 */
 	getChatCustomizations(chatUri: URI): IObservable<readonly ISessionChatCustomization[]>;
 	/**
-	 * Drops the cached observables and parser state held for a chat that no
-	 * longer exists (e.g. a peer chat removed from the session's catalog).
-	 * Without this the per-chat caches would retain one object graph per
-	 * deleted chat for the adapter's lifetime.
+	 * Drops cached observables and parser state for a removed advertised chat, including a former default.
 	 */
 	releaseChat(chatUri: URI): void;
 }

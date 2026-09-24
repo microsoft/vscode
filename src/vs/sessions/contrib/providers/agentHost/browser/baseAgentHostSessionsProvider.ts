@@ -10,7 +10,7 @@ import { arrayEquals, structuralEquals } from '../../../../../base/common/equals
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
+import { mapsStrictEqualIgnoreOrder, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -895,6 +895,7 @@ function createChangesObservable(changesets: IObservable<readonly ISessionChange
 class AdditionalChat extends Disposable {
 
 	readonly chat: IChat;
+	readonly backendUri: URI;
 
 	private readonly _title: ISettableObservable<string>;
 	private readonly _status: ISettableObservable<SessionStatus>;
@@ -910,6 +911,7 @@ class AdditionalChat extends Disposable {
 
 	constructor(resource: URI, summary: ChatSummary, changesets: IObservable<readonly ISessionChangeset[] | undefined>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
+		this.backendUri = URI.parse(summary.resource);
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
@@ -1142,6 +1144,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** Additional (non-default) peer chats keyed by chatId. */
 	private readonly _additionalChats = this._register(new DisposableMap<string, AdditionalChat>());
 	private readonly _sessionOutputCache = new Map<string, unknown>();
+	private _chatOutputResources = new ResourceSet();
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
 	/**
@@ -1503,12 +1506,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			.map(chat => parseChatUri(chat.chat)?.chatId)
 			.filter(chatId => chatId !== undefined);
 		const survivingPeers = new Set(peerIds);
+		const chatOutputResources = new ResourceSet(chats.map(chat => chat.chat));
 		for (const [chatId, entry] of this._additionalChats) {
-			if (!survivingPeers.has(chatId) && entry.chat.origin?.kind !== ChatOriginKind.Tool) {
+			if (entry.chat.origin?.kind === ChatOriginKind.Tool) {
+				chatOutputResources.add(entry.backendUri);
+			} else if (!survivingPeers.has(chatId)) {
 				this._chatModelSelections.delete(chatId);
-				this._sessionOutput.releaseChat(URI.parse(buildChatUri(this.backendUri, chatId)));
 			}
 		}
+		this._updateChatOutputResources(chatOutputResources);
 
 		const ordered: IChat[] = [];
 		for (const chat of chats) {
@@ -1555,7 +1561,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return !arrayEquals(previousChats, nextChats);
 	}
 
+	private _updateChatOutputResources(resources: ResourceSet): void {
+		for (const resource of this._chatOutputResources) {
+			if (!resources.has(resource)) {
+				this._sessionOutput.releaseChat(resource);
+			}
+		}
+		this._chatOutputResources = resources;
+	}
+
 	private _applyChatCatalog(state: SessionState): void {
+		this._updateChatOutputResources(new ResourceSet(state.chats.map(chat => URI.parse(chat.resource))));
 		// The default chat's catalog title drives its independent tab title.
 		// Empty means "inherit the session title"; a non-empty value means it was
 		// renamed independently of the session.
@@ -1592,13 +1608,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// what takes a session back down to a single chat. Only chats this session had already
 		// materialized count as gone: a selection recorded for one that has never appeared is
 		// waiting for the state that creates it, which {@link setChatModelId} allows.
-		// The session-output caches are keyed by protocol chat URI and are released here too,
-		// so a removed peer does not retain its observables and parser state for the lifetime
-		// of this adapter.
 		for (const chatId of this._additionalChats.keys()) {
 			if (!survivingPeers.has(chatId)) {
 				this._chatModelSelections.delete(chatId);
-				this._sessionOutput.releaseChat(URI.parse(buildChatUri(this.backendUri, chatId)));
 			}
 		}
 
