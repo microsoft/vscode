@@ -127,9 +127,10 @@ suite('ChatPetWidget', () => {
 		const button = firstParent.querySelector<HTMLElement>('.chat-pet-button')!;
 		const overlay = firstParent.querySelector<HTMLElement>('.chat-pet-overlay')!;
 		const effect = firstParent.querySelector<HTMLCanvasElement>('.chat-pet-respawn-effect')!;
+		const effectImage = overlay.querySelector<HTMLImageElement>(':scope > img.chat-pet-spritesheet')!;
 		button.classList.remove('entering');
 		return {
-			root, firstParent, secondParent, firstHost, secondHost, widget, service, button, overlay, effect, platformChanged,
+			root, firstParent, secondParent, firstHost, secondHost, widget, service, button, overlay, effect, effectImage, platformChanged,
 			layout: () => layout(),
 			setReducedMotion: (value: boolean) => {
 				motionReduced = value;
@@ -695,6 +696,73 @@ suite('ChatPetWidget', () => {
 			effectHidden: true,
 			buttonHidden: false,
 			tabIndex: 0,
+		});
+	});
+
+	test('retries a failed respawn image on the next teleport', async () => {
+		const { widget, button, overlay, effect, effectImage, firstHost, firstParent, secondHost, setReducedMotion } = createHostTransitionHarness(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effectImage.complete && effectImage.naturalWidth > 0, 'the first teleport must load the respawn image');
+		const failedWidth = sinon.stub(effectImage, 'naturalWidth').get(() => 0);
+		effectImage.dispatchEvent(new mainWindow.Event('error'));
+		const afterFailure = {
+			source: effectImage.getAttribute('src'),
+			relocating: overlay.classList.contains('relocating'),
+			effectHidden: effect.classList.contains('hidden'),
+			buttonHidden: button.classList.contains('hidden'),
+			tabIndex: button.tabIndex,
+		};
+		failedWidth.restore();
+		const sourceWrites = sinon.spy(effectImage, 'src', ['set']);
+		setReducedMotion(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the next teleport must start');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the retried teleport must finish');
+
+		assert.deepStrictEqual({
+			afterFailure,
+			reloaded: sourceWrites.set.calledOnce,
+			attached: overlay.parentElement === firstParent,
+			landed: button.getBoundingClientRect().bottom,
+		}, {
+			afterFailure: { source: null, relocating: false, effectHidden: true, buttonHidden: false, tabIndex: 0 },
+			reloaded: true,
+			attached: true,
+			landed: firstParent.getBoundingClientRect().top,
+		});
+	});
+
+	test('ignores a late respawn image error after retargeting a teleport into a fall', async () => {
+		const { root, widget, button, overlay, effect, effectImage, firstHost, secondHost, secondParent, setReducedMotion } = createHostTransitionHarness(true);
+		widget.setHost(secondHost);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		setReducedMotion(false);
+		widget.setHost(firstHost);
+		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effect.getBoundingClientRect().top === root.getBoundingClientRect().top, 'the teleport must reach its upper respawn position');
+		widget.setHost(secondHost);
+		await waitForPetAnimation(() => button.classList.contains('falling'), 'the new host transition must be falling');
+		effectImage.dispatchEvent(new mainWindow.Event('error'));
+		const afterError = {
+			relocating: overlay.classList.contains('relocating'),
+			falling: button.classList.contains('falling'),
+			tabIndex: button.tabIndex,
+		};
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the unrelated fall must finish normally');
+
+		assert.deepStrictEqual({
+			afterError,
+			attached: overlay.parentElement === secondParent,
+			landed: button.getBoundingClientRect().bottom,
+		}, {
+			afterError: { relocating: true, falling: true, tabIndex: -1 },
+			attached: true,
+			landed: secondParent.getBoundingClientRect().top,
 		});
 	});
 

@@ -1376,7 +1376,11 @@ export class ChatPetWidget extends Disposable {
 		this._register(dom.addDisposableListener(respawnEffectImage, 'load', () => this._startRespawnEffectAnimation()));
 		this._register(dom.addDisposableListener(respawnEffectImage, 'error', () => {
 			this.logService.error(`[ChatPetWidget] Failed to load respawn sprite: ${respawnEffectImage.getAttribute('src')}`);
-			this._finishHostTransition();
+			respawnEffectImage.removeAttribute('src');
+			const phase = this._hostTransition.get()?.phase;
+			if (phase === 'despawning' || phase === 'respawning') {
+				this._finishHostTransition();
+			}
 		}));
 		this._sprites = [0, 1].map(() => {
 			const container = dom.append(this._visual, dom.$('.chat-pet-sprite.hidden'));
