@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
@@ -808,6 +809,36 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('URLs next to escaped angle brackets', () => {
+		for (const render of [renderMarkdown, renderAsPlaintext]) {
+			test(`${render.name} only registers the URL override for escaped angle brackets`, () => {
+				const cases = [
+					{ value: 'Ordinary **Markdown**\nhttps://example.com', registered: false },
+					{ value: '<https://example.com>', registered: false },
+					{ value: String.raw`https://example.com/a\*b`, registered: false },
+					{ value: String.raw`https://example.com/a\<b`, registered: true },
+					{ value: String.raw`https://example.com/a\>b`, registered: true },
+					{ value: 'https://example.com/after', registered: false },
+				];
+				const useSpy = spy(marked.Marked.prototype, 'use');
+				try {
+					const results = cases.map(({ value }) => {
+						useSpy.resetHistory();
+						const result = render({ value });
+						if (typeof result !== 'string') {
+							store.add(result);
+						}
+						return {
+							value,
+							registered: useSpy.getCalls().some(call => call.args.some(extension => !!extension.tokenizer?.url)),
+						};
+					});
+					assert.deepStrictEqual(results, cases);
+				} finally {
+					useSpy.restore();
+				}
+			});
+		}
+
 		test('preserves ordinary links and paired backslashes', () => {
 			const cases = [
 				{ value: 'https://example.com/a%3Cb%3E', label: 'https://example.com/a%3Cb%3E', href: 'https://example.com/a%3Cb%3E' },

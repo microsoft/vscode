@@ -109,7 +109,11 @@ function renderImage({ href, title, text }: marked.Tokens.Image, transformUri?: 
 	return '<img ' + attributes.join(' ') + '>';
 }
 
-const defaultMarkedExtensions: marked.MarkedExtension = {
+function hasEscapedAngleBrackets(value: string): boolean {
+	return value.includes('\\<') || value.includes('\\>');
+}
+
+const escapedAngleBracketUrlExtension: marked.MarkedExtension = {
 	tokenizer: {
 		url(src) {
 			const token = marked.Tokenizer.prototype.url.call(this, src);
@@ -241,9 +245,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const markedInstance = new marked.Marked(defaultMarkedExtensions, ...(options.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
+	const markedInstance = new marked.Marked(
+		...(hasEscapedAngleBrackets(value) ? [escapedAngleBracketUrlExtension] : []),
+		...(options.markedExtensions ?? []),
+	);
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
@@ -861,7 +868,9 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		renderer.text = parsedText;
 	}
 
-	const html = new marked.Marked(defaultMarkedExtensions).parse(value, { async: false, renderer });
+	const html = hasEscapedAngleBrackets(value)
+		? new marked.Marked(escapedAngleBracketUrlExtension).parse(value, { async: false, renderer })
+		: marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
