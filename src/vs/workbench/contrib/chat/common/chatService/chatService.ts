@@ -1468,8 +1468,9 @@ export interface IChatMcpAuthenticationRequiredServer {
  * starts being received, or the turn ends — whichever happens first.
  *
  * Unlike {@link IChatMcpServersStarting} (used by the in-process MCP autostart
- * flow), this is a lightweight progress hint with no interactive affordance
- * (there is no "Skip" button).
+ * flow), this is a lightweight progress hint. A server that is blocking
+ * message processing may provide an action to continue its startup in the
+ * background.
  */
 export interface IChatMcpServersStartingSlow {
 	readonly kind: 'mcpServersStartingSlow';
@@ -1480,6 +1481,8 @@ export interface IChatMcpServersStartingSlow {
 export interface IChatMcpStartingServer {
 	readonly id: string;
 	readonly name: string;
+	readonly blocking?: boolean;
+	readonly background?: () => Promise<void>;
 }
 
 export interface IChatDisabledClaudeHooksPart {

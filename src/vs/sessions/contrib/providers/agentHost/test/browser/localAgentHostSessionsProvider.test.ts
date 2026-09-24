@@ -2676,7 +2676,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'mcp://docs',
 				uri: 'mcp://docs',
 				name: 'Docs',
-				state: { kind: McpServerStatus.Stopped },
+				state: { kind: McpServerStatus.Starting, blocking: true },
 			}],
 		};
 		provider.getSessionConfig(session!.sessionId);
@@ -2686,13 +2686,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(servers.length, 1);
 		await servers[0].start();
 		await servers[0].stop();
+		await servers[0].background?.();
 
-		const actions = agentHost.dispatchedActions.slice(-2);
+		const actions = agentHost.dispatchedActions.slice(-3);
 		assert.deepStrictEqual(actions.map(({ action }) => action.type), [
 			ActionType.SessionMcpServerStartRequested,
 			ActionType.SessionMcpServerStopRequested,
+			ActionType.SessionMcpServerBackgroundRequested,
 		]);
-		assert.deepStrictEqual(actions.map(({ action }) => (action as { id: string }).id), ['mcp://docs', 'mcp://docs']);
+		assert.deepStrictEqual(actions.map(({ action }) => (action as { id: string }).id), ['mcp://docs', 'mcp://docs', 'mcp://docs']);
 	});
 
 	test('getBackendChatResource looks up the host-supplied backend chat URI', () => {
