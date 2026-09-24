@@ -50,9 +50,13 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, database = new
 	return { outputs, database, fileService };
 }
 
-function toolState(toolName: string): ClaudeMapperState {
+function toolState(toolName: string, command?: string): ClaudeMapperState {
 	const state = new ClaudeMapperState();
 	state.startToolBlock(0, TOOL_CALL_ID, toolName, TURN_ID);
+	if (command !== undefined) {
+		state.appendToolBlockInputDelta(0, JSON.stringify({ command }));
+		state.finalizeToolBlock(0);
+	}
 	return state;
 }
 
@@ -81,22 +85,43 @@ function completedToolCall(toolCallId: string, toolName: string, text: string): 
 	};
 }
 
+interface IInlineOutputCase {
+	readonly name: string;
+	readonly message: ReturnType<typeof bashResult>;
+	readonly toolName: string;
+	readonly command?: string;
+	readonly signal?: AbortSignal;
+}
+
 suite('ClaudeTerminalOutputs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('stores the output Claude saved for a Bash result and stages its terminal content', async () => {
-		const { outputs, database, fileService } = createHarness(disposables);
-		await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
-		const state = toolState('Bash');
+	test('stores saved output for Bash and PowerShell commands routed through Claude shell tool', async () => {
+		const cases = [
+			{ name: 'Bash', command: 'printf test' },
+			{ name: 'PowerShell', command: 'pwsh -NoProfile -Command "Write-Output test"' },
+		];
+		const results = [];
+		for (const { name, command } of cases) {
+			const { outputs, database, fileService } = createHarness(disposables);
+			await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
+			const state = toolState('Bash', command);
 
-		await outputs.capture(CHAT, CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH, persistedOutputSize: OUTPUT.length }), state);
+			await outputs.capture(CHAT, CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH, persistedOutputSize: OUTPUT.length }), state);
 
-		const stored = await database.readTerminalOutput(TOOL_CALL_ID);
-		assert.deepStrictEqual({
-			stored: stored && VSBuffer.wrap(stored).toString(),
-			terminal: state.takeTerminalOutput(TOOL_CALL_ID),
-		}, {
+			const stored = await database.readTerminalOutput(TOOL_CALL_ID);
+			results.push({
+				name,
+				command: state.toolCalls.lookup(TOOL_CALL_ID)?.info?.toolInput,
+				stored: stored && VSBuffer.wrap(stored).toString(),
+				terminal: state.takeTerminalOutput(TOOL_CALL_ID),
+			});
+		}
+
+		assert.deepStrictEqual(results, cases.map(({ name, command }) => ({
+			name,
+			command,
 			stored: OUTPUT,
 			terminal: {
 				type: ToolResultContentType.Terminal,
@@ -105,15 +130,16 @@ suite('ClaudeTerminalOutputs', () => {
 				isPty: false,
 				result: { exitCode: 0, preview: 'FULL_OUTPUT_BEGIN', truncated: true },
 			},
-		});
+		})));
 	});
 
-	test('keeps output inline when Claude did not save the complete output of a top-level Bash call', async () => {
+	test('preserves provider output when Claude did not save complete shell output', async () => {
 		const { outputs, database, fileService } = createHarness(disposables);
 		await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
 		const saved = { stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH };
-		const cases = [
-			{ name: 'inline output', message: bashResult({ stdout: OUTPUT, stderr: '', interrupted: false }), toolName: 'Bash' },
+		const cases: readonly IInlineOutputCase[] = [
+			{ name: 'inline Bash output', message: bashResult({ stdout: OUTPUT, stderr: '', interrupted: false }), toolName: 'Bash', command: 'printf test' },
+			{ name: 'inline PowerShell output', message: bashResult({ stdout: OUTPUT, stderr: '', interrupted: false }), toolName: 'Bash', command: 'pwsh -NoProfile -Command "Write-Output test"' },
 			{ name: 'backgrounded command', message: bashResult({ ...saved, backgroundTaskId: 'bash_1' }), toolName: 'Bash' },
 			{ name: 'subagent command', message: bashResult(saved, 'toolu_task'), toolName: 'Bash' },
 			{ name: 'other tool', message: bashResult(saved), toolName: 'Read' },
@@ -122,8 +148,8 @@ suite('ClaudeTerminalOutputs', () => {
 		];
 
 		const results = [];
-		for (const { name, message, toolName, signal } of cases) {
-			const state = toolState(toolName);
+		for (const { name, message, toolName, command, signal } of cases) {
+			const state = toolState(toolName, command);
 			await outputs.capture(CHAT, CHAT, TURN_ID, message, state, signal);
 			results.push({ name, staged: state.takeTerminalOutput(TOOL_CALL_ID), stored: await database.getTerminalOutputSize(TOOL_CALL_ID) });
 		}
@@ -151,7 +177,7 @@ suite('ClaudeTerminalOutputs', () => {
 		}, { staged: undefined, stored: undefined });
 	});
 
-	test('restores retained output only for completed Bash calls with stored output', async () => {
+	test('restores retained output only for completed terminal calls with stored output', async () => {
 		const { outputs, database } = createHarness(disposables);
 		await database.createTurn(TURN_ID);
 		await database.storeTerminalOutput(TURN_ID, 'toolu_retained', VSBuffer.fromString(OUTPUT).buffer);

@@ -14,21 +14,24 @@ import { parseChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, 
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
-const BASH_TOOL_NAME = 'Bash';
+// The SDK uses one generic command tool name for Bash, PowerShell, and other
+// executable invocations. BashOutput and KillBash are separate lifecycle tools.
+const CLAUDE_SHELL_TOOL_NAME = 'Bash';
 
 /**
- * The notice Claude returns to the model in place of `Bash` output that is
- * too large to send inline. It names the file with the complete output and
- * includes a preview of its beginning.
+ * The notice Claude returns to the model in place of shell output that is too
+ * large to send inline. It names the file with the complete output and includes
+ * a preview of its beginning.
  */
 const PERSISTED_OUTPUT_NOTICE = /^<persisted-output>\n[^\n]*\n\nPreview \(first [^)\n]*\):\n(?<preview>[\s\S]*?)\n(?:\.\.\.\n)?<\/persisted-output>/;
 
 type ToolResultParts = string | readonly { readonly type: string; readonly text?: unknown }[] | undefined;
 
 /**
- * Retains the complete output Claude saves for large `Bash` results in the
- * owning chat's session database and exposes it as a non-PTY terminal
- * resource. Subscribers receive exited terminal state rebuilt from the
+ * Retains the complete output Claude saves for large shell results in the
+ * owning chat's session database and exposes it as a non-PTY terminal resource.
+ * The SDK names its shell tool `Bash`, including commands that invoke
+ * PowerShell. Subscribers receive exited terminal state rebuilt from the
  * database, so no terminal is kept alive for completed output.
  */
 export class ClaudeTerminalOutputs {
@@ -40,10 +43,10 @@ export class ClaudeTerminalOutputs {
 	) { }
 
 	/**
-	 * Stores the output Claude saved for a top-level `Bash` result and stages
-	 * its terminal content on `state`, so the mapper publishes the content
-	 * with the completion. Callers must await this before mapping `message`.
-	 * Nothing is kept when `signal` aborts before the result is published.
+	 * Stores the output Claude saved for a top-level shell result and stages its
+	 * terminal content on `state`, so the mapper publishes the content with the
+	 * completion. Callers must await this before mapping `message`. Nothing is
+	 * kept when `signal` aborts before the result is published.
 	 */
 	async capture(storage: URI, chat: URI, turnId: string, message: Extract<SDKMessage, { type: 'user' }>, state: ClaudeMapperState, signal?: AbortSignal): Promise<void> {
 		const outputPath = getPersistedOutputPath(message.tool_use_result);
@@ -55,10 +58,10 @@ export class ClaudeTerminalOutputs {
 		const results = blocks.flatMap(block => block.type === 'tool_result' ? [block] : []);
 		const result = results.length === 1 ? results[0] : undefined;
 		const toolCall = result && state.toolCalls.lookup(result.tool_use_id);
-		if (!result || toolCall?.toolName !== BASH_TOOL_NAME) {
+		if (!result || toolCall?.toolName !== CLAUDE_SHELL_TOOL_NAME) {
 			return;
 		}
-		const title = toolCall.info?.displayName ?? getClaudeToolDisplayName(BASH_TOOL_NAME);
+		const title = toolCall.info?.displayName ?? getClaudeToolDisplayName(toolCall.toolName);
 		const terminal = buildTerminalContent(storage, chat, result.tool_use_id, title, getText(result.content), result.is_error !== true);
 		if (!terminal) {
 			return;
@@ -87,12 +90,12 @@ export class ClaudeTerminalOutputs {
 	}
 
 	/**
-	 * Attaches retained output to completed `Bash` calls restored from Claude's
+	 * Attaches retained output to completed shell calls restored from Claude's
 	 * transcript, which records only the model-facing result.
 	 */
 	async restore(storage: URI, chat: URI, turns: readonly Turn[]): Promise<void> {
 		const toolCalls = turns.flatMap(turn => turn.responseParts.flatMap(part =>
-			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed && part.toolCall.toolName === BASH_TOOL_NAME ? [part.toolCall] : []));
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed && part.toolCall.toolName === CLAUDE_SHELL_TOOL_NAME ? [part.toolCall] : []));
 		if (toolCalls.length === 0) {
 			return;
 		}
@@ -121,9 +124,9 @@ export class ClaudeTerminalOutputs {
 }
 
 /**
- * Returns the file with the complete output of a `Bash` result. A
- * backgrounded command saves a snapshot while it keeps running, which is not
- * its complete output.
+ * Returns the file with the complete output of a shell result. A backgrounded
+ * command saves a snapshot while it keeps running, which is not its complete
+ * output.
  */
 function getPersistedOutputPath(result: unknown): string | undefined {
 	if (typeof result !== 'object' || result === null) {
