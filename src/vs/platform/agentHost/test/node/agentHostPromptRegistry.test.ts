@@ -12,7 +12,7 @@ import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPrompt
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
-import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_PASSWORD_PROMPT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -37,7 +37,7 @@ suite('AgentHostPromptRegistry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
-	const UNCONDITIONAL_TOOL_INSTRUCTIONS = `${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`;
+	const UNCONDITIONAL_TOOL_INSTRUCTIONS = `${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}\n${COPILOT_AGENT_HOST_PASSWORD_PROMPT_TOOL_INSTRUCTION}`;
 
 	const withUniversalAgentHostInstructions = (config: SystemMessageConfig): SystemMessageConfig => {
 		const configWithToolInstructions = config.mode === 'replace'
