@@ -70,7 +70,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5791a70678d243d883d596d272bdf2681fa4bf7334317a343dc6749c59d10536)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServersProvenance/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/928cce46740f1ac4447c79e0a0ebc6377e80ac9b5d06baef402242f5726ab508)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f12608afddf388f808cd845fe28fe9f3c70391064618b81fc2dc09311f376696)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServersTab/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/f346de500c910f8306e8b0a6f32a3ee3299d359fe9fce11b4755ad01e32609bb)
