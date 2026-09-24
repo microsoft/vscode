@@ -3032,16 +3032,25 @@ export class CopilotAgentSession extends Disposable {
 			+ paths.map(path => `- ${path}`).join('\n');
 	}
 
+	private _canSendTurn(turn: CopilotTurn | undefined, abortToken: CancellationToken): boolean {
+		if (this._currentTurn.value !== turn) {
+			this._logService.info(`[Copilot:${this.sessionId}] Turn changed during preparation; dropping send: turnId=${turn?.id}`);
+			return false;
+		}
+		if (abortToken.isCancellationRequested) {
+			this._logService.info(`[Copilot:${this.sessionId}] Turn cancelled during preparation; dropping send: turnId=${turn?.id}`);
+			this.discardActiveTurn();
+			return false;
+		}
+		return true;
+	}
+
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
-		// Capture the turn's abort token before any dispatch await. Resolving a slash
-		// command awaits `rpc.commands.list`; an abort during that await drives a terminal
-		// `session.idle` that resets the live token (and leaves a `pending` turn open).
-		// Reading `this._abortToken` afterwards — e.g. inside `_startFleet` — would then
-		// observe a fresh, uncancelled token and miss the abort, starting an autonomous
-		// fleet loop after cancellation. The captured reference reliably reflects it.
+		// An aborted idle resets the live token; retain the pre-await token to preserve cancellation.
 		const abortToken = this._abortToken;
+		const sendingTurn = this._currentTurn.value;
 
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
@@ -3112,6 +3121,9 @@ export class CopilotAgentSession extends Disposable {
 			prompt = configAction.strippedPrompt;
 		} else if (slashCommand) {
 			const runtimeSlashCommand = await this._slashCommandProvider.resolveSlashCommand(slashCommand.command);
+			if (!this._canSendTurn(sendingTurn, abortToken)) {
+				return;
+			}
 			// TEMPORARY WORKAROUND (#8837): route built-in /fleet via fleet.start to keep the AHP turn open; this bypasses commands.invoke telemetry/gating and should be removed once invoke returns agent-prompt.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind === 'builtin' && runtimeSlashCommand.name === 'fleet') {
 				await this._startFleet(slashCommand.rest, attachments, mode, abortToken);
@@ -3127,6 +3139,9 @@ export class CopilotAgentSession extends Disposable {
 				// under the correct SDK mode (issue #8837). An `agent-prompt` result may
 				// override the mode; that override is applied again before `session.send`.
 				await this.applyMode(mode);
+				if (!this._canSendTurn(sendingTurn, abortToken)) {
+					return;
+				}
 				let result: CopilotSlashCommandResult;
 				try {
 					result = await this._wrapper.session.rpc.commands.invoke(invocation);
@@ -3181,10 +3196,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		const sdkAttachments = await this._toSdkAttachments(attachments);
+		if (!this._canSendTurn(sendingTurn, abortToken)) {
+			return;
+		}
 
 		await this._prepareSdkTurn(mode);
+		if (!this._canSendTurn(sendingTurn, abortToken)) {
+			return;
+		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-		const sendingTurn = this._currentTurn.value;
 		sendingTurn?.markProviderCallPending();
 		try {
 			await this._otelService.withTraceContext(traceContext, () => {
@@ -3206,6 +3226,7 @@ export class CopilotAgentSession extends Disposable {
 
 	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
 		this._resetAbortToken();
+		const abortToken = this._abortToken;
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
 		this._agentMergeTurn = agentMergeTurn;
 		if (this._tryContinueDevelopmentRecoverableError(turnId)) {
@@ -3216,6 +3237,9 @@ export class CopilotAgentSession extends Disposable {
 		turn?.markProviderCallPending();
 		try {
 			await this._prepareSdkTurn(mode);
+			if (!this._canSendTurn(turn, abortToken)) {
+				return;
+			}
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
 			turn?.markProviderCallResolved();

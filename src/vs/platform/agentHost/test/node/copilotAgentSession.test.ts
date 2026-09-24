@@ -3677,6 +3677,84 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, turnEndCount }, { hasActiveTurn: false, turnEndCount: 1 });
 	});
 
+	for (const abortedIdle of [false, true]) {
+		test(`cancelling a normal send during preparation prevents SDK dispatch (aborted idle: ${abortedIdle})`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.onModeSet = () => {
+				void session.abort();
+				if (abortedIdle) {
+					mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+				}
+			};
+
+			await session.send('cancelled', undefined, 'turn-cancelled', 'interactive');
+			const cancelledState = {
+				sends: [...mockSession.sendRequests],
+				hasActiveTurn: session.hasActiveTurn,
+				terminalActions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError),
+			};
+			mockSession.onModeSet = undefined;
+			await session.send('replacement', undefined, 'turn-replacement', 'interactive');
+
+			assert.deepStrictEqual({
+				cancelledState,
+				sends: mockSession.sendRequests,
+			}, {
+				cancelledState: { sends: [], hasActiveTurn: false, terminalActions: [] },
+				sends: [{ prompt: 'replacement', attachments: undefined }],
+			});
+		});
+	}
+
+	test('an abandoned send does not dispatch or discard a replacement turn', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.onModeSet = () => session.resetTurnState('turn-replacement');
+
+		await session.send('abandoned', undefined, 'turn-abandoned', 'interactive');
+
+		assert.deepStrictEqual({
+			sends: mockSession.sendRequests,
+			activeTurn: session.currentTurnId,
+		}, {
+			sends: [],
+			activeTurn: 'turn-replacement',
+		});
+	});
+
+	for (const phase of ['resolution', 'mode'] as const) {
+		test(`cancelling a runtime command during ${phase} prevents invocation`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = {
+				commands: [{ name: 'env', kind: 'builtin', description: 'Show environment', allowDuringAgentExecution: true }],
+			};
+			const cancel = () => {
+				void session.abort();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			};
+			if (phase === 'resolution') {
+				mockSession.onCommandList = cancel;
+			} else {
+				mockSession.onModeSet = cancel;
+			}
+
+			await session.send('/env', undefined, 'turn-cancelled', 'interactive');
+
+			assert.deepStrictEqual({
+				commands: mockSession.commandInvokeCalls,
+				modes: mockSession.modeSetCalls,
+				sends: mockSession.sendRequests,
+				hasActiveTurn: session.hasActiveTurn,
+				terminalActions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError),
+			}, {
+				commands: [],
+				modes: phase === 'mode' ? [{ mode: 'interactive' }] : [],
+				sends: [],
+				hasActiveTurn: false,
+				terminalActions: [],
+			});
+		});
+	}
+
 	suite('/sandbox-policy', () => {
 		async function createSandboxSession(options?: Parameters<typeof createAgentSession>[1]) {
 			const result = await createAgentSession(disposables, options);
@@ -8552,6 +8630,35 @@ Use the attached image as context.
 				modeSetCalls: [{ mode: 'plan' }],
 			});
 		});
+
+		for (const abortedIdle of [false, true]) {
+			test(`cancelling a resumed turn during preparation prevents SDK dispatch (aborted idle: ${abortedIdle})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.onModeSet = () => {
+					void session.abort();
+					if (abortedIdle) {
+						mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+					}
+				};
+
+				await session.resume('turn-cancelled', 'plan');
+				const cancelledState = {
+					sends: [...mockSession.sendMessagesRequests],
+					hasActiveTurn: session.hasActiveTurn,
+					terminalActions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError),
+				};
+				mockSession.onModeSet = undefined;
+				await session.resume('turn-replacement', 'plan');
+
+				assert.deepStrictEqual({
+					cancelledState,
+					sends: mockSession.sendMessagesRequests,
+				}, {
+					cancelledState: { sends: [], hasActiveTurn: false, terminalActions: [] },
+					sends: [{ messages: [] }],
+				});
+			});
+		}
 
 		test('clears the active turn when the continuation connection closes', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
