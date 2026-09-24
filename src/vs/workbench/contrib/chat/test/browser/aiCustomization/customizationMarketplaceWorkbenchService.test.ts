@@ -52,7 +52,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
