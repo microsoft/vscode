@@ -46,7 +46,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneChangesEditorTransitionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -107,7 +107,7 @@ const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const singlePaneChangesEditorHeader = ContextKeyExpr.and(
 	SinglePaneLayoutEnabledContext,
-	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
+	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), SinglePaneChangesEditorTransitionContext)
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 const CHAT_PET_CREATE_PULL_REQUEST_ACTION_IDS = new Set([
@@ -362,6 +362,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 		const agentMergeEnabledObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
+		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
 
 		// Client-side entries that belong *inside* the operations dropdown rather
 		// than beside it. The `primary` group is special: an action contributed
@@ -478,7 +480,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 		this._register(autorun(reader => {
 			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
-			if (isLoading) {
+			if (changesEditorTransitionObs.read(reader) || isLoading) {
 				return;
 			}
 
@@ -647,6 +649,16 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
+function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<string | undefined> {
+	return derivedObservableWithCache<string | undefined>(owner, (reader, lastValue) => {
+		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+			return lastValue;
+		}
+		return changeset?.label;
+	});
+}
+
 /** Registers custom Changes action view items. */
 class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -654,16 +666,18 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super();
 
 		const onDidRegister = this._register(new Emitter<void>());
+		const headerLabelObs = createChangesPickerLabelObservable(this, changesViewService);
 
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChangesPickerActionItem, action, true);
+			return instantiationService.createInstance(ChangesPickerActionItem, action, true, headerLabelObs);
 		}, onDidRegister.event));
 
 		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
@@ -1639,7 +1653,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, false);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, false, undefined);
 				}
 				return undefined;
 			},
@@ -2053,10 +2067,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					singlePaneChangesEditorHeader,
-					ContextKeyExpr.or(ActiveSessionContextKeys.HasGitRepository, ActiveSessionContextKeys.HasSelectableChangesets)
-				),
+				when: singlePaneChangesEditorHeader,
 			}],
 		});
 	}
@@ -2068,10 +2079,13 @@ registerAction2(VersionsPickerAction);
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<string | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
+	private readonly _pickerEnabledObs: IObservable<boolean>;
+	private _container: HTMLElement | undefined;
 
 	constructor(
 		action: MenuItemAction,
 		private readonly _showSummary: boolean,
+		labelObs: IObservable<string | undefined> | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -2082,6 +2096,8 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			getActions: () => {
 				const changesets = changesViewService.activeSessionChangesetsObs.get() ?? [];
 				const selectedChangeset = changesViewService.activeSessionChangesetObs.get();
+				const sessionResource = changesViewService.activeSessionResourceObs.get();
+				const catalogueLoading = changesViewService.activeSessionChangesetsLoadingObs.get();
 
 				return changesets.map(changeset => ({
 					...action,
@@ -2094,8 +2110,12 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 						showHeader: false,
 						order: 0
 					},
-					enabled: changeset.isEnabled.get(),
+					enabled: !catalogueLoading && changeset.isEnabled.get(),
 					run: async () => {
+						if (changesViewService.activeSessionChangesetsLoadingObs.get()
+							|| !isEqual(changesViewService.activeSessionResourceObs.get(), sessionResource)) {
+							return;
+						}
 						changesViewService.setChangesetId(changeset.id);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
 					}
@@ -2105,13 +2125,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._labelObs = derivedObservableWithCache<string | undefined>(this, (reader, lastValue) => {
-			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-			if (!changeset && changesViewService.activeSessionLoadingObs.read(reader)) {
-				return lastValue;
+		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changesViewService);
+		this._pickerEnabledObs = derived(reader => {
+			const changesets = changesViewService.activeSessionChangesetsObs.read(reader);
+			if (changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+				// Keep the picker stable; its retained entries cannot be selected until the new catalogue arrives.
+				return (changesets?.length ?? 0) > 0;
 			}
-
-			return changeset?.label;
+			return changesets?.some(changeset => changeset.isEnabled.read(reader)) ?? false;
 		});
 
 		this._summaryObs = this._showSummary
@@ -2121,28 +2142,41 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
 			this._summaryObs?.read(reader);
+			const pickerEnabled = this._pickerEnabledObs.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
 				this.updateTooltip();
+				this.updateAvailability(pickerEnabled);
 			}
 		}));
 	}
 
 	override render(container: HTMLElement): void {
+		this._container = container;
 		super.render(container);
 
 		container.classList.add('changes-picker-action-rich');
 		container.classList.toggle('changes-picker-action-with-summary', this._showSummary);
+		this.updateAvailability(this._pickerEnabledObs.get());
+	}
+
+	private updateAvailability(available: boolean): void {
+		const enabled = available && this.action.enabled;
+		this.setDropdownEnabled(available);
+		this._container?.classList.toggle('disabled', !enabled);
+		this.element?.classList.toggle('disabled', !enabled);
+		this.element?.setAttribute('aria-disabled', String(!enabled));
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this.updateAvailability(this._pickerEnabledObs?.get() ?? false);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const label = this._labelObs.get();
-		if (!label) {
-			return null;
-		}
-
-		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label)];
+		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label ?? this.action.label)];
 		const summary = this._summaryObs?.get();
 		if (summary) {
 			contents.push(dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7'));

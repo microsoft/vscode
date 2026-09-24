@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { SinglePaneChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { ISinglePaneLayoutContext } from './singlePane/singlePaneLayoutStrategy.js';
 import { SinglePaneDetailPanelCoordinator } from './singlePane/singlePaneDetailPanelCoordinator.js';
@@ -18,6 +21,8 @@ export { TOGGLE_DETAILS_COMMAND_ID } from './singlePane/singlePaneExistingSessio
 
 /** Fresh single-pane key for the per-session layout state (not shared with the classic desktop controller). */
 const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
+
+type ChangesEditorTransitionPhase = 'idle' | 'awaitingWorkingSet' | 'restoringWorkingSet' | 'reconciling';
 
 /**
  * Layout controller for the single-pane detail-panel layout. A sibling of the
@@ -45,6 +50,9 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	private _context: ISinglePaneLayoutContext | undefined;
 	private _existingSession: SinglePaneExistingSessionStrategy | undefined;
 	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
+	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
+	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
+	private readonly _changesEditorTransitionContextKey = SinglePaneChangesEditorTransitionContext.bindTo(this._contextKeyService);
 
 	protected override get _layoutStateStorageKey(): string {
 		return SINGLE_PANE_LAYOUT_STATE_KEY;
@@ -65,6 +73,11 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
+				completeChangesEditorTransition: () => {
+					if (that._changesEditorTransitionPhase === 'reconciling') {
+						that._setChangesEditorTransitionPhase('idle');
+					}
+				},
 			};
 		}
 		return this._context;
@@ -73,6 +86,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	// --- Side-pane visibility + detail content + Toggle Details ---
 
 	protected override _registerViewStateManagement(): void {
+		this._register(toDisposable(() => this._changesEditorTransitionContextKey.reset()));
 		const visibilityStore = this._instantiationService.createInstance(SinglePaneVisibilityProfileStore);
 		const detailPanel = this._register(this._instantiationService.createInstance(SinglePaneDetailPanelCoordinator));
 
@@ -87,6 +101,21 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			if (this._store.isDisposed) {
 				return;
 			}
+			const onDidChangeChangesEditorTransition = this._onDidChangeChangesEditorTransition = this._register(new Emitter<void>());
+			this._register(this.onDidEndSessionLayoutRestore(() => {
+				if (this._changesEditorTransitionPhase === 'restoringWorkingSet') {
+					this._setChangesEditorTransitionPhase('reconciling');
+				}
+			}));
+			this._register(this._editorGroupsService.registerContextKeyProvider({
+				contextKey: SinglePaneChangesEditorTransitionContext,
+				getGroupContextKeyValue: group => this._changesEditorTransitionPhase !== 'idle'
+					&& group.id === this._editorGroupsService.mainPart.activeGroup.id
+					&& (group.activeEditor === null
+						|| !!group.activeEditor.resource && this._sessionChangesService.getSessionResource(group.activeEditor.resource) !== undefined),
+				onDidChange: onDidChangeChangesEditorTransition.event,
+			}));
+			this._register(this._editorGroupsService.mainPart.onDidAddGroup(() => onDidChangeChangesEditorTransition.fire()));
 			this._managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx));
 			this._existingSession?.registerManagedTabs(this._managedTabs);
 		});
@@ -136,5 +165,29 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
 		this._managedTabs?.prepareWorkingSetRestore(workingSet !== 'empty');
+		if ((this._changesEditorTransitionPhase ?? 'idle') !== 'idle'
+			|| this._shouldPreserveChangesEditor(this._sessionsService.activeSession.get())) {
+			this._setChangesEditorTransitionPhase('restoringWorkingSet');
+		}
+	}
+
+	protected override _onActiveSessionSwitched(_previousSession: IActiveSession, session: IActiveSession | undefined): void {
+		this._setChangesEditorTransitionPhase(this._shouldPreserveChangesEditor(session) ? 'awaitingWorkingSet' : 'idle');
+	}
+
+	private _shouldPreserveChangesEditor(session: IActiveSession | undefined): boolean {
+		const editorResource = this._editorGroupsService.mainPart.activeGroup.activeEditor?.resource;
+		return !!(session?.workspace.get() ?? session?.activeChat.get().workspace.get())
+			&& !!editorResource
+			&& !!this._sessionChangesService.getSessionResource(editorResource);
+	}
+
+	private _setChangesEditorTransitionPhase(phase: ChangesEditorTransitionPhase): void {
+		const previousPhase = this._changesEditorTransitionPhase ?? 'idle';
+		this._changesEditorTransitionPhase = phase;
+		this._changesEditorTransitionContextKey.set(phase !== 'idle');
+		if ((previousPhase === 'idle') !== (phase === 'idle')) {
+			this._onDidChangeChangesEditorTransition?.fire();
+		}
 	}
 }
