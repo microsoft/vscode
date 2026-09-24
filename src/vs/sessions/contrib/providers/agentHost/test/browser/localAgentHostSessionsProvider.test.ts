@@ -654,7 +654,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -664,7 +664,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			resource: sessionUri.toString(),
 			provider,
 			title: opts?.title ?? `Session ${rawId}`,
-			status: ProtocolSessionStatus.Idle,
+			status: opts?.status ?? ProtocolSessionStatus.Idle,
 			createdAt: opts?.createdAt ?? new Date().toISOString(),
 			modifiedAt: opts?.modifiedAt ?? new Date().toISOString(),
 			project: opts?.project,
@@ -2498,8 +2498,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// swapped for the freshly committed one.
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
-			sendRequest: async (): Promise<ChatSendResult> => {
-				agentHost.addSession(createSession('graduated', { summary: 'Graduated Session' }));
+			sendRequest: async resource => {
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Graduated Session' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -2543,7 +2543,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					sent.push(options);
 				}
 				if (sent.length === 1) {
-					agentHost.addSession(createSession('graduated-model', { summary: 'Graduated Model Session' }));
+					agentHost.addSession(createSession(AgentSession.id(_resource), { summary: 'Graduated Model Session' }));
 				}
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
@@ -4544,11 +4544,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const workspace = URI.file('/project');
 			const newWorkspace = URI.file('/new-project');
 			storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ isolation: alternateIsolation, providerOption: 'remembered' }), StorageScope.PROFILE, StorageTarget.MACHINE);
-			let startedSessionCount = 0;
 			const provider = createProvider(disposables, agentHost, undefined, {
 				storageService, configurationService, openSession: true,
-				sendRequest: async () => {
-					agentHost.addSession(createSession(`workspace-isolation-session-${++startedSessionCount}`));
+				sendRequest: async resource => {
+					agentHost.addSession(createSession(AgentSession.id(resource)));
 					return { kind: 'sent', data: {} as IChatSendRequestData };
 				},
 			});
@@ -4738,13 +4737,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('equivalent workspace URIs share one isolation preference', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const configurationService = new TestConfigurationService({ [USE_WORKTREE_SETTING]: false });
-		let startedSessionCount = 0;
 		const create = () => createProvider(disposables, agentHost, undefined, {
 			storageService,
 			configurationService,
 			openSession: true,
-			sendRequest: async () => {
-				agentHost.addSession(createSession(`equivalent-workspace-session-${++startedSessionCount}`));
+			sendRequest: async resource => {
+				agentHost.addSession(createSession(AgentSession.id(resource)));
 				return { kind: 'sent', data: {} as IChatSendRequestData };
 			},
 		});
@@ -4859,10 +4857,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let sentConfig: Record<string, unknown> | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
 				sendCalls++;
 				sentConfig = options?.agentHostSessionConfig;
-				agentHost.addSession(createSession('config-resolved-send', { summary: 'Config Resolved' }));
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Config Resolved' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -4942,9 +4940,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let sendCalls = 0;
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
-			sendRequest: async (): Promise<ChatSendResult> => {
+			sendRequest: async resource => {
 				sendCalls++;
-				agentHost.addSession(createSession('config-operation-send', { summary: 'Config Operation' }));
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Config Operation' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -4987,10 +4985,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 				wireOpsAtLoad = [...agentHost.wireOps];
 				return undefined;
 			},
-			sendRequest: async (): Promise<ChatSendResult> => {
+			sendRequest: async resource => {
 				sendCalls++;
 				wireOpsAtSend = [...agentHost.wireOps];
-				agentHost.addSession(createSession('eager-created-send', { summary: 'Eager Created' }));
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Eager Created' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -5043,9 +5041,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
 			workspaceTrustError: new Error('trust lookup failed'),
-			sendRequest: async (): Promise<ChatSendResult> => {
+			sendRequest: async resource => {
 				sendCalls++;
-				agentHost.addSession(createSession('trust-fallback-send', { summary: 'Trust Fallback' }));
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Trust Fallback' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -8699,12 +8697,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, codexAndClaude, {
 			openSession: true,
 			configurationService,
-			sendRequest: async (): Promise<ChatSendResult> => {
+			sendRequest: async resource => {
 				// While the codex send is in flight, a foreign-type (claude)
 				// session shows up in the host's list (e.g. restored from an
 				// earlier run), and the real codex session also commits.
 				agentHost.addSession(createSession('foreign-claude', { provider: 'claude', summary: 'Foreign Claude' }));
-				agentHost.addSession(createSession('real-codex', { provider: 'codex', summary: 'Real Codex' }));
+				agentHost.addSession(createSession(AgentSession.id(resource), { provider: 'codex', summary: 'Real Codex' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
@@ -8716,6 +8714,72 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
 	});
 
+	test('sendRequest ignores newly discovered same-type archived and unarchived sessions until its own session appears', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => {
+				agentHost.addSession(createSession('archived-session', {
+					summary: 'Archived Session',
+					status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived,
+				}));
+				agentHost.addSession(createSession('unarchived-session', { summary: 'Unarchived Session' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const replacements: string[] = [];
+		disposables.add(provider.onDidReplaceSession(e => replacements.push(AgentSession.id(e.to.resource))));
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const ownRawId = AgentSession.id(chat.resource);
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		await timeout(0);
+		agentHost.addSession(createSession(ownRawId, { summary: 'Own Session' }));
+		fireSessionAdded(agentHost, ownRawId, { title: 'Own Session' });
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			replacements,
+			committed: AgentSession.id(committed.resource),
+		}, {
+			replacements: [ownRawId],
+			committed: ownRawId,
+		});
+	});
+
+	test('sendRequest ignores same-type session-added notifications until its own session appears', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const replacements: string[] = [];
+		disposables.add(provider.onDidReplaceSession(e => replacements.push(AgentSession.id(e.to.resource))));
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const ownRawId = AgentSession.id(chat.resource);
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		await timeout(0);
+		fireSessionAdded(agentHost, 'archived-notification', {
+			title: 'Archived Notification',
+			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived,
+		});
+		fireSessionAdded(agentHost, 'unarchived-notification', { title: 'Unarchived Notification' });
+		await timeout(0);
+		assert.deepStrictEqual(replacements, []);
+
+		fireSessionAdded(agentHost, ownRawId, { title: 'Own Session' });
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			replacements,
+			committed: AgentSession.id(committed.resource),
+		}, {
+			replacements: [ownRawId],
+			committed: ownRawId,
+		});
+	});
+
 	test('sendRequest waits beyond 30 seconds for the backend session to commit', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
@@ -8723,13 +8787,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		const chat = await provider.createNewChat(session.sessionId);
+		const ownRawId = AgentSession.id(session.resource);
 
 		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 		await timeout(0);
 		await timeout(30_001);
-		agentHost.addSession(createSession(session.sessionId, { summary: 'Committed Late' }));
+		agentHost.addSession(createSession(ownRawId, { summary: 'Committed Late' }));
 		agentHost.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', session.sessionId).toString()),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', ownRawId).toString()),
 			action: { type: ActionType.ChatTurnComplete },
 			serverSeq: 1,
 			origin: undefined,
@@ -8891,11 +8956,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const metadata = { 'test.request': { enabled: true } };
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
 				if (options) {
 					sendOptions.push(options);
 				}
-				agentHost.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
