@@ -7,6 +7,7 @@ import type { TelemetryConfig } from '@github/copilot-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { IAgentHostFirstResponseDiagnostic, IAgentHostTurnTimingDiagnostic } from './agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../../otel/common/chatUserInteraction.js';
 
 
 /**
@@ -57,6 +58,7 @@ export interface IAgentHostOTelService {
 	readonly diagnosticsEnabled: boolean;
 	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void;
 	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void;
+	emitUserInteraction(timing: IChatUserInteractionTiming): void;
 
 	/**
 	 * Returns the telemetry config to hand to `new CopilotClient({ telemetry })`,
@@ -107,6 +109,7 @@ export const NullAgentHostOTelService: IAgentHostOTelService = {
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,

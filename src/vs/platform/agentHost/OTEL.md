@@ -12,6 +12,53 @@ This is the architecture and integration reference for OTel in Agent Host sessio
 | SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
+## User-perceived first progress
+
+`vscode.chat.user_perceived_time_to_first_progress` mirrors the shared
+`chat.userPerceivedTimeToFirstProgress` UI timer, including Chat view and
+Agents-window new-chat submissions. It measures submission through two animation
+frames after meaningful visible **text, reasoning, or tool** progress. Preparation
+indicators are excluded. This is a rendering approximation, not exact physical
+paint or model TTFT. The original timer and product telemetry are unchanged.
+
+Attributes use `vscode.chat.user_interaction.`:
+
+| Attribute | Meaning |
+|---|---|
+| `schemaVersion` | Numeric `1` |
+| `rendererId`, `interactionOrdinal` | Random renderer-lifetime ID and submission-order ordinal starting at 1 (not completion/export order) |
+| `requestId` | Optional opaque request ID; required on success |
+| `result` | `success`, `cancelled`, `error`, `completedWithoutProgress`, `notDispatched`, `queued`, `navigated`, `hidden`, or `disposed` |
+| `requestPhase` | `first`, `followup`, or `unknown` in chat history; not cold/warm process state |
+| `firstProgressKind` | `text`, `reasoning`, or `tool`; success only |
+| `timeToFirstProgress` | Producer-local milliseconds, success only |
+| `timeToTermination` | Producer-local milliseconds, unsuccessful observations only |
+| `windowVisible`, `windowFocused` | Source-window state at observation end; focus loss alone is allowed |
+
+Hiding terminates an observation; it is not paused/resumed. Queued and hidden
+observations are not zero-latency successes. No content, paths, session URIs, or
+remote authorities are exported. Read duration attributes, not span duration.
+These metadata spans have no `gen_ai.operation.name`, token, or cost accounting.
+
+Agent Host transports this allowlisted record using
+`vscode/reportChatUserInteraction`, gated by the independent
+`_meta['vscode.chatUserInteractionTiming']` capability. It uses the existing
+SQLite/OTLP/file diagnostic destinations, without content capture or product
+telemetry opt-in. The host drains the synthetic-span queue before acknowledging.
+The same schema is emitted by the extension-host OTel exporter for local chat;
+Agent Host measurements do not depend on the Copilot extension exporter.
+Observations ending before a response use the submission's session resource for
+routing, including composer session replacement. Unroutable remote observations
+are logged as failed deliveries, never sent to the local extension exporter.
+
+The internal `_chat.flushUserInteractionTelemetry` command waits up to 10 seconds
+for active UI observations, then drains renderer deliveries before eval snapshots
+either database. It reports started/completed/failed counts; a timeout does not
+invent a terminal outcome. Crashes, missing destinations, unsupported builds, and
+pre-dispatch observations without a routable Agent Host identity can leave gaps.
+Transport failures are logged, never allowed to fail the chat submission, and
+are not retried. Older hosts never receive the new extension request.
+
 ## First Response Diagnostics
 
 ### Opt-in OTel export contract (version 1)

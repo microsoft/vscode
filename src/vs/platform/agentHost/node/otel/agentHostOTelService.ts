@@ -22,6 +22,7 @@ import {
 } from '../../../otel/node/otlp/outboundForwarder.js';
 import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
+import { chatUserInteractionAttributes, ChatUserInteractionSpanName, IChatUserInteractionTiming } from '../../../otel/common/chatUserInteraction.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
 import { AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
@@ -259,6 +260,24 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 
 	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void {
 		this._emitTimingDiagnostic(AgentHostFirstResponseSpanName, diagnostic, 'renderer');
+	}
+
+	emitUserInteraction(timing: IChatUserInteractionTiming): void {
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const attributes = chatUserInteractionAttributes(timing);
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name: ChatUserInteractionSpanName,
+			traceId: generateUuid().replaceAll('-', ''),
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: { ...this._config.resourceAttributes, ...attributes },
+			events: [],
+		});
 	}
 
 	private _emitTimingDiagnostic(name: string, diagnostic: IAgentHostTurnTimingDiagnostic | IAgentHostFirstResponseDiagnostic, source: 'host' | 'renderer'): void {
