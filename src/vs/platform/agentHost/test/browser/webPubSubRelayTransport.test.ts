@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IWebPubSubRelayTransportOptions, IWebSocketLike, WebPubSubRelayTransport } from '../../browser/webPubSubRelayTransport.js';
 import { ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -350,9 +351,9 @@ suite('WebPubSubRelayTransport', () => {
 			let receivedBytes = 0;
 			store.add(transport.onMessage(message => {
 				delivered++;
-				ordered &&= 'id' in message && message.id === delivered;
+				ordered &&= hasKey(message, { id: true }) && message.id === delivered;
 				acknowledgedBeforeDelivery &&= fake.highestAcknowledgedSequenceId >= delivered;
-				if ('result' in message && typeof message.result === 'string') {
+				if (hasKey(message, { result: true }) && typeof message.result === 'string') {
 					receivedBytes += message.result.length;
 				}
 			}));
