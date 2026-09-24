@@ -566,11 +566,11 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('keeps the Sessions header sticky after navigation scrolls away', async () => {
+		test('does not stick the Sessions header after navigation scrolls away', async () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', false);
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
@@ -600,65 +600,34 @@ suite('Sessions - SessionsList', () => {
 			}));
 			list.layout(120, 400);
 			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
-			tree.scrollTop = 120;
+			tree.scrollTop = 400;
 			await timeout(0);
 			const headerInStickyContainer = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const stickyHeaderRow = sessionsHeader.closest<HTMLElement>('.monaco-tree-sticky-row');
-			const stickyHeaderHoverBackground = stickyHeaderRow
-				? mainWindow.getComputedStyle(stickyHeaderRow).getPropertyValue('--vscode-list-hoverBackground').trim()
-				: undefined;
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
-			list.layout(0, 400);
-			await timeout(0);
-			const headerRestoredWhileHidden = sessionsHeader.parentElement === sessionsHeaderContainer;
-			list.layout(120, 400);
-			await timeout(0);
-			const headerVisibleAfterRelayout = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			list.openFind();
-			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
-			const findFocusedAfterStickyScroll = mainWindow.document.activeElement === findInput;
-			const headerStickyAfterOpeningFind = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			assert.ok(findInput);
-			findInput.value = 'no matching session';
-			findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-			await timeout(30);
-			const findFocusedAfterFiltering = mainWindow.document.activeElement === findInput;
-			const headerStickyAfterFiltering = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const headerAttachedAfterFiltering = sessionsHeader.parentElement !== null;
-			list.closeFind();
-			await timeout(350);
+			const headerParkedAfterScroll = sessionsHeader.parentElement === sessionsHeaderContainer;
+			const headerHiddenAfterScroll = sessionsHeader.style.display === 'none' && sessionsHeader.getAttribute('aria-hidden') === 'true';
 			tree.scrollTop = 0;
 			await timeout(0);
 
 			assert.deepStrictEqual({
 				headerText: sessionsHeader.textContent,
 				headerInStickyContainer,
-				stickyHeaderHoverBackground,
 				navigationVisibleAfterScroll,
-				headerRestoredWhileHidden,
-				headerVisibleAfterRelayout,
-				findFocusedAfterStickyScroll,
-				headerStickyAfterOpeningFind,
-				findFocusedAfterFiltering,
-				headerStickyAfterFiltering,
-				headerAttachedAfterFiltering,
+				headerParkedAfterScroll,
+				headerHiddenAfterScroll,
 				navigationRestoredAfterScroll: container.querySelector('.monaco-list-rows .session-section-shortcut') !== null,
 				headerRestoredAfterScroll: sessionsHeader.closest('.monaco-list-rows') !== null,
+				headerVisibleAfterScroll: sessionsHeader.style.display === '' && !sessionsHeader.hasAttribute('aria-hidden'),
 				headerRowHeight: sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height,
 			}, {
 				headerText: 'Sessions',
-				headerInStickyContainer: true,
-				stickyHeaderHoverBackground: 'transparent',
+				headerInStickyContainer: false,
 				navigationVisibleAfterScroll: false,
-				headerRestoredWhileHidden: true,
-				headerVisibleAfterRelayout: true,
-				findFocusedAfterStickyScroll: true,
-				headerStickyAfterOpeningFind: true,
-				findFocusedAfterFiltering: true,
-				headerStickyAfterFiltering: false,
-				headerAttachedAfterFiltering: true,
+				headerParkedAfterScroll: true,
+				headerHiddenAfterScroll: true,
 				navigationRestoredAfterScroll: true,
 				headerRestoredAfterScroll: true,
+				headerVisibleAfterScroll: true,
 				headerRowHeight: '42px',
 			});
 		});

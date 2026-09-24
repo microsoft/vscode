@@ -524,6 +524,7 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 				this.sourceContainer = template.container;
 			}
 			template.container.append(this.header);
+			DOM.show(this.header);
 			if (this.elementToRefocusAfterRerender) {
 				const activeElement = DOM.getActiveElement();
 				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
@@ -549,6 +550,11 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
 		const restoredToSource = target !== this.headerContainer;
 		target.append(this.header);
+		if (restoredToSource) {
+			DOM.show(this.header);
+		} else {
+			DOM.hide(this.header);
+		}
 		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
 		if (restoredToSource) {
 			this.elementToRefocusAfterRerender = undefined;
@@ -3576,7 +3582,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
 				allowNonCollapsibleParents: true,
-				enableStickyScroll: true,
+				enableStickyScroll: false,
 				expandOnlyOnTwistieClick: element => isSessionItem(element),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
@@ -4300,6 +4306,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		} else {
 			if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
 				this.options.sessionsHeaderContainer.append(this.options.sessionsHeader);
+				DOM.show(this.options.sessionsHeader);
 				this.options.layoutSessionsHeader?.();
 			}
 			this.tree.setChildren(null, [...navigationChildren, ...children]);
