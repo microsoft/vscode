@@ -10,7 +10,6 @@ import { normalizeFileEdit } from '../../../../../platform/agentHost/common/file
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { FileEdit } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import {
-	buildDefaultChatUri,
 	type ChatState,
 	type Customization,
 	FileEditKind,
@@ -56,13 +55,7 @@ export interface IParsedFileEdit {
  */
 export interface ISessionOutputObs {
 	/**
-	 * Returns the file changes produced by a specific chat's **last turn** only,
-	 * keyed by that chat's AHP chat URI (the default chat's
-	 * {@link buildDefaultChatUri}, or a peer chat's protocol resource). Reduces
-	 * that chat's last-turn edits into per-file {@link ISessionTurnFileChange |
-	 * changes} (with diff stats and owning-workspace classification).
-	 * Used by the chat input status pills to reflect just what the chat's most
-	 * recent request produced.
+	 * Returns the advertised chat's last-turn file edits, classified against the session workspace.
 	 */
 	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionTurnFileChange[]>;
 	/**

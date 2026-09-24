@@ -618,7 +618,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(chatUri, options, constObservable(true));
+		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => current = projected.read(reader)));
 		const absentCatalogue = current;
@@ -703,7 +703,7 @@ suite('AgentHostSessionChangesets', () => {
 			deletions: 1,
 			isOutsideWorkspace: false,
 		} satisfies ISessionTurnFileChange]);
-		const projected = createChatChangesets(chatUri, {
+		const projected = createChatChangesets(sessionUri, constObservable(chatUri), {
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -776,8 +776,8 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const defaultProjected = createChatChangesets(defaultChatUri, options, constObservable(true));
-		const peerProjected = createChatChangesets(peerChatUri, options, constObservable(true));
+		const defaultProjected = createChatChangesets(sessionUri, constObservable(defaultChatUri), options, constObservable(true));
+		const peerProjected = createChatChangesets(sessionUri, constObservable(peerChatUri), options, constObservable(true));
 		let defaultChangesets: readonly ISessionChangeset[] | undefined;
 		let peerChangesets: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => defaultChangesets = defaultProjected.read(reader)));
@@ -854,7 +854,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(chatUri, options, constObservable(true), constObservable([]));
+		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable([]));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -970,7 +970,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const changeset = createChangesets(peerChatUri, options, constObservable(true), [{
+		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(peerChatUri.toString()),
