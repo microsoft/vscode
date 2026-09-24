@@ -1783,6 +1783,11 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 		activeSessionMcpServers: inlineErrorMcpServers,
 		mcpSearchQuery: 'component',
 	});
+	const workspaceTab = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container [role="tab"]')]
+		.find(tab => tab.textContent?.includes('Workspace'));
+	assert(workspaceTab !== undefined, 'The fixture must render the Workspace MCP tab.');
+	workspaceTab.click();
+	await timeout(50);
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
 		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
@@ -2398,7 +2403,7 @@ async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureCont
 
 	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
 	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
-	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
+	assert(row.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
 	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
 	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
 	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
