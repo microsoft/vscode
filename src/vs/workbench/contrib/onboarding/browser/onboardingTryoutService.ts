@@ -204,7 +204,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 				if (currentAvailability.kind !== 'ready') {
 					return this.asResult(currentAvailability);
 				}
-return await raceCancellationError(prepared.run(), cancellation.token);
+				return await raceCancellationError(prepared.run(), cancellation.token);
 			} catch (error) {
 				if (isCancellationError(error)) {
 					return { kind: 'cancelled' };

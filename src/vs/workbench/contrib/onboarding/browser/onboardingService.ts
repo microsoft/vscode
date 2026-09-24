@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
@@ -397,22 +397,32 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			return OnboardingOutcome.Aborted;
 		}
 
-		const abort = new Emitter<void>();
-		this._activeAbort = abort;
 		const cancellation = new CancellationTokenSource();
-		const listener = abort.event(() => cancellation.cancel());
 		try {
-			return await runWithOnboardingPresentation(mainWindow, cancellation.token, () => this._showPresentation(scenario, presentation, abort));
+			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
+				if (this._stopped) {
+					throw new CancellationError();
+				}
+				const abort = new Emitter<void>();
+				const listener = abort.event(() => cancellation.cancel());
+				this._activeAbort = abort;
+				try {
+					return await this._showPresentation(scenario, presentation, abort);
+				} finally {
+					if (this._activeAbort === abort) {
+						this._activeAbort = undefined;
+					}
+					listener.dispose();
+					abort.dispose();
+				}
+			});
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return OnboardingOutcome.Aborted;
 			}
 			throw error;
 		} finally {
-			this._activeAbort = undefined;
-			listener.dispose();
 			cancellation.dispose(true);
-			abort.dispose();
 		}
 	}
 
