@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { areSessionChatTipsEnabled, isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
+import { isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('New session composer layout', () => {
@@ -23,17 +23,10 @@ suite('New session composer layout', () => {
 			const configurationService = new TestConfigurationService({
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: testCase.unifiedPicker,
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: testCase.experimentalLayout,
-				'chat.tips.enabled': true,
 			});
 			store.add(configurationService.onDidChangeConfigurationEmitter);
 
-			assert.deepStrictEqual({
-				experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService),
-				chatTips: areSessionChatTipsEnabled(configurationService),
-			}, {
-				experimentalLayout: testCase.expected,
-				chatTips: true,
-			});
+			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
 		});
 	}
 

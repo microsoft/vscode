@@ -77,10 +77,6 @@ export function isExperimentalSessionComposerLayoutEnabled(configurationService:
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 }
 
-export function areSessionChatTipsEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>('chat.tips.enabled') !== false;
-}
-
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
@@ -407,7 +403,7 @@ export class NewChatWidget extends Disposable {
 			if (!e.affectsConfiguration('chat.tips.enabled')) {
 				return;
 			}
-			if (areSessionChatTipsEnabled(this.configurationService)) {
+			if (this.configurationService.getValue<boolean>('chat.tips.enabled')) {
 				this._renderChatTip();
 			} else {
 				this._clearChatTip();
@@ -558,8 +554,7 @@ export class NewChatWidget extends Disposable {
 				// No tip in the no-agent-host empty state: there is no usable composer.
 				// Tips also stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
-				isEligible: () => areSessionChatTipsEnabled(this.configurationService)
-					&& !chatWidgetContent.classList.contains('no-agent-host')
+				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
 					&& this._hasEnoughSessionsForFirstRunNotices()
 					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),
