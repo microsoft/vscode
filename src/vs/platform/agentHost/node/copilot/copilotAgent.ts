@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
@@ -237,6 +238,29 @@ async function fileExists(filePath: string): Promise<boolean> {
 		return true;
 	} catch {
 		return false;
+	}
+}
+
+async function validateCopilotRuntimePath(runtimePath: string): Promise<void> {
+	if (!isAbsolute(runtimePath)) {
+		throw new Error(`Invalid chat.agentHost.copilot.runtimePath: expected an absolute path, got '${runtimePath}'`);
+	}
+
+	let stat: Awaited<ReturnType<typeof fs.stat>>;
+	try {
+		stat = await fs.stat(runtimePath);
+	} catch {
+		throw new Error(`Invalid chat.agentHost.copilot.runtimePath '${runtimePath}': file is not accessible`);
+	}
+	if (!stat.isFile()) {
+		throw new Error(`Invalid chat.agentHost.copilot.runtimePath '${runtimePath}': expected a file`);
+	}
+	if (process.platform !== 'win32') {
+		try {
+			await fs.access(runtimePath, fsConstants.X_OK);
+		} catch {
+			throw new Error(`Invalid chat.agentHost.copilot.runtimePath '${runtimePath}': file is not executable`);
+		}
 	}
 }
 
@@ -1140,6 +1164,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.CopilotSdkLogLevel) ?? 'info';
 	}
 
+	private _getCopilotRuntimePath(): string | undefined {
+		const runtimePath = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RuntimePath);
+		return runtimePath ? runtimePath : undefined;
+	}
+
 	private _resolveCopilotSdkLogLevel(configured: CopilotSdkLogLevelSetting): NonNullable<CopilotClientOptions['logLevel']> {
 		return configured === 'trace' || this._logService.getLevel() === LogLevel.Trace ? 'all' : 'info';
 	}
@@ -1171,6 +1200,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isHydraFusionEnabled(),
 			this._getSkillCharBudget(),
 			this._getCopilotSdkLogLevelSetting(),
+			this._getCopilotRuntimePath(),
 			this._getEnterpriseHost(),
 			this._isSystemProxyEnabled(),
 			this._isGitHubMcpServerEnabled(),
@@ -2509,9 +2539,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info('[Copilot] Set CLI env: USE_TGREP=true (tgrep indexed search forced on)');
 			}
 
-			// Keep the SDK wrapper and native module paired within one platform package.
+			// Keep the SDK wrapper and native module paired within the bundled platform
+			// package. Only the runtime executable can be explicitly overridden.
 			const nodeModulesUri = getAppNodeModulesUri();
-			const { runtimePath } = await resolveCopilotRuntimePaths(nodeModulesUri);
+			const { runtimePath: bundledRuntimePath } = await resolveCopilotRuntimePaths(nodeModulesUri);
+			let runtimePath = bundledRuntimePath;
+			if (startupConfig.runtimePath) {
+				await validateCopilotRuntimePath(startupConfig.runtimePath);
+				runtimePath = startupConfig.runtimePath;
+				this._logService.info(`[Copilot] Using configured runtime path: ${runtimePath}`);
+			} else {
+				this._logService.info(`[Copilot] Using bundled runtime path: ${runtimePath}`);
+			}
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
@@ -2528,8 +2567,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH';
 			const currentPath = env[pathKey];
 			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
-			this._logService.info(`[Copilot] Resolved runtime path: ${runtimePath}`);
-
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
 			const nativeTelemetry = await this._otelService.getNativeSdkTelemetryConfig();
 			if (nativeTelemetry) {
