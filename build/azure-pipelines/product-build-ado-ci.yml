@@ -336,6 +336,7 @@ extends:
             parameters:
               VSCODE_PUBLISH: false
               VSCODE_RELEASE: false
+              VSCODE_UPLOAD_SOURCEMAPS: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows

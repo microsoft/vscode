@@ -110,6 +110,7 @@ stages:
             parameters:
               VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
               VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              VSCODE_UPLOAD_SOURCEMAPS: ${{ parameters.VSCODE_PUBLISH }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
