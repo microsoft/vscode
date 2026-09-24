@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs from 'fs';
 import path from 'path';
 import { _electron } from 'playwright';
 import { TestContext } from './context.js';
+import { DesktopLauncher, linuxLaunchers, macOSLaunchers, windowsLaunchers } from './launchers.js';
 import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
@@ -41,10 +43,13 @@ export function setup(context: TestContext) {
 		context.validateCodesignSignature(packagePath);
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getDesktopEntryPoint(dir);
-			await testDesktopApp(entryPoint);
-			context.unmountDmg(dir);
+			try {
+				context.validateAllCodesignSignatures(dir);
+				const entryPoint = context.getDesktopEntryPoint(dir);
+				await testDesktopApp(entryPoint);
+			} finally {
+				context.unmountDmg(dir);
+			}
 		}
 	});
 
@@ -53,10 +58,13 @@ export function setup(context: TestContext) {
 		context.validateCodesignSignature(packagePath);
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getDesktopEntryPoint(dir);
-			await testDesktopApp(entryPoint);
-			context.unmountDmg(dir);
+			try {
+				context.validateAllCodesignSignatures(dir);
+				const entryPoint = context.getDesktopEntryPoint(dir);
+				await testDesktopApp(entryPoint);
+			} finally {
+				context.unmountDmg(dir);
+			}
 		}
 	});
 
@@ -65,10 +73,13 @@ export function setup(context: TestContext) {
 		context.validateCodesignSignature(packagePath);
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getDesktopEntryPoint(dir);
-			await testDesktopApp(entryPoint);
-			context.unmountDmg(dir);
+			try {
+				context.validateAllCodesignSignatures(dir);
+				const entryPoint = context.getDesktopEntryPoint(dir);
+				await testDesktopApp(entryPoint);
+			} finally {
+				context.unmountDmg(dir);
+			}
 		}
 	});
 
@@ -97,7 +108,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
 			try {
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, undefined, linuxLaunchers(context, entryPoint));
 			} finally {
 				await context.uninstallDeb();
 			}
@@ -109,7 +120,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
 			try {
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, undefined, linuxLaunchers(context, entryPoint));
 			} finally {
 				await context.uninstallDeb();
 			}
@@ -121,7 +132,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
 			try {
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, undefined, linuxLaunchers(context, entryPoint));
 			} finally {
 				await context.uninstallDeb();
 			}
@@ -133,7 +144,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			try {
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, undefined, linuxLaunchers(context, entryPoint));
 			} finally {
 				await context.uninstallRpm();
 			}
@@ -145,7 +156,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			try {
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, undefined, linuxLaunchers(context, entryPoint));
 			} finally {
 				await context.uninstallRpm();
 			}
@@ -157,7 +168,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			try {
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, undefined, linuxLaunchers(context, entryPoint));
 			} finally {
 				await context.uninstallRpm();
 			}
@@ -191,11 +202,7 @@ export function setup(context: TestContext) {
 		context.validateAuthenticodeSignature(packagePath);
 		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installWindowsApp('system', packagePath);
-			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
-			context.validateAllVersionInfo(path.dirname(entryPoint));
-			await testDesktopApp(entryPoint);
-			await context.uninstallWindowsApp('system');
+			await testWindowsInstallation('system', packagePath);
 		}
 	});
 
@@ -215,11 +222,7 @@ export function setup(context: TestContext) {
 		context.validateAuthenticodeSignature(packagePath);
 		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installWindowsApp('user', packagePath);
-			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
-			context.validateAllVersionInfo(path.dirname(entryPoint));
-			await testDesktopApp(entryPoint);
-			await context.uninstallWindowsApp('user');
+			await testWindowsInstallation('user', packagePath);
 		}
 	});
 
@@ -228,11 +231,7 @@ export function setup(context: TestContext) {
 		context.validateAuthenticodeSignature(packagePath);
 		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installWindowsApp('system', packagePath);
-			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
-			context.validateAllVersionInfo(path.dirname(entryPoint));
-			await testDesktopApp(entryPoint);
-			await context.uninstallWindowsApp('system');
+			await testWindowsInstallation('system', packagePath);
 		}
 	});
 
@@ -252,15 +251,25 @@ export function setup(context: TestContext) {
 		context.validateAuthenticodeSignature(packagePath);
 		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installWindowsApp('user', packagePath);
-			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
-			context.validateAllVersionInfo(path.dirname(entryPoint));
-			await testDesktopApp(entryPoint);
-			await context.uninstallWindowsApp('user');
+			await testWindowsInstallation('user', packagePath);
 		}
 	});
 
-	async function testDesktopApp(entryPoint: string, dataDir?: string) {
+	async function testWindowsInstallation(type: 'user' | 'system', packagePath: string) {
+		const entryPoint = context.installWindowsApp(type, packagePath, true);
+		try {
+			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			await testDesktopApp(entryPoint, undefined, windowsLaunchers(context, entryPoint, type));
+		} finally {
+			await context.uninstallWindowsApp(type);
+		}
+	}
+
+	async function testDesktopApp(entryPoint: string, dataDir?: string, launchers: DesktopLauncher[] = []) {
+		if (process.platform === 'darwin') {
+			launchers = macOSLaunchers(context, entryPoint);
+		}
 		const test = new UITest(context, dataDir);
 		const args = dataDir ? [] : [
 			'--extensions-dir', test.extensionsDir,
@@ -277,6 +286,18 @@ export function setup(context: TestContext) {
 		try {
 			const window = await context.getPage(app.firstWindow());
 			await test.run(window);
+			for (const [index, launcher] of launchers.entries()) {
+				context.log(`Validating launcher: ${launcher.name}`);
+				const fileName = `launcher-${index}-${context.getRandomToken()}.txt`;
+				const filePath = path.join(test.workspaceDir, fileName);
+				fs.writeFileSync(filePath, launcher.name);
+				launcher.launch([
+					'--user-data-dir', test.userDataDir,
+					'--extensions-dir', test.extensionsDir,
+					'--reuse-window', filePath,
+				]);
+				await window.locator('.editor-group-container .tab').filter({ hasText: fileName }).waitFor({ state: 'visible', timeout: 30_000 });
+			}
 		} finally {
 			await context.closeElectronApp(app);
 		}

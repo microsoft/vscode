@@ -12,6 +12,7 @@ import * as task from './lib/gulp/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
+import { createLinuxDesktopEntries } from './lib/linuxDesktopEntries.ts';
 import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
 import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-lists.ts';
 import * as path from 'path';
@@ -42,20 +43,7 @@ function prepareDebPackage(arch: string) {
 	return async function () {
 		const dependencies = await getDependencies('deb', binaryDir, product.applicationName, debArch);
 
-		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
-			.pipe(rename(`usr/share/applications/${linuxDesktopName}.desktop`));
-
-		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
-			.pipe(rename(`usr/share/applications/${linuxDesktopName}.UrlHandler.desktop`));
-
-		const desktops = es.merge(desktop, desktopUrlHandler)
-			.pipe(replace('@@NAME_LONG@@', product.nameLong))
-			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
-			.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))
-			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
-			.pipe(replace('@@ICON@@', product.linuxIconName))
-			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
+		const desktops = createLinuxDesktopEntries('usr/share/applications', product);
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -153,20 +141,7 @@ function prepareRpmPackage(arch: string) {
 	return async function () {
 		const dependencies = await getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
 
-		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
-			.pipe(rename(`BUILD/usr/share/applications/${linuxDesktopName}.desktop`));
-
-		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
-			.pipe(rename(`BUILD/usr/share/applications/${linuxDesktopName}.UrlHandler.desktop`));
-
-		const desktops = es.merge(desktop, desktopUrlHandler)
-			.pipe(replace('@@NAME_LONG@@', product.nameLong))
-			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
-			.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))
-			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
-			.pipe(replace('@@ICON@@', product.linuxIconName))
-			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
+		const desktops = createLinuxDesktopEntries('BUILD/usr/share/applications', product);
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
