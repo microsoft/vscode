@@ -699,4 +699,44 @@ suite('AgentHostChangesetStrategy', () => {
 			trackedReads: [0, 0],
 		});
 	});
+
+	for (const failure of ['non-git folder', 'unavailable diff', 'thrown diff'] as const) {
+		test(`branch and uncommitted changes never fall back to tracked edits for ${failure}`, async () => {
+			const fixture = createFixture();
+			addEdit(fixture.db);
+			fixture.git.computeSessionFileDiffs = async () => [gitOnlyDiff];
+			const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///repo'])));
+			const published = nextPublication(fixture.state, branchUri);
+			fixture.service.refreshBranchChangeset(session);
+			await published;
+			fixture.subscriptions.add(buildUncommittedChangesetUri(session));
+			const uncommittedUri = await fixture.service.computeUncommittedChangeset(session);
+
+			if (failure === 'non-git folder') {
+				fixture.git.getRepositoryRoot = async () => undefined;
+			}
+			fixture.git.computeSessionFileDiffs = async () => {
+				if (failure === 'thrown diff') {
+					throw new Error('Git failed');
+				}
+				return undefined;
+			};
+			const onBranchRestored = Event.filter(fixture.state.onDidEmitEnvelope, e => e.channel === branchUri
+				&& e.action.type === ActionType.ChangesetStatusChanged && e.action.status === ChangesetStatus.Ready);
+			const restored = new Promise<void>(resolve => disposables.add(Event.once(onBranchRestored)(() => resolve())));
+			fixture.service.refreshBranchChangeset(session);
+			await restored;
+			await fixture.service.computeUncommittedChangeset(session);
+
+			assert.deepStrictEqual({
+				branch: snapshot(fixture.state, branchUri),
+				uncommitted: snapshot(fixture.state, uncommittedUri),
+				trackedReads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
+			}, {
+				branch: ready([gitOnlyDiff]),
+				uncommitted: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [gitOnlyDiff] },
+				trackedReads: [0, 0],
+			});
+		});
+	}
 });

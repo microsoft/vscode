@@ -194,6 +194,7 @@ export interface IAgentHostChangesetService {
 	 * first subscribes to a folder-scoped Branch Changes resource. Skips computation while
 	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
 	 * recomputes the current subscriptions after materialization or restore.
+	 * Git-only; does not accept a strategy or fall back to tracked edits.
 	 */
 	refreshBranchChangeset(session: ProtocolURI): void;
 
@@ -248,7 +249,7 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Computes and publishes the uncommitted changeset for `session`
-	 * directly via git (`git status` against HEAD). The uncommitted slot
+	 * directly via git (`git status` against HEAD), without a strategy parameter. The uncommitted slot
 	 * has no SDK edit-tracker fallback — the aggregator answers a different
 	 * question than `git status` and would silently rebrand SDK-tracked
 	 * edits as uncommitted git changes. When the session has no working
