@@ -313,7 +313,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.experimentalModelPicker': {
 			type: 'boolean',
-			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses a tab per model provider and configures thinking effort and context from a detail card next to each model, instead of a separate configuration button."),
+			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses provider tabs and a model details page for information and configuration. Open details from a model's information button or the thinking effort and context readout in the chat input."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },

@@ -475,7 +475,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask with /btw, Quote, and Copy when selecting assistant response text in the Agents Window."),
+			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask in a Side Chat, Quote, and Copy when selecting assistant response text in the Agents Window."),
 		},
 		[SESSION_ARCHIVE_NUDGE_SETTING]: {
 			type: 'boolean',
