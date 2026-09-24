@@ -424,6 +424,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
 						const chat = session?.activeChat.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
+							chat: chat?.resource,
 							branchName: state?.branchName,
 							baseBranchName: state?.baseBranchName,
 							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation, chat) : undefined,
