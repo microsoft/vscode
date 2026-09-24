@@ -3866,6 +3866,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private showPluginDiscovery(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
 		if (section !== AICustomizationManagementSection.Plugins || !options?.showMarketplace ||
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true ||
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) !== true) {
 			return false;
 		}

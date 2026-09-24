@@ -2550,6 +2550,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
 			default: 'switch',
 		},
+		[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, configured plugin marketplaces remain available in the Plugins section."),
+			default: false,
+		},
 		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],

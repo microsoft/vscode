@@ -538,6 +538,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('Plugin source alone exposes Discover with the public GitHub Feed disabled', async () => {
 		const { editor, section, state, sections, configuration } = createGatedSectionEditor(
 			false, [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]);
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 		editor.rebuildVisibleSections();
 		editor.selectSectionById(section);
@@ -563,6 +564,8 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		assert.deepStrictEqual(queries, ['@type:plugin']);
 	});

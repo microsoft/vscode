@@ -138,10 +138,15 @@ suite('pluginListWidget', () => {
 		], [false, true, false, false]);
 	});
 
-	test('legacy Available discovery remains unless the independent plugin feed is enabled', () => {
-		assert.deepStrictEqual([undefined, false, true].map(enabled =>
-			shouldShowLegacyPluginMarketplace(new TestConfigurationService({ [CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: enabled }))),
-			[true, true, false]);
+	test('legacy Available remains until both marketplace visibility and Plugin feed are enabled', () => {
+		assert.deepStrictEqual(
+			[undefined, false, true].flatMap(marketplaceEnabled => [undefined, false, true].map(pluginEnabled =>
+				shouldShowLegacyPluginMarketplace(new TestConfigurationService({
+					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceEnabled,
+					[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: pluginEnabled,
+				})))),
+			[true, true, true, true, true, true, true, true, false],
+		);
 	});
 
 	test('accepts marketplace results only for the initiating search', () => {
