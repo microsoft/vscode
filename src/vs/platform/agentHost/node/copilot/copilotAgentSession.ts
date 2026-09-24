@@ -3769,8 +3769,13 @@ export class CopilotAgentSession extends Disposable {
 		if (abortTarget) {
 			this._cancelFusionEvents(abortTarget.id);
 		}
-		if (abortingTurn) {
+		if (abortingTurn || this._activeSubagentAgentIds.size > 0) {
 			this._dropLateRootTurnEvents = true;
+			// Aborted children are not guaranteed to emit a terminal event before reuse.
+			this._activeSubagentAgentIds.clear();
+			this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
+			this._subagentActivityRevisions.clear();
+			this._subagentTaskStatusRevision++;
 		}
 		const abortBarrier = this._abortBarrier ??= new DeferredPromise<void>();
 		try {

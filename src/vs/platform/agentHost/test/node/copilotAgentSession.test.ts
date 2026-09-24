@@ -14310,71 +14310,81 @@ Use the attached image as context.
 			});
 		});
 
-		test('pending_confirmation routes follow-up turns after subagent completion', async () => {
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+		for (const cancelled of [false, true]) {
+			test(`pending_confirmation routes follow-up turns after subagent ${cancelled ? 'cancellation' : 'completion'}`, async () => {
+				const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+				session.resetTurnState('turn-1');
 
-			mockSession.fire('subagent.started', {
-				toolCallId: 'tc-parent-subagent',
-				agentName: 'helper',
-				agentDisplayName: 'Helper',
-				agentDescription: 'Helps',
-			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
+				mockSession.fire('subagent.started', {
+					toolCallId: 'tc-parent-subagent',
+					agentName: 'helper',
+					agentDisplayName: 'Helper',
+					agentDescription: 'Helps',
+				} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
 
-			mockSession.backgroundTasks = [{
-				type: 'agent',
-				id: 'agent-client-tool',
-				toolCallId: 'tc-parent-subagent',
-				description: 'Helps',
-				status: 'idle',
-				agentType: 'helper',
-				prompt: 'Use the client tool',
-				startedAt: new Date(0).toISOString(),
-				idleSince: new Date(1).toISOString(),
-			}];
-			mockSession.fire('session.background_tasks_changed', {});
-			await timeout(0);
+				if (cancelled) {
+					await session.abort();
+					session.resetTurnState('turn-2');
+					mockSession.fire('assistant.message_delta', { messageId: 'late-message', deltaContent: 'Late cancelled output' }, { agentId: 'agent-client-tool' });
+					assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_resumed'), []);
+					await session.send('Reuse the background agent', undefined, 'turn-2');
+					mockSession.fire('user.message', { content: 'Reuse the background agent' });
+				} else {
+					mockSession.backgroundTasks = [{
+						type: 'agent',
+						id: 'agent-client-tool',
+						toolCallId: 'tc-parent-subagent',
+						description: 'Helps',
+						status: 'idle',
+						agentType: 'helper',
+						prompt: 'Use the client tool',
+						startedAt: new Date(0).toISOString(),
+						idleSince: new Date(1).toISOString(),
+					}];
+					mockSession.fire('session.background_tasks_changed', {});
+					await timeout(0);
+				}
 
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-sub-client',
-				toolName: 'my_tool',
-				arguments: {},
-			} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-client-tool' });
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-sub-client',
+					toolName: 'my_tool',
+					arguments: {},
+				} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-client-tool' });
 
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId), ['tc-parent-subagent']);
+				assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId), ['tc-parent-subagent']);
 
-			const resultPromise = runtime.handlePermissionRequest({
-				kind: 'custom-tool',
-				toolCallId: 'tc-sub-client',
-				toolName: 'my_tool',
+				const resultPromise = runtime.handlePermissionRequest({
+					kind: 'custom-tool',
+					toolCallId: 'tc-sub-client',
+					toolName: 'my_tool',
+				});
+
+				await waitForSignal(s => s.kind === 'pending_confirmation');
+				const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
+				assert.strictEqual(permSignals.length, 1);
+				assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
+
+				session.respondToPermissionRequest('tc-sub-client', false);
+				await resultPromise;
+
+				mockSession.backgroundTasks = [{
+					type: 'agent',
+					id: 'agent-client-tool',
+					toolCallId: 'tc-parent-subagent',
+					description: 'Helps',
+					status: 'idle',
+					agentType: 'helper',
+					prompt: 'Follow-up',
+					startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+					cancelled ? ['tc-parent-subagent'] : ['tc-parent-subagent', 'tc-parent-subagent']);
 			});
-
-			await waitForSignal(s => s.kind === 'pending_confirmation');
-			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
-			assert.strictEqual(permSignals.length, 1);
-			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
-
-			session.respondToPermissionRequest('tc-sub-client', false);
-			await resultPromise;
-
-			mockSession.backgroundTasks = [{
-				type: 'agent',
-				id: 'agent-client-tool',
-				toolCallId: 'tc-parent-subagent',
-				description: 'Helps',
-				status: 'idle',
-				agentType: 'helper',
-				prompt: 'Follow-up',
-				startedAt: new Date(0).toISOString(),
-				idleSince: new Date(1).toISOString(),
-			}];
-			mockSession.fire('session.background_tasks_changed', {});
-			await timeout(0);
-
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), [
-				'tc-parent-subagent',
-				'tc-parent-subagent',
-			]);
-		});
+		}
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {
 			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
