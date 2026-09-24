@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
+import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -24,7 +28,8 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -39,6 +44,7 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -157,6 +163,7 @@ class MockAgentService implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	readonly importedSessions: string[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -267,6 +274,9 @@ class MockAgentService implements IAgentService {
 	}
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+	}
+	async importSession(session: URI): Promise<void> {
+		this.importedSessions.push(session.toString());
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -450,6 +460,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			devContainerService = disposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 	});
 
@@ -476,8 +487,10 @@ suite('ProtocolServerHandler', () => {
 			serverSeq: stateManager.serverSeq,
 			meta: {
 				'vscode.detachedWorktrees': true,
+				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
+				'vscode.importSession': true,
 				'vscode.devContainers': true,
 			},
 		});
@@ -739,6 +752,48 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
+	for (const cached of [false, true]) {
+		test(`initial ${cached ? 'cached' : 'uncached'} changeset subscription reads state after subscribing`, async () => {
+			stateManager.createSession(makeSessionSummary());
+			const changesetUri = buildSessionChangesetUri(sessionUri);
+			const barrier = new DeferredPromise<void>();
+			agentService.subscribeBarriers.set(changesetUri, barrier);
+			if (cached) {
+				stateManager.registerChangeset(changesetUri);
+				stateManager.dispatchServerAction(changesetUri, {
+					type: ActionType.ChangesetFileSet,
+					file: {
+						id: 'file:///cached.ts',
+						edit: { after: { uri: 'file:///cached.ts', content: { uri: 'file:///cached.ts' } }, diff: { added: 1, removed: 0 } },
+					},
+				});
+				stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+			}
+
+			const transport = connectClient('client-changeset', [changesetUri]);
+			const response = waitForResponse(transport, 1);
+			const before = findResponse(transport.sent, 1);
+			if (cached) {
+				stateManager.dispatchServerAction(changesetUri, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Recomputing });
+			} else {
+				stateManager.registerChangeset(changesetUri);
+			}
+			barrier.complete();
+			const result = (await response as { result: InitializeResult }).result;
+			const changeset = result.snapshots[0].state as ChangesetState;
+
+			assert.deepStrictEqual({
+				before,
+				subscribeCalls: agentService.subscribeCalls,
+				snapshot: { status: changeset.status, files: changeset.files.map(file => file.id) },
+			}, {
+				before: undefined,
+				subscribeCalls: [{ resource: changesetUri, clientId: 'client-changeset' }],
+				snapshot: { status: cached ? ChangesetStatus.Recomputing : ChangesetStatus.Computing, files: cached ? ['file:///cached.ts'] : [] },
+			});
+		});
+	}
+
 	test('initial annotations subscription waits for persisted state before returning its snapshot', async () => {
 		stateManager.createSession(makeSessionSummary());
 		const annotationsUri = buildAnnotationsUri(sessionUri);
@@ -970,6 +1025,115 @@ suite('ProtocolServerHandler', () => {
 				result: { resource: 'file:///state/sdk-session/events.jsonl' },
 			},
 			calls: [{ session: 'copilotcli:/session-1', chat }],
+		});
+	});
+
+	test('first-response diagnostics are opt-in, validated and content-free on the extension bridge', async () => {
+		const calls: IAgentHostFirstResponseDiagnostic[] = [];
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService,
+			{ ...NullAgentHostOTelService, diagnosticsEnabled: true, emitFirstResponse: diagnostic => calls.push(diagnostic) },
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'timing-client' }));
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		assert.strictEqual(supportsAgentHostTiming(initialize.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostTiming(undefined), false);
+		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			requestId: 'request-1', provider: 'copilot', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: true,
+			totalElapsedMs: 0, hasResponseText: false,
+		};
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, prompt: 'private', path: 'private' }));
+		await response;
+		const invalid = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, totalElapsedMs: 'not numeric' }));
+		assert.ok(hasKey(await invalid, { error: true }));
+		assert.deepStrictEqual(calls, [diagnostic]);
+
+		const disabled = connectClient('timing-disabled');
+		const disabledInitialize = findResponse(disabled.sent, 1);
+		assert.ok(disabledInitialize && hasKey(disabledInitialize, { result: true }));
+		assert.strictEqual(supportsAgentHostTiming(disabledInitialize.result as InitializeResult), false);
+		const ignored = waitForResponse(disabled, 2);
+		disabled.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', diagnostic));
+		await ignored;
+		assert.deepStrictEqual(calls, [diagnostic]);
+	});
+
+	test('advertises and routes external session import', async () => {
+		const transport = connectClient('client-import');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const result = initialized.result as InitializeResult;
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/importSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionImport(result),
+			legacy: supportsAgentHostSessionImport({ ...result, _meta: undefined }),
+			malformed: supportsAgentHostSessionImport({ ...result, _meta: { 'vscode.importSession': 'true' } }),
+			uninitialized: supportsAgentHostSessionImport(undefined),
+			response: await response,
+			imported: agentService.importedSessions,
+		}, {
+			supported: true, legacy: false, malformed: false, uninitialized: false,
+			response: { jsonrpc: '2.0', id: 20, result: null },
+			imported: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('rejects invalid session import params before routing', async () => {
+		const transport = connectClient('client-import-invalid');
+		for (const [index, params] of [
+			undefined, null, [], {}, { session: 1 }, { session: 'session-1' },
+			{ session: 'copilotcli:/' }, { session: 'copilotcli://host/session' },
+			{ session: 'copilotcli:/session?query' }, { session: 'copilotcli:/session#fragment' },
+			{ session: buildChatUri('copilotcli:/session-1', 'peer-1') },
+		].entries()) {
+			const id = index + 20;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, 'vscode/importSession', params));
+			const message = await response;
+			assert.ok(isJsonRpcResponse(message) && hasKey(message, { error: true }) && message.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.deepStrictEqual(agentService.importedSessions, []);
+	});
+
+	test('does not advertise or route session import when the service does not support it', async () => {
+		const unsupported: IAgentService = agentService;
+		unsupported.importSession = undefined;
+		const transport = connectClient('client-import-unsupported');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/importSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionImport(initialized.result as InitializeResult),
+			response: await response,
+			imported: agentService.importedSessions,
+		}, {
+			supported: false,
+			response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/importSession' } },
+			imported: [],
+		});
+	});
+
+	test('propagates session import persistence errors', async () => {
+		const transport = connectClient('client-import-error');
+		const error = new Error('Import persistence failed');
+		agentService.importSession = async () => { throw error; };
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/importSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual(await response, {
+			jsonrpc: '2.0', id: 20,
+			error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack },
 		});
 	});
 
@@ -1260,6 +1424,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1453,6 +1618,86 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});
 
+	test('server-only session actions are rejected, not dispatched', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+
+		const transport = connectClient('attacker-client', [sessionUri]);
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'forged-client-tool-request',
+					kind: SessionInputRequestKind.ToolClientExecution,
+					chat: defaultChatUri,
+					turnId: 'turn-1',
+					clientId: 'victim-client',
+					toolCall: {
+						toolCallId: 'tool-call-1',
+						toolName: 'readFile',
+						displayName: 'Read File',
+						contributor: { kind: ToolCallContributorKind.Client, clientId: 'victim-client' },
+						status: ToolCallStatus.Running,
+						invocationMessage: 'Reading file',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						toolInput: '{"filePath":"/victim/secret.txt"}',
+					},
+				},
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			inputNeeded: stateManager.getSessionState(sessionUri)?.inputNeeded,
+			rejectedAction: envelope?.action.type,
+			rejectionReason: envelope?.rejectionReason,
+			origin: envelope?.origin,
+		}, {
+			handledActions: [],
+			inputNeeded: undefined,
+			rejectedAction: ActionType.SessionInputNeededSet,
+			rejectionReason: `Server-only action: ${ActionType.SessionInputNeededSet}`,
+			origin: { clientId: 'attacker-client', clientSeq: 1 },
+		});
+	});
+
+	test('server-only action rejections do not reach host action listeners', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+
+		const transport = connectClient('attacker-client', [sessionUri]);
+		transport.sent.length = 0;
+		const hostActions: ActionType[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => hostActions.push(envelope.action.type)));
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionChatRemoved,
+				chat: defaultChatUri,
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			hostActions,
+			rejectedAction: envelope?.action.type,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			handledActions: [],
+			hostActions: [],
+			rejectedAction: ActionType.SessionChatRemoved,
+			rejectionReason: `Server-only action: ${ActionType.SessionChatRemoved}`,
+		});
+	});
+
 	test('unsupported chat actions are rejected, not dispatched', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -1550,7 +1795,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(findNotifications(transportB.sent, 'action').length, 0);
 	});
 
-	test('changeset actions are scoped to subscribed changeset URIs', () => {
+	test('changeset actions are scoped to subscribed changeset URIs', async () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -1559,6 +1804,7 @@ suite('ProtocolServerHandler', () => {
 		const transportA = connectClient('client-a-cs', [changesetUri]);
 		// Session-only subscriber: must NOT receive changeset envelopes.
 		const transportB = connectClient('client-b-cs', [sessionUri]);
+		await waitForResponse(transportA, 1);
 
 		transportA.sent.length = 0;
 		transportB.sent.length = 0;
@@ -1586,13 +1832,14 @@ suite('ProtocolServerHandler', () => {
 		);
 	});
 
-	test('changeset/cleared reaches changeset subscribers', () => {
+	test('changeset/cleared reaches changeset subscribers', async () => {
 		const changesetUri = `${sessionUri}/changeset/session`;
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		stateManager.registerChangeset(changesetUri);
 
 		const transport = connectClient('client-clear', [changesetUri]);
+		await waitForResponse(transport, 1);
 		transport.sent.length = 0;
 
 		stateManager.dispatchServerAction(changesetUri, {
@@ -2682,6 +2929,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			)));
 		}
 
@@ -2728,6 +2976,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -2777,6 +3026,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2827,6 +3077,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2869,6 +3120,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2919,6 +3171,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2971,7 +3224,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.registerChangeset(changesetUri);
 
 		const transport1 = connectClient('client-rc', [changesetUri]);
-		const resp = findResponse(transport1.sent, 1);
+		const resp = await waitForResponse(transport1, 1);
 		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
@@ -4187,6 +4440,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -4293,6 +4547,7 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
+			NullAgentHostOTelService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4433,6 +4688,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 		});
 
@@ -4606,6 +4862,7 @@ suite('ProtocolServerHandler', () => {
 				managedSettingsService,
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
+				NullAgentHostOTelService,
 			));
 		});
 

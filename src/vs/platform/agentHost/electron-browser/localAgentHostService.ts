@@ -31,6 +31,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -424,8 +425,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().createDetachedWorktree(session, prompt);
 	}
 
+	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
+		await this._protocolClient?.reportFirstResponse(diagnostic);
+	}
+
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	importSession(session: URI): Promise<void> {
+		return this._requireClient().importSession(session);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

@@ -31,7 +31,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
 
-The Sessions Part contains its own horizontal grid. Its leaves are not workbench editor groups.
+The Sessions Part contains its own session grid. Its leaves are not workbench editor groups.
 
 ## Grid behavior
 
@@ -59,6 +59,8 @@ In the side-by-side single-chat presentation, pinning a chat header keeps that c
 The Sessions Part renders that model. It does not create a second active-session store.
 
 Multiple visible sessions share the available Sessions Part width. Opening, closing, and reordering views operate through `ISessionsService`.
+
+`ISessionsService.openSessionsInGrid` opens a set of existing sessions in a tiled arrangement without creating sessions or sending requests. The view service owns and restores the arrangement mode with the visible-session snapshot; the Sessions Part derives a roughly square row-and-column shape from the session count while retaining the live session views. Phone layouts stack the sessions in one column. Ordinary session opens retain the horizontal presentation, and opening a session outside the tiled set returns to that presentation.
 
 ## Editor presentation
 

@@ -42,6 +42,7 @@ import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../comm
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -1851,6 +1852,50 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(request, error);
+	});
+
+	test('first-response diagnostics require an enabled host capability, not product telemetry', async () => {
+		const diagnostic: IAgentHostFirstResponseDiagnostic = {
+			provider: 'copilot', requestId: 'request-1', outcome: 'notDispatched',
+			sessionTurnKind: 'unknown', invocationKind: 'unknown',
+			trustInteractionRequired: true, totalElapsedMs: 0, hasResponseText: false,
+		};
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await client.reportFirstResponse(diagnostic);
+			assert.strictEqual(transport.sentMessages.length, 0);
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, enabled));
+			transport.sentMessages.length = 0;
+			const report = client.reportFirstResponse(diagnostic);
+			if (enabled) {
+				assert.deepStrictEqual(transport.sentMessages, [{
+					jsonrpc: '2.0', id: 2, method: 'vscode/reportAgentHostFirstResponse', params: diagnostic,
+				}]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			} else {
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+			await report;
+		}
+	});
+
+	test('importSession sends the VS Code extension request without a turn', async () => {
+		const { client, transport } = createClient();
+		const result = client.importSession(URI.parse('copilotcli:/session-1'));
+		assert.deepStrictEqual(transport.sentMessages, [{
+			jsonrpc: '2.0', id: 1, method: 'vscode/importSession',
+			params: { session: 'copilotcli:/session-1' },
+		}]);
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+		await result;
+	});
+
+	test('importSession propagates unsupported host errors', async () => {
+		const { client, transport } = createClient();
+		const result = client.importSession(URI.parse('copilotcli:/session-1'));
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+		await assertRemoteProtocolError(result, error);
 	});
 
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
@@ -4231,6 +4276,111 @@ suite('AgentHostProtocolClient', () => {
 				const err = await pending;
 				assert.ok(err instanceof ProtocolError);
 				assert.match((err as ProtocolError).message, /Connection appears dead/);
+			});
+		});
+
+		for (const stalledMethod of ['reconnect', 'initialize', 'subscribe']) {
+			test(`watchdog retries a silent ${stalledMethod} and hydrates a waiting session`, async () => {
+				return runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+					try {
+						await completeHandshake(transports[0], client.connect());
+						transports[0].fireClose();
+
+						const sessionUri = URI.parse('copilot:/waiting-session');
+						const sessionRef = disposables.add(client.getSubscription<{ lifecycle: string }>(StateComponents.Session, sessionUri, 'test'));
+						const stalledTransport = await waitForTransport(transports, 1);
+						stalledTransport.connectDeferred.complete();
+						const reconnect = await waitForRequest(stalledTransport, 'reconnect');
+						if (stalledMethod !== 'reconnect') {
+							stalledTransport.fireMessage({
+								jsonrpc: '2.0', id: reconnect.id,
+								error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+							});
+							const initialize = await waitForRequest(stalledTransport, 'initialize');
+							if (stalledMethod === 'subscribe') {
+								stalledTransport.fireMessage({
+									jsonrpc: '2.0', id: initialize.id,
+									result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [] },
+								});
+								await waitForRequest(stalledTransport, 'subscribe');
+							}
+						}
+
+						await timeout(24_999);
+						assert.strictEqual(transports.length, 2, 'recovery must receive the full 25-second liveness window');
+						await timeout(5_001);
+						assert.deepStrictEqual({
+							pingSent: stalledTransport.sentMessages.some(isPingRequest),
+							transports: transports.length,
+							session: sessionRef.object.value,
+						}, { pingSent: true, transports: 3, session: undefined });
+
+						const recoveredTransport = transports[2];
+						recoveredTransport.connectDeferred.complete();
+						const recoveredReconnect = await waitForRequest(recoveredTransport, 'reconnect');
+						recoveredTransport.fireMessage({
+							jsonrpc: '2.0', id: recoveredReconnect.id,
+							result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+						});
+						const subscribe = await waitForRequest(recoveredTransport, 'subscribe');
+						recoveredTransport.fireMessage({
+							jsonrpc: '2.0', id: subscribe.id,
+							result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+						});
+						if (stalledMethod === 'subscribe') {
+							const gatedSubscribe = await waitForRequestAt(recoveredTransport, 'subscribe', 1);
+							recoveredTransport.fireMessage({
+								jsonrpc: '2.0', id: gatedSubscribe.id,
+								result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+							});
+						}
+						await flushMicrotasks();
+						assert.deepStrictEqual({
+							connection: client.connectionState,
+							session: sessionRef.object.value,
+						}, { connection: AgentHostClientState.Connected, session: { lifecycle: 'ready' } });
+					} finally {
+						client.dispose();
+					}
+				});
+			});
+		}
+
+		test('watchdog waits for reconnect transport establishment and keeps a responsive recovery alive', async () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+					const reconnectTransport = await waitForTransport(transports, 1);
+
+					await timeout(30_000);
+					assert.deepStrictEqual({ transports: transports.length, messages: reconnectTransport.sentMessages }, { transports: 2, messages: [] });
+
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+					for (let i = 0; i < 6; i++) {
+						await timeout(5_000);
+						const ping = reconnectTransport.sentMessages.filter(isPingRequest).at(-1);
+						assert.ok(ping, 'recovery pings must bypass the reconnect gate');
+						reconnectTransport.fireMessage({ jsonrpc: '2.0', id: ping.id, result: {} });
+					}
+					assert.deepStrictEqual({
+						transports: transports.length,
+						connection: client.connectionState,
+						pings: reconnectTransport.sentMessages.filter(isPingRequest).length,
+					}, { transports: 2, connection: AgentHostClientState.Reconnecting, pings: 6 });
+
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+					});
+					await flushMicrotasks();
+					assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				} finally {
+					client.dispose();
+				}
 			});
 		});
 

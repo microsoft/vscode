@@ -65,7 +65,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
-import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -83,9 +83,9 @@ import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KE
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { ClaudeProxyService, IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
-import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
+import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -1063,10 +1063,14 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly diagnosticsEnabled = false;
+	emitTurnTiming(): void { }
+	emitFirstResponse(): void { }
 	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	getSessionTraceContext(): undefined { return undefined; }
+	setSessionComparisonMetadata(): void { }
 	releaseSessionTraceContext(): void { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext(): undefined { return undefined; }
@@ -1113,7 +1117,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -1146,8 +1150,8 @@ function createTestContext(
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: overrides?.userHome ?? URI.file('/mock-home') } as INativeEnvironmentService],
 		[ILogService, logService],
-		[ICopilotApiService, api],
-		[IClaudeProxyService, proxy],
+		[ICopilotApiService, overrides?.copilotApiService ?? api],
+		[IClaudeProxyService, overrides?.claudeProxyService ?? proxy],
 		[ISessionDataService, sessionData],
 		[IClaudeAgentSdkService, sdk],
 		[IAgentSdkDownloader, sdkDownloader],
@@ -1764,6 +1768,37 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
+	for (const duringAuthentication of [false, true]) {
+		test(`enterprise endpoint changes retire Claude proxy credentials (pending authentication: ${duringAuthentication})`, async () => {
+			const logService = new NullLogService();
+			const state = disposables.add(new AgentHostStateManager(logService));
+			const configuration = disposables.add(new AgentConfigurationService(state, logService));
+			const endpoints = disposables.add(new AgentHostGitHubEndpointService(configuration, logService));
+			let retiredCredentialReachedEnterprise = false;
+			const api = disposables.add(new CopilotApiService(async url => {
+				if (String(url).endsWith('/copilot_internal/user')) {
+					retiredCredentialReachedEnterprise ||= !String(url).startsWith('https://api.github.com/');
+					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
+				}
+				return Response.json({ data: ALL_MODELS });
+			}, logService, FakeProductService, endpoints));
+			const proxy = disposables.add(new ClaudeProxyService(logService, api));
+			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
+			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
+			if (!duringAuthentication) {
+				await authenticating;
+				await agent.refreshModels();
+			}
+			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+			await authenticating;
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({ retiredCredentialReachedEnterprise, models: agent.models.get() }, {
+				retiredCredentialReachedEnterprise: false, models: [],
+			});
+		});
+	}
+
 	test('authenticate populates models filtered to Claude family', async () => {
 		const { agent, proxy } = createTestContext(disposables);
 
@@ -1985,6 +2020,40 @@ suite('ClaudeAgent', () => {
 		}, {
 			startTokens: ['tokA', 'tokB'],
 			disposeCount: 1,
+		});
+	});
+
+	test('an older proxy startup cannot replace a newer authentication on the same endpoint', async () => {
+		const { agent, proxy } = createTestContext(disposables);
+		const starts = new Map<string, DeferredPromise<IClaudeProxyHandle>>();
+		const disposed: string[] = [];
+		proxy.start = async token => {
+			proxy.startCalls.push({ token });
+			const started = new DeferredPromise<IClaudeProxyHandle>();
+			starts.set(token, started);
+			return started.p;
+		};
+		const handle = (token: string): IClaudeProxyHandle => ({
+			baseUrl: 'http://127.0.0.1:0',
+			nonce: `nonce-for-${token}`,
+			dispose: () => disposed.push(token),
+		});
+
+		const older = agent.authenticate('https://api.github.com', 'tokA');
+		const newer = agent.authenticate('https://api.github.com', 'tokB');
+		starts.get('tokB')?.complete(handle('tokB'));
+		await newer;
+		starts.get('tokA')?.complete(handle('tokA'));
+		await older;
+
+		assert.deepStrictEqual({
+			githubToken: agent['_githubToken'],
+			proxyNonce: agent['_proxyHandle']?.nonce,
+			disposed,
+		}, {
+			githubToken: 'tokB',
+			proxyNonce: 'nonce-for-tokB',
+			disposed: ['tokA'],
 		});
 	});
 
@@ -5240,6 +5309,7 @@ suite('ClaudeAgent', () => {
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
 			...createTestAgentStateServices(disposables),
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, createNullSessionDataService()],

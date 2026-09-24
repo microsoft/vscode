@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
+import { captureAnimationTarget, triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -242,12 +242,13 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
-		if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(this.archiveButton.element);
-		}
+		const animationTarget = captureAnimationTarget(this.archiveButton.element);
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();
+			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
+				triggerConfettiAnimation(animationTarget);
+			}
 		} catch (error) {
 			this.notificationService.error(this.markAsDone
 				? localize('chat.sessionArchiveNudge.doneError', "Unable to mark the session as done: {0}", toErrorMessage(error))

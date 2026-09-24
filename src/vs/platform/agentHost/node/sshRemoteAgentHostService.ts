@@ -86,6 +86,12 @@ interface SSHChannel extends NodeJS.ReadWriteStream {
 	close(): void;
 }
 
+interface ISSHKnownHostsEvidence {
+	readonly entries: IKnownHostsEntry[];
+	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
+	readonly hostKeyAlias: string | undefined;
+}
+
 /** Minimal subset of ssh2.Client used by this module. */
 interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
@@ -1412,6 +1418,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			privateKeyPath: config.privateKeyPath ?? resolved?.identityFile[0],
 		};
 		const port = config.port ?? 22;
+		const hostKeyHost = resolved?.hostKeyAlias ?? config.host;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port,
@@ -1635,7 +1642,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// prompting — this is what lets a legitimate key rotation be
 			// learned silently instead of surfacing as a scary mismatch later.
 			client.on('hostkeys', (keys: readonly { getPublicSSH(): Buffer; type: string }[]) => {
-				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, config.host, port, keys);
+				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, hostKeyHost, port, keys);
 			});
 
 			armDeadline(HANDSHAKE_TIMEOUT_MS);
@@ -1861,7 +1868,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * gets the files they actually configured. Command failures use the default
 	 * known-hosts file; failures resolving configured trust files remain fatal.
 	 */
-	protected async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined }> {
+	protected async _readKnownHostsEntries(host: string): Promise<ISSHKnownHostsEvidence> {
 		let resolved: ISSHResolvedConfig | undefined;
 		try {
 			resolved = await this.resolveSSHConfig(host);
@@ -1887,7 +1894,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// systems have no known_hosts2 and no global file).
 			}
 		}
-		return { entries, strictHostKeyChecking: resolved?.strictHostKeyChecking };
+		return {
+			entries,
+			strictHostKeyChecking: resolved?.strictHostKeyChecking,
+			hostKeyAlias: resolved?.hostKeyAlias,
+		};
 	}
 
 	/**
@@ -1936,7 +1947,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			const fingerprint = computeHostKeyFingerprint(key);
-			const { entries, strictHostKeyChecking } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
+			const { entries, strictHostKeyChecking, hostKeyAlias } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
 
 			// Gathering evidence is asynchronous, so the connect attempt may
 			// have failed while we were reading known_hosts. Registering now
@@ -1948,7 +1959,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				return;
 			}
 
-			const knownHostsMatch = matchKnownHosts(entries, config.host, port, keyType, key);
+			const hostKeyHost = hostKeyAlias ?? config.host;
+			const knownHostsMatch = matchKnownHosts(entries, hostKeyHost, port, keyType, key);
 			this._logService.info(`${LOG_PREFIX} Host key for ${displayHost}: ${keyType} ${fingerprint} (known_hosts: ${knownHostsMatch})`);
 
 			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
@@ -1959,7 +1971,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				requestId,
 				connectionKey,
 				displayHost,
-				host: config.host,
+				host: hostKeyHost,
+				resolvedHost: config.host,
 				port,
 				keyType,
 				fingerprint,

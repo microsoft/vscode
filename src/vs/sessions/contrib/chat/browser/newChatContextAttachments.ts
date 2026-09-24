@@ -39,7 +39,8 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/
 import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, isStringVariableEntry, OmittedState, resolveChatContextIcon } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
-import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
+import { openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
+import { createChatImageHoverContent } from '../../../../workbench/browser/chatImagePreview.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
@@ -177,7 +178,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				if (imageData) {
 					// Swap the generic icon for a thumbnail once the shared helper
 					// has decoded one, matching the workbench attachment pill.
-					const preview = createImageHoverContent(resource, entry.name, imageData, entry.id, undefined, undefined, (url, isThumbnail) => {
+					const preview = createChatImageHoverContent(resource, entry.name, imageData, entry.id, undefined, undefined, (url, isThumbnail) => {
 						if (isThumbnail) {
 							icon.replaceWith(dom.$('img.sessions-chat-attachment-image', { src: url, alt: '' }));
 						}

@@ -44,9 +44,17 @@
 	justify-content: center;
 }
 
-.chat-input-picker-item .action-label.model-picker-split:hover,
-.chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"] {
+.chat-input-picker-item .action-label.model-picker-split:not(.tabbed.model-picker-name-hovered):not(.tabbed.model-picker-name-active):hover,
+.chat-input-picker-item .action-label.model-picker-split:not(.tabbed.model-picker-name-active)[aria-expanded="true"] {
 	background-color: transparent !important;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.tabbed:is(.model-picker-name-hovered, .model-picker-name-active):not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split.tabbed:is(.model-picker-name-hovered, .model-picker-name-active):not(.disabled) .model-picker-section {
+	background-color: transparent;
 }
 
 .chat-input-picker-item .action-label.model-picker-split:not(.disabled):has(.model-picker-section:hover) .model-picker-section {
@@ -108,9 +116,14 @@
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config-summary {
 	flex: 0 0 auto;
-	margin-left: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size40);
 	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
 	white-space: nowrap;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.tabbed.has-config .model-picker-name {
+	padding-right: var(--vscode-spacing-size20);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config {
@@ -544,19 +557,6 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button,
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action,
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.separator {
-	opacity: 0.6;
-}
-
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action:hover,
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action.focused,
-.action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:hover,
-.action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
-	opacity: 1;
-}
-
 .action-widget .chat-model-picker-tabbed,
 .action-widget .chat-model-picker-welcome {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone);
@@ -674,6 +674,36 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-model .action-list-item-toolbar {
+	display: flex;
+	flex: 0 0 auto;
+	visibility: hidden;
+	margin-left: var(--vscode-spacing-size40);
+	margin-right: 0;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-model:hover .action-list-item-toolbar,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-model.focused .action-list-item-toolbar,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-model[aria-checked="true"] .action-list-item-toolbar {
+	visibility: visible;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-model .description {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 45%;
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-model .action-item-badge {
+	margin-left: var(--vscode-spacing-size40);
+	margin-right: var(--vscode-spacing-size40);
+}
+
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action .action-list-submenu-indicator.has-submenu {
 	visibility: hidden;
 	color: var(--vscode-descriptionForeground);
@@ -784,31 +814,8 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-/* The switch stays pinned right on its own line above the tiers. */
 .chat-model-picker-auto-row .monaco-switch {
 	margin-left: auto;
-}
-
-.chat-model-picker-auto-tiers:not(:empty) {
-	margin-bottom: var(--vscode-spacing-size20);
-}
-
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-radio-selection {
-	visibility: hidden;
-}
-
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button,
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active {
-	color: var(--vscode-descriptionForeground);
-	background: transparent;
-	border-color: transparent;
-	box-shadow: none;
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button:hover,
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button:focus-visible {
-	color: var(--vscode-foreground);
 }
 
 .chat-model-picker-auto-description {
@@ -873,6 +880,37 @@
 	min-width: 220px;
 	max-width: 300px;
 	font-size: var(--vscode-fontSize-label1);
+}
+
+.tabbed-action-list-details .chat-model-card {
+	min-width: 0;
+	max-width: none;
+}
+
+.chat-model-picker-widget .tabbed-action-list-details-header {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100) var(--vscode-spacing-size40);
+}
+
+.tabbed-action-list-details-header .chat-model-card-header {
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-model-picker-configuration-hint {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-model-picker-configuration-hint p {
+	margin: 0;
+}
+
+.chat-model-picker-auto-actions .action-label {
+	color: var(--vscode-descriptionForeground);
 }
 
 .action-list-submenu-panel.chat-model-card-panel {

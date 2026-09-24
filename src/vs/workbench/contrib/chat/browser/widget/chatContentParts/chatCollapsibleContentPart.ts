@@ -48,6 +48,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	private _animationContainer: HTMLElement | undefined;
 	private _isExpandable = true;
 	private ariaLabel: string;
+	private readonly onWillCollapse: IChatContentPartRenderContext['onWillCollapse'];
 
 	public get icon(): ThemeIcon | undefined {
 		return this._overrideIcon.get();
@@ -71,6 +72,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this.ariaLabel = typeof title === 'string' ? title : title.value;
 		this.element = context.element;
 		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
+		this.onWillCollapse = context.suppressProgressShimmer ? context.onWillCollapse : undefined;
 		this._showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, this._collapsibleConfigurationService);
 	}
 
@@ -182,6 +184,9 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}
 		this.logUserToggle();
 		const value = this._isExpanded.get();
+		if (value && this._domNode) {
+			this.onWillCollapse?.(this._domNode);
+		}
 		this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		this._isExpanded.set(!value, undefined);
 	}
@@ -307,6 +312,9 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	protected setExpanded(value: boolean): void {
+		if (!value && this._isExpanded.get() && this._domNode) {
+			this.onWillCollapse?.(this._domNode);
+		}
 		this._isExpanded.set(value, undefined);
 	}
 

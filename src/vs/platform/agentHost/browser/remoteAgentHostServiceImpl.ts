@@ -6,7 +6,7 @@
 // Service implementation that manages remote agent host connections from
 // entries supplied by registered connection factories.
 
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
@@ -170,6 +170,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		return entries;
 	});
+	readonly onDidChangeConfiguredEntries = Event.fromObservableLight(this._configuredEntries);
 	/** In-flight connection attempts, keyed by normalized address. */
 	private readonly _pendingConnects = new Map<string, { readonly promise: Promise<void>; readonly info: IRemoteAgentHostPendingConnection }>();
 
@@ -201,6 +202,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return editorWindowAgentHostClientInfo;
 	}
 
+	protected get supportsWebSocketConnections(): boolean {
+		return true;
+	}
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -216,12 +221,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// The service creates these built-in factories, so it owns their
 		// lifetime too; `registerConnectionFactory` only manages registry
 		// membership so externally-supplied factories stay owned by their producer.
-		this._register(this.registerConnectionFactory(this._register(new WebSocketConnectionFactory(
-			this._instantiationService,
-			this._configurationService,
-			this._environmentService,
-			() => this.clientInfo,
-		))));
+		if (this.supportsWebSocketConnections) {
+			this._register(this.registerConnectionFactory(this._register(new WebSocketConnectionFactory(
+				this._instantiationService,
+				this._configurationService,
+				this._environmentService,
+				() => this.clientInfo,
+			))));
+		}
 		this._register(autorun(reader => {
 			this._configuredEntries.read(reader);
 			this._remoteAgentHostsEnabled.read(reader);
@@ -977,6 +984,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._labelFormatters.clear();
 		super.dispose();
+	}
+}
+
+export class EditorWindowRemoteAgentHostService extends RemoteAgentHostService {
+
+	protected override get supportsWebSocketConnections(): boolean {
+		return false;
 	}
 }
 
