@@ -69,7 +69,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
 		return this._withCancel(token, async id => {
-			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath);
+			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath).catch(() => undefined);
 			this._throwIfCancelled(token);
 			return this._withGitHubAuthenticationFallback(
 				'pull',
@@ -101,7 +101,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
 		await this._withCancel(token, async id => {
-			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath);
+			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath).catch(() => undefined);
 			this._throwIfCancelled(token);
 			await this._withGitHubAuthenticationFallback(
 				'fetch',

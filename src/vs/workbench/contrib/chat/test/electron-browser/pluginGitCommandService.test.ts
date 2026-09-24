@@ -290,6 +290,26 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		assert.deepStrictEqual(authentications, [undefined, undefined]);
 	});
 
+	test('pull and fetch proceed without authentication when origin cannot be resolved', async () => {
+		const authentications: (IGitAuthentication | undefined)[] = [];
+		const service = createService(createLocalGitStub({
+			getRemoteUrl: async () => { throw new Error('No origin remote'); },
+			pull: async (_operationId, _repoPath, options) => {
+				authentications.push(options?.authentication);
+				return false;
+			},
+			fetch: async (_operationId, _repoPath, options) => {
+				authentications.push(options?.authentication);
+			},
+		}), 'github-token');
+
+		const repository = URI.file('/tmp/repo');
+		await service.pull(repository);
+		await service.fetchRepository(repository);
+
+		assert.deepStrictEqual(authentications, [undefined, undefined]);
+	});
+
 	test('checkout delegates to ILocalGitService with detached flag', async () => {
 		const calls: string[] = [];
 		const service = createService(createLocalGitStub({
