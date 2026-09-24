@@ -48,8 +48,30 @@ export function getGifDimensions(base64: string) {
 	return getGifDimensionsFromBytes(base64ToBytes(base64.slice(0, 50)));
 }
 
+/** Base64 characters decoded per step while looking for the JPEG frame header (48 KiB of image data). */
+const JPEG_HEADER_CHUNK_CHARS = 64 * 1024;
+
 export function getJpegDimensions(base64: string) {
-	return getJpegDimensionsFromBytes(base64ToBytes(base64));
+	// The frame header sits behind metadata segments of unknown size, so decode
+	// the payload in growing prefixes instead of all of it: inline images can be
+	// megabytes and this runs on the request path.
+	let chars = Math.min(base64.length, JPEG_HEADER_CHUNK_CHARS);
+	let offset = 2;
+	for (; ;) {
+		const data = base64ToBytes(base64.slice(0, chars));
+		if (offset === 2 && !hasBytes(data, 0, [0xFF, 0xD8])) {
+			throw new Error('Not a valid JPEG image.');
+		}
+		const found = findJpegFrameDimensions(data, offset);
+		if (typeof found !== 'number') {
+			return found;
+		}
+		if (chars >= base64.length) {
+			throw new Error('JPEG dimensions not found');
+		}
+		offset = found;
+		chars = Math.min(base64.length, chars * 2);
+	}
 }
 
 function getPngDimensionsFromBytes(data: Uint8Array) {
@@ -82,15 +104,27 @@ function getJpegDimensionsFromBytes(data: Uint8Array) {
 	if (!hasBytes(data, 0, [0xFF, 0xD8])) {
 		throw new Error('Not a valid JPEG image.');
 	}
+	const found = findJpegFrameDimensions(data, 2);
+	if (typeof found === 'number') {
+		throw new Error('JPEG dimensions not found');
+	}
+	return found;
+}
 
-	const length = data.length;
-	let offset = 2;
-
-	while (offset + 3 < length) {
+/**
+ * Walks the marker segments from `offset` and returns the dimensions of the
+ * frame header (SOF0–SOF2), or the offset at which the data ran out so the
+ * walk can resume once more bytes are available.
+ */
+function findJpegFrameDimensions(data: Uint8Array, offset: number): { width: number; height: number } | number {
+	while (offset + 3 < data.length) {
 		const marker = (data[offset] << 8) | data[offset + 1];
 		const segmentLength = (data[offset + 2] << 8) | data[offset + 3];
 
 		if (marker >= 0xFFC0 && marker <= 0xFFC2) {
+			if (offset + 9 > data.length) {
+				return offset;
+			}
 			const dataView = new DataView(data.buffer, data.byteOffset + offset + 5, 4);
 			return {
 				height: dataView.getUint16(0, false),
@@ -100,8 +134,7 @@ function getJpegDimensionsFromBytes(data: Uint8Array) {
 
 		offset += 2 + segmentLength;
 	}
-
-	throw new Error('JPEG dimensions not found');
+	return offset;
 }
 
 export function getWebPDimensions(base64String: string) {
