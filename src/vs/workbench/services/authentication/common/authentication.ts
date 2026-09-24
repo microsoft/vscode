@@ -5,6 +5,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAuthenticationChallenge, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -52,37 +53,8 @@ export interface AuthenticationProviderInformation {
 /**
  * Options for creating an authentication session via the service.
  */
-export interface IAuthenticationCreateSessionOptions {
+export interface IAuthenticationCreateSessionOptions extends IAuthenticationProviderSessionOptions {
 	activateImmediate?: boolean;
-	/**
-	 * The account that is being asked about. If this is passed in, the provider should
-	 * attempt to return the sessions that are only related to this account.
-	 */
-	account?: AuthenticationSessionAccount;
-	/**
-	 * The authorization server URI to use for this creation request. If passed in, first we validate that
-	 * the provider can use this authorization server, then it is passed down to the auth provider.
-	 */
-	authorizationServer?: URI;
-	/**
-	 * When specified, the authentication provider will request a token bound to this resource URI
-	 * (RFC 8707 resource indicator).
-	 */
-	resource?: string;
-	/**
-	 * The audience for the requested access token. Primarily used for OAuth Identity Assertion
-	 * Authorization Grant (ID-JAG, defined in `draft-ietf-oauth-identity-assertion-authz-grant` using RFC 8693 token-exchange semantics) flows where the audience identifies the authorization server of the resource that
-	 * will redeem the assertion (typically the resource's authorization server URL). Providers that do not understand audience-bound tokens should
-	 * ignore this option.
-	 */
-	audience?: string;
-	/**
-	 * Allows the authentication provider to take in additional parameters.
-	 * It is up to the provider to define what these parameters are and handle them.
-	 * This is useful for passing in additional information that is specific to the provider
-	 * and not part of the standard authentication flow.
-	 */
-	[key: string]: any;
 }
 
 export interface IAuthenticationWwwAuthenticateRequest {
@@ -128,41 +100,7 @@ export interface IAuthenticationConstraint {
 /**
  * Options for getting authentication sessions via the service.
  */
-export interface IAuthenticationGetSessionsOptions {
-	/**
-	 * Whether the provider must avoid user interaction while resolving existing sessions.
-	 */
-	silent?: boolean;
-	/**
-	 * The account that is being asked about. If this is passed in, the provider should
-	 * attempt to return the sessions that are only related to this account.
-	 */
-	account?: AuthenticationSessionAccount;
-	/**
-	 * The authorization server URI to use for this request. If passed in, first we validate that
-	 * the provider can use this authorization server, then it is passed down to the auth provider.
-	 */
-	authorizationServer?: URI;
-	/**
-	 * When specified, the authentication provider will request a token bound to this resource URI
-	 * (RFC 8707 resource indicator).
-	 */
-	resource?: string;
-	/**
-	 * The audience for the requested access token. Primarily used for OAuth Identity Assertion
-	 * Authorization Grant (ID-JAG, defined in `draft-ietf-oauth-identity-assertion-authz-grant` using RFC 8693 token-exchange semantics) flows where the audience identifies the authorization server of the resource that
-	 * will redeem the assertion (typically the resource's authorization server URL). Providers that do not understand audience-bound tokens should
-	 * ignore this option.
-	 */
-	audience?: string;
-	/**
-	 * Allows the authentication provider to take in additional parameters.
-	 * It is up to the provider to define what these parameters are and handle them.
-	 * This is useful for passing in additional information that is specific to the provider
-	 * and not part of the standard authentication flow.
-	 */
-	[key: string]: any;
-}
+export type IAuthenticationGetSessionsOptions = IAuthenticationProviderSessionOptions;
 
 export interface AllowedExtension {
 	id: string;
@@ -413,10 +351,10 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
-	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
-	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions): Promise<void>;
+	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): Promise<void>;
 }
 
 /**
@@ -438,6 +376,10 @@ export interface IAuthenticationProviderSessionOptions {
 	 */
 	authorizationServer?: URI;
 	/**
+	 * The OAuth client identifier to use instead of the provider's default client.
+	 */
+	clientId?: string;
+	/**
 	 * When specified, the authentication provider will request a token bound to this resource URI
 	 * (RFC 8707 resource indicator).
 	 */
@@ -456,6 +398,24 @@ export interface IAuthenticationProviderSessionOptions {
 	 * and not part of the standard authentication flow.
 	 */
 	[key: string]: any;
+}
+
+/** Builds a value-sensitive request key without splitting opaque provider scope strings. */
+export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions = {}): string {
+	const request = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
+		? { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined }
+		: [...scopeListOrRequest].sort();
+	const keyOptions = {
+		...options,
+		account: options.account?.id,
+		authorizationServer: options.authorizationServer?.toString(true)
+	};
+	return JSON.stringify([
+		request,
+		Object.entries(keyOptions)
+			.filter(([, value]) => value !== undefined)
+			.sort(([first], [second]) => compare(first, second))
+	]);
 }
 
 /**

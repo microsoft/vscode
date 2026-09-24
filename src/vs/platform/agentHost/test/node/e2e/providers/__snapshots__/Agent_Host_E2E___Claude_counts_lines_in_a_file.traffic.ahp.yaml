@@ -27,6 +27,9 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
+          type: chat/changesetsChanged
+      - channel: ${chat_0}
+        action:
           type: chat/responsePart
           turnId: ${turn_0}
           part:

@@ -250,13 +250,14 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get status() { return this._session.status; }
 	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
-	get changesets() { return this._session.changesets; }
-	get changes() { return this._session.changes; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this._session.preparationProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -302,13 +303,14 @@ class ResourceOverrideSession implements ISession {
 	get status() { return this._session.status; }
 	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
-	get changes() { return this._session.changes; }
-	get changesets() { return this._session.changesets; }
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this._session.preparationProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -541,7 +543,7 @@ export class VisibleSessions extends Disposable {
 	 * @param activeIndex Index into `slots` of the slot that should be active,
 	 * or `-1` for none.
 	 */
-	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number): void {
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number, tx?: ITransaction): void {
 		this._visibleList = [];
 		this._stickyIds.clear();
 
@@ -581,10 +583,15 @@ export class VisibleSessions extends Disposable {
 			? activeId
 			: lastNonStickySlot;
 
-		transaction(tsx => {
+		const updateObservables = (tsx: ITransaction) => {
 			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
-		});
+		};
+		if (tx) {
+			updateObservables(tx);
+		} else {
+			transaction(updateObservables);
+		}
 	}
 
 	/**
@@ -767,7 +774,7 @@ export class VisibleSessions extends Disposable {
 	 * for the old session is disposed; a fresh wrapper is created for the
 	 * updated session. No-op if `session` is not currently in the grid.
 	 */
-	updateSession(session: ISession, updatedSession: ISession): void {
+	updateSession(session: ISession, updatedSession: ISession, preserveFocus = false): void {
 		const fromId = session.sessionId;
 		if (!this._visibleList.includes(fromId)) {
 			return;
@@ -784,7 +791,7 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			const visibleSession = this._getOrCreateVisibleSession(updatedSession);
 			if (wasActive) {
-				this._setActiveSession(visibleSession, false, tsx);
+				this._setActiveSession(visibleSession, preserveFocus, tsx);
 			}
 			this._refresh(tsx);
 		});

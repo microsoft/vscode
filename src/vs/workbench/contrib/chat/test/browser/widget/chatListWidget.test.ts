@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -16,24 +20,30 @@ import { IAccessibleViewService } from '../../../../../../platform/accessibility
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatAccessibilityService } from '../../../browser/chat.js';
+import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
+import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -77,6 +87,12 @@ suite('ChatListWidget', () => {
 		row.appendChild(content);
 		const contentChild = mainWindow.document.createElement('div');
 		content.appendChild(contentChild);
+		const link = mainWindow.document.createElement('a');
+		link.href = 'https://fallback.example.com';
+		link.dataset.href = 'https://example.com/docs';
+		const linkChild = mainWindow.document.createElement('span');
+		link.appendChild(linkChild);
+		content.appendChild(link);
 		const katexContainer = mainWindow.document.createElement('span');
 		katexContainer.className = katexContainerClassName;
 		content.appendChild(katexContainer);
@@ -92,6 +108,7 @@ suite('ChatListWidget', () => {
 			rowGutter: isChatBackgroundContextMenuTarget(rowGutter),
 			content: isChatBackgroundContextMenuTarget(content),
 			contentChild: isChatBackgroundContextMenuTarget(contentChild),
+			linkChild: getChatContextMenuTargetContext(linkChild),
 			svgPath: getChatContextMenuTargetContext(svgPath),
 			scrollbar: isChatBackgroundContextMenuTarget(scrollbar),
 			missing: isChatBackgroundContextMenuTarget(undefined),
@@ -100,6 +117,11 @@ suite('ChatListWidget', () => {
 			rowGutter: true,
 			content: false,
 			contentChild: false,
+			linkChild: {
+				isKatexElement: false,
+				isBackground: false,
+				linkTarget: 'https://example.com/docs',
+			},
 			svgPath: {
 				isKatexElement: true,
 				isBackground: false,
@@ -109,7 +131,86 @@ suite('ChatListWidget', () => {
 		});
 	});
 
-	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false) {
+	test('provides registered menu commands with the link context', async () => {
+		let contextMenuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+		const contextMenuService: IContextMenuService = {
+			_serviceBrand: undefined,
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+			showContextMenu: delegate => contextMenuDelegate = delegate,
+		};
+		const editorResolverService = upcastPartial<IEditorResolverService>({
+			getEditors: () => [{
+				id: 'test.editor',
+				label: 'Test Editor',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option,
+				},
+			}],
+		});
+		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const requestText = 'Show documentation';
+		const request = model.addRequest({
+			text: requestText,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, requestText.length), new Range(1, 1, 1, requestText.length + 1), requestText)]
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, {
+			kind: 'markdownContent',
+			content: new MarkdownString('[Documentation](file:///workspace/README.md)'),
+		});
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const link = container.querySelector('a[data-href="file:///workspace/README.md"]');
+		assert.ok(link);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+
+		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const actionContext = menuDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(actionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		assert.deepStrictEqual({
+			linkTarget: actionContext.linkTarget,
+			itemKind: isResponseVM(actionContext.item) ? 'response' : 'other',
+		}, {
+			linkTarget: 'file:///workspace/README.md',
+			itemKind: 'response',
+		});
+	});
+
+	test('shows Open With only for resources backed by a file system provider', () => {
+		const editorResolverService = upcastPartial<IEditorResolverService>({
+			getEditors: () => [{
+				id: 'test.editor',
+				label: 'Test Editor',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option,
+				},
+			}],
+		});
+		const fileService = upcastPartial<IFileService>({
+			hasProvider: () => true,
+		});
+
+		assert.deepStrictEqual({
+			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
+			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
+			http: shouldShowChatLinkOpenWith(URI.parse('http://example.com'), fileService, editorResolverService),
+		}, {
+			file: true,
+			https: false,
+			http: false,
+		});
+	});
+
+	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -121,6 +222,14 @@ suite('ChatListWidget', () => {
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		if (contextMenuService) {
+			instantiationService.stub(IContextMenuService, contextMenuService);
+		}
+		if (editorResolverService) {
+			instantiationService.stub(IEditorResolverService, editorResolverService);
+		}
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
@@ -1111,7 +1220,9 @@ suite('ChatListWidget', () => {
 	// new end, so the revealed content grew *upwards* and pushed the summary off the top of the
 	// viewport. The summary must stay put and the content must grow downwards instead.
 	test('expanding a collapsible at the bottom of the transcript keeps its header anchored', async () => {
-		const { disposables, model, container, widget } = createWidget();
+		const { disposables, model, container, widget } = createWidget({}, configurationService => {
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		});
 
 		// Enough completed turns for the transcript to overflow the viewport, each with enough
 		// steps for the renderer to fold them into a completed-response disclosure.
@@ -1169,5 +1280,379 @@ suite('ChatListWidget', () => {
 		}, `summary moved by ${summaryMovedBy}px`);
 
 		disposables.dispose();
+	});
+
+	test('completed compact responses stay idle after request editing is canceled', async () => {
+		const text = 'Search the repository';
+		const { disposables, model, viewModel, container, widget } = createWidget({ getEditingValue: () => text }, configurationService => {
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
+			configurationService.setUserConfiguration('chat.editRequests', 'input');
+		}, true);
+		container.classList.add('interactive-list');
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Searching the repository.') });
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		for (const id of ['read_file', 'search_files', 'task_complete']) {
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: id, pastTenseMessage: id },
+				{ id, displayName: id, modelDescription: id, source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			if (id === 'task_complete') {
+				tool.presentation = ToolInvocationPresentation.Hidden;
+			}
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool(undefined);
+		}
+		const finalText = 'Task completed: No instances found. All tracked files were searched.';
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(finalText) });
+		request.response?.complete();
+		widget.refresh();
+		const response = viewModel.getItems().find(isResponseVM)!;
+		await retry(async () => assert.ok(!response.renderData, 'Completed responses must finish progressive rendering'), 20, 50);
+
+		viewModel.setEditing(viewModel.getItems().find(isRequestVM));
+		widget.refresh();
+		viewModel.setEditing(undefined);
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const responseContainer = container.querySelector<HTMLElement>('.interactive-response')!;
+		let mutations = 0;
+		const observer = new mainWindow.MutationObserver(records => mutations += records.length);
+		disposables.add(toDisposable(() => observer.disconnect()));
+		observer.observe(responseContainer, { childList: true, subtree: true });
+		await timeout(250);
+		assert.deepStrictEqual({
+			rendering: response.renderData !== undefined,
+			loading: responseContainer.classList.contains('chat-response-loading'),
+			finalText: responseContainer.querySelector('.value > .chat-markdown-part')?.textContent?.trim(),
+			idleDOMMutations: mutations,
+		}, {
+			rendering: false,
+			loading: false,
+			finalText,
+			idleDOMMutations: 0,
+		});
+	});
+
+	suite('persistent progress collapse anchoring', () => {
+		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0) {
+			const context = createWidget({ paddingBottom }, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+			}, true);
+			const { model, container, widget } = context;
+			container.classList.add('interactive-list');
+			const text = 'Keep the earlier content in place';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			if (kind === 'thinking') {
+				model.acceptResponseProgress(request, {
+					kind: 'thinking',
+					id: 'thinking',
+					value: '**Reviewing the transition**\n\nKeep the preceding paragraph still while this preview folds upward.\n\nCheck the following response after the collapse.',
+				});
+			} else {
+				for (const toolCallId of ['read', 'search', 'check']) {
+					const tool = new ChatToolInvocation({
+						invocationMessage: `Running ${toolCallId}`,
+						pastTenseMessage: `Completed ${toolCallId}`,
+					}, {
+						id: toolCallId,
+						displayName: toolCallId,
+						modelDescription: 'Test tool',
+						source: ToolDataSource.Internal,
+					}, toolCallId, undefined, {}, {}, request.id);
+					model.acceptResponseProgress(request, tool);
+					await tool.didExecuteTool(undefined);
+				}
+			}
+
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+
+			const precedingParagraph = container.querySelector<HTMLElement>('.interactive-response .value > .chat-markdown-part p:last-child');
+			const preview = container.querySelector<HTMLElement>('.chat-thinking-box');
+			assert.ok(precedingParagraph && preview);
+			return { ...context, request, precedingParagraph, preview };
+		}
+
+		async function collapsePreview({ model, request, widget }: Awaited<ReturnType<typeof createPreview>>) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response.') });
+			widget.refresh();
+			await waitForStableLayout(widget);
+		}
+
+		async function appendResponse({ model, request, widget }: Awaited<ReturnType<typeof createPreview>>) {
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('\n\n' + Array.from({ length: 12 }, (_, index) => `Following paragraph ${index}.`).join('\n\n')),
+			});
+			request.response?.complete();
+			widget.refresh();
+			await waitForStableLayout(widget);
+		}
+
+		for (const kind of ['thinking', 'tools'] as const) {
+			for (const incrementalRendering of [false, true]) {
+				test(`${kind} collapses upward without moving preceding content (incremental: ${incrementalRendering})`, async () => {
+					const context = await createPreview(kind, incrementalRendering);
+					const { container, widget, precedingParagraph, preview } = context;
+					const before = {
+						scrollTop: widget.scrollTop,
+						paragraphTop: precedingParagraph.getBoundingClientRect().top,
+						previewTop: preview.getBoundingClientRect().top,
+						previewHeight: preview.getBoundingClientRect().height,
+						atBottom: widget.isScrolledToBottom,
+					};
+
+					await collapsePreview(context);
+
+					assert.deepStrictEqual({
+						startedAtBottom: before.atBottom && before.scrollTop > 0,
+						anchorWasVisible: before.paragraphTop >= 0,
+						collapsed: preview.classList.contains('chat-used-context-collapsed'),
+						shrank: preview.getBoundingClientRect().height < before.previewHeight,
+						paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+						previewStayedAnchored: Math.abs(preview.getBoundingClientRect().top - before.previewTop) <= 1,
+						hasWorkingIndicator: !!container.querySelector('.chat-working-progress'),
+					}, {
+						startedAtBottom: true,
+						anchorWasVisible: true,
+						collapsed: true,
+						shrank: true,
+						paragraphStayedAnchored: true,
+						previewStayedAnchored: true,
+						hasWorkingIndicator: true,
+					}, `preceding content moved by ${precedingParagraph.getBoundingClientRect().top - before.paragraphTop}px`);
+				});
+			}
+
+			test(`manually collapsing ${kind} preserves its header and preceding content`, async () => {
+				const context = await createPreview(kind);
+				await collapsePreview(context);
+				const { preview, precedingParagraph, widget } = context;
+				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+				assert.ok(button);
+				button.click();
+				await waitForStableLayout(widget);
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const before = { paragraphTop: precedingParagraph.getBoundingClientRect().top, previewTop: preview.getBoundingClientRect().top };
+
+				button.click();
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+					previewStayedAnchored: Math.abs(preview.getBoundingClientRect().top - before.previewTop) <= 1,
+				}, { collapsed: true, paragraphStayedAnchored: true, previewStayedAnchored: true });
+			});
+		}
+
+		test('new response content consumes reserved space before following the bottom again', async () => {
+			const context = await createPreview('thinking', true, 32);
+			const { widget } = context;
+			const scrollTop = widget.scrollTop;
+			await collapsePreview(context);
+			const reservedPadding = widget.scrollHeight - widget.contentHeight;
+			const collapsedScrollTop = widget.scrollTop;
+
+			await appendResponse(context);
+
+			assert.deepStrictEqual({
+				reservedSpace: reservedPadding > 32,
+				collapsePreservedScrollTop: collapsedScrollTop === scrollTop,
+				remainingPadding: widget.scrollHeight - widget.contentHeight,
+				followedNewContent: widget.scrollTop > scrollTop,
+				atBottom: widget.isScrolledToBottom,
+			}, {
+				reservedSpace: true,
+				collapsePreservedScrollTop: true,
+				remainingPadding: 32,
+				followedNewContent: true,
+				atBottom: true,
+			});
+		});
+
+		for (const hold of [false, true]) {
+			test(`preserves user scroll intent while collapsing and streaming (hold: ${hold})`, async () => {
+				const context = await createPreview('thinking', true);
+				const { widget, precedingParagraph } = context;
+				if (hold) {
+					store.add(widget.acquireAutoScrollHold());
+				} else {
+					widget.scrollTop -= 16;
+				}
+				const before = { scrollTop: widget.scrollTop, paragraphTop: precedingParagraph.getBoundingClientRect().top };
+
+				await collapsePreview(context);
+				const atBottomAfterCollapse = widget.isScrolledToBottom;
+				await appendResponse(context);
+
+				assert.deepStrictEqual({
+					scrollTop: widget.scrollTop,
+					paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+					atBottomAfterCollapse,
+					atBottom: widget.isScrolledToBottom,
+				}, { scrollTop: before.scrollTop, paragraphStayedAnchored: true, atBottomAfterCollapse: hold, atBottom: false });
+			});
+		}
+
+		test('clears reserved collapse space when the view model changes', async () => {
+			const context = await createPreview('thinking', true, 32);
+			const { widget } = context;
+			await collapsePreview(context);
+			const reservedSpace = widget.scrollHeight - widget.contentHeight > 32;
+
+			widget.setViewModel(undefined);
+			widget.refresh();
+			await waitForStableLayout(widget);
+
+			assert.deepStrictEqual({
+				reservedSpace,
+				remainingPadding: widget.scrollHeight - widget.contentHeight,
+			}, { reservedSpace: true, remainingPadding: 32 });
+		});
+
+		for (const newRequest of [false, true]) {
+			test(`scrolling to the end reveals content after a tall progress collapse (newRequest=${newRequest})`, async () => {
+				const context = await createPreview('thinking', false, 32);
+				const { model, request, widget, container, preview } = context;
+				model.acceptResponseProgress(request, {
+					kind: 'thinking', id: 'thinking',
+					value: '\n\n' + Array.from({ length: 40 }, (_, index) => `Additional reasoning paragraph ${index}.`).join('\n\n'),
+				});
+				await collapsePreview(context);
+				request.response?.complete();
+				widget.refresh();
+				await waitForStableLayout(widget);
+				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+				assert.ok(button);
+				button.click();
+				await waitForStableLayout(widget);
+				widget.scrollTop += preview.getBoundingClientRect().top - container.getBoundingClientRect().top - 16;
+				await waitForStableLayout(widget);
+				button.click();
+				await waitForStableLayout(widget);
+				const reservedMoreThanViewport = widget.scrollHeight - widget.contentHeight > widget.renderHeight;
+				if (newRequest) {
+					const text = 'The latest request';
+					model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					widget.refresh();
+				}
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const latest = Array.from(container.querySelectorAll<HTMLElement>(newRequest ? '.interactive-request' : '.interactive-response .value > .chat-markdown-part')).at(-1);
+				assert.ok(latest);
+				const viewport = container.getBoundingClientRect();
+				const bounds = latest.getBoundingClientRect();
+				assert.deepStrictEqual({
+					reservedMoreThanViewport,
+					remainingPadding: widget.scrollHeight - widget.contentHeight,
+					latestIsVisible: bounds.bottom > viewport.top && bounds.top < viewport.bottom,
+					atBottom: widget.isScrolledToBottom,
+				}, { reservedMoreThanViewport: true, remainingPadding: 32, latestIsVisible: true, atBottom: true });
+			});
+		}
+
+		test('completed progress summaries preserve preceding content during automatic and manual collapse', async () => {
+			const { model, container, widget } = createWidget({}, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Verbose);
+			}, true);
+			container.classList.add('interactive-list');
+			for (let turn = 0; turn < 2; turn++) {
+				const text = `question ${turn}`;
+				const request = model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				if (turn === 0) {
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+					});
+					request.response?.complete();
+				} else {
+					for (const toolCallId of ['read', 'search', 'check']) {
+						const tool = new ChatToolInvocation({
+							invocationMessage: `Running ${toolCallId}`,
+							pastTenseMessage: `Completed ${toolCallId}`,
+						}, {
+							id: toolCallId, displayName: toolCallId, modelDescription: 'Test tool', source: ToolDataSource.Internal,
+						}, toolCallId, undefined, {}, {}, request.id);
+						model.acceptResponseProgress(request, tool);
+						await tool.didExecuteTool(undefined);
+					}
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The final response.') });
+				}
+			}
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+
+			const anchor = Array.from(container.querySelectorAll<HTMLElement>('.interactive-request')).at(-1);
+			const request = model.getRequests().at(-1);
+			assert.ok(anchor && request);
+			const before = { top: anchor.getBoundingClientRect().top, atBottom: widget.isScrolledToBottom && widget.scrollTop > 0 };
+			request.response?.complete();
+			widget.refresh();
+			await waitForStableLayout(widget);
+			const automaticCollapseStayedAnchored = Math.abs(anchor.getBoundingClientRect().top - before.top) <= 1;
+
+			const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+			const summary = disclosure?.querySelector<HTMLElement>('.completed-response-summary');
+			assert.ok(disclosure && summary);
+			const automaticallyCollapsed = !disclosure.open;
+			summary.click();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const beforeManualCollapse = { top: anchor.getBoundingClientRect().top, headerTop: summary.getBoundingClientRect().top };
+			summary.click();
+			await waitForStableLayout(widget);
+
+			assert.deepStrictEqual({
+				startedAtBottom: before.atBottom,
+				automaticallyCollapsed,
+				automaticCollapseStayedAnchored,
+				manuallyCollapsed: !disclosure.open,
+				manualCollapseStayedAnchored: Math.abs(anchor.getBoundingClientRect().top - beforeManualCollapse.top) <= 1,
+				headerStayedAnchored: Math.abs(summary.getBoundingClientRect().top - beforeManualCollapse.headerTop) <= 1,
+			}, {
+				startedAtBottom: true,
+				automaticallyCollapsed: true,
+				automaticCollapseStayedAnchored: true,
+				manuallyCollapsed: true,
+				manualCollapseStayedAnchored: true,
+				headerStayedAnchored: true,
+			});
+		});
 	});
 });

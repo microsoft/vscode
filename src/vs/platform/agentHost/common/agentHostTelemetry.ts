@@ -39,6 +39,33 @@ export const enum AgentHostTransportKind {
  */
 export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
 
+/**
+ * A bounded host-owned step that a turn passes through after it is admitted and
+ * before it is dispatched to the provider. Each step is timed separately so the
+ * host's share of time-to-first-progress can be attributed to a specific piece
+ * of work rather than reported as one opaque number.
+ *
+ * This is deliberately finer-grained than {@link AgentHostTurnFailureStage} and
+ * is not a substitute for it: the failure stage answers "where did the turn
+ * break", these answer "where did the turn spend its time". Keep the two
+ * vocabularies independent so neither can be changed for the other's benefit.
+ */
+export type AgentHostTurnSendStage =
+	/** Resolving the session's working directory, including first-send worktree creation. */
+	| 'workingDirectory'
+	/** Applying the turn's model and agent selection on the provider. */
+	| 'modelSelection'
+	/** Resolving chat attachments referenced by the message. */
+	| 'attachments'
+	/** Running the outgoing-turn chat contributions. */
+	| 'contributions'
+	/**
+	 * Waiting for the turn-start checkpoint. The capture is started earlier and
+	 * runs alongside the stages above, so this measures only the time it still
+	 * costs the critical path — not the capture's total cost.
+	 */
+	| 'checkpoint';
+
 export interface IAgentHostClientTelemetryContext {
 	readonly clientType: AgentHostClientType;
 	readonly connectionKind: AgentHostClientConnectionKind;
@@ -46,6 +73,19 @@ export interface IAgentHostClientTelemetryContext {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly machineId?: string;
 	readonly devDeviceId?: string;
+}
+
+/** Bounded account context at Codex turn admission, independent of the turn's model provider. */
+export interface ICodexAccountTelemetryContext {
+	readonly chatgptAccountState: 'signedIn' | 'signedOut' | 'unknown';
+	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
+	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptWeeklyUsedPercentBucket?: number;
+}
+
+/** Provider-owned, immutable context captured without I/O when a turn starts. */
+export interface IAgentProviderTurnTelemetryContext {
+	readonly codex?: ICodexAccountTelemetryContext;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {

@@ -14,7 +14,8 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  * `undefined`, otherwise the UI shows an "undefined" state.
  *
  * Selection order:
- *  - claude / Kimi K3 families → 'high' if available
+ *  - claude-opus-5.5 → 'medium' if available
+ *  - other claude / Kimi K3 families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
  */
@@ -23,7 +24,8 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const preferred = lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3') ? 'high' : 'medium';
+	const isOpus55 = /^claude-opus-5[.-]5/.test(lowerFamily);
+	const preferred = !isOpus55 && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}
@@ -105,9 +107,9 @@ export function getAutoModeTierLabel(tier: string): string {
  */
 export function getAutoModeTierDescription(tier: string): string {
 	switch (tier) {
-		case 'efficiency': return l10n.t('Cheaper models for everyday tasks');
-		case 'balance': return l10n.t('Balances capability and cost');
-		case 'intelligence': return l10n.t('Most capable models, higher cost');
+		case 'efficiency': return l10n.t("Optimizes for cost and speed, using more capable models only when needed.");
+		case 'balance': return l10n.t("Balances cost/speed and capability based on task complexity.");
+		case 'intelligence': return l10n.t("Optimizes for capability, using faster models only when the task allows it.");
 		case 'fast': return l10n.t('Lowest latency models');
 		default: return tier;
 	}

@@ -4,11 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
+import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostTimingCapabilityMetaKey } from './meta/agentHostTimingMeta.js';
+import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
+export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+
+export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
+export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect';
+export const DevContainerDisconnectExtensionMethod = 'vscode/devContainers/disconnect';
+export const DevContainerRelaySendExtensionMethod = 'vscode/devContainers/relaySend';
+export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayMessage';
+export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
+export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
+export const DevContainerOutputNotification = 'vscode/devContainers/output';
+
+export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString() });
+export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
+export const devContainerConnectResultValidator = vObj({
+	connectionId: vString(),
+	address: vString(),
+	name: vString(),
+	remoteWorkspaceFolder: vString(),
+	hostWorkspaceFolder: vOptionalProp(vString()),
+});
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
@@ -20,25 +46,35 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
+/** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
+	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
+	readonly [AgentHostTimingCapabilityMetaKey]?: true;
+	/** Present when Automation execution does not require a client activation or migration handshake. */
+	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
 
+/** Standard AHP initialize response with typed VS Code-specific capability metadata. */
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
+		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 	};
 }
 
@@ -66,6 +102,11 @@ export const removeSessionArtifactParamsValidator = vObj({
 });
 
 export interface IAgentHostExtensionCommandMap {
+	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
+	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
+	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
+	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
+	[DevContainerRelaySendExtensionMethod]: { params: ValidatorType<typeof devContainerRelayMessageValidator>; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
@@ -107,6 +148,13 @@ export interface IAgentHostExtensionCommandMap {
 		/** `data` is base64; at most `AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES` decoded bytes. */
 		result: { data: string; eof: boolean };
 	};
+}
+
+export interface IAgentHostExtensionNotificationMap {
+	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
+	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
+	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
+	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

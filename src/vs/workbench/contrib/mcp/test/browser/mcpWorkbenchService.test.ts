@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -23,7 +24,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILoggerService, ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerInput, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -93,7 +94,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 		return this.queryItems.filter(server => infos.some(info => info.name === server.name));
 	}
 
-	override async getMcpServer(url: string): Promise<IGalleryMcpServer | undefined> {
+	override async getMcpServer(url: string, _manifest?: IMcpGalleryManifest | null): Promise<IGalleryMcpServer | undefined> {
 		return this.queryItems.find(server => server.galleryUrl === url);
 	}
 
@@ -236,7 +237,7 @@ class TestLogService extends NullLogService {
 	}
 }
 
-function createGallery(name: string, remoteUrls: readonly string[] = []): IGalleryMcpServer {
+function createGallery(name: string, remoteUrls: readonly string[] = [], remoteVariables?: Record<string, IMcpServerInput>): IGalleryMcpServer {
 	return {
 		name,
 		displayName: name,
@@ -245,7 +246,7 @@ function createGallery(name: string, remoteUrls: readonly string[] = []): IGalle
 		isLatest: true,
 		status: GalleryMcpServerStatus.Active,
 		configuration: {
-			remotes: remoteUrls.map(url => ({ type: TransportType.STREAMABLE_HTTP, url }))
+			remotes: remoteUrls.map(url => ({ type: TransportType.STREAMABLE_HTTP, url, variables: remoteVariables }))
 		},
 		publisher: 'test'
 	};
@@ -330,6 +331,64 @@ suite('McpWorkbenchService', () => {
 		await timeout(0);
 		await timeout(0);
 	}
+
+	test('resolves an installable MCP server by exact name from the configured gallery', async () => {
+		const { service, galleryService, openedEditors } = await createFixture([]);
+		const gallery = createGallery('io.example/tools');
+		galleryService.queryItems = [createGallery('io.example/other'), gallery];
+
+		const server = await service.getMcpServerFromGallery(gallery.name);
+		const missing = await service.getMcpServerFromGallery('io.example/missing');
+
+		assert.deepStrictEqual({
+			name: server?.name,
+			gallery: server?.gallery === gallery,
+			missing,
+			opened: openedEditors.length,
+		}, { name: gallery.name, gallery: true, missing: undefined, opened: 0 });
+	});
+
+	test('resolves a version-pinned feed MCP server independently of the configured gallery', async () => {
+		const { service, galleryService } = await createFixture([]);
+		const gallery = createGallery('io.example/tools');
+		const lookup = sinon.stub(galleryService, 'getMcpServer').resolves(gallery);
+		const server = await service.getMcpServerFromAgentFinder(gallery.name, gallery.version);
+		assert.deepStrictEqual({
+			name: server?.name,
+			gallery: server?.gallery === gallery,
+			url: lookup.firstCall?.args[0],
+			manifest: lookup.firstCall?.args[1],
+		}, {
+			name: gallery.name,
+			gallery: true,
+			url: getAgentFinderMcpServerUrl(gallery.name, gallery.version),
+			manifest: agentFinderMcpRegistryManifest,
+		});
+	});
+
+	test('rejects feed MCP records with a mismatched identity or invalid version', async () => {
+		const { service, galleryService } = await createFixture([]);
+		const lookup = sinon.stub(galleryService, 'getMcpServer').resolves(createGallery('io.example/other'));
+		await assert.rejects(service.getMcpServerFromAgentFinder('io.example/tools', '1.0.0'), /different MCP server/);
+		await assert.rejects(service.getMcpServerFromAgentFinder('io.example/tools', '../latest'), /installation source is invalid/);
+		assert.strictEqual(lookup.callCount, 1);
+	});
+
+	test('does not return an MCP install candidate resolved from a superseded registry', async () => {
+		const { service, galleryService, manifestService } = await createFixture([]);
+		const barrier = new DeferredPromise<void>();
+		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+			await barrier.p;
+			return [createGallery('io.example/tools')];
+		});
+		store.add(toDisposable(() => lookup.restore()));
+
+		const candidate = service.getMcpServerFromGallery('io.example/tools');
+		manifestService.fireChange();
+		await barrier.complete();
+
+		await assert.rejects(candidate, /registry changed/i);
+	});
 
 	test('sanitizes local MCP server configurations from install URIs', async () => {
 		const { service, openedEditors } = await createFixture([]);
@@ -795,17 +854,45 @@ suite('McpWorkbenchService', () => {
 		});
 	});
 
-	test('requires remote URLs to match the registry entry exactly', async () => {
+	test('requires remote URLs to match equivalent registry entries', async () => {
 		const allowed = createLocal('allowed', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: 'https://allowed.test/mcp' });
+		const templated = createLocal('templated', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: 'https://${input:environment_id}.apps.test/mcp' });
 		const blocked = createLocal('blocked', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: 'https://blocked.test/mcp' });
-		const { service, galleryService } = await createFixture([allowed, blocked]);
+		const { service, galleryService } = await createFixture([allowed, templated, blocked]);
 		await complete(await galleryService.nextRequest(), new Map([
 			[allowed.name, found(createGallery(allowed.name, ['https://allowed.test/mcp']))],
+			[templated.name, found(createGallery(templated.name, ['https://{environment_id}.apps.test/mcp'], {
+				environment_id: {
+					description: 'Environment ID',
+					isRequired: true
+				}
+			}))],
 			[blocked.name, found(createGallery(blocked.name, ['https://different.test/mcp']))],
 		]));
 
-		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['allowed']);
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['allowed', 'templated']);
 	});
+
+	for (const value of ['?region=eu', '']) {
+		test(`matches fixed registry URL variables without allowing overrides for ${JSON.stringify(value)}`, async () => {
+			const url = 'https://example.com/{environment}/mcp{suffix}';
+			const normalizedUrl = 'https://example.com/${input:environment}/mcp';
+			const fixed = createLocal('fixed', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: `${normalizedUrl}${value}` });
+			const prompted = createLocal('prompted', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: `${normalizedUrl}\${input:suffix}` });
+			const mismatch = createLocal('mismatch', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: `${normalizedUrl}${value}other` });
+			const installed = [fixed, prompted, mismatch];
+			const { service, galleryService } = await createFixture(installed);
+			await complete(await galleryService.nextRequest(), new Map(installed.map(server => [
+				server.name,
+				found(createGallery(server.name, [url], {
+					environment: { description: 'Environment ID' },
+					suffix: { value }
+				}))
+			])));
+
+			assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['fixed']);
+		});
+	}
 
 	test('keeps a stable order for duplicate server names across repeated sorts', async () => {
 		const user = createLocal('duplicate', LocalMcpServerScope.User);
@@ -871,7 +958,7 @@ suite('McpWorkbenchService', () => {
 				[IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({})],
 				[ITelemetryService, NullTelemetryService],
 				[IProductService, TestProductService],
-				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true })],
+				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true })],
 			);
 			const instantiationService = store.add(new TestInstantiationService(services));
 			const registry = store.add(instantiationService.createInstance(McpRegistry));
@@ -1038,6 +1125,42 @@ suite('McpWorkbenchService', () => {
 			rootGalleryAfterUpdate: undefined,
 			legacyGallery: gallery,
 		});
+	});
+
+	test('by-name link resolves while the gallery manifest is initializing', async () => {
+		const { service, galleryService, openedEditors } = await createFixture([]);
+		const initialized = new DeferredPromise<void>();
+		const enabled = sinon.stub(galleryService, 'isEnabled').returns(false);
+		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+			await initialized.p;
+			enabled.returns(true);
+			return [createGallery('startup')];
+		});
+		const opening = service.handleURL(URI.parse('vscode:mcp/by-name/startup'));
+		await initialized.complete();
+		await opening;
+		assert.deepStrictEqual({
+			lookups: lookup.callCount,
+			opened: openedEditors.map(editor => editor.mcpServer.gallery?.name),
+		}, {
+			lookups: 1,
+			opened: ['startup'],
+		});
+	});
+
+	test('marketplace install lookup waits for the gallery manifest to initialize', async () => {
+		const { service, galleryService } = await createFixture([]);
+		const initialized = new DeferredPromise<void>();
+		const enabled = sinon.stub(galleryService, 'isEnabled').returns(false);
+		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+			await initialized.p;
+			enabled.returns(true);
+			return [createGallery('startup')];
+		});
+		const pending = service.getMcpServerFromGallery('startup');
+		await initialized.complete();
+		const server = await pending;
+		assert.deepStrictEqual({ lookups: lookup.callCount, name: server?.gallery?.name }, { lookups: 1, name: 'startup' });
 	});
 
 	for (const source of ['name', 'url', 'manifest']) {

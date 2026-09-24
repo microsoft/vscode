@@ -11,6 +11,8 @@ import { Event } from '../../../../base/common/event.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
+export type SessionGridLayout = 'columns' | 'grid';
+
 /**
  * Payload for {@link ISessionsPartService.onDidToggleMaximizeSession}.
  */
@@ -29,7 +31,7 @@ export interface ISessionsPartService {
 	 * visible sessions or active session change. The part is a passive renderer:
 	 * it does not observe the model itself.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void;
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, layout?: SessionGridLayout): void;
 
 	/**
 	 * Controls whether mounted session views may render independently of the part's grid visibility.
@@ -37,11 +39,10 @@ export interface ISessionsPartService {
 	setContentVisible(visible: boolean): void;
 
 	/**
-	 * Fires with the session id of a grid slot that received keyboard focus. The
-	 * view service listens to promote that session to the active session. Only
-	 * fires for non-placeholder slots.
+	 * Fires with the session id of a focused grid slot, or undefined for the empty new-session slot.
+	 * The view service promotes that slot to active.
 	 */
-	readonly onDidFocusSession: Event<string>;
+	readonly onDidFocusSession: Event<string | undefined>;
 
 	/**
 	 * Toggles the maximized state of the session view hosting the given session

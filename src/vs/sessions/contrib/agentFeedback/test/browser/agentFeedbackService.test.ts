@@ -24,7 +24,7 @@ import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workb
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -491,6 +491,28 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 
 	test('returns undefined when there is no active session and no tracked file', () => {
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+
+	test('returns changes from the active chat instead of aggregate session changes', () => {
+		const aggregateChange = URI.file('/aggregate.ts');
+		const activeChatChange = URI.file('/active-chat.ts');
+		const activeChat = new class extends mock<IChat>() {
+			override readonly changes = observableValue<readonly ISessionFileChange[]>('activeChatChanges', [{
+				modifiedUri: activeChatChange,
+				originalUri: activeChatChange,
+				insertions: 1,
+				deletions: 0,
+			}]);
+		}();
+		const activeSession = {
+			...makeSession(sessionS1, SessionStatus.InProgress, { changes: [aggregateChange] }),
+			activeChat: observableValue('activeChat', activeChat),
+		} as unknown as IActiveSession;
+		setActiveSession(activeSession);
+
+		assert.deepStrictEqual(service.getChatChanges(sessionS1).map(change => change.modifiedUri?.toString()), [
+			activeChatChange.toString(),
+		]);
 	});
 
 	test('uses one shared feedback scope for undefined and workspace-less drafts', () => {
