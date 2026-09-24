@@ -258,6 +258,9 @@ export interface ISessionsManagementService {
 	 */
 	getInFlightNewSessionRequests(): readonly ISession[];
 
+	/** The submitted input while a new session is being prepared, without committing chat history. */
+	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined;
+
 	/**
 	 * Get a session by its resource URI.
 	 */
@@ -552,6 +555,9 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
+
+	/** Permanently imports an external session through its provider without sending a message. */
+	importSession(session: ISession): Promise<void>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;

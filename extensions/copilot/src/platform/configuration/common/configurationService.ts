@@ -1193,8 +1193,6 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
-	export type CloudSessionVisibilityValue = '24hours' | '7days' | '30days' | '90days' | 'all';
-	export const CloudSessionVisibility = defineSetting<CloudSessionVisibilityValue>('chat.cloudAgent.sessionVisibility', ConfigType.Simple, '30days', vEnum('24hours', '7days', '30days', '90days', 'all'));
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 

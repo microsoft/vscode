@@ -277,14 +277,13 @@ export class CopilotFusionProgress {
 				const d = event.data;
 				this._finishedFusions.add(d.fusionId);
 				this._inFlight = false;
+				// The phase pills already show a clean run; only a fallback or an abnormal ending needs a row.
 				const degraded = d.outcome === 'degraded' || (d.degradedReason !== null && d.degradedReason !== undefined);
-				const summary = degraded
-					? localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback")
-					: d.outcome === 'completed'
-						? localize('copilot.fusion.completed', "HydraFusion workflow completed")
-						: localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome);
-				const details = localize('copilot.fusion.duration', "Duration: {0}", getDurationString(d.durationMs));
-				part = milestone(summary, degraded || d.outcome !== 'completed' ? 'degraded' : 'completed', details);
+				if (degraded) {
+					part = milestone(localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback"), 'degraded');
+				} else if (d.outcome !== 'completed') {
+					part = milestone(localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome), 'degraded');
+				}
 				this._phase = undefined;
 				this._activity = undefined;
 				break;

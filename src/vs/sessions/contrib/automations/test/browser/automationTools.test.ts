@@ -19,8 +19,10 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { type AutomationCatalogueState, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId, RunAutomationTool, RunAutomationToolId } from '../../browser/automationTools.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -261,6 +263,45 @@ function createConfigurationService(enabled = true): TestConfigurationService {
 	return configurationService;
 }
 
+interface IListProviderOptions {
+	readonly id: string;
+	readonly label?: string;
+	readonly state?: AutomationCatalogueState;
+	readonly canCreateAutomation?: boolean;
+	readonly unavailableReason?: string;
+	readonly automations?: readonly IAutomationDescriptor[];
+}
+
+function createListAutomationsTool(
+	automationService: FakeAutomationService,
+	configurationService: TestConfigurationService,
+	providerOptions: readonly IListProviderOptions[] = [{
+		id: 'local-agent-host',
+		label: 'Local Agent Host',
+		state: automationService.catalogueState.get(),
+		canCreateAutomation: automationService.creationAllowed,
+		automations: automationService.automations.get(),
+	}],
+): ListAutomationsTool {
+	const providers = providerOptions.map(options => {
+		const store = upcastPartial<ISessionsProviderAutomations>({
+			catalogueState: constObservable(options.state ?? 'ready'),
+			canCreateAutomation: constObservable(options.canCreateAutomation ?? true),
+			unavailableReason: constObservable(options.unavailableReason),
+			automations: constObservable(options.automations ?? []),
+		});
+		return upcastPartial<ISessionsProvider>({
+			id: options.id,
+			label: options.label ?? options.id,
+			automations: store,
+		});
+	});
+	const sessionsProvidersService = upcastPartial<ISessionsProvidersService>({
+		getProviders: () => providers,
+	});
+	return new ListAutomationsTool(automationService, configurationService, sessionsProvidersService);
+}
+
 function createSession(options?: { readonly quickChat?: boolean; readonly workspace?: URI }): ISession {
 	const workspace = options?.workspace === undefined
 		? undefined
@@ -311,7 +352,7 @@ suite('AutomationTools', () => {
 			new RecordingAutomationRunner(automationService),
 			configurationService,
 		).getToolData();
-		const listData = new ListAutomationsTool(automationService, configurationService).getToolData();
+		const listData = createListAutomationsTool(automationService, configurationService).getToolData();
 		const deleteData = new DeleteAutomationTool(automationService, configurationService).getToolData();
 		const configureData = createConfigureAutomationTool(
 			automationService,
@@ -391,12 +432,16 @@ suite('AutomationTools', () => {
 			},
 		};
 		const automation = createAutomation({ sessionTemplate });
-		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());
+		const automationService = new FakeAutomationService([automation]);
+		const tool = createListAutomationsTool(automationService, createConfigurationService());
 
 		const result = await invoke(tool, {});
 
-		assert.deepStrictEqual(JSON.parse(getText(result)), {
-			catalogueState: 'ready',
+		assert.deepStrictEqual(JSON.parse(getText(result)), [{
+			providerId: 'local-agent-host',
+			providerLabel: 'Local Agent Host',
+			state: 'ready',
+			canCreateAutomation: true,
 			automations: [{
 				id: 'automation-1',
 				name: 'Daily review',
@@ -415,55 +460,120 @@ suite('AutomationTools', () => {
 				updatedAt: NOW,
 				lastRunAt: null,
 				nextRunAt: '2026-01-02T09:00:00.000Z',
+				availableOperations: ['run', 'update', 'delete'],
 			}],
-		});
+		}]);
 	});
 
-	test('listAutomations describes when its catalogue is complete', () => {
-		const description = new ListAutomationsTool(new FakeAutomationService(), createConfigurationService()).getToolData().modelDescription ?? '';
+	test('listAutomations describes provider-scoped state and operations', () => {
+		const description = createListAutomationsTool(new FakeAutomationService(), createConfigurationService()).getToolData().modelDescription ?? '';
 
 		assert.deepStrictEqual({
-			reportsState: description.includes('catalogueState'),
-			definesComplete: description.includes('only "ready" means the list is complete'),
-			warnsAboutFalseEmpty: description.includes('never interpret an empty non-ready result as no configured automations'),
-		}, { reportsState: true, definesComplete: true, warnsAboutFalseEmpty: true });
+			scopesState: description.includes('state applies only to that provider'),
+			preservesOtherProviders: description.includes('never makes automations from another provider unavailable'),
+			definesComplete: description.includes('When a provider is "ready", its automations array is complete'),
+			warnsAboutFalseEmpty: description.includes('otherwise it may be incomplete, including when empty'),
+			describesCapabilities: description.includes('canCreateAutomation') && description.includes('availableOperations'),
+		}, {
+			scopesState: true,
+			preservesOtherProviders: true,
+			definesComplete: true,
+			warnsAboutFalseEmpty: true,
+			describesCapabilities: true,
+		});
 	});
 
-	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {
-		test(`listAutomations preserves available rows in an incomplete ${catalogueState} catalogue`, async () => {
-			const automationService = new FakeAutomationService();
-			automationService.catalogueState.set(catalogueState, undefined);
-			const tool = new ListAutomationsTool(automationService, createConfigurationService());
-			const empty = await invoke(tool, {});
-			const sessionTemplate = { modelId: 'provider-model', config: { providerOption: true } };
-			automationService.automations.set([createAutomation({ sessionTemplate })], undefined);
-			const populated = await invoke(tool, {});
-			const populatedContent = JSON.parse(getText(populated));
+	test('listAutomations keeps ready provider results independent from an unavailable provider', async () => {
+		const localAutomation = createAutomation();
+		const automationService = new FakeAutomationService([localAutomation]);
+		const tool = createListAutomationsTool(automationService, createConfigurationService(), [
+			{ id: 'local-agent-host', label: 'Local Agent Host', automations: [localAutomation] },
+			{ id: 'remote-agent-host', label: 'Remote Agent Host', state: 'unavailable', canCreateAutomation: false, unavailableReason: 'Reconnect to the remote Agent Host.' },
+		]);
 
-			assert.deepStrictEqual({
-				empty: JSON.parse(getText(empty)),
-				emptyMessage: empty.toolResultMessage,
-				populated: {
-					state: populatedContent.catalogueState,
-					ids: populatedContent.automations.map((automation: { id: string }) => automation.id),
-					sessionTemplate: populatedContent.automations[0].sessionTemplate,
+		const result = await invoke(tool, {});
+
+		assert.deepStrictEqual({
+			providers: JSON.parse(getText(result)),
+			message: result.toolResultMessage,
+		}, {
+			providers: [
+				{
+					providerId: 'local-agent-host',
+					providerLabel: 'Local Agent Host',
+					state: 'ready',
+					canCreateAutomation: true,
+					automations: [{
+						id: 'automation-1',
+						name: 'Daily review',
+						prompt: 'Review the repository',
+						schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+						target: {
+							kind: 'workspace',
+							folderUri: 'file:///workspace',
+							providerId: 'local-agent-host',
+							sessionTypeId: 'copilot',
+							isolation: { kind: 'default' },
+						},
+						modelId: 'gpt-test',
+						mode: 'agent',
+						permissionLevel: 'default',
+						enabled: true,
+						createdAt: NOW,
+						updatedAt: NOW,
+						lastRunAt: null,
+						nextRunAt: '2026-01-02T09:00:00.000Z',
+						availableOperations: ['run', 'update', 'delete'],
+					}],
 				},
-				populatedMessage: populated.toolResultMessage,
-			}, {
-				empty: { catalogueState, automations: [] },
-				emptyMessage: 'Listed 0 available automations; catalogue is incomplete',
-				populated: { state: catalogueState, ids: ['automation-1'], sessionTemplate },
-				populatedMessage: 'Listed 1 available automations; catalogue is incomplete',
-			});
+				{
+					providerId: 'remote-agent-host',
+					providerLabel: 'Remote Agent Host',
+					state: 'unavailable',
+					canCreateAutomation: false,
+					unavailableReason: 'Reconnect to the remote Agent Host.',
+					automations: [],
+				},
+			],
+			message: 'Visible automations: 1; incomplete providers: 1 of 2',
 		});
-	}
+	});
+
+	test('listAutomations preserves visible rows without advertising operations when unavailable', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		automationService.available = false;
+		const tool = createListAutomationsTool(automationService, createConfigurationService(), [{
+			id: 'local-agent-host',
+			label: 'Local Agent Host',
+			state: 'unavailable',
+			canCreateAutomation: false,
+			automations: [automation],
+		}]);
+
+		const result = await invoke(tool, {});
+		const providers = JSON.parse(getText(result));
+
+		assert.deepStrictEqual({
+			state: providers[0].state,
+			ids: providers[0].automations.map((automation: { id: string }) => automation.id),
+			availableOperations: providers[0].automations[0].availableOperations,
+			message: result.toolResultMessage,
+		}, {
+			state: 'unavailable',
+			ids: ['automation-1'],
+			availableOperations: [],
+			message: 'Visible automations: 1; incomplete providers: 1 of 1',
+		});
+	});
 
 	test('listAutomations emits flat aliases only for legacy rows', async () => {
 		const automation = createAutomation();
-		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());
+		const automationService = new FakeAutomationService([automation]);
+		const tool = createListAutomationsTool(automationService, createConfigurationService());
 
 		const result = await invoke(tool, {});
-		const listed = JSON.parse(getText(result)).automations[0];
+		const listed = JSON.parse(getText(result))[0].automations[0];
 
 		assert.deepStrictEqual({
 			sessionTemplate: listed.sessionTemplate,
@@ -997,8 +1107,8 @@ suite('AutomationTools', () => {
 		const existing = createAutomation({ sessionTemplate });
 		const automationService = new FakeAutomationService([existing]);
 		const configurationService = createConfigurationService();
-		const listed = await invoke(new ListAutomationsTool(automationService, configurationService), {});
-		const returnedTemplate = JSON.parse(getText(listed)).automations[0].sessionTemplate;
+		const listed = await invoke(createListAutomationsTool(automationService, configurationService), {});
+		const returnedTemplate = JSON.parse(getText(listed))[0].automations[0].sessionTemplate;
 		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), configurationService);
 		await invoke(tool, { automationId: existing.id, sessionTemplate: returnedTemplate });
 
@@ -1408,7 +1518,7 @@ suite('AutomationTools', () => {
 		const automationService = new FakeAutomationService([createAutomation()]);
 		const configurationService = createConfigurationService(false);
 		const runner = new RecordingAutomationRunner(automationService);
-		const listResult = await invoke(new ListAutomationsTool(automationService, configurationService), {});
+		const listResult = await invoke(createListAutomationsTool(automationService, configurationService), {});
 		const configureResult = await invoke(createConfigureAutomationTool(
 			automationService,
 			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),

@@ -754,23 +754,25 @@ suite('AgentHostChangesetStrategy', () => {
 			addEdit(peerDb, '/repo/peer.txt', 'peer-turn', 'peer-edit');
 			const chat = owner === 'default' ? buildDefaultChatUri(session) : peer;
 			const id = owner === 'default' ? turnId : 'peer-turn';
+			// Session Changes is session-owned, so a chat's lifecycle computes no chat-owned copy of it.
 			const chatChangeset = buildSessionChangesetUri(chat);
 			const chatTurnChangeset = buildTurnChangesetUri(chat, id);
 			fixture.subscriptions.add(chatTurnChangeset);
 			const expected = ready([owner === 'default' ? trackedDiff() : trackedDiff('/repo/peer.txt', peer, 'peer-edit')]);
-			let published = Promise.all([nextPublication(fixture.state, chatChangeset), nextPublication(fixture.state, chatTurnChangeset)]);
+			let published = nextPublication(fixture.state, chatTurnChangeset);
 			fixture.service.onToolCallEditsApplied(chat, id);
 			await published;
-			const midTurn = [snapshot(fixture.state, chatChangeset), snapshot(fixture.state, chatTurnChangeset)];
-			published = Promise.all([nextPublication(fixture.state, chatChangeset), nextPublication(fixture.state, chatTurnChangeset)]);
+			const midTurn = snapshot(fixture.state, chatTurnChangeset);
+			published = nextPublication(fixture.state, chatTurnChangeset);
 			fixture.service.onTurnComplete(chat, id);
 			await published;
 			assert.deepStrictEqual({
 				midTurn,
-				completed: [snapshot(fixture.state, chatChangeset), snapshot(fixture.state, chatTurnChangeset)],
+				completed: snapshot(fixture.state, chatTurnChangeset),
+				chatOwnedSessionChanges: fixture.state.getChangesetState(chatChangeset),
 				git: fixture.gitCalls,
 				checkpoints: fixture.checkpointCalls,
-			}, { midTurn: [expected, expected], completed: [expected, expected], git: [], checkpoints: [] });
+			}, { midTurn: expected, completed: expected, chatOwnedSessionChanges: undefined, git: [], checkpoints: [] });
 		}));
 	}
 

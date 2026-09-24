@@ -159,8 +159,9 @@ export class AgentHostCatalogSourceResolver {
 			sessionMetadata.gitHub.read(metadata),
 		));
 		const stateGitHubData = readSessionGitHubData(withMigratedSessionGitHubState(state.meta, state.workingDirectories[0]));
+		const hasPersistedGitHub = sessionMetadata.gitHubData.has(metadata) || !!metadata[META_GITHUB_STATE];
 		const githubData = preferPersistedMetadata
-			? (sessionMetadata.gitHubData.has(metadata) || sessionMetadata.gitHub.has(metadata) ? persistedGitHubData : stateGitHubData)
+			? (hasPersistedGitHub ? persistedGitHubData : stateGitHubData)
 			: stateGitHubData.size > 0 ? stateGitHubData : persistedGitHubData;
 		const persistedSourceControl = sessionMetadata.sourceControl.read(metadata);
 		const sourceControl = preferPersistedMetadata
@@ -281,7 +282,6 @@ export class AgentHostCatalogSourceResolver {
 			if (githubData.size > 0) {
 				legacyMetadata[META_GITHUB_DATA_STATE] = JSON.stringify(Object.fromEntries(githubData));
 			}
-			legacyMetadata[META_GITHUB_STATE] = '';
 		}
 		if (sourceControl) {
 			legacyMetadata[META_SOURCE_CONTROL_STATE] = JSON.stringify(sourceControl);
