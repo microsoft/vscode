@@ -1501,7 +1501,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (!marketplaceEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
-		assert(overview !== null && overview.style.display !== 'none', 'Disabled Marketplace must leave Overview available.');
+		assert(overview !== null, 'Disabled Marketplace must retain Overview.');
+		if (!options.selectedSection) {
+			assert(overview.style.display !== 'none', 'Disabled Marketplace must show Overview on the home page.');
+		}
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
