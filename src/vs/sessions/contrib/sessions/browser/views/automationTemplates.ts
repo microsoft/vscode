@@ -6,7 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { isContributionEnabled } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
@@ -21,6 +21,7 @@ export interface IAutomationTemplate {
 	readonly description: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 	readonly source?: IAutomationTemplateSource;
 	readonly enabled?: boolean;
 }
@@ -64,6 +65,7 @@ export function readAutomationTemplates(plugins: readonly IAgentPlugin[], reader
 				description: automation.blueprint.description ?? localize('automationTemplate.pluginDescription', "Provided by {0}.", plugin.label),
 				prompt: automation.blueprint.prompt,
 				schedule: automation.blueprint.schedule,
+				...(automation.blueprint.disableConditions !== undefined ? { disableConditions: automation.blueprint.disableConditions } : {}),
 				source: { label: plugin.label, uri: automation.uri },
 				enabled: false,
 			});

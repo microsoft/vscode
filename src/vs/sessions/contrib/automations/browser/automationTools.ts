@@ -10,6 +10,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { getAutomationDisableConditionsError, getAutomationFinalDate, getAutomationMaxRuns, isAutomationDisableConditions, isAutomationFinalDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { type AutomationDisableCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -61,6 +63,8 @@ interface IAutomationToolOutput {
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
+	readonly disableConditions: readonly AutomationDisableCondition[];
+	readonly scheduledRunCount: number | null;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -105,7 +109,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List all currently available scheduled automations and their stable IDs, editable fields, targets, and timing metadata. The result includes catalogueState; only "ready" means the list is complete, so never interpret an empty non-ready result as no configured automations. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
+			modelDescription: 'List all currently available scheduled automations and their stable IDs, editable fields, targets, disableConditions, host-owned scheduledRunCount, and timing metadata. The result includes catalogueState; only "ready" means the list is complete, so never interpret an empty non-ready result as no configured automations. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -385,6 +389,10 @@ Omit "automationId" to create an automation; "name", "prompt", and "schedule.int
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
+Use "disableConditions" to stop scheduling after a maximum number of runs, at a final date, or whichever happens first. Each kind may appear at most once. Updates replace the whole array: include both conditions to keep both; [] clears all; omission preserves them. Clearing conditions does not re-enable an automation. "scheduledRunCount" is host-owned current-allowance usage returned by listAutomations, not configurable or lifetime history. Manual runs never consume the allowance or obey these conditions. Warn before re-enabling an automation whose final date has passed.
+
+For "three times, once every hour", use schedule.interval="hourly" and disableConditions=[{kind:"maxRuns",maxRuns:3}]. For "daily at 9am until the end of the week", use schedule={interval:"daily",scheduleHour:9,scheduleMinute:0} and a finalDate condition. Resolve relative dates to an explicit ISO 8601 timestamp with the intended time zone.
+
 The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
@@ -514,6 +522,33 @@ The change uses the current tool-approval policy. When approval is required, the
 						type: 'boolean',
 						description: 'Whether scheduled runs are enabled. Defaults to true when creating.',
 					},
+					disableConditions: {
+						type: 'array',
+						maxItems: 2,
+						description: 'Optional automatic-disable conditions, combined with OR. At most one of each kind. Full replacement on update; [] clears all; omission preserves. Manual runs are unaffected.',
+						items: {
+							oneOf: [
+								{
+									type: 'object',
+									required: ['kind', 'maxRuns'],
+									additionalProperties: false,
+									properties: {
+										kind: { type: 'string', enum: ['maxRuns'] },
+										maxRuns: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+									},
+								},
+								{
+									type: 'object',
+									required: ['kind', 'finalDate'],
+									additionalProperties: false,
+									properties: {
+										kind: { type: 'string', enum: ['finalDate'] },
+										finalDate: { type: 'string', description: 'ISO 8601 timestamp with a time zone, for example 2026-10-01T00:00:00Z.' },
+									},
+								},
+							],
+						},
+					},
 				},
 			},
 		};
@@ -537,17 +572,8 @@ The change uses the current tool-approval policy. When approval is required, the
 					? localize('automation.tool.configure.update.confirmationTitle', "Update Automation?")
 					: localize('automation.tool.configure.create.confirmationTitle', "Create Automation?"),
 				message: isUpdate
-					? new MarkdownString(localize(
-						'automation.tool.configure.update.confirmationMessage',
-						"Apply the proposed changes to **{0}** (`{1}`)?",
-						proposal.existing.name,
-						proposal.existing.id,
-					))
-					: new MarkdownString(localize(
-						'automation.tool.configure.create.confirmationMessage',
-						"Create the automation **{0}**?",
-						proposal.initialValues.name,
-					)),
+					? this.getUpdateConfirmationMessage(proposal.existing, proposal.initialValues)
+					: this.getCreateConfirmationMessage(proposal.initialValues),
 			},
 			toolSpecificData: proposal.kind === 'update'
 				? {
@@ -697,7 +723,10 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
 		}
 		const input = rawInput;
-		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
+		if (input.scheduledRunCount !== undefined) {
+			throw new AutomationToolInputError('"scheduledRunCount" is runtime state returned by listAutomations and cannot be configured.');
+		}
+		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled', 'disableConditions'], 'configureAutomation input');
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
@@ -728,6 +757,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.');
 		}
 		const enabled = readOptionalBoolean(input, 'enabled');
+		const disableConditions = readDisableConditions(input);
 
 		const proposedValues: IUpdateAutomationOptions = {
 			...(name !== undefined ? { name } : {}),
@@ -739,6 +769,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			...(permissionLevel !== undefined ? { permissionLevel } : {}),
 			...(sessionTemplate !== undefined ? { sessionTemplate } : {}),
 			...(enabled !== undefined ? { enabled } : {}),
+			...(disableConditions !== undefined ? { disableConditions } : {}),
 		};
 		const validateTargetAvailability = input.target !== undefined
 			&& !(isRecord(input.target) && input.target.kind === 'currentSession');
@@ -767,9 +798,29 @@ The change uses the current tool-approval policy. When approval is required, the
 				...(permissionLevel ? { permissionLevel } : {}),
 				...(sessionTemplate ? { sessionTemplate } : {}),
 				...(enabled !== undefined ? { enabled } : {}),
+				...(disableConditions !== undefined ? { disableConditions } : {}),
 			},
 			validateTargetAvailability,
 		};
+	}
+
+	private getCreateConfirmationMessage(options: ICreateAutomationOptions): MarkdownString {
+		const message = new MarkdownString(localize(
+			'automation.tool.configure.create.confirmationMessage',
+			"Create the automation **{0}**?",
+			options.name,
+		));
+		return appendDisableConditionsConfirmation(message, options.disableConditions, options.enabled ?? true);
+	}
+
+	private getUpdateConfirmationMessage(existing: IAutomationDescriptor, patch: IUpdateAutomationOptions): MarkdownString {
+		const message = new MarkdownString(localize(
+			'automation.tool.configure.update.confirmationMessage',
+			"Apply the proposed changes to **{0}** (`{1}`)?",
+			existing.name,
+			existing.id,
+		));
+		return appendDisableConditionsConfirmation(message, patch.disableConditions ?? existing.disableConditions, patch.enabled ?? existing.enabled);
 	}
 
 	private getCurrentSessionTarget(resource: URI | undefined): AutomationTarget | undefined {
@@ -1038,6 +1089,8 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 				mode: automation.mode ?? null,
 				permissionLevel: automation.permissionLevel ?? null,
 			}),
+		disableConditions: automation.disableConditions ?? [],
+		scheduledRunCount: automation.scheduledRunCount ?? null,
 		enabled: automation.enabled,
 		createdAt: automation.createdAt,
 		updatedAt: automation.updatedAt,
@@ -1140,7 +1193,7 @@ function resolveAutomationInput(automationService: IAutomationService, rawInput:
 	return automation;
 }
 
-function assertKnownProperties(value: Record<string, unknown>, properties: readonly string[], field: string): void {
+function assertKnownProperties(value: object, properties: readonly string[], field: string): void {
 	const known = new Set(properties);
 	const unexpected = Object.keys(value).find(key => !known.has(key));
 	if (unexpected) {
@@ -1213,6 +1266,39 @@ function readOptionalInteger(value: Record<string, unknown>, property: string, m
 		throw new AutomationToolInputError(`"${property}" must be an integer from ${minimum} through ${maximum}.`);
 	}
 	return candidate;
+}
+
+function readDisableConditions(value: Record<string, unknown>): AutomationDisableCondition[] | undefined {
+	const candidate = value.disableConditions;
+	if (candidate === undefined) {
+		return undefined;
+	}
+	if (!isAutomationDisableConditions(candidate)) {
+		throw new AutomationToolInputError(getAutomationDisableConditionsError(candidate)!);
+	}
+	for (const condition of candidate) {
+		assertKnownProperties(condition, ['kind', condition.kind], 'disableConditions');
+	}
+	return candidate;
+}
+
+function appendDisableConditionsConfirmation(message: MarkdownString, conditions: IAutomationDescriptor['disableConditions'], enabled: boolean): MarkdownString {
+	if (conditions !== undefined) {
+		const maxRuns = getAutomationMaxRuns(conditions);
+		const finalDate = getAutomationFinalDate(conditions);
+		const summary = maxRuns !== undefined && finalDate !== undefined
+			? localize('automation.tool.conditions.both', "Disable scheduling after {0} scheduled runs or at {1}, whichever happens first.", maxRuns, finalDate)
+			: maxRuns !== undefined
+				? localize('automation.tool.conditions.maxRuns', "Disable scheduling after {0} scheduled runs.", maxRuns)
+				: finalDate !== undefined
+					? localize('automation.tool.conditions.finalDate', "Disable scheduling at {0}.", finalDate)
+					: localize('automation.tool.conditions.none', "No automatic disable conditions.");
+		message.appendMarkdown(`\n\n${summary}`);
+	}
+	if (enabled && isAutomationFinalDateExpired(conditions)) {
+		message.appendMarkdown('\n\n' + localize('automation.tool.conditions.expired', "The final date has passed. The host will disable scheduling immediately. Change or remove the final date to resume scheduled runs."));
+	}
+	return message;
 }
 
 function readRequiredEnum<const T extends string>(value: Record<string, unknown>, property: string, allowed: readonly T[]): T {

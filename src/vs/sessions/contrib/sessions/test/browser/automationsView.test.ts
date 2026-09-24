@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
@@ -909,6 +910,7 @@ suite('AutomationsCardsWidget', () => {
 					id: 'weekly-review',
 					name: 'Weekly review',
 					description: 'Review the past week.',
+					disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }],
 					prompt: 'Review the workspace for the past week.',
 					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
 				},
@@ -953,6 +955,7 @@ suite('AutomationsCardsWidget', () => {
 				name: 'Weekly review',
 				prompt: 'Review the workspace for the past week.',
 				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }],
 				enabled: false,
 			},
 			builtInSection: {
@@ -1120,6 +1123,9 @@ suite('AutomationsCardsWidget', () => {
 						'version: 1',
 						'id: weekly-review',
 						'name: Weekly review',
+						'disableConditions:',
+						'  - kind: maxRuns',
+						'    maxRuns: 3',
 						'schedule:',
 						'  kind: cron',
 						'  expression: "30 10 * * 5"',
@@ -1158,6 +1164,7 @@ suite('AutomationsCardsWidget', () => {
 				name: 'Weekly review',
 				prompt: 'Review the workspace for the past week.',
 				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }],
 				enabled: false,
 			},
 			createCalls: [{
@@ -1812,6 +1819,8 @@ suite('AutomationsCardsWidget', () => {
 		const source = automation({
 			name: 'Daily review',
 			prompt: 'Review all open issues',
+			disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }],
+			scheduledRunCount: 2,
 			schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
 			target: { kind: 'quickChat', providerId: 'provider', sessionTypeId: 'agent' },
 			sessionTemplate: {
@@ -1856,6 +1865,7 @@ suite('AutomationsCardsWidget', () => {
 				initialValues: {
 					name: 'Daily review Copy',
 					prompt: 'Review all open issues',
+					disableConditions: [{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 }],
 					schedule: source.schedule,
 					target: source.target,
 					sessionTemplate: source.sessionTemplate,
@@ -2040,6 +2050,24 @@ suite('AutomationsCardsWidget', () => {
 			],
 			automationEnabled: true,
 		});
+	});
+
+	test('Enable warns before sending an expired final date and respects cancellation', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({
+			enabled: false,
+			disableConditions: [{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2000-01-01T00:00:00Z' }],
+		});
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			message: dialogService.confirmations[0].message,
+			updates: automationService.guardedUpdateCalls,
+		}, { message: 'The final date for this automation has passed.', updates: [] });
+		dialogService.confirmResult = { confirmed: true };
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual(automationService.guardedUpdateCalls, [{ id: source.id, patch: { enabled: true }, expected: source }]);
 	});
 
 	test('Enable and Disable are unavailable when updates are unsupported', async () => {
@@ -2765,6 +2793,21 @@ suite('AutomationsCardsWidget', () => {
 			includesTemplateSummary: true,
 			includesFullPrompts: false,
 		});
+	});
+
+	test('accessible view describes both disable conditions and authoritative usage', () => {
+		const content = buildAutomationsAccessibleContent([automation({
+			disableConditions: [
+				{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
+				{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2099-01-01T00:00:00Z' },
+			],
+			scheduledRunCount: 2,
+		})], [], 'ready');
+		assert.deepStrictEqual([
+			content.includes('Scheduled run limit: 3, 2 used'),
+			content.includes('Final date: 2099-01-01T00:00:00Z'),
+			content.includes('Scheduling stops when either condition is met.'),
+		], [true, true, true]);
 	});
 
 	test('accessible view shows built-in and plugin templates with saved automations', () => {

@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { getAutomationMaxRuns } from '../../../../platform/agentHost/common/automationDisableConditions.js';
 import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -29,7 +30,7 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { AutomationSessionConfigurationCapture, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationSessionConfigurationCapture, buildChangedAutomationFields, buildAutomationDisableConditions, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
 
@@ -112,6 +113,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
 			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
 			enabled: initial?.enabled ?? true,
+			runOnce: getAutomationMaxRuns(initial?.disableConditions) === 1,
 		};
 
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
@@ -128,6 +130,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let focusSessionConfigurationError: () => void = () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
+		let refreshDisableConditionsWarning: () => void = () => { };
 		let saveInProgress = false;
 		const saveCancellation = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const completion = new DeferredPromise<IAutomationDialogResult | undefined>();
@@ -164,7 +167,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
-					enabled: state.enabled,
+					...buildChangedAutomationFields(state.enabled, state.runOnce, existing),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
@@ -181,6 +184,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
+				disableConditions: buildAutomationDisableConditions(state.runOnce, initial?.disableConditions),
 			};
 			return { kind: 'create', value: create };
 		};
@@ -199,6 +203,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return;
 			}
 			revalidate();
+			refreshDisableConditionsWarning();
 			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
 				return;
 			}
@@ -227,6 +232,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					return;
 				}
 				revalidate();
+				refreshDisableConditionsWarning();
 				if (validation.sessionTypeError) {
 					return;
 				}
@@ -307,7 +313,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, initial?.disableConditions);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -316,6 +322,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					showSessionConfigurationError = handle.showSessionConfigurationError;
 					focusSessionConfigurationError = handle.focusSessionConfigurationError;
 					getFocusableElements = handle.getFocusableElements;
+					refreshDisableConditionsWarning = handle.refreshDisableConditionsWarning;
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
 						() => [

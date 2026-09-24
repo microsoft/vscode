@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAutomationDescriptor } from '../../../common/automations/automation.js';
@@ -125,6 +126,43 @@ suite('Automation blueprints', () => {
 			{ code: 'unsupportedSchedule', property: '0 24 * * *' },
 			{ code: 'unsupportedTimeZone', property: 'Europe/Berlin' },
 		]);
+	});
+
+	test('round trips a scheduled maximum without transferring allowance usage', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
+			enabled: false, disableConditions: [
+				{ kind: AutomationDisableConditionKind.MaxRuns, maxRuns: 3 },
+				{ kind: AutomationDisableConditionKind.FinalDate, finalDate: '2026-10-01T00:00:00Z' },
+			], scheduledRunCount: 3,
+			createdAt: '', updatedAt: '',
+		};
+		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(automationToBlueprint(automation))), {
+			version: 1, id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: automation.schedule, disableConditions: automation.disableConditions,
+		});
+	});
+
+	test('rejects invalid scheduled maxima', () => {
+		for (const value of ['0', '-1', '1.5', '9007199254740992', 'null']) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions:\n  - kind: maxRuns\n    maxRuns: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
+				error => error instanceof AutomationBlueprintParseError);
+		}
+	});
+
+	test('rejects duplicate and malformed conditions and round trips an empty array', () => {
+		const blueprint = parseAutomationBlueprint('---\nversion: 1\nid: review\nname: Review\ndisableConditions: []\nschedule:\n  kind: manual\n---\nReview.');
+		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)), blueprint);
+		for (const conditions of [
+			'null',
+			'\n  - kind: maxRuns\n    maxRuns: 1\n  - kind: maxRuns\n    maxRuns: 1',
+			'\n  - kind: finalDate\n    finalDate: invalid',
+			'\n  - kind: unknown',
+		]) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions: ${conditions}\nschedule:\n  kind: manual\n---\nReview.`), AutomationBlueprintParseError);
+		}
 	});
 
 	test('exports only portable automation state', () => {

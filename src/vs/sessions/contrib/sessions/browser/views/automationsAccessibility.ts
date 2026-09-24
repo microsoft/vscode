@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { getAutomationFinalDate, getAutomationMaxRuns } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -38,6 +39,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected Agent Host, not in this window. Creation and changes require a connected Agent Host that supports automations. Run now requests execution from that host; a disconnected or unsupported host never falls back to local execution. To use another host, duplicate the automation. The original history stays with its host, and an enabled original keeps scheduling until you disable it."),
+			localize('automationsCustomView.help.conditions', "In the automation dialog, select Run once to disable scheduling after one scheduled run. Manual runs remain available and do not count. Use chat to set other run limits or a final date. These conditions are preserved when editing other fields in the dialog. Scheduling stops when either condition is met. Re-enabling starts a fresh run allowance, but an expired final date must be changed or removed through chat to resume scheduling."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
 					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
@@ -116,6 +118,19 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 				? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
 				: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
+			const maxRuns = getAutomationMaxRuns(automation.disableConditions);
+			if (maxRuns !== undefined) {
+				lines.push(automation.scheduledRunCount !== undefined
+					? localize('automationsAccessibleView.runLimitUsed', "Scheduled run limit: {0}, {1} used", maxRuns, automation.scheduledRunCount)
+					: localize('automationsAccessibleView.runLimit', "Scheduled run limit: {0}", maxRuns));
+			}
+			const finalDate = getAutomationFinalDate(automation.disableConditions);
+			if (finalDate !== undefined) {
+				lines.push(localize('automationsAccessibleView.finalDate', "Final date: {0}", finalDate));
+			}
+			if (maxRuns !== undefined && finalDate !== undefined) {
+				lines.push(localize('automationsAccessibleView.conditionsOr', "Scheduling stops when either condition is met."));
+			}
 			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
 		}
 		if (catalogueState === 'loading') {
