@@ -113,7 +113,7 @@ suite('SCM working sets - pinned editors', () => {
 		const b = testGroup(1, [['old-pin.ts', true], ['b.ts', false]]);
 		const services = testServices([a], [b]);
 
-		assert.strictEqual(await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'branch-b' }, true, true), true);
+		assert.strictEqual(await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'branch-b', name: 'branch-b' }, true, true), true);
 		assert.deepStrictEqual(b.editors.map(editor => (editor as ITestEditor).testId), ['b.ts', 'pinned.ts']);
 		assert.deepStrictEqual(b.closed, ['old-pin.ts']);
 		assert.strictEqual(b.isSticky(b.editors[0]), false);
@@ -136,7 +136,7 @@ suite('SCM working sets - pinned editors', () => {
 		const a = testGroup(1, [['pinned.ts', true]]);
 		const b = testGroup(1, [['pinned.ts', false], ['b.ts', false]]);
 		const services = testServices([a], [b]);
-		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b' }, true, true);
+		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b', name: 'b' }, true, true);
 		assert.deepStrictEqual(b.editors.map(editor => (editor as ITestEditor).testId), ['pinned.ts', 'b.ts']);
 		assert.strictEqual(b.isSticky(b.editors[0]), true);
 		assert.strictEqual(b.isSticky(b.editors[1]), false);
@@ -147,7 +147,7 @@ suite('SCM working sets - pinned editors', () => {
 		const a = testGroup(1, [['un-pinned.ts', false]]);
 		const b = testGroup(1, [['un-pinned.ts', true], ['closed.ts', true], ['branch-b.ts', false]]);
 		const services = testServices([a], [b]);
-		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b' }, false, true);
+		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b', name: 'b' }, false, true);
 		assert.deepStrictEqual(b.closed, ['un-pinned.ts', 'closed.ts']);
 		assert.deepStrictEqual(b.editors.map(editor => (editor as ITestEditor).testId), ['branch-b.ts']);
 	});
@@ -156,7 +156,7 @@ suite('SCM working sets - pinned editors', () => {
 		const a = testGroup(1, [['a-pin.ts', true]]);
 		const b = testGroup(1, [['b-pin.ts', true], ['b.ts', false]]);
 		const services = testServices([a], [b]);
-		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b' }, true, false);
+		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b', name: 'b' }, true, false);
 		assert.deepStrictEqual(b.editors.map(editor => (editor as ITestEditor).testId), ['b-pin.ts', 'b.ts']);
 		assert.deepStrictEqual(b.closed, []);
 		assert.deepStrictEqual(services.opened, []);
@@ -166,7 +166,7 @@ suite('SCM working sets - pinned editors', () => {
 		const a = testGroup(1, [['a-pin.ts', true]]);
 		const b = testGroup(1, [['b-pin.ts', true]]);
 		const services = testServices([a], [b], false);
-		assert.strictEqual(await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b' }, true, true), false);
+		assert.strictEqual(await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b', name: 'b' }, true, true), false);
 		assert.deepStrictEqual(a.closed, []);
 		assert.deepStrictEqual(b.closed, []);
 		assert.strictEqual(services.opened.length, 0);
@@ -177,7 +177,7 @@ suite('SCM working sets - pinned editors', () => {
 		const b = testGroup(1, [['dirty-pin.ts', true]]);
 		b.vetoClose = true;
 		const services = testServices([a], [b]);
-		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b' }, false, true);
+		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'b', name: 'b' }, false, true);
 		assert.deepStrictEqual(b.editors.map(editor => (editor as ITestEditor).testId), ['dirty-pin.ts']);
 	});
 
