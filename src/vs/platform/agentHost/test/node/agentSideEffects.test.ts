@@ -6571,6 +6571,19 @@ suite('AgentSideEffects', () => {
 
 	suite('subagent sessions', () => {
 
+		function startSpawningTool(toolCallId: string, turnId: string, parentToolCallId?: string): void {
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId, action: { type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'runSubagent', displayName: 'Subagent', contributor: undefined, _meta: {} } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId, action: { type: ActionType.ChatToolCallReady, turnId, toolCallId, invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+		}
+
+		function startSubagent(toolCallId: string, parentToolCallId?: string): void {
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, parentToolCallId, agentName: 'subagent', agentDisplayName: 'Subagent' });
+		}
+
+		function completeSpawningTool(toolCallId: string, turnId: string, parentToolCallId?: string): void {
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId, action: { type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: { success: true, pastTenseMessage: 'Started in background' } } });
+		}
+
 		test('inherits the parent turn client identity for subagent telemetry', () => {
 			setupSession();
 			const action: ChatAction = {
@@ -7009,6 +7022,168 @@ suite('AgentSideEffects', () => {
 			const sub2 = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-2'));
 			assert.strictEqual(sub1?.activeTurn, undefined, 'sub1 turn should be cancelled');
 			assert.strictEqual(sub2?.activeTurn, undefined, 'sub2 turn should be cancelled');
+		});
+
+		test('provider cancellation ends running subagent turns before the provider is disposed', () => {
+			setupSession();
+			startTurn('turn-1', defaultChatUri);
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			for (const toolCallId of ['tc-1', 'tc-2']) {
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId, toolName: 'runSubagent', displayName: 'Subagent', contributor: undefined, _meta: {} } });
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId, invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+				agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'subagent', agentDisplayName: 'Subagent', agentDescription: 'Working' });
+			}
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 } });
+
+			assert.deepStrictEqual(
+				[defaultChatUri, ...['tc-1', 'tc-2'].map(id => buildSubagentChatUri(sessionUri.toString(), id))].map(channel => {
+					const state = stateManager.getSessionState(channel);
+					return { activeTurn: state?.activeTurn, lastTurn: state?.turns.at(-1)?.state };
+				}),
+				[
+					{ activeTurn: undefined, lastTurn: TurnState.Cancelled },
+					{ activeTurn: undefined, lastTurn: TurnState.Cancelled },
+					{ activeTurn: undefined, lastTurn: TurnState.Cancelled },
+				],
+			);
+		});
+
+		test('provider cancellation preserves background, idle, and steered children from earlier turns', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			for (const toolCallId of ['background', 'idle', 'steered']) {
+				startSpawningTool(toolCallId, 'turn-1');
+				startSubagent(toolCallId);
+				if (toolCallId !== 'background') {
+					agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId });
+				}
+				completeSpawningTool(toolCallId, 'turn-1');
+			}
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } });
+			startTurn('turn-2');
+			startSpawningTool('foreground', 'turn-2');
+			startSubagent('foreground');
+			agent.fireProgress({ kind: 'subagent_resumed', chat: URI.parse(defaultChatUri), toolCallId: 'steered', message: { text: 'Continue independently', origin: { kind: MessageKind.User } } });
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-2', duration: 1 } });
+			const afterCancellation = ['background', 'idle', 'steered', 'foreground'].map(toolCallId => {
+				const state = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), toolCallId));
+				return { toolCallId, active: !!state?.activeTurn, lastTurn: state?.turns.at(-1)?.state };
+			});
+
+			agent.fireProgress({ kind: 'subagent_resumed', chat: URI.parse(defaultChatUri), toolCallId: 'idle', message: { text: 'Resume retained child', origin: { kind: MessageKind.User } } });
+			for (const toolCallId of ['background', 'idle', 'steered']) {
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: toolCallId, action: { type: ActionType.ChatResponsePart, turnId: 'provider-turn', part: { kind: ResponsePartKind.Markdown, id: `continued-${toolCallId}`, content: toolCallId } } });
+				agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId });
+			}
+			const completed = ['background', 'idle', 'steered'].map(toolCallId => {
+				const turn = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), toolCallId))?.turns.at(-1);
+				return { state: turn?.state, parts: turn?.responseParts };
+			});
+
+			assert.deepStrictEqual({ afterCancellation, completed }, {
+				afterCancellation: [
+					{ toolCallId: 'background', active: true, lastTurn: undefined },
+					{ toolCallId: 'idle', active: false, lastTurn: TurnState.Complete },
+					{ toolCallId: 'steered', active: true, lastTurn: TurnState.Complete },
+					{ toolCallId: 'foreground', active: false, lastTurn: TurnState.Cancelled },
+				],
+				completed: ['background', 'idle', 'steered'].map(toolCallId => ({
+					state: TurnState.Complete,
+					parts: [{ kind: ResponsePartKind.Markdown, id: `continued-${toolCallId}`, content: toolCallId }],
+				})),
+			});
+		});
+
+		for (const startedAfterToolReturned of [false, true]) {
+			test(`provider cancellation preserves background children started ${startedAfterToolReturned ? 'after' : 'before'} the spawning tool returns`, () => {
+				setupSession();
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				startSpawningTool('background', 'turn-1');
+				if (!startedAfterToolReturned) {
+					startSubagent('background');
+				}
+				completeSpawningTool('background', 'turn-1');
+				if (startedAfterToolReturned) {
+					startSubagent('background');
+				}
+				agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 } });
+				const childUri = buildSubagentChatUri(sessionUri.toString(), 'background');
+				const activeAfterCancellation = !!stateManager.getSessionState(childUri)?.activeTurn;
+				agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'background' });
+
+				assert.deepStrictEqual({
+					activeAfterCancellation,
+					finalState: stateManager.getSessionState(childUri)?.turns.at(-1)?.state,
+				}, { activeAfterCancellation: true, finalState: TurnState.Complete });
+			});
+		}
+
+		test('provider cancellation scopes nested descendants to their live delegation', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startSpawningTool('parent', 'turn-1');
+			startSubagent('parent');
+			for (const toolCallId of ['foreground', 'background']) {
+				startSpawningTool(toolCallId, 'turn-1', 'parent');
+				startSubagent(toolCallId, 'parent');
+			}
+			completeSpawningTool('background', 'turn-1', 'parent');
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 } });
+			assert.deepStrictEqual(
+				['parent', 'foreground', 'background'].map(toolCallId => {
+					const state = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), toolCallId));
+					return { active: !!state?.activeTurn, lastTurn: state?.turns.at(-1)?.state };
+				}),
+				[
+					{ active: false, lastTurn: TurnState.Cancelled },
+					{ active: false, lastTurn: TurnState.Cancelled },
+					{ active: true, lastTurn: undefined },
+				],
+			);
+		});
+
+		test('provider cancellation tracks a spawning tool that arrives after its child', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startSubagent('foreground');
+			startSpawningTool('foreground', 'turn-1');
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 } });
+			const child = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'foreground'));
+			assert.deepStrictEqual({ active: !!child?.activeTurn, lastTurn: child?.turns.at(-1)?.state }, { active: false, lastTurn: TurnState.Cancelled });
+		});
+
+		test('chat-wide subagent cleanup still cancels background work and drops idle routes', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			for (const toolCallId of ['background', 'idle']) {
+				startSpawningTool(toolCallId, 'turn-1');
+				startSubagent(toolCallId);
+				completeSpawningTool(toolCallId, 'turn-1');
+			}
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'idle' });
+
+			sideEffects.cancelSubagentSessions(defaultChatUri);
+			agent.fireProgress({ kind: 'subagent_resumed', chat: URI.parse(defaultChatUri), toolCallId: 'idle' });
+			assert.deepStrictEqual(
+				['background', 'idle'].map(toolCallId => {
+					const state = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), toolCallId));
+					return { active: !!state?.activeTurn, lastTurn: state?.turns.at(-1)?.state };
+				}),
+				[
+					{ active: false, lastTurn: TurnState.Cancelled },
+					{ active: false, lastTurn: TurnState.Complete },
+				],
+			);
 		});
 
 		test('removeSubagentSessions removes all subagent chats from state', () => {
