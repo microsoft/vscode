@@ -90,13 +90,23 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container {
+	display: flex;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container,
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;
+	min-height: var(--vscode-spacing-size280);
 	margin: 0;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size40);
 	background-color: transparent;
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+	box-sizing: border-box;
+	align-items: center;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-input-container {
+	margin-top: var(--vscode-spacing-size40);
 }
 
 .new-chat-widget-content {

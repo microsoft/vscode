@@ -77,6 +77,11 @@ export function isExperimentalSessionComposerLayoutEnabled(configurationService:
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 }
 
+export function areSessionChatTipsEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>('chat.tips.enabled') !== false
+		&& !isExperimentalSessionComposerLayoutEnabled(configurationService);
+}
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
@@ -297,7 +302,6 @@ export class NewChatWidget extends Disposable {
 					enabled: this._useConsolidatedRemoteWorkspaces,
 				},
 			},
-			experimentalComposerLayout: this._useExperimentalComposerLayout,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -401,10 +405,12 @@ export class NewChatWidget extends Disposable {
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration('chat.tips.enabled')) {
+			if (!e.affectsConfiguration('chat.tips.enabled')
+				&& !e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				&& !e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 				return;
 			}
-			if (this.configurationService.getValue<boolean>('chat.tips.enabled')) {
+			if (areSessionChatTipsEnabled(this.configurationService)) {
 				this._renderChatTip();
 			} else {
 				this._clearChatTip();
@@ -522,11 +528,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._newChatInput.render(chatWidgetContent, parent, {
-			workspaceControls: this._quickChatHeaderPickerHost
-				? [workspacePickerContainer, this._quickChatHeaderPickerHost]
-				: [workspacePickerContainer],
-		});
+		this._newChatInput.render(chatWidgetContent, parent);
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
@@ -564,7 +566,8 @@ export class NewChatWidget extends Disposable {
 				// No tip in the no-agent-host empty state: there is no usable composer.
 				// Tips also stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
-				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
+				isEligible: () => areSessionChatTipsEnabled(this.configurationService)
+					&& !chatWidgetContent.classList.contains('no-agent-host')
 					&& this._hasEnoughSessionsForFirstRunNotices()
 					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),

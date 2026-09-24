@@ -3215,6 +3215,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
 	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
 	protected readonly _onDidChangeDraftSessions = this._register(new Emitter<void>());
+	readonly onDidChangeDraftSessions = this._onDidChangeDraftSessions.event;
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -3309,6 +3310,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
 		return this._newSessions.get(sessionId);
+	}
+
+	getDraftSessions(): readonly ISession[] {
+		return [...this._newSessions.values()].map(session => session.session);
 	}
 
 	private _getBackendSessionUri(sessionId: string): URI | undefined {
