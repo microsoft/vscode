@@ -32,7 +32,7 @@ import { INotificationService } from '../../notification/common/notification.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { defaultSelectBoxStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable, selectBorder } from '../../theme/common/colorRegistry.js';
-import { ClickAnimation, triggerClickAnimation } from '../../../base/browser/ui/animations/animations.js';
+import { captureAnimationTarget, ClickAnimation, triggerClickAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../window/common/window.js';
@@ -218,10 +218,11 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 			}
 		});
 		try {
+			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
 			await this.actionRunner.run(commandAction, this._context);
-			if (!actionError && this._options?.onClickAnimation && this.element && !this._accessibilityService.isMotionReduced()) {
+			if (!actionError && this._options?.onClickAnimation && this.element && animationTarget && !this._accessibilityService.isMotionReduced()) {
 				const icon = this._menuItemAction.item.icon;
-				triggerClickAnimation(this.element, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
 			}
 		} catch (err) {
 			this._notificationService.error(err);

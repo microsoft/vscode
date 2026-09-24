@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { getWindow } from '../../../../browser/dom.js';
-import { triggerConfettiAnimation } from '../../../../browser/ui/animations/animations.js';
+import { captureAnimationTarget, ClickAnimation, triggerClickAnimation, triggerConfettiAnimation } from '../../../../browser/ui/animations/animations.js';
+import { Codicon } from '../../../../common/codicons.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -64,6 +65,37 @@ suite('Animations', () => {
 			{ particleCount: 24, allParticlesAreConfetti: true, allDelaysBackfilled: true, allParticlesUseBalancedTiming: true, colorCount: 6, inheritsWorkbenchTheme: true, shapes: ['1px', '50%'] },
 		]);
 	});
+
+	for (const [name, animation] of [
+		['confetti', ClickAnimation.Confetti],
+		['floating icons', ClickAnimation.FloatingIcons],
+		['pulse wave', ClickAnimation.PulseWave],
+		['radiant lines', ClickAnimation.RadiantLines],
+	] as const) {
+		test(`preserves the captured position and theme for ${name} after removing the target`, () => {
+			const workbench = document.createElement('div');
+			workbench.className = 'monaco-workbench';
+			const target = document.createElement('button');
+			target.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
+			workbench.appendChild(target);
+			document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+
+			const animationTarget = captureAnimationTarget(target);
+			target.remove();
+			triggerClickAnimation(animationTarget, animation, Codicon.check);
+
+			const overlay = document.querySelector<HTMLElement>('.animation-overlay');
+			disposables.add(toDisposable(() => overlay?.remove()));
+			assert.deepStrictEqual({
+				bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
+				inheritsWorkbenchTheme: overlay?.parentElement === workbench,
+			}, {
+				bounds: ['120px', '80px', '48px', '24px'],
+				inheritsWorkbenchTheme: true,
+			});
+		});
+	}
 
 	test('configures separate confetti launch and fall phases', () => {
 		const workbench = document.createElement('div');
