@@ -9,7 +9,7 @@ import type { IUntypedEditorInput } from '../../../../common/editor.js';
 import type { EditorInput } from '../../../../common/editor/editorInput.js';
 import type { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import type { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { applyWorkingSetWithPinnedEditors } from '../../browser/workingSetPins.js';
+import { applyWorkingSetWithPinnedEditors, SCMWorkingSetRestoreQueue } from '../../browser/workingSetPins.js';
 
 interface ITestEditor extends EditorInput {
 	readonly testId: string;
@@ -21,11 +21,12 @@ interface ITestGroup {
 	readonly editors: EditorInput[];
 	readonly sticky: Set<string>;
 	readonly closed: string[];
+	readonly closePreservedFocus: boolean[];
 	readonly opened: string[];
 	vetoClose: boolean;
 	isSticky(editor: EditorInput): boolean;
 	stickEditor(editor: EditorInput): void;
-	closeEditor(editor: EditorInput): Promise<boolean>;
+	closeEditor(editor: EditorInput, options?: { preserveFocus?: boolean }): Promise<boolean>;
 	openEditor(editor: EditorInput, options?: { sticky?: boolean }): Promise<undefined>;
 }
 
@@ -51,16 +52,18 @@ function testGroup(id: number, editors: ReadonlyArray<[string, boolean]>): ITest
 		editors: editors.map(([name]) => testEditor(name)),
 		sticky: new Set(editors.filter(([, sticky]) => sticky).map(([name]) => name)),
 		closed: [],
+		closePreservedFocus: [],
 		opened: [],
 		vetoClose: false,
 		isSticky(editor) { return group.sticky.has((editor as ITestEditor).testId); },
 		stickEditor(editor) { group.sticky.add((editor as ITestEditor).testId); },
-		async closeEditor(editor) {
+		async closeEditor(editor, options) {
 			if (group.vetoClose) {
 				return false;
 			}
 			const name = (editor as ITestEditor).testId;
 			group.closed.push(name);
+			group.closePreservedFocus.push(options?.preserveFocus ?? false);
 			group.sticky.delete(name);
 			group.editors.splice(group.editors.indexOf(editor), 1);
 			return true;
@@ -119,6 +122,7 @@ suite('SCM working sets - pinned editors', () => {
 		assert.strictEqual(await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, { id: 'branch-b', name: 'branch-b' }, true, true), true);
 		assert.deepStrictEqual(b.editors.map(editor => (editor as ITestEditor).testId), ['b.ts', 'pinned.ts']);
 		assert.deepStrictEqual(b.closed, ['old-pin.ts']);
+		assert.deepStrictEqual(b.closePreservedFocus, [true]);
 		assert.strictEqual(b.isSticky(b.editors[0]), false);
 		assert.strictEqual(b.isSticky(b.editors[1]), true);
 		assert.deepStrictEqual(services.opened, [{ name: 'pinned.ts', groupId: 1, sticky: true, inactive: true, preserveFocus: true }]);
@@ -194,5 +198,73 @@ suite('SCM working sets - pinned editors', () => {
 		await applyWorkingSetWithPinnedEditors(services.editorGroupsService, services.editorService, 'empty', true, true);
 		assert.deepStrictEqual(b.opened, ['custom-editor']);
 		assert.strictEqual(b.isSticky(input), true);
+	});
+
+	test('serializes rapid branch switches and preserves only the final branch\'s unpinned editors', async () => {
+		const main = testGroup(1, [['global-pin.ts', true], ['main.ts', false]]);
+		const branchB = testGroup(1, [['b.ts', false]]);
+		const branchC = testGroup(1, [['c.ts', false]]);
+		let groups = [main];
+		let activeRestores = 0;
+		let maximumConcurrentRestores = 0;
+		const applied: string[] = [];
+		const saved: string[] = [];
+		let activeBranch = 'main';
+
+		let releaseBranchB!: () => void;
+		let branchBStarted!: () => void;
+		const branchBWaiting = new Promise<void>(resolve => { releaseBranchB = resolve; });
+		const branchBStartedPromise = new Promise<void>(resolve => { branchBStarted = resolve; });
+
+		const editorGroupsService = {
+			get groups() { return groups; },
+			get activeGroup() { return groups[0]; },
+			getGroup(id: number) { return groups.find(group => group.id === id); },
+			async applyWorkingSet(workingSet: { id: string; name: string }) {
+				activeRestores++;
+				maximumConcurrentRestores = Math.max(maximumConcurrentRestores, activeRestores);
+				applied.push(`start:${workingSet.id}`);
+				if (workingSet.id === 'branch-b') {
+					branchBStarted();
+					await branchBWaiting;
+				}
+				groups = [workingSet.id === 'branch-b' ? branchB : branchC];
+				applied.push(`end:${workingSet.id}`);
+				activeRestores--;
+				return true;
+			}
+		} as unknown as IEditorGroupsService;
+		const editorService = {
+			async openEditor(untyped: IUntypedEditorInput) {
+				const name = (untyped as { resource?: { path?: string } }).resource?.path ?? '';
+				await groups[0].openEditor(testEditor(name), untyped.options);
+				return undefined;
+			}
+		} as unknown as IEditorService;
+
+		const restoreQueue = new SCMWorkingSetRestoreQueue();
+		const switchBranch = (branch: string) => restoreQueue.queue(async () => {
+			saved.push(`${activeBranch}:${groups[0].editors.map(editor => (editor as ITestEditor).testId).join(',')}`);
+			activeBranch = branch;
+			await applyWorkingSetWithPinnedEditors(editorGroupsService, editorService, { id: branch, name: branch }, true, true);
+		});
+
+		const first = switchBranch('branch-b');
+		await branchBStartedPromise;
+		const second = switchBranch('branch-c');
+
+		// The next branch must not save an intermediate state or start a
+		// concurrent restore while the previous apply is awaiting completion.
+		assert.deepStrictEqual(applied, ['start:branch-b']);
+		assert.deepStrictEqual(saved, ['main:global-pin.ts,main.ts']);
+
+		releaseBranchB();
+		await Promise.all([first, second]);
+
+		assert.strictEqual(maximumConcurrentRestores, 1);
+		assert.deepStrictEqual(applied, ['start:branch-b', 'end:branch-b', 'start:branch-c', 'end:branch-c']);
+		assert.deepStrictEqual(saved, ['main:global-pin.ts,main.ts', 'branch-b:b.ts,global-pin.ts']);
+		assert.deepStrictEqual(groups[0].editors.map(editor => (editor as ITestEditor).testId), ['c.ts', 'global-pin.ts']);
+		assert.strictEqual(groups[0].isSticky(groups[0].editors[1]), true);
 	});
 });
