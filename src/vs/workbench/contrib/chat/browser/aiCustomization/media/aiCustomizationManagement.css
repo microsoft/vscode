@@ -3057,6 +3057,8 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-sign-in.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button {
+	width: auto;
+	flex: 0 0 auto;
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);

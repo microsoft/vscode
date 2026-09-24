@@ -1554,6 +1554,41 @@ suite('mcpListWidget', () => {
 			});
 		}
 
+		for (const width of [350, 600]) {
+			test(`sign-in keeps the server name visible in a ${width}px row`, () => {
+				const server = createAgentHostServer({
+					name: 'Slack',
+					status: McpServerStatus.AuthRequired,
+					state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required },
+				});
+				const ctx = createRenderer(server, true, true);
+				disposables.add(ctx.store);
+				const entry: Entry = { type: 'session-server-item', server };
+				ctx.menu(entry);
+				const widget = DOM.append(document.body, DOM.$('.plugin-list-widget'));
+				disposables.add({ dispose: () => widget.remove() });
+				widget.appendChild(ctx.templateData.container);
+				ctx.templateData.container.style.width = `${width}px`;
+				ctx.render(entry);
+
+				const name = ctx.templateData.name;
+				const button = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-sign-in')!;
+				assert.deepStrictEqual({
+					name: name.textContent,
+					nameVisible: name.clientWidth > 0 && name.clientWidth >= name.scrollWidth,
+					buttonBesideName: button.getBoundingClientRect().left >= name.getBoundingClientRect().right,
+					buttonCompact: button.getBoundingClientRect().width < width / 2,
+					buttonLabel: button.getAttribute('aria-label'),
+				}, {
+					name: 'Slack',
+					nameVisible: true,
+					buttonBesideName: true,
+					buttonCompact: true,
+					buttonLabel: 'Sign in to Slack',
+				});
+			});
+		}
+
 		test('a fresh disabled reason locks the existing switch even when status remains disabled', () => {
 			const server = createAgentHostServer({ ...erroring(), enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] });
 			const ctx = createRenderer(server, true, true);
