@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorCode } from '../../../base/common/errors.js';
+import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
@@ -30,7 +31,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
+import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
@@ -208,6 +209,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
 	/** Serializes refreshes per session so state-based deduplication observes the preceding dispatch. */
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
+	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
 
 	/**
@@ -927,7 +929,11 @@ export class AgentSideEffects extends Disposable {
 			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._changesets.onToolCallEditsApplied(sessionUri, turnId, this._turnTracker.getClientTelemetryContext(sessionKey, turnId));
+				const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
+				this._changesets.onToolCallEditsApplied(sessionKey, turnId, clientContext);
+				if (sessionKey !== sessionUri) {
+					this._changesets.onToolCallEditsApplied(sessionUri, turnId, clientContext);
+				}
 			}
 		}
 
@@ -1675,13 +1681,39 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionMcpServerStartRequested: {
+				this._pendingMcpServerStarts.get(sessionChannel, action.id)?.dispose(true);
+				const source = new CancellationTokenSource();
+				this._pendingMcpServerStarts.set(source, sessionChannel, action.id);
+				const token = source.token;
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.startMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {
+				const start = agent?.startMcpServer
+					? agent.startMcpServer(URI.parse(sessionChannel), action.id, token)
+					: Promise.reject(new Error('The session provider does not support starting MCP servers.'));
+				start.catch(err => {
+					if (token.isCancellationRequested) {
+						return;
+					}
 					this._logService.warn(`[AgentSideEffects] startMcpServer failed for ${sessionChannel}`, err);
+					const server = getCustomizationEnablementCandidates(this._stateManager.getSessionState(sessionChannel)?.customizations)
+						.find(candidate => candidate.customization.id === action.id)?.customization;
+					if (server?.type === CustomizationType.McpServer && server.state.kind !== McpServerStatus.Ready && server.state.kind !== McpServerStatus.Error && server.state.kind !== McpServerStatus.AuthRequired) {
+						this._stateManager.dispatchServerAction(sessionChannel, {
+							type: ActionType.SessionMcpServerStateChanged,
+							id: action.id,
+							state: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-start-failed', message: getErrorMessage(err) } },
+						});
+					}
+				}).finally(() => {
+					if (this._pendingMcpServerStarts.get(sessionChannel, action.id) === source) {
+						this._pendingMcpServerStarts.delete(sessionChannel, action.id);
+					}
+					source.dispose();
 				});
 				break;
 			}
 			case ActionType.SessionMcpServerStopRequested: {
+				this._pendingMcpServerStarts.get(sessionChannel, action.id)?.dispose(true);
+				this._pendingMcpServerStarts.delete(sessionChannel, action.id);
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.stopMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {
 					this._logService.warn(`[AgentSideEffects] stopMcpServer failed for ${sessionChannel}`, err);
@@ -2038,6 +2070,10 @@ export class AgentSideEffects extends Disposable {
 
 
 	override dispose(): void {
+		for (const source of this._pendingMcpServerStarts.values()) {
+			source.dispose(true);
+		}
+		this._pendingMcpServerStarts.clear();
 		this._toolCallAgents.clear();
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();

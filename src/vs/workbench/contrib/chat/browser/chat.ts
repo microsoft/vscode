@@ -158,6 +158,7 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+	/** Opens or reveals a session, retaining its model while moving it between widgets. */
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
@@ -232,6 +233,20 @@ export interface IChatFileTreeInfo {
 }
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
+
+export interface IChatContextMenuActionContext {
+	readonly $chatContextMenu: true;
+	readonly item: ChatTreeItem | null;
+	readonly linkTarget?: string;
+}
+
+export function isChatContextMenuActionContext(context: unknown): context is IChatContextMenuActionContext {
+	return typeof context === 'object' && context !== null && '$chatContextMenu' in context && context.$chatContextMenu === true;
+}
+
+export function unwrapChatContextMenuActionContext(context: unknown): unknown {
+	return isChatContextMenuActionContext(context) ? context.item : context;
+}
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';

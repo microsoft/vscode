@@ -216,14 +216,14 @@ export interface IAddWorktreeOptions {
 	readonly commitish: string;
 	readonly newBranchName?: string;
 	readonly track: boolean;
-	readonly preferRemoteBranch?: boolean;
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
+	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
+	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;

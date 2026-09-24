@@ -196,7 +196,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.openedViews = [];
 		harness.openedViewContainers = [];
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 
 		assert.deepStrictEqual({
 			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
@@ -1059,7 +1059,7 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
 
 		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 
 		harness.openedViewContainers = [];
 		harness.openedViews = [];
@@ -1264,7 +1264,7 @@ suite('LayoutController (desktop)', () => {
 		harness.setPartHiddenCalls = [];
 
 		// Changes appear, which re-triggers the aux bar sync autorun.
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 
 		assert.ok(
 			!harness.openedViews.includes(CHANGES_VIEW_ID) && !harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
@@ -2131,7 +2131,7 @@ suite('LayoutController (desktop)', () => {
 				isQuickChat.set(false, tx);
 			});
 			await timeout(0);
-			(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/changed.ts')], undefined);
+			(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/changed.ts')], undefined);
 			await timeout(0);
 
 			assert.deepStrictEqual({
@@ -3050,7 +3050,7 @@ suite('LayoutController (desktop)', () => {
 
 		const changesResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
 		const changesActiveBeforeChanges = !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource);
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 
 		assert.deepStrictEqual({
@@ -3082,7 +3082,7 @@ suite('LayoutController (desktop)', () => {
 
 		const changesResource = harness.sessionChangesService.getChangesEditorResource(committedResource);
 		const changesActiveBeforeChanges = !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource);
-		(committed.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(committed.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 
 		assert.deepStrictEqual({
@@ -3118,7 +3118,7 @@ suite('LayoutController (desktop)', () => {
 		// Submit A: this queues a reconcile that opens the Changes tab *active*; it
 		// stalls awaiting the gated open.
 		(sessionA.isCreated as ISettableObservable<boolean>).set(true, undefined);
-		(sessionA.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		(sessionA.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 		const aActiveCalls = harness.openChangesEditorCalls.filter(c => isEqual(c.sessionResource, sessionA.resource) && c.active);
 		assert.strictEqual(aActiveCalls.length, 1, 'A\'s submit should open its Changes tab active (and stall on the gate)');

@@ -12,7 +12,7 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -21,6 +21,12 @@ export const enum CustomizationMigrationCategoryId {
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 }
+
+export const homepageMigrationCategories = [
+	CustomizationMigrationCategoryId.PromptFiles,
+	CustomizationMigrationCategoryId.UserData,
+	CustomizationMigrationCategoryId.McpServers,
+] as const;
 
 export interface ICustomizationMigrationGroup {
 	readonly key: string;
@@ -89,6 +95,7 @@ export interface ICustomizationMigrationCategory {
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
 	getMcpServerFailureMessage?(failures: readonly IMcpServerCustomizationMigrationFailure[]): string;
+	getMcpServerExclusionReason?(exclusion: IMcpServerCustomizationMigrationExclusion): string;
 }
 
 const SKILLS_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/agent-skills?referrer=in-product';
@@ -540,14 +547,14 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	migrationType: CustomizationMigrationType.McpServers,
 	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.McpServers),
 	shortcutLabel: localize('mcpMigrationShortcutLabel', "Migrate MCP Servers"),
-	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move supported workspace MCP servers to root .mcp.json files"),
+	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move eligible workspace MCP servers to root .mcp.json files"),
 	cardLabel: localize('mcpMigrationCardLabel', "Migrate MCP Servers"),
 	cardActionLabel: localize('mcpMigrationCardAction', "Migrate..."),
-	cardActionAriaLabel: localize('mcpMigrationCardActionAriaLabel', "Migrate supported workspace MCP servers"),
+	cardActionAriaLabel: localize('mcpMigrationCardActionAriaLabel', "Migrate eligible workspace MCP servers"),
 	pageTitle: localize('mcpMigrationPageTitle', "Migrate MCP Servers"),
 	pageLinkLabel: localize('mcpMigrationLearnMore', "Learn more about MCP servers"),
 	pageLinkUrl: MCP_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('mcpMigrationPageEmpty', "No supported workspace MCP servers are available to migrate."),
+	pageEmptyMessage: localize('mcpMigrationPageEmpty', "No workspace MCP servers are eligible to migrate."),
 	migrateButtonTooltip: localize('mcpMigrationPageButtonTooltip', "Move selected MCP servers to root .mcp.json files"),
 	backLabel: localize('backToMcpMigration', "Back to Migrate MCP Servers"),
 	noFilesMigratedMessage: localize('mcpMigrationNoneMigrated', "No MCP servers were migrated."),
@@ -580,19 +587,19 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 
 	getCardDescription(customizations, harnessLabel) {
 		return customizations.length === 1
-			? localize('mcpMigrationCardDescriptionSingle', "Found 1 supported server in .vscode/mcp.json that can move to the workspace root so {0} can discover it directly.", harnessLabel)
-			: localize('mcpMigrationCardDescriptionMultiple', "Found {0} supported servers in .vscode/mcp.json that can move to workspace root files so {1} can discover them directly.", customizations.length, harnessLabel);
+			? localize('mcpMigrationCardDescriptionSingle', "Found 1 eligible server in .vscode/mcp.json that can move to the workspace root so {0} can discover it directly.", harnessLabel)
+			: localize('mcpMigrationCardDescriptionMultiple', "Found {0} eligible servers in .vscode/mcp.json that can move to workspace root files so {1} can discover them directly.", customizations.length, harnessLabel);
 	},
 
 	getPageDescription(customizations, harnessLabel) {
 		return customizations.length === 1
-			? localize('mcpMigrationPageDescriptionSingle', "Select the supported MCP server to move so {0} can discover it directly. Unsupported and unselected servers stay in .vscode/mcp.json.", harnessLabel)
-			: localize('mcpMigrationPageDescriptionMultiple', "Select supported MCP servers to move so {0} can discover them directly. Unsupported and unselected servers stay in .vscode/mcp.json.", harnessLabel);
+			? localize('mcpMigrationPageDescriptionSingle', "Select the eligible MCP server to move so {0} can discover it directly. Servers that cannot be migrated and unselected servers stay in .vscode/mcp.json.", harnessLabel)
+			: localize('mcpMigrationPageDescriptionMultiple', "Select eligible MCP servers to move so {0} can discover them directly. Servers that cannot be migrated and unselected servers stay in .vscode/mcp.json.", harnessLabel);
 	},
 
 	getBanner(_customizations, harnessLabel) {
 		return {
-			message: localize('mcpMigrationBannerMessage', "Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so {0} can discover them directly. Unsupported and unselected servers stay in their current files.", harnessLabel),
+			message: localize('mcpMigrationBannerMessage', "Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so {0} can discover them directly. Servers that cannot be migrated and unselected servers stay in their current files.", harnessLabel),
 		};
 	},
 
@@ -601,7 +608,7 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 			message: customizations.length === 1
 				? localize('mcpMigrationConfirmMessageSingle', "Migrate 1 MCP server to .mcp.json?")
 				: localize('mcpMigrationConfirmMessageMultiple', "Migrate {0} MCP servers to .mcp.json?", customizations.length),
-			detail: localize('mcpMigrationConfirmDetail', "Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Unsupported and unselected entries stay in place."),
+			detail: localize('mcpMigrationConfirmDetail', "Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated and unselected entries stay in place."),
 			primaryButton: localize('mcpMigrationConfirmButton', "Migrate"),
 		};
 	},
@@ -610,6 +617,10 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 		return migratedCount === 1
 			? localize('mcpMigrationCompletedSingle', "Migrated 1 MCP server.")
 			: localize('mcpMigrationCompletedMultiple', "Migrated {0} MCP servers.", migratedCount);
+	},
+
+	getMcpServerExclusionReason(exclusion) {
+		return exclusion.details.join(' ');
 	},
 
 	getFailedMessage(failedServerNames, hiddenServerCount) {

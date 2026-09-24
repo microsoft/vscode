@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
@@ -73,6 +77,40 @@ suite('SessionDataService', () => {
 		assert.ok(await fileService.exists(dir));
 		await service.deleteSessionData(session);
 		assert.ok(!(await fileService.exists(dir)));
+	});
+
+	test('saved output survives database release and is removed with its owning chat data', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'terminal-output-data-'));
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(new NullLogService()))));
+		const data = new SessionDataService(URI.file(directory), files, new NullLogService());
+		const owner = AgentSession.uri('copilotcli', 'output-owner');
+		const chat = URI.parse(buildChatUri(owner, 'output-peer'));
+		try {
+			const ref = data.openDatabase(chat);
+			try {
+				await ref.object.createTurn('turn');
+				await ref.object.storeTerminalOutput('turn', 'tool', VSBuffer.fromString('complete output').buffer);
+				await ref.object.close();
+			} finally {
+				ref.dispose();
+			}
+			const restored = await data.tryOpenDatabase(chat);
+			assert.ok(restored);
+			try {
+				assert.deepStrictEqual(await restored.object.readTerminalOutput('tool'), new Uint8Array(VSBuffer.fromString('complete output').buffer));
+				await restored.object.close();
+			} finally {
+				restored.dispose();
+			}
+			await data.deleteSessionData(chat);
+			assert.deepStrictEqual({
+				database: await data.tryOpenDatabase(chat),
+				directoryExists: await files.exists(data.getSessionDataDir(chat)),
+			}, { database: undefined, directoryExists: false });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('deleteSessionData is a no-op when directory does not exist', async () => {
