@@ -377,7 +377,8 @@ export class SessionChatInputToolbar extends Disposable {
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
-			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService).read(reader) : undefined;
+			// The pull requests are this chat's folder's, so is their Agent Merge.
+			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
 		});
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
 		const referenceActions = (session: IActiveSession, reader: IReader): IRecordedReferenceActions | undefined => session.capabilities.read(reader).supportsRemoveArtifacts ? {

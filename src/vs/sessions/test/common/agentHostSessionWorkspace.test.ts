@@ -8,6 +8,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import type { ISessionGitState } from '../../../platform/agentHost/common/state/sessionState.js';
 import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace } from '../../services/sessions/common/session.js';
 
@@ -90,5 +91,44 @@ suite('Agent Host Session Workspace', () => {
 			],
 			worktreeChat: { uri: URI.file('/src/tools').toString(), label: 'tools' },
 		});
+	});
+
+	test('projects chat-scoped Git state onto the chat workspace', () => {
+		const gitState: ISessionGitState = {
+			branchName: 'peer-feature',
+			baseBranchName: 'main',
+			hasGitRemote: true,
+			hasGitHubRemote: true,
+			incomingChanges: 2,
+			outgoingChanges: 3,
+			uncommittedChanges: 1,
+		};
+		const workspace = buildAgentHostChatWorkspace(sessionWorkspace, [other], undefined, gitState);
+
+		assert.deepStrictEqual(workspace?.folders.map(folder => ({
+			name: folder.name,
+			repository: folder.gitRepository && {
+				uri: folder.gitRepository.uri.toString(),
+				branchName: folder.gitRepository.branchName,
+				baseBranchName: folder.gitRepository.baseBranchName,
+				hasGitRemote: folder.gitRepository.hasGitRemote,
+				hasGitHubRemote: folder.gitRepository.hasGitHubRemote,
+				incomingChanges: folder.gitRepository.incomingChanges,
+				outgoingChanges: folder.gitRepository.outgoingChanges,
+				uncommittedChanges: folder.gitRepository.uncommittedChanges,
+			},
+		})), [{
+			name: 'other',
+			repository: {
+				uri: other.toString(),
+				branchName: 'peer-feature',
+				baseBranchName: 'main',
+				hasGitRemote: true,
+				hasGitHubRemote: true,
+				incomingChanges: 2,
+				outgoingChanges: 3,
+				uncommittedChanges: 1,
+			},
+		}]);
 	});
 });

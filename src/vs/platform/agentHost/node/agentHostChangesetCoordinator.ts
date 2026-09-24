@@ -14,7 +14,8 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { readAgentMergeSessionState } from '../common/agentMerge.js';
+import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
@@ -177,8 +178,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
 		this._refreshSummarySource(session, previous);
-		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
-		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
+		const sessionFolder = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		const sessionFolderKey = sessionFolder ? getWorkingDirectoryKey(sessionFolder) : undefined;
+		const wasEnabled = isAnyAgentMergeEnabled(previous?.values, sessionFolderKey);
+		const isEnabled = isAnyAgentMergeEnabled(current?.values, sessionFolderKey);
 		if (wasEnabled !== isEnabled) {
 			this._refreshChangesetCatalogs(session);
 		}

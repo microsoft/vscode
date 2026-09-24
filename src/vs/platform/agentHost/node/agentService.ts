@@ -37,7 +37,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -98,7 +98,7 @@ import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContex
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, isAnyAgentMergeEnabled, mergeClientAgentMergeFolders } from '../common/agentMerge.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
@@ -107,7 +107,7 @@ import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetrySer
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
-import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IPersistedPeerChat } from './agentHostPeerChatStore.js';
@@ -189,6 +189,9 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.AgentMerge,
 	SessionConfigKey.AgentMergeController,
+	SessionConfigKey.AgentMergeFolders,
+	SessionConfigKey.AgentMergeControllerFolders,
+	SessionConfigKey.AgentMergeInjectedConfiguration,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
@@ -204,6 +207,8 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
  */
 const HOST_WRITTEN_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.AgentMergeController,
+	SessionConfigKey.AgentMergeControllerFolders,
+	SessionConfigKey.AgentMergeInjectedConfiguration,
 ] as const;
 
 function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string, T> {
@@ -825,9 +830,9 @@ export class AgentService extends Disposable implements IAgentService {
 		));
 		core.callbackBinder.bind({
 			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
-			startAgentMergeTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
-			cancelAgentMergeTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
-			postAgentMergeNotice: (session, kind, content) => this._postAgentMergeNotice(session, kind, content),
+			startAgentMergeTurn: (chat, turnId, prompt) => this._startAgentMergePrompt(chat, turnId, prompt),
+			cancelAgentMergeTurn: (chat, turnId) => this._cancelAgentMergePrompt(chat, turnId),
+			postAgentMergeNotice: (chat, kind, content) => this._postAgentMergeNotice(chat, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
@@ -841,6 +846,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidRejectClientAction(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._persistAnnotations(e)));
+		this._register(this._stateManager.onDidEmitEnvelope(e => {
+			if (isAhpChatChannel(e.channel) && (e.action.type === ActionType.ChatTurnComplete || e.action.type === ActionType.ChatTurnCancelled || e.action.type === ActionType.ChatError)) {
+				this._flushAgentMergeNotices(e.channel);
+			} else if (e.action.type === ActionType.SessionChatRemoved) {
+				this._moveAgentMergeNotices(e.action.chat, buildDefaultChatUri(e.channel));
+			}
+		}));
 		// Archiving is terminal for Agent Merge, so the index is cleared from the
 		// action rather than from the controller's own disable.
 		this._register(this._stateManager.onDidEmitEnvelope(e => {
@@ -866,7 +878,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// turn of its own and survive restore.
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
 			if (!active) {
-				this._flushAgentMergeNotices(session);
+				this._flushAgentMergeNoticesForSession(session);
 				for (const [key, pending] of this._pendingChatHistories) {
 					if (parseRequiredSessionUriFromChatUri(pending.chat) === session) {
 						this._pendingChatHistories.delete(key);
@@ -877,7 +889,13 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}));
-		this._register(this._stateManager.onDidRemoveSession(session => this._pendingAgentMergeNotices.delete(session)));
+		this._register(this._stateManager.onDidRemoveSession(session => {
+			for (const chat of this._pendingAgentMergeNotices.keys()) {
+				if (parseRequiredSessionUriFromChatUri(chat) === session) {
+					this._pendingAgentMergeNotices.delete(chat);
+				}
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			for (const chat of this._chatHistoryWatches.keys()) {
 				if (parseRequiredSessionUriFromChatUri(chat) === session) {
@@ -1571,11 +1589,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
-	private _startAgentMergePrompt(session: string, turnId: string, prompt: string): boolean {
-		if (this._stateManager.hasActiveTurn(session)) {
+	private _startAgentMergePrompt(chat: string, turnId: string, prompt: string): boolean {
+		if (this._stateManager.getChatState(chat)?.activeTurn) {
 			return false;
 		}
-		const chat = buildDefaultChatUri(session).toString();
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.SystemNotification },
@@ -1588,7 +1605,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Reports an Agent Merge state change in the session's default chat.
+	 * Reports an Agent Merge state change in the folder's owning chat.
 	 *
 	 * The notice is dispatched as server state only — `AgentSideEffects` is
 	 * deliberately not involved — so it reaches clients without ever being sent
@@ -1603,36 +1620,55 @@ export class AgentService extends Disposable implements IAgentService {
 	 * notice on a turn the provider owns, so restore would replay that turn
 	 * without it.
 	 */
-	private _postAgentMergeNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
-		if (this._stateManager.hasActiveTurn(session)) {
-			const pending = this._pendingAgentMergeNotices.get(session);
+	private _postAgentMergeNotice(chat: string, kind: AgentSystemNotificationKind, content: string): void {
+		if (this._stateManager.getChatState(chat)?.activeTurn) {
+			const pending = this._pendingAgentMergeNotices.get(chat);
 			if (pending) {
 				pending.push({ kind, content });
 			} else {
-				this._pendingAgentMergeNotices.set(session, [{ kind, content }]);
+				this._pendingAgentMergeNotices.set(chat, [{ kind, content }]);
 			}
-			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the session is idle: session=${session}`);
+			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the chat is idle: chat=${chat}`);
 			return;
 		}
-		this._writeAgentMergeNotice(session, kind, content);
+		this._writeAgentMergeNotice(chat, kind, content);
 	}
 
-	/** Emits the notices that were waiting for a session's turn to end. */
-	private _flushAgentMergeNotices(session: string): void {
-		const pending = this._pendingAgentMergeNotices.get(session);
+	/** Emits the notices that were waiting for a chat's turn to end. */
+	private _flushAgentMergeNotices(chat: string): void {
+		const pending = this._pendingAgentMergeNotices.get(chat);
 		if (!pending) {
 			return;
 		}
-		this._pendingAgentMergeNotices.delete(session);
+		this._pendingAgentMergeNotices.delete(chat);
 		for (const { kind, content } of pending) {
-			this._writeAgentMergeNotice(session, kind, content);
+			this._writeAgentMergeNotice(chat, kind, content);
+		}
+	}
+
+	/** Posts the notices that were waiting for a removed chat to another chat instead. */
+	private _moveAgentMergeNotices(from: string, to: string): void {
+		const pending = this._pendingAgentMergeNotices.get(from);
+		if (!pending) {
+			return;
+		}
+		this._pendingAgentMergeNotices.delete(from);
+		for (const { kind, content } of pending) {
+			this._postAgentMergeNotice(to, kind, content);
+		}
+	}
+
+	private _flushAgentMergeNoticesForSession(session: string): void {
+		for (const chat of [...this._pendingAgentMergeNotices.keys()]) {
+			if (parseRequiredSessionUriFromChatUri(chat) === session && !this._stateManager.getChatState(chat)?.activeTurn) {
+				this._flushAgentMergeNotices(chat);
+			}
 		}
 	}
 
 	/** Writes one Agent Merge notice as a completed, host-owned local turn. */
-	private _writeAgentMergeNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
-		const chat = buildDefaultChatUri(session);
-		const channel = chat.toString();
+	private _writeAgentMergeNotice(channel: string, kind: AgentSystemNotificationKind, content: string): void {
+		const session = parseRequiredSessionUriFromChatUri(channel);
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,
@@ -1650,7 +1686,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 		});
 		this._stateManager.dispatchServerAction(channel, { type: ActionType.ChatTurnComplete, turnId, duration: 0 });
-		const turns = this._stateManager.getSessionState(chat)?.turns;
+		const turns = this._stateManager.getSessionState(channel)?.turns;
 		const recorded = turns?.find(turn => turn.id === turnId);
 		if (turns && recorded) {
 			this._localTurns.record(session, channel, recorded, this._localTurns.findAnchorTurnId(channel, turns, turnId));
@@ -1661,8 +1697,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Cancels a repair turn this host started for Agent Merge, so a stopped or
 	 * revoked controller cannot leave an autonomous turn running.
 	 */
-	private _cancelAgentMergePrompt(session: string, turnId: string): void {
-		const chat = buildDefaultChatUri(session).toString();
+	private _cancelAgentMergePrompt(chat: string, turnId: string): void {
 		const action = { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const;
 		this._stateManager.dispatchServerAction(chat, action);
 		this._sideEffects.handleAction(chat, action);
@@ -1907,6 +1942,13 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
 					} catch (error) {
 						this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${metadata.session}`, error);
+					}
+				}
+				if (persisted[META_GIT_DATA_STATE]) {
+					try {
+						updated = { ...updated, _meta: withSessionGitData(updated._meta, parseSessionGitData(JSON.parse(persisted[META_GIT_DATA_STATE]))) };
+					} catch (error) {
+						this._logService.warn(`[AgentService][listSessions] Failed to parse folder-scoped Git state for ${metadata.session}`, error);
 					}
 				}
 				updated = {
@@ -2361,8 +2403,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Mirrors a session's Agent Merge enablement into the host-owned index. */
 	private _syncAgentMergeIndex(session: URI, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
-		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
-		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
+		const sessionState = this._stateManager.getSessionState(session.toString());
+		const sessionFolderKey = sessionState?.workingDirectories?.[0] ? getWorkingDirectoryKey(sessionState.workingDirectories[0]) : undefined;
+		const wasEnabled = isAnyAgentMergeEnabled(previous?.values, sessionFolderKey);
+		const isEnabled = isAnyAgentMergeEnabled(current?.values, sessionFolderKey);
 		if (wasEnabled === isEnabled) {
 			return;
 		}
@@ -4880,7 +4924,7 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const chat of chats) {
 			if (chat !== defaultChat && !seen.has(chat)) {
 				seen.add(chat);
-				result.push(URI.parse(chat));
+				result.push(URI.parse(chat.toString()));
 			}
 		}
 		if (!seen.has(defaultChat)) {
@@ -5547,7 +5591,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _withAgentMergeConfigContribution(result: ResolveSessionConfigResult, config: Record<string, unknown> | undefined): ResolveSessionConfigResult {
 		const values = { ...result.values };
-		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeController]) {
+		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeController, SessionConfigKey.AgentMergeFolders, SessionConfigKey.AgentMergeControllerFolders, SessionConfigKey.AgentMergeInjectedConfiguration]) {
 			if (config && Object.hasOwn(config, key)) {
 				values[key] = config[key];
 			}
@@ -6525,7 +6569,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * reject the action. Returns the canonicalized action on success.
 	 */
 	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): SessionWorkingDirectoryAction {
-		const state = this._stateManager.getSessionState(session);
+		const state = this._stateManager.getSessionState(session.toString());
 		const workingDirectories = this._stateManager.getSessionSummary(session)?.workingDirectories;
 		if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length) {
 			throw new Error(`Session is not ready for working-directory changes: ${session}`);
@@ -6774,20 +6818,43 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Carries host-written session config through a client replacement. A client
 	 * may legitimately replace its own config wholesale, but omitting a host-owned
 	 * key must not clear it, since that would reset Agent Merge authorization state.
+	 * The client's Agent Merge settings are carried too unless the replacement
+	 * sets them: the host changes them as well (a self-disable, a demoted merge
+	 * choice), which a client's copy may not reflect yet.
 	 */
 	private _withPreservedHostWrittenSessionConfig(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
-		const values = this._stateManager.getSessionState(session)?.config?.values;
+		const values = this._stateManager.getSessionState(session.toString())?.config?.values;
 		if (!values) {
 			return action;
 		}
 		let preserved: Record<string, unknown> | undefined;
-		for (const key of HOST_WRITTEN_SESSION_CONFIG_KEYS) {
+		const clientAgentMergeKeys = [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeFolders].filter(key => !Object.hasOwn(action.config, key));
+		for (const key of [...HOST_WRITTEN_SESSION_CONFIG_KEYS, ...clientAgentMergeKeys]) {
 			if (Object.hasOwn(values, key)) {
 				preserved ??= {};
 				preserved[key] = values[key];
 			}
 		}
 		return preserved ? { ...action, config: { ...action.config, ...preserved } } : action;
+	}
+
+	/**
+	 * A client writes only the Agent Merge folders it changes, so its write is
+	 * merged into the current folders rather than replacing them; see
+	 * {@link mergeClientAgentMergeFolders}.
+	 */
+	private _withMergedClientAgentMergeFolders(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
+		const state = this._stateManager.getSessionState(session);
+		const defaultChat = buildDefaultChatUri(session);
+		// The session's folders and each chat's, as a chat may work in a folder the session was not created with.
+		const sessionFolders = new Set([
+			...this._stateManager.getSessionSummary(session)?.workingDirectories ?? [],
+			...state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? [],
+		].map(getWorkingDirectoryKey));
+		const folders = mergeClientAgentMergeFolders(state?.config?.values, action.config[SessionConfigKey.AgentMergeFolders],
+			folderKey => sessionFolders.has(folderKey),
+			chat => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true);
+		return { ...action, config: { ...action.config, [SessionConfigKey.AgentMergeFolders]: folders } };
 	}
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
@@ -6852,8 +6919,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
 				return;
 			}
+			if (Object.hasOwn(configAction.config, SessionConfigKey.AgentMergeFolders)) {
+				action = this._withMergedClientAgentMergeFolders(sessionChannel, configAction);
+			}
 			if (configAction.replace) {
-				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);
+				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, action as SessionConfigChangedAction);
 			}
 		}
 		// `session/workingDirectoryReplaced` is client-dispatchable in the
@@ -7638,6 +7708,13 @@ export class AgentService extends Disposable implements IAgentService {
 								sessionMetadata = { [SESSION_META_GIT_KEY]: gitState };
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse Git state for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+						if (gitMetadata[META_GIT_DATA_STATE]) {
+							try {
+								sessionMetadata = withSessionGitData(sessionMetadata, parseSessionGitData(JSON.parse(gitMetadata[META_GIT_DATA_STATE])));
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse folder-scoped Git state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
 						}
 

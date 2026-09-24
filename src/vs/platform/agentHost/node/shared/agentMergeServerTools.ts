@@ -80,12 +80,13 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	},
 ];
 
+/** Agent Merge tool implementations, each invoked with the chat the tool call comes from. */
 export interface IAgentMergeToolAccessor {
 	isEnabled(): boolean;
-	setEnabled(session: string, enabled: boolean): string;
-	readFailedCI(session: string, request?: AgentMergeCIRequest): Promise<string>;
-	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
-	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
+	setEnabled(chat: string, enabled: boolean): string;
+	readFailedCI(chat: string, request?: AgentMergeCIRequest): Promise<string>;
+	replyToReviewThread(chat: string, threadId: string, body: string, resolve: boolean): Promise<string>;
+	rerunFailedWorkflow(chat: string, runId: string, failedJobsOnly: boolean): Promise<string>;
 }
 
 export interface AgentMergeCIRequest {
@@ -154,20 +155,23 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');
 			}
+			// The invoking chat: Agent Merge runs per folder, and a repair turn's
+			// authorization belongs only to the chat running it.
+			const chat = context.chatUri;
 			switch (toolName) {
 				case setAgentMergeEnabledToolName: {
 					const args = asRecord(rawArgs, toolName);
 					if (Object.keys(args).some(key => key !== 'enabled')) {
 						throw new Error(`Invalid ${toolName} input: only enabled is supported.`);
 					}
-					return accessor.setEnabled(context.sessionUri, requiredBoolean(args.enabled, 'enabled', toolName));
+					return accessor.setEnabled(chat, requiredBoolean(args.enabled, 'enabled', toolName));
 				}
 				case readAgentMergeCIToolName:
-					return accessor.readFailedCI(context.sessionUri, parseAgentMergeCIRequest(rawArgs));
+					return accessor.readFailedCI(chat, parseAgentMergeCIRequest(rawArgs));
 				case replyToAgentMergeReviewThreadToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.replyToReviewThread(
-						context.sessionUri,
+						chat,
 						requiredString(args.threadId, 'threadId', toolName),
 						requiredString(args.body, 'body', toolName),
 						optionalBoolean(args.resolve, 'resolve', toolName) ?? true,
@@ -176,7 +180,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 				case rerunAgentMergeWorkflowToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.rerunFailedWorkflow(
-						context.sessionUri,
+						chat,
 						requiredString(args.runId, 'runId', toolName),
 						optionalBoolean(args.failedJobsOnly, 'failedJobsOnly', toolName) ?? true,
 					);
