@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -85,4 +85,45 @@ export function resolveBranchChangesetScopeForOwner(stateManager: AgentHostState
 		}
 	}
 	return undefined;
+}
+
+/** The folder whose GitHub and pull request state a session, chat or folder changeset owner uses. */
+export interface IGitHubStateFolder {
+	readonly sessionUri: ProtocolURI;
+	/** The chat whose Git state describes the folder. */
+	readonly sourceUri: ProtocolURI;
+	/**
+	 * Working-directory key of the folder, or `undefined` when the session has
+	 * no working directories ({@link isSessionFolder} is `true`) or when a
+	 * folder changeset owner no longer matches any chat (`false`).
+	 */
+	readonly folderKey: string | undefined;
+	/** Whether the folder is the session's first folder, whose pull request Agent Merge and the pull request lifecycle follow. */
+	readonly isSessionFolder: boolean;
+	/** The folder's working directory, when known. */
+	readonly workingDirectory: ProtocolURI | undefined;
+}
+
+/**
+ * Resolves the folder whose GitHub state a session, chat channel or folder
+ * changeset owner URI uses: the first folder of the chat, of the folder scope,
+ * or of the session.
+ */
+export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, uri: ProtocolURI): IGitHubStateFolder {
+	const isFolderOwner = !!parseFolderChangesetOwnerUri(uri);
+	const scope = isFolderOwner ? resolveChangesetOwnerScope(stateManager, uri) : resolveBranchChangesetScopeForSource(stateManager, uri);
+	const workingDirectory = scope.workingDirectories[0];
+	if (isFolderOwner && workingDirectory === undefined) {
+		// The folder scope no longer matches any chat; never fall back to the session folder.
+		return { sessionUri: scope.sessionUri, sourceUri: scope.sourceUri, folderKey: undefined, isSessionFolder: false, workingDirectory: undefined };
+	}
+	const sessionWorkingDirectory = stateManager.getSessionState(scope.sessionUri)?.workingDirectories?.[0];
+	const folderKey = workingDirectory === undefined ? undefined : getWorkingDirectoryKey(workingDirectory);
+	return {
+		sessionUri: scope.sessionUri,
+		sourceUri: scope.sourceUri,
+		folderKey,
+		isSessionFolder: folderKey === undefined || (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)),
+		workingDirectory,
+	};
 }

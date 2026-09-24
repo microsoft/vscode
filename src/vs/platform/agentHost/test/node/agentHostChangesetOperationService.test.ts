@@ -654,7 +654,7 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
 	});
 
-	test('keeps session workflow operations on default Branch and Session Changes only', () => {
+	test('offers pull request workflows on every folder scope Branch and keeps merge with the default chat', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		const defaultFolder = 'file:///default';
@@ -699,7 +699,7 @@ suite('AgentHostChangesetOperationService', () => {
 			sessionChanges: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
 			defaultTurn: [testOperationId],
 			defaultCompare: [testOperationId],
-			otherScopeBranch: [testOperationId],
+			otherScopeBranch: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID],
 		});
 	});
 

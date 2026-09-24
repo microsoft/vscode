@@ -23,13 +23,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { getCustomizationMigrationCategory, homepageMigrationCategories } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { CustomizationMigrationType, ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { IMcpWorkbenchService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -38,6 +36,7 @@ export class NewChatMigrationNotice extends Disposable {
 	private readonly message: HTMLElement;
 	private dismissalKey: string | undefined;
 	private contextKey: string | undefined;
+	private migrationHint: ICustomizationMigrationHint | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -45,14 +44,12 @@ export class NewChatMigrationNotice extends Disposable {
 		private readonly focusInput: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICustomizationMigrationService private readonly migrationService: ICustomizationMigrationService,
+		@ICustomizationMigrationTelemetryService private readonly migrationTelemetryService: ICustomizationMigrationTelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@IPromptsService promptsService: IPromptsService,
-		@IAgentHostCustomizationService agentHostCustomizationService: IAgentHostCustomizationService,
-		@IMcpWorkbenchService mcpWorkbenchService: IMcpWorkbenchService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -68,7 +65,11 @@ export class NewChatMigrationNotice extends Disposable {
 			href: `command:${AICustomizationManagementCommands.OpenEditor}`,
 		}, {
 			opener: () => {
-				void commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, { migration: true, sessionResource: session.get()?.resource })
+				void commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+					migration: true,
+					sessionResource: session.get()?.resource,
+					migrationHint: this.migrationHint,
+				})
 					.catch(error => this.logService.error('Failed to open customization migrations', error));
 			},
 		}));
@@ -80,6 +81,9 @@ export class NewChatMigrationNotice extends Disposable {
 			true,
 			() => {
 				if (this.dismissalKey) {
+					if (this.migrationHint) {
+						this.migrationTelemetryService.hintClicked(this.migrationHint, 'dismiss');
+					}
 					this.focusInput();
 					this.storageService.store(this.dismissalKey, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 				}
@@ -89,15 +93,7 @@ export class NewChatMigrationNotice extends Disposable {
 		const categories = homepageMigrationCategories.map(getCustomizationMigrationCategory);
 		const configurationChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration,
 			event => categories.some(category => event.affectsConfiguration(category.enablementSetting))));
-		const customizationsChanged = observableSignalFromEvent(this, Event.any(
-			promptsService.onDidChangeSlashCommands,
-			promptsService.onDidChangeCustomAgents,
-			promptsService.onDidChangeInstructions,
-			promptsService.onDidChangeAgentInstructions,
-			agentHostCustomizationService.onDidChangeCustomizations,
-			mcpWorkbenchService.onChange,
-			mcpWorkbenchService.onReset,
-		));
+		const customizationsChanged = observableSignalFromEvent(this, migrationService.onDidChangeCustomizations);
 		const storageChanged = observableSignalFromEvent(this, Event.filter(
 			storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
 			event => event.key === this.dismissalKey,
@@ -128,23 +124,25 @@ export class NewChatMigrationNotice extends Disposable {
 				return;
 			}
 			customizationsChanged.read(reader);
-			void this.refresh(currentSession.resource, enabledTypes, cancelOnDispose(reader.store));
+			void this.refresh(currentSession.resource, cancelOnDispose(reader.store));
 		}));
 	}
 
-	private async refresh(sessionResource: URI, types: readonly CustomizationMigrationType[], token: CancellationToken): Promise<void> {
+	private async refresh(sessionResource: URI, token: CancellationToken): Promise<void> {
 		try {
-			const migrations = await Promise.all(types.map(type => type === CustomizationMigrationType.McpServers
-				? this.migrationService.computeMigration(sessionResource, type, token)
-				: this.migrationService.computeMigration(sessionResource, type, token)));
+			const hint = await this.migrationService.computeMigrationHint(sessionResource, token);
 			if (token.isCancellationRequested) {
 				return;
 			}
-			const count = migrations.reduce((total, migration) => total + migration.candidates.length, 0);
-			this.message.textContent = count === 1
-				? localize('migrationNoticeSingle', "1 agent customization needs an update to keep working.")
-				: localize('migrationNoticeMultiple', "{0} agent customizations need an update to keep working.", count);
-			this.setVisible(count > 0);
+			if (!hint) {
+				this.setVisible(false);
+				return;
+			}
+			this.migrationTelemetryService.hintComputed(hint);
+			this.migrationHint = hint;
+			this.message.textContent = hint.message;
+			this.setVisible(true);
+			this.migrationTelemetryService.hintShown(hint);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.logService.error('Failed to check customization migrations for the new chat notice', error);
@@ -158,6 +156,9 @@ export class NewChatMigrationNotice extends Disposable {
 	private setVisible(visible: boolean): void {
 		if (!visible && dom.isAncestorOfActiveElement(this.element)) {
 			this.focusInput();
+		}
+		if (!visible) {
+			this.migrationHint = undefined;
 		}
 		dom.setVisibility(visible, this.element);
 	}

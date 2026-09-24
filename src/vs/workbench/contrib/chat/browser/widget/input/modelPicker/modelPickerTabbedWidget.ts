@@ -6,6 +6,7 @@
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -99,6 +100,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _context: ITabbedModelPickerContext | undefined;
 	private _anchor: HTMLElement | undefined;
+	private _contextViewLayer: number | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
@@ -134,12 +136,13 @@ export class TabbedModelPicker extends Disposable {
 		this._widget.hide();
 	}
 
-	show(anchor: HTMLElement, context: ITabbedModelPickerContext): void {
+	show(anchor: HTMLElement, context: ITabbedModelPickerContext, contextViewLayer?: number): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 		}
 		this._anchor = anchor;
 		this._context = context;
+		this._contextViewLayer = contextViewLayer;
 		if (context.selectedModelId && !this._selectedFooterModel(context)) {
 			this._lastExplicitModelId = context.selectedModelId;
 		}
@@ -172,6 +175,7 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
+			contextViewLayer: this._contextViewLayer,
 			showCheckedItemHover: !this._selectedFooterModel(context),
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
@@ -192,36 +196,40 @@ export class TabbedModelPicker extends Disposable {
 				const items = searching
 					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
 					: this._buildItems(destination, sections, current);
+				const baseListOptions = withChatInputPickerMotion({
+					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
+					persistentHover: true,
+					showFilter: searching,
+					filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
+					focusFilterOnOpen: searching,
+					initialFilterValue,
+					filterAsCombobox: true,
+					onType: text => {
+						this._searchVisible = true;
+						this._showCurrent(text);
+					},
+					headerText: current.cacheBreakHint?.text,
+					headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
+					headerLink: current.cacheBreakHint?.link,
+					headerDismiss: current.cacheBreakHint?.dismiss,
+					// A tab with nothing promoted would open on an empty list, so leave it expanded.
+					collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+					onDidToggleSection: (section, collapsed) => {
+						if (section === OTHER_MODELS_SECTION) {
+							current.onDidToggleOtherModels(collapsed);
+						}
+					},
+					linkHandler: uri => current.onUnavailableLinkClick(uri),
+					maxWidth: PICKER_WIDTH,
+					hideDefaultKeybindingTooltip: true,
+					reserveSubmenuSpace: false,
+				});
+				const listOptions = anchor.closest('.monaco-dialog-box')
+					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
+					: baseListOptions;
 				return {
 					items,
-					listOptions: withChatInputPickerMotion({
-						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
-						persistentHover: true,
-						showFilter: searching,
-						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-						focusFilterOnOpen: searching,
-						initialFilterValue,
-						filterAsCombobox: true,
-						onType: text => {
-							this._searchVisible = true;
-							this._showCurrent(text);
-						},
-						headerText: current.cacheBreakHint?.text,
-						headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
-						headerLink: current.cacheBreakHint?.link,
-						headerDismiss: current.cacheBreakHint?.dismiss,
-						// A tab with nothing promoted would open on an empty list, so leave it expanded.
-						collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
-						onDidToggleSection: (section, collapsed) => {
-							if (section === OTHER_MODELS_SECTION) {
-								current.onDidToggleOtherModels(collapsed);
-							}
-						},
-						linkHandler: uri => current.onUnavailableLinkClick(uri),
-						maxWidth: PICKER_WIDTH,
-						hideDefaultKeybindingTooltip: true,
-						reserveSubmenuSpace: false,
-					}),
+					listOptions,
 				};
 			},
 			renderEmpty: (container, activeTab) => {

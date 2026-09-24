@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -996,6 +996,45 @@ suite('AgentHostStateManager', () => {
 			changesets,
 			envelopes: [{ channel: sessionChatUri, type: ActionType.ChatChangesetsChanged }],
 		});
+	});
+
+	test('tracks completed empty changesets across errors without treating placeholders as cached', () => {
+		manager.createSession(makeSessionSummary());
+		const changeset = manager.registerChangeset(buildSessionChangesetUri(sessionUri));
+		const completed: boolean[] = [manager.hasCompletedChangesetResult(changeset)];
+		manager.dispatchServerAction(changeset, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message: 'Initial compute failed' },
+		});
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.dispatchServerAction(changeset, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Computing });
+		manager.dispatchServerAction(changeset, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.dispatchServerAction(changeset, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message: 'Refresh failed' },
+		});
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.disposeChangeset(changeset);
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+		manager.registerChangeset(changeset);
+		completed.push(manager.hasCompletedChangesetResult(changeset));
+
+		assert.deepStrictEqual(completed, [false, false, true, true, false, false]);
+	});
+
+	test('evicting a completed changeset also evicts its completion marker', () => {
+		const limited = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 1 } }));
+		const first = limited.registerChangeset(buildSessionChangesetUri(sessionUri));
+		limited.dispatchServerAction(first, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		limited.registerChangeset(buildChangesetUri(sessionUri, 'second'));
+
+		assert.deepStrictEqual({
+			first: limited.getChangesetState(first),
+			completed: limited.hasCompletedChangesetResult(first),
+		}, { first: undefined, completed: false });
 	});
 
 	test('producer-emitted ChangesetCleared keeps the state alive (recompute path)', () => {
