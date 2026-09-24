@@ -64,7 +64,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			await service.query({ query: 'review' }, CancellationToken.None),
 		];
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
-		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: ['agentFinder'] }, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
 			whileDisabled,

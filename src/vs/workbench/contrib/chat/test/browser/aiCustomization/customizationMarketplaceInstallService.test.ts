@@ -54,12 +54,13 @@ const sourceDirectory = joinPath(repository, 'skills', 'demo-skill');
 const destinationDirectory = URI.file('/workspace/.github/skills');
 const skillDestination = joinPath(destinationDirectory, 'demo-skill');
 const skillContent = '# Demo skill\n';
+const mcpGalleryTestSetting = 'test.marketplace.gallerySource.enabled';
 const sources = [
 	{ id: 'testSource', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
 	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
 	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
-	CustomizationMarketplaceSources.McpGallery,
-	CustomizationMarketplaceSources.McpGalleryDefault,
+	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
+	{ ...CustomizationMarketplaceSources.McpGalleryDefault, enablementSetting: mcpGalleryTestSetting },
 ];
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {

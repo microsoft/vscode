@@ -16,20 +16,19 @@ import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomi
 export const enum CustomizationMarketplaceConfiguration {
 	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
-	McpGalleryEnabled = 'chat.customizations.marketplace.sources.mcpGallery.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
 	McpGallery: {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
-		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
 		configurationDependencies: [mcpGalleryServiceUrlConfig],
 	},
 	McpGalleryDefault: {
 		id: 'mcpGalleryDefault',
 		displayName: localize('customizationMarketplace.defaultMcpGallery', "Default MCP Gallery"),
-		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
 		exclusionSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 		configurationDependencies: [mcpGalleryServiceUrlConfig],
 	},

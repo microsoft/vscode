@@ -840,9 +840,7 @@ interface IRenderEditorOptions {
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly marketplaceVisibilityEnabled?: boolean;
-	readonly mcpGalleryEnabled?: boolean;
-	readonly otherSourceEnabled?: boolean;
-	readonly togglePublicFeed?: boolean;
+	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'error';
 	readonly discoveryQuery?: string;
@@ -886,7 +884,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false && (agentFinderPublicFeedEnabled || options.mcpGalleryEnabled === true || options.otherSourceEnabled === true);
+	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -978,15 +976,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
-				[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: options.mcpGalleryEnabled ?? false,
-				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: options.marketplaceVisibilityEnabled ?? true,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
-			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true
-				|| configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.McpGalleryEnabled) === true
-				|| configurationService.getValue<boolean>('test.marketplace.other.enabled') === true;
+			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
@@ -996,8 +990,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
 					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled },
-					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: 'test.marketplace.other.enabled' },
-					{ id: 'mcpGallery', displayName: 'MCP Gallery', enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled },
+					{ id: 'mcpGallery', displayName: 'MCP Gallery', enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled },
 				];
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
@@ -1497,7 +1490,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 	editor.setVisible(true);
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
-	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false && options.mcpGalleryEnabled) {
+	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		await Promise.resolve();
 		assert(ctx.container.querySelector('.mcp-list-widget')?.textContent?.includes('Available') === true, 'Legacy MCP Available must remain when Marketplace visibility is off.');
 	}
@@ -1541,10 +1534,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		);
 	}
 
-	if (options.togglePublicFeed) {
+	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
-		const setting = CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled;
-		await configuration.setUserConfiguration(setting, !agentFinderPublicFeedEnabled);
+		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+		await configuration.setUserConfiguration(setting, options.marketplaceVisibilityEnabled === false);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === setting; }
 		}());
@@ -2522,13 +2515,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	LegacyMcpAvailableWithoutMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['With marketplace visibility off, MCP management keeps its Available tab even while its MCP Discover feed setting remains enabled.'],
+		expectedVisualDescriptions: ['With Marketplace visibility off, MCP management keeps the existing gallery in its Available tab.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			agentFinderPublicFeedEnabled: false,
 			marketplaceVisibilityEnabled: false,
-			mcpGalleryEnabled: true,
 		}),
 	}),
 
@@ -2928,12 +2920,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	OverviewWithoutMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when no marketplace feed is enabled.'],
+		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when Marketplace visibility is off.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
 			marketplaceVisibilityEnabled: false,
-			mcpGalleryEnabled: true,
 		}),
 	}),
 
@@ -2942,7 +2933,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
-			mcpGalleryEnabled: true,
 			customizationMarketplaceState: 'empty',
 		}),
 	}),
@@ -2956,22 +2946,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	DiscoverWithOtherSourceOnly: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			agentFinderPublicFeedEnabled: false,
-			otherSourceEnabled: true,
-			customizationMarketplaceState: 'empty',
-		}),
-	}),
-
 	EnableDiscoverFromOverview: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
-			togglePublicFeed: true,
+			marketplaceVisibilityEnabled: false,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 
@@ -2979,7 +2960,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			togglePublicFeed: true,
+			toggleMarketplaceVisibility: true,
 		}),
 	}),
 

@@ -24,7 +24,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.marketplace.enabled` (experimental and disabled by default) to show Discover. The independent `chat.customizations.marketplace.sources.mcpGallery.enabled` and `chat.customizations.marketplace.sources.publicFeed.enabled` both default on. Disable the public feed to include the default MCP gallery in Discover; with it on, the default MCP gallery is excluded to avoid duplicate content. A configured custom MCP gallery appears in either case. With Marketplace visibility off, the original Overview and legacy MCP Available section remain available.
+- Enable `chat.customizations.marketplace.enabled` (experimental and disabled by default) to show Discover. The existing MCP Gallery feed participates automatically; `chat.customizations.marketplace.sources.publicFeed.enabled` independently controls the GitHub Feed. Disable the public feed to include the default MCP gallery in Discover; with it on, the default MCP gallery is excluded to avoid duplicate content. A configured custom MCP gallery appears in either case. With Marketplace visibility off, the original Overview and legacy MCP Available section remain available.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results

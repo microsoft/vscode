@@ -28,7 +28,6 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -145,7 +144,6 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: false,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false,
-			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -194,12 +192,10 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const customAndDefault = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		const customAndPublic = await ids();
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		await configuration.setUserConfiguration(mcpGalleryServiceUrlConfig, '');
-		const defaultOnly = await ids();
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.McpGalleryEnabled, false);
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		const publicOnly = await ids();
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		const defaultOnly = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		const invisibleAfter = getVisibleCustomizationMarketplaceSources(configuration, service.sources).map(source => source.id);
 		assert.deepStrictEqual({ invisibleBefore, customAndDefault, customAndPublic, defaultOnly, publicOnly, invisibleAfter, galleryUrls, publicCalls }, {
@@ -217,7 +213,6 @@ suite('NativeCustomizationMarketplaceService', () => {
 	test('isolates gallery failures and never opens a public IPC channel for MCP-only discovery', async () => {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);

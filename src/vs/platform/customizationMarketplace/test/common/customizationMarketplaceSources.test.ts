@@ -68,11 +68,11 @@ suite('CustomizationMarketplaceSources', () => {
 	test('changing source query configuration cancels an in-flight request without disabling the source', async () => {
 		const source = {
 			id: 'mcpGallery',
-			enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
 			configurationDependencies: [mcpGalleryServiceUrlConfig],
 		};
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://old.registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -95,12 +95,12 @@ suite('CustomizationMarketplaceSources', () => {
 		const selected = { id: 'public', enablementSetting: 'test.public.enabled' };
 		const unrelated = {
 			id: 'mcpGallery',
-			enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
 			configurationDependencies: [mcpGalleryServiceUrlConfig],
 		};
 		const configuration = new TestConfigurationService({
 			'test.public.enabled': true,
-			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
@@ -143,7 +143,7 @@ suite('CustomizationMarketplaceSources', () => {
 		})));
 	});
 
-	test('MCP sources retain custom gallery and exclude default when public feed is enabled', () => {
+	test('MCP sources follow Marketplace visibility and exclude default when public feed is enabled', () => {
 		const cases = [
 			{ marketplace: false, publicFeed: false, visible: [] },
 			{ marketplace: true, publicFeed: false, visible: ['mcpGallery', 'mcpGalleryDefault'] },
@@ -152,7 +152,6 @@ suite('CustomizationMarketplaceSources', () => {
 		assert.deepStrictEqual(cases.map(({ marketplace, publicFeed }) => {
 			const configuration = new TestConfigurationService({
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
-				[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
 			});
 			return getVisibleCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)).map(source => source.id);

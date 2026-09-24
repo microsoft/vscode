@@ -1515,7 +1515,7 @@ export class McpListWidget extends Disposable {
 		}
 		void this.refresh();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) || e.affectsConfiguration(CustomizationMarketplaceConfiguration.McpGalleryEnabled)) {
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 				this.galleryCts?.dispose(true);
 				this.galleryCts = undefined;
 				this.delayedGallerySearch.cancel();
@@ -1771,8 +1771,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private isGalleryDiscoveryEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
-			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.McpGalleryEnabled) === true;
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 	}
 
 	setVisible(visible: boolean): void {

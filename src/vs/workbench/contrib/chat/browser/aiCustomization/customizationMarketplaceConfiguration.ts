@@ -20,11 +20,4 @@ export const customizationMarketplaceConfigurationProperties = {
 		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins when Marketplace is shown. If Marketplace or this setting is disabled, the GitHub Feed is not queried."),
 		default: true,
 	},
-	[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: {
-		type: 'boolean',
-		tags: ['experimental'],
-		description: localize('chat.customizations.marketplace.sources.mcpGallery.enabled', "When the customization marketplace is enabled, moves MCP server discovery from the MCP management page to Discover. Discover shows a configured custom MCP gallery and, when the public GitHub Feed is off, the default MCP gallery. The legacy MCP gallery remains available in the MCP management page when the marketplace is disabled."),
-		default: true,
-		experiment: { mode: 'auto' },
-	},
 } satisfies Record<string, IConfigurationPropertySchema>;
