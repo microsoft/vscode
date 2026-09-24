@@ -19,7 +19,7 @@ import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirm
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
@@ -335,9 +335,8 @@ export async function mapSessionEvents(
 		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
 		return mapped ?? deprecatedParentToolCallId;
 	};
-	// Names are collected up front because a `read_agent` execution can be persisted before the
-	// `subagent.started` event that names its target, and the main pass labels tools as it visits them.
-	const agentDisplayNamesById = new Map<string, string>();
+	// Coordination calls can be persisted before the events that identify their recipients.
+	const agentDisplayNamesById = getCopilotSubagentDisplayNames(events);
 	const toolTitlesByCallId = new Map<string, string>();
 	const resolveAgentName: ToolAgentNameResolver = agentId => agentDisplayNamesById.get(agentId);
 	// Durable phase outcomes identify the phase tiles that own the committed phase conversation.
@@ -352,9 +351,7 @@ export async function mapSessionEvents(
 		}
 	}
 	for (const event of events) {
-		if (event.type === 'subagent.started' && event.agentId) {
-			agentDisplayNamesById.set(event.agentId, event.data.agentDisplayName);
-		} else if (event.type === 'assistant.message') {
+		if (event.type === 'assistant.message') {
 			for (const request of event.data.toolRequests ?? []) {
 				if (request.toolTitle) {
 					toolTitlesByCallId.set(request.toolCallId, request.toolTitle);

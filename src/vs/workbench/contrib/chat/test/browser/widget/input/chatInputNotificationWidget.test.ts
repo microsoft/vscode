@@ -546,6 +546,25 @@ suite('ChatInputNotificationWidget', () => {
 		};
 	}
 
+	test('only marks a banner shown when its host becomes visible', () => {
+		const hostVisible = observableValue('hostVisible', false);
+		const telemetryService = new RecordingTelemetryService();
+		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		let shown = 0;
+		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		const contents = widget.domNode.firstChild;
+		const whileHidden = shown;
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		assert.deepStrictEqual({
+			whileHidden,
+			shown,
+			sameContents: widget.domNode.firstChild === contents,
+			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
+		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+	});
+
 	function clickAction(widget: ChatInputNotificationWidget): void {
 		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
 		assert.ok(button);
