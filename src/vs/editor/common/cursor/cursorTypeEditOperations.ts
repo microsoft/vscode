@@ -345,6 +345,10 @@ export class AutoClosingOpenCharTypeOperation {
 						candidateIsMatch = false;
 						break;
 					}
+					if (candidate.beforeText && !candidate.shouldAutoCloseBefore(model.getLineContent(position.lineNumber).substring(0, position.column - 1) + ch)) {
+						candidateIsMatch = false;
+						break;
+					}
 				}
 				if (candidateIsMatch) {
 					result = candidate;

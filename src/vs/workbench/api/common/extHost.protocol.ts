@@ -424,6 +424,7 @@ export interface ILanguageConfigurationDto {
 		open: string;
 		close: string;
 		notIn?: string[];
+		beforeText?: IRegExpDto;
 	}[];
 }
 

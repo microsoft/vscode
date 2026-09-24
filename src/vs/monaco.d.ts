@@ -7161,6 +7161,11 @@ declare namespace monaco.languages {
 
 	export interface IAutoClosingPairConditional extends IAutoClosingPair {
 		notIn?: string[];
+		/**
+		 * The regular expression that the text on the current line before the cursor, including
+		 * the just-typed opening string, must match for the closing string to be automatically inserted.
+		 */
+		beforeText?: RegExp;
 	}
 
 	/**

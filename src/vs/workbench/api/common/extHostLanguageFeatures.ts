@@ -3000,6 +3000,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 			open: autoClosingPair.open,
 			close: autoClosingPair.close,
 			notIn: autoClosingPair.notIn ? autoClosingPair.notIn.map(v => SyntaxTokenType.toString(v)) : undefined,
+			beforeText: autoClosingPair.beforeText ? ExtHostLanguageFeatures._serializeRegExp(autoClosingPair.beforeText) : undefined,
 		};
 	}
 
