@@ -12,7 +12,6 @@ import * as task from './lib/gulp/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
-import { createLinuxDesktopEntries } from './lib/linuxDesktopEntries.ts';
 import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
 import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-lists.ts';
 import * as path from 'path';
@@ -35,6 +34,32 @@ function getDebPackageArch(arch: string): string {
 	}
 }
 
+function createLinuxDesktopEntries(applicationsPath: string): NodeJS.ReadWriteStream {
+	const entries = [
+		{ template: 'code.desktop', name: linuxDesktopName, noDisplay: false },
+		{ template: 'code-url-handler.desktop', name: `${linuxDesktopName}.UrlHandler`, noDisplay: false },
+		// Keep saved favorites and MIME associations working without adding duplicate menu entries.
+		{ template: 'code.desktop', name: product.applicationName, noDisplay: true },
+		{ template: 'code-url-handler.desktop', name: `${product.applicationName}-url-handler`, noDisplay: false }
+	];
+
+	return es.merge(...entries.map(entry => {
+		let stream = gulp.src(`resources/linux/${entry.template}`, { base: '.' })
+			.pipe(rename(`${applicationsPath}/${entry.name}.desktop`));
+		if (entry.noDisplay) {
+			stream = stream.pipe(replace('[Desktop Entry]', '[Desktop Entry]\nNoDisplay=true'));
+		}
+		return stream;
+	}))
+		.pipe(replace('@@NAME_LONG@@', product.nameLong))
+		.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+		.pipe(replace('@@DESKTOP_NAME@@', linuxDesktopName))
+		.pipe(replace('@@NAME@@', product.applicationName))
+		.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
+		.pipe(replace('@@ICON@@', product.linuxIconName))
+		.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
+}
+
 function prepareDebPackage(arch: string) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const debArch = getDebPackageArch(arch);
@@ -43,7 +68,7 @@ function prepareDebPackage(arch: string) {
 	return async function () {
 		const dependencies = await getDependencies('deb', binaryDir, product.applicationName, debArch);
 
-		const desktops = createLinuxDesktopEntries('usr/share/applications', product);
+		const desktops = createLinuxDesktopEntries('usr/share/applications');
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -141,7 +166,7 @@ function prepareRpmPackage(arch: string) {
 	return async function () {
 		const dependencies = await getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
 
-		const desktops = createLinuxDesktopEntries('BUILD/usr/share/applications', product);
+		const desktops = createLinuxDesktopEntries('BUILD/usr/share/applications');
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
