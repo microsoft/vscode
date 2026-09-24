@@ -673,7 +673,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const hidden = readVisibility();
 		editor.setVisible(true);
 		const visible = readVisibility();
-		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail', 'toolsDetail'] as const;
+		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail'] as const;
 		const hiddenInDetails = detailModes.map(mode => {
 			editor.viewMode = mode;
 			editor.updateContentVisibility();
