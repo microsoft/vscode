@@ -142,6 +142,10 @@ class TestPullRequestResources implements IPullRequestResources {
 		}
 	}
 
+	setSnapshotAt(index: number, value: PullRequestSnapshot): void {
+		this._snapshots[index]?.set(value, undefined);
+	}
+
 	setNextSubscriptionSnapshot(value: PullRequestSnapshot): void {
 		this._nextSubscriptionSnapshot = value;
 	}
@@ -302,6 +306,41 @@ suite('AgentHostPullRequestStatusService', () => {
 			otherFolderByChat: otherPullRequestUrl,
 			otherFolderByOwner: otherPullRequestUrl,
 			publishedStateKeys: [session, peer],
+		});
+	});
+
+	test('refreshes a reused folder watch descriptor when the representative chat changes', async () => {
+		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		const firstPeer = buildChatUri(session, 'first-peer');
+		const secondPeer = buildChatUri(session, 'second-peer');
+		stateManager.addChat(session, firstPeer, { workingDirectories: [otherFolder] });
+		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
+			pullRequestUrls: [otherPullRequestUrl],
+			pullRequestBranchName: 'tools-feature',
+		}));
+		chatGitStates.set(firstPeer, { branchName: 'tools-feature' });
+
+		subscriptions.addSubscription(session, session);
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+		publishedStateKeys.length = 0;
+
+		stateManager.addChat(session, secondPeer, { workingDirectories: [otherFolder] });
+		chatGitStates.set(secondPeer, { branchName: 'tools-feature' });
+		stateManager.removeChat(session, firstPeer);
+		await pump();
+		const toolsSubscription = resources.subscribed.findIndex(ref => ref.owner === 'octo' && ref.repo === 'tools');
+		resources.setSnapshotAt(toolsSubscription, snapshot({ ...account, owner: 'octo', repo: 'tools', number: 9 }, { draft: true }));
+
+		assert.deepStrictEqual({
+			status: service.getPullRequestStatus(secondPeer)?.url,
+			publishedStateKeys,
+		}, {
+			status: otherPullRequestUrl,
+			publishedStateKeys: [secondPeer],
 		});
 	});
 

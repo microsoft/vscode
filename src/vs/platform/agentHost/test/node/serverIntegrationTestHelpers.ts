@@ -788,23 +788,33 @@ export async function stopServer(
 		throw snapshotError;
 	}
 
-	await Promises.settled(descendants.map(async descendant => {
+	const killResults = await Promises.settled(descendants.map(async descendant => {
 		if (!await processOperations.isSameProcessRunning(descendant)) {
-			return;
+			return undefined;
 		}
 		try {
 			processOperations.killProcess(descendant.pid);
 		} catch (error) {
+			return { descendant, succeeded: false as const, error };
+		}
+		return { descendant, succeeded: true as const };
+	}));
+	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
+	await Promises.settled(killResults.map(async result => {
+		if (!result) {
+			return;
+		}
+		if (!result.succeeded) {
 			await retry(async () => {
-				if (await processOperations.isSameProcessRunning(descendant)) {
-					throw error;
+				if (await processOperations.isSameProcessRunning(result.descendant)) {
+					throw result.error;
 				}
 			}, 50, 5);
 			return;
 		}
 		await retry(async () => {
-			if (await processOperations.isSameProcessRunning(descendant)) {
-				throw new Error(`Agent Host test server descendant ${descendant.pid} did not exit after termination`);
+			if (await processOperations.isSameProcessRunning(result.descendant)) {
+				throw new Error(`Agent Host test server descendant ${result.descendant.pid} did not exit after termination`);
 			}
 		}, 50, 100);
 	}));

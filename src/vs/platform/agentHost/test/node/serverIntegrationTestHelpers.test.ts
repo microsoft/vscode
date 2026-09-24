@@ -190,6 +190,63 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
+	test('rechecks failed descendant kills after all concurrent kills finish', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdin.resume();
+			process.stdout.write('ready');
+			process.stdin.once('end', () => process.exit(0));
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		const descendants = [
+			{ pid: 123, name: 'node.exe', commandLine: 'node child.js' },
+			{ pid: 124, name: 'node.exe', commandLine: 'node grandchild.js' },
+		];
+		const calls: string[] = [];
+		let concurrentKillFinished = false;
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => descendants, 5_000, {
+				killTree: async pid => {
+					throw new Error(`Unexpected server tree kill: ${pid}`);
+				},
+				killProcess: pid => {
+					calls.push(`kill:${pid}`);
+					if (pid === 123) {
+						throw new Error('process kill failed');
+					}
+					concurrentKillFinished = true;
+					calls.push(`killed:${pid}`);
+				},
+				isSameProcessRunning: async process => {
+					calls.push(`isSameProcessRunning:${process.pid}`);
+					return !concurrentKillFinished;
+				},
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			assert.deepStrictEqual({ error: error?.message, calls }, {
+				error: undefined,
+				calls: [
+					'isSameProcessRunning:123',
+					'isSameProcessRunning:124',
+					'kill:123',
+					'kill:124',
+					'killed:124',
+					'isSameProcessRunning:123',
+					'isSameProcessRunning:124',
+				],
+			});
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	});
+
 	test('ignores a failed server tree kill when the server exits during taskkill', async function () {
 		this.timeout(15_000);
 		const server = spawn(process.execPath, ['-e', `

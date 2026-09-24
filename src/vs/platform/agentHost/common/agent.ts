@@ -1193,6 +1193,11 @@ export interface IAgentPendingMessageSender {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
+/** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
+export interface IAgentTelemetryContext {
+	readonly copilotSku: string | undefined;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1215,6 +1220,9 @@ export interface IAgent {
 
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
+
+	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
+	getTelemetryContext?(): IAgentTelemetryContext;
 
 	// ---- Chat lifecycle and progress ----------------------------------------
 

@@ -3102,6 +3102,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
+			if (partToRender?.kind === 'progressMessage' && alreadyRenderedPart instanceof ChatProgressContentPart
+				&& alreadyRenderedPart.tryUpdateProgress(partToRender, contentForThisTurn.slice(contentIndex + 1), element)) {
+				renderedParts[contentIndex] = alreadyRenderedPart;
+				return;
+			}
 			const thinkingPartOwner = this.getThinkingPartOwner(alreadyRenderedPart);
 			const rebuildThinkingGroup = thinkingPartOwner && invalidatedThinkingParts.get(thinkingPartOwner);
 			if (rebuildThinkingGroup) {
@@ -3208,6 +3213,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
 				suppressProgressShimmer: this.isPersistentProgressEnabled() && this.rendererOptions.renderStyle !== 'minimal',
+				progressMessageAction: this.rendererOptions.progressMessageAction,
 				onWillCollapse: this.delegate.preserveScrollPosition,
 				container: templateData.rowContainer,
 				editorPool: this._editorPool,
