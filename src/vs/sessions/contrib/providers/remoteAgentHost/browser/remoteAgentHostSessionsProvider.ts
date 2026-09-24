@@ -195,7 +195,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private _connection: IAgentConnection | undefined;
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
-	private readonly _onDidChangeResourceLabelHomes = this._onDidChangeSessionsImmediately;
+	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;

@@ -64,7 +64,6 @@ import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { SessionTestAppButton } from './sessionTestAppButton.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 
@@ -404,9 +403,7 @@ export class ChatView extends AbstractChatView {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
 			}
-			if (e.affectsConfiguration('chat.tips.enabled')
-				|| e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+			if (e.affectsConfiguration('chat.tips.enabled')) {
 				this._widget.updateGettingStartedTip();
 			}
 		}));

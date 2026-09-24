@@ -524,6 +524,7 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 				this.sourceContainer = template.container;
 			}
 			template.container.append(this.header);
+			DOM.show(this.header);
 			if (this.elementToRefocusAfterRerender) {
 				const activeElement = DOM.getActiveElement();
 				if (activeElement === this.elementToRefocusAfterRerender || activeElement === this.header.ownerDocument.body) {
@@ -549,6 +550,11 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const target = template.isSticky && this.sourceContainer?.isConnected ? this.sourceContainer : this.headerContainer;
 		const restoredToSource = target !== this.headerContainer;
 		target.append(this.header);
+		if (restoredToSource) {
+			DOM.show(this.header);
+		} else {
+			DOM.hide(this.header);
+		}
 		this.elementToRefocusAfterRerender?.focus({ preventScroll: true });
 		if (restoredToSource) {
 			this.elementToRefocusAfterRerender = undefined;
@@ -3239,6 +3245,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
+	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -3480,10 +3487,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useCompactQuickChatRows */,
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
-			() => {
-				const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
-				return headerHeight ? headerHeight + SESSIONS_HEADER_VERTICAL_SPACING : 0;
-			},
+			() => this.getSessionsHeaderHeight(),
 		);
 		this._delegate = delegate;
 		const sessionsHeaderRenderer = this.options.sessionsHeader
@@ -4294,12 +4298,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: SESSIONS_HEADER_SECTION,
 					collapsible: false,
 					collapsed: false,
-					children,
 				},
+				...children,
 			]);
 		} else {
 			if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
 				this.options.sessionsHeaderContainer.append(this.options.sessionsHeader);
+				DOM.show(this.options.sessionsHeader);
 				this.options.layoutSessionsHeader?.();
 			}
 			this.tree.setChildren(null, [...navigationChildren, ...children]);
@@ -4511,6 +4516,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.layout(height, width);
 	}
 
+	private getSessionsHeaderHeight(): number {
+		const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
+		if (headerHeight > 0) {
+			this.sessionsHeaderHeight = headerHeight + SESSIONS_HEADER_VERTICAL_SPACING;
+		}
+		return this.sessionsHeaderHeight;
+	}
+
 	setCompact(): void {
 		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
@@ -4570,6 +4583,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	openFind(): void {
+		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
+			this.tree.reveal(SESSIONS_HEADER_SECTION);
+			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
+		}
 		this.tree.openFind();
 	}
 
