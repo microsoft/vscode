@@ -14,7 +14,8 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { readAgentMergeSessionState } from '../common/agentMerge.js';
+import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
@@ -177,8 +178,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
 		this._refreshSummarySource(session, previous);
-		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
-		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
+		const sessionFolder = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		const sessionFolderKey = sessionFolder ? getWorkingDirectoryKey(sessionFolder) : undefined;
+		const wasEnabled = isAnyAgentMergeEnabled(previous?.values, sessionFolderKey);
+		const isEnabled = isAnyAgentMergeEnabled(current?.values, sessionFolderKey);
 		if (wasEnabled !== isEnabled) {
 			this._refreshChangesetCatalogs(session);
 		}
@@ -259,7 +262,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				return;
 			}
 			this._addSubscription(parsed.ownerUri, resourceStr);
-			this._changesets.refreshSessionChangeset(parsed.ownerUri);
+			this._changesets.refreshSessionChangeset(parsed.ownerUri, 'fileEditTracker');
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
 			return;
 		}
@@ -267,7 +270,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			if (this._stateManager.getSessionState(parsed.sessionUri)) {
-				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId);
+				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 			}
 			return;
 		}
@@ -287,7 +290,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (kind === ChangesetKind.Branch) {
 			this._reconcileBranchSummaryResources(session);
 		} else {
-			this._changesets.refreshSessionChangeset(session);
+			this._changesets.refreshSessionChangeset(session, 'fileEditTracker');
 			this._changesetFileMonitor.trackSessionChanges(session, session);
 		}
 	}
@@ -456,7 +459,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 					this._trackBranchChangeset(resourceStr, parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this._changesets.refreshSessionChangeset(parsed.ownerUri);
+					this._changesets.refreshSessionChangeset(parsed.ownerUri, 'fileEditTracker');
 					break;
 				case ChangesetKind.Uncommitted:
 					void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
@@ -464,7 +467,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 					break;
 				case ChangesetKind.Turn:
 					if (parsed.turnId !== undefined) {
-						void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId);
+						void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 					}
 					break;
 			}
@@ -498,7 +501,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			if (!this._stateManager.getChangesetState(resourceStr)) {
-				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId);
+				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 			}
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
@@ -626,7 +629,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				if (getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
 					this._reconcileBranchSummaryResources(session);
 				} else {
-					this._changesets.refreshSessionChangeset(session);
+					this._changesets.refreshSessionChangeset(session, 'fileEditTracker');
 				}
 			}
 			return;

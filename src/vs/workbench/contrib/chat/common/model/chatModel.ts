@@ -13,12 +13,13 @@ import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString, isMar
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
-import { URI, UriDto } from '../../../../../base/common/uri.js';
+import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -811,6 +812,13 @@ class AbstractResponse implements IResponse {
 					: resultDetails.input;
 				text += `\n${resultPrefix} with input: ${resultInput}`;
 			}
+		}
+
+		const error = IChatToolInvocation.resultError(toolInvocation);
+		if (error) {
+			text += '\n' + (typeof error === 'string'
+				? localize('toolExecutionFailedWithMessage', "Tool execution failed: {0}", error)
+				: localize('toolExecutionFailed', "Tool execution failed"));
 		}
 
 		return { text, isBlock: true };
@@ -2421,7 +2429,16 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 }
 
 export function parseChatImport(content: string): IExportableChatData {
-	const data: unknown = revive(JSON.parse(content));
+	const data: unknown = revive(JSON.parse(content, (_key: string, value: unknown) => {
+		if (value && typeof value === 'object' && '$mid' in value && value.$mid === MarshalledId.Uri) {
+			if (!isUriComponents(value)) {
+				throw new Error('Invalid chat session data');
+			}
+			// URI.revive trusts serialized external and fsPath caches.
+			return URI.from(value, true).toJSON();
+		}
+		return value;
+	}));
 	if (!isExportableSessionData(data)) {
 		throw new Error('Invalid chat session data');
 	}

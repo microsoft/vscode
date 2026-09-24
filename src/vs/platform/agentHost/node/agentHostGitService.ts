@@ -56,8 +56,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
-	async getCurrentBranchName(workingDirectory: URI): Promise<string | undefined> {
-		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim() || undefined;
+	async getCurrentBranchName(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined> {
+		return (await this._runGit(workingDirectory, ['branch', '--show-current'], options))?.trim() || undefined;
 	}
 
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {

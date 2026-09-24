@@ -11,10 +11,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -335,6 +335,22 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	};
 }
 
+function agentMergeFolderPatch(session: URI, state: { readonly enabled: boolean; readonly overrides?: AgentMergeSessionOverrides }, workingDirectory = URI.file('/repo').toString(), chat = buildDefaultChatUri(session.toString())): Record<string, unknown> {
+	return {
+		[SessionConfigKey.AgentMergeFolders]: {
+			[getWorkingDirectoryKey(workingDirectory)]: {
+				...state,
+				...(state.enabled ? { chat } : {}),
+			},
+		},
+		[SessionConfigKey.AgentMergeControllerFolders]: {},
+		...(workingDirectory === URI.file('/repo').toString() ? {
+			[SessionConfigKey.AgentMerge]: undefined,
+			[SessionConfigKey.AgentMergeController]: undefined,
+		} : {}),
+	};
+}
+
 suite('AgentHostPullRequestOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -424,19 +440,19 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		assert.deepStrictEqual(gitService.workingDirectories, [workingDirectory]);
 	});
 
-	test('prepares and creates a pull request from another folder without touching session Agent Merge', async () => {
+	test('prepares and creates a pull request from another folder and enables that folder Agent Merge', async () => {
 		const gitService = new TestGitService();
 		gitService.gitState = { branchName: 'feature/tools', githubOwner: 'contoso', githubRepo: 'tools' };
 		const octoKitService = new TestOctoKitService();
 		const { handler, session, stateManager, createdOwners, sessionConfigUpdates } = setup(disposables, gitService, octoKitService, { withCopilotToken: true, agentMergeAvailable: true, sessionAgentMergeEnabled: true });
 		const otherFolder = URI.file('/other').toString();
-		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), { workingDirectories: [otherFolder] });
+		const peerChat = buildChatUri(session.toString(), 'peer');
+		stateManager.addChat(session.toString(), peerChat, { workingDirectories: [otherFolder] });
 		const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([otherFolder]));
 		const channel = buildBranchChangesetUri(owner);
 
 		const prepared = readPullRequestDetailsResult(await handler.prepare({ channel, operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None));
-		await assert.rejects(() => handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, agentMerge: true }) }, CancellationToken.None), /Agent Merge is not available for chats working in other folders/);
-		await handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta(submittedOptions) }, CancellationToken.None);
+		await handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, agentMerge: true }) }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			repository: prepared.repository,
@@ -447,9 +463,9 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, {
 			repository: 'contoso/tools',
 			workingDirectory: otherFolder,
-			agentMergeAvailable: false,
+			agentMergeAvailable: true,
 			createdOwners: [owner],
-			sessionConfigUpdates: [],
+			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true }, otherFolder, peerChat)],
 		});
 	});
 
@@ -745,12 +761,16 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					},
 					mutations: ['createBranch', 'commitAll', 'push', 'createPullRequest', ...(autoMergeMethod ? ['enablePullRequestAutoMerge'] : [])]
 						.map(operation => ({ operation, agentMergeEnabled: false })),
-					sessionConfigUpdates: [{
-						[SessionConfigKey.AgentMerge]: { enabled: false, overrides },
-					}],
+					// Earlier versions kept the elevated configuration with the lifecycle state, so it moves to its own key.
+					sessionConfigUpdates: [{ ...agentMergeFolderPatch(session, { enabled: false, overrides }), [SessionConfigKey.AgentMergeInjectedConfiguration]: controllerState.injectedConfiguration }],
 					sessionConfigValues: {
-						[SessionConfigKey.AgentMerge]: { enabled: false, overrides },
-						[SessionConfigKey.AgentMergeController]: controllerState,
+						[SessionConfigKey.AgentMerge]: undefined,
+						[SessionConfigKey.AgentMergeController]: undefined,
+						[SessionConfigKey.AgentMergeFolders]: {
+							[getWorkingDirectoryKey(URI.file('/repo').toString())]: { enabled: false, overrides },
+						},
+						[SessionConfigKey.AgentMergeControllerFolders]: {},
+						[SessionConfigKey.AgentMergeInjectedConfiguration]: controllerState.injectedConfiguration,
 					},
 				});
 			});
@@ -789,8 +809,15 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, CancellationToken.None), /PR creation failed/);
 
 		assert.deepStrictEqual({ sessionConfigUpdates, sessionConfigValues }, {
-			sessionConfigUpdates: [{ [SessionConfigKey.AgentMerge]: { enabled: false } }],
-			sessionConfigValues: { [SessionConfigKey.AgentMerge]: { enabled: false } },
+			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: false })],
+			sessionConfigValues: {
+				[SessionConfigKey.AgentMerge]: undefined,
+				[SessionConfigKey.AgentMergeController]: undefined,
+				[SessionConfigKey.AgentMergeFolders]: {
+					[getWorkingDirectoryKey(URI.file('/repo').toString())]: { enabled: false },
+				},
+				[SessionConfigKey.AgentMergeControllerFolders]: {},
+			},
 		});
 	});
 
@@ -906,10 +933,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 
 		assert.deepStrictEqual({ message: result.message, sessionConfigUpdates }, {
 			message: { markdown: 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Agent Merge.' },
-			sessionConfigUpdates: [{
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides },
-				[SessionConfigKey.AgentMergeController]: {},
-			}],
+			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true, overrides })],
 		});
 	});
 
@@ -934,10 +958,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			}, CancellationToken.None);
 			assert.deepStrictEqual({ stateAtCreation, sessionConfigUpdates, state: readAgentMergeSessionState(sessionConfigValues) }, {
 				stateAtCreation: [false],
-				sessionConfigUpdates: [{
-					[SessionConfigKey.AgentMerge]: { enabled: true, overrides: agentMergeOptions },
-					[SessionConfigKey.AgentMergeController]: {},
-				}],
+				sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true, overrides: agentMergeOptions })],
 				state: { enabled: true, overrides: agentMergeOptions },
 			});
 		});
@@ -1077,13 +1098,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, {
 			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Agent Merge.' },
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
-			sessionConfigUpdates: [{
-				[SessionConfigKey.AgentMerge]: {
-					enabled: true,
-					overrides,
-				},
-				[SessionConfigKey.AgentMergeController]: {},
-			}],
+			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true, overrides })],
 		});
 	});
 
@@ -1107,12 +1122,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'findPullRequestByHeadBranch:feature/test',
 				'createPullRequest:true',
 			],
-			sessionConfigUpdates: [{
-				[SessionConfigKey.AgentMerge]: {
-					enabled: true,
-				},
-				[SessionConfigKey.AgentMergeController]: {},
-			}],
+			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true })],
 		});
 	});
 

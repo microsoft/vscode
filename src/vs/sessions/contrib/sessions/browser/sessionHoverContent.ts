@@ -8,14 +8,16 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
+import { dirname } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, ISessionSummaryHoverWorkspace, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
-import { readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
 export function getSessionDiffStats(session: ISession, reader?: IReader): { files: number; insertions: number; deletions: number } | undefined {
@@ -41,15 +43,64 @@ export function getSessionSummaryHoverData(
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 	includeUpdatedAt = false,
 ): ISessionSummaryHoverData {
+	const sessionWorkspace = session.workspace.get();
+	const isMultiFolder = (sessionWorkspace?.folders.length ?? 0) > 1;
+	const mainChat = isMultiFolder ? session.mainChat.get() : undefined;
+	const mainWorkspace = mainChat?.workspace.get() ?? sessionWorkspace;
 	return {
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
 		...(includeUpdatedAt ? { updatedAt: session.updatedAt.get() } : {}),
-		location: getLocation(session, labelService),
-		pullRequests: getPullRequests(session, openerService),
+		location: getLocation(
+			isMultiFolder ? mainWorkspace : sessionWorkspace,
+			session.worktreePending?.get() ?? false,
+			() => mainChat ? getChatBranchDiffStats(mainChat) : getSessionDiffStats(session),
+			labelService,
+		),
+		pullRequests: getPullRequests(isMultiFolder ? mainWorkspace : sessionWorkspace, openerService),
+		createdBy,
+		externalSession: getExternalSession(session, preferencesService),
+		providerLabel: getProviderLabel(session, sessionsProvidersService),
+		...(sessionWorkspace && isMultiFolder ? {
+			sessionSummary: {
+				workspaces: getWorkspaceSummaries(sessionWorkspace, session.worktreePending?.get() ?? false, labelService),
+				changes: getSessionDiffStats(session),
+				pullRequests: getSessionPullRequests(session, sessionWorkspace, openerService),
+			},
+		} : {}),
+	};
+}
+
+/** The shared session hover populated with the peer chat's own title, workspace, changes, and pull requests. */
+export function getChatSummaryHoverData(
+	session: ISession,
+	chat: IChat,
+	sessionsProvidersService: ISessionsProvidersService,
+	openerService: IOpenerService,
+	labelService: ILabelService,
+	preferencesService: IPreferencesService,
+	createdBy?: ISessionSummaryHoverData['createdBy'],
+	includeUpdatedAt = false,
+): ISessionSummaryHoverData {
+	return {
+		title: chat.title.get().trim() || localize('untitledChat', "Untitled Chat"),
+		...(includeUpdatedAt ? { updatedAt: chat.updatedAt.get() } : {}),
+		location: getLocation(
+			chat.workspace.get(),
+			false,
+			() => getChatBranchDiffStats(chat),
+			labelService,
+		),
+		pullRequests: getPullRequests(chat.workspace.get(), openerService),
 		createdBy,
 		externalSession: getExternalSession(session, preferencesService),
 		providerLabel: getProviderLabel(session, sessionsProvidersService),
 	};
+}
+
+/** Main-chat branch diff counts, omitting entries without line changes. */
+export function getChatBranchDiffStats(chat: IChat, reader?: IReader): ISessionSummaryHoverLocation['changes'] {
+	const changes = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
+	return changes && (changes.insertions > 0 || changes.deletions > 0) ? changes : undefined;
 }
 
 /** Owns live external status for each display of the hover, including cached reopens. */
@@ -77,16 +128,49 @@ export function createSessionSummaryHover(session: ISession, data: ISessionSumma
 	};
 }
 
-function getLocation(session: ISession, labelService: ILabelService): ISessionSummaryHoverLocation | undefined {
-	const workspace = session.workspace.get();
+function getLocation(
+	workspace: ISessionWorkspace | undefined,
+	worktreePending: boolean,
+	changes: () => ISessionSummaryHoverLocation['changes'],
+	labelService: ILabelService,
+): ISessionSummaryHoverLocation | undefined {
 	const folder = workspace?.folders[0];
 	if (!workspace || !folder) {
 		return undefined;
 	}
 
+	return getFolderLocation(workspace, folder, worktreePending, changes, labelService);
+}
+
+function getWorkspaceSummaries(
+	workspace: ISessionWorkspace,
+	worktreePending: boolean,
+	labelService: ILabelService,
+): readonly ISessionSummaryHoverWorkspace[] {
+	const isVirtual = getSessionWorkspaceKind(workspace, worktreePending) === SessionWorkspaceKind.Virtual;
+	const summaries = new Map<string, ISessionSummaryHoverWorkspace>();
+	for (const folder of workspace.folders) {
+		const key = folder.root.toString();
+		if (!summaries.has(key)) {
+			summaries.set(key, {
+				name: isVirtual && workspace.folders.length === 1 ? workspace.label : folder.name,
+				parentPath: isVirtual ? undefined : labelService.getUriLabel(dirname(folder.root)),
+				icon: workspace.typeIcon ?? (isVirtual ? Codicon.cloud : Codicon.folder),
+			});
+		}
+	}
+	return [...summaries.values()];
+}
+
+function getFolderLocation(
+	workspace: ISessionWorkspace,
+	folder: ISessionFolder,
+	worktreePending: boolean,
+	changes: () => ISessionSummaryHoverLocation['changes'],
+	labelService: ILabelService,
+): ISessionSummaryHoverLocation {
 	// A pending worktree still describes the checkout it was started from, so its
 	// path, branch and changes are withheld until the worktree exists.
-	const worktreePending = session.worktreePending?.get() ?? false;
 	const isVirtual = getSessionWorkspaceKind(workspace, worktreePending) === SessionWorkspaceKind.Virtual;
 	const worktreeUri = worktreePending ? undefined : folder.gitRepository?.workTreeUri;
 
@@ -95,12 +179,12 @@ function getLocation(session: ISession, labelService: ILabelService): ISessionSu
 	return {
 		// A virtual workspace has no path a user could act on, so it is named by
 		// its repository label instead.
-		workspace: isVirtual ? workspace.label : labelService.getUriLabel(folder.root),
+		workspace: isVirtual ? (workspace.folders.length === 1 ? workspace.label : folder.name) : labelService.getUriLabel(folder.root),
 		workspaceIcon: workspace.typeIcon ?? (isVirtual ? Codicon.cloud : Codicon.folder),
 		worktree: worktreeUri ? labelService.getUriLabel(worktreeUri) : undefined,
 		worktreePending,
 		branch: worktreePending ? undefined : folder.gitRepository?.branchName?.trim() || undefined,
-		changes: worktreePending ? undefined : getSessionDiffStats(session),
+		changes: worktreePending ? undefined : changes(),
 	};
 }
 
@@ -108,16 +192,33 @@ function getLocation(session: ISession, labelService: ILabelService): ISessionSu
  * Pull requests produced by or explicitly associated with the session.
  * Excludes inherited checkout PRs and mere references when provider provenance is available.
  */
-function getPullRequests(session: ISession, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
-	const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-	if (!gitHubInfo) {
-		return undefined;
+function getPullRequests(workspace: ISessionWorkspace | undefined, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
+	return getPullRequestsForWorkspaces(workspace ? [workspace] : [], openerService);
+}
+
+function getSessionPullRequests(session: ISession, sessionWorkspace: ISessionWorkspace, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
+	return getPullRequestsForWorkspaces([
+		sessionWorkspace,
+		...session.chats.get().map(chat => chat.workspace.get()),
+	], openerService);
+}
+
+function getPullRequestsForWorkspaces(workspaces: readonly (ISessionWorkspace | undefined)[], openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
+	const refsByUri = new Map<string, ReturnType<typeof getSessionOwnedGitHubPullRequestRefs>[number]>();
+	for (const workspace of workspaces) {
+		for (const folder of workspace?.folders ?? []) {
+			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+			if (!gitHubInfo) {
+				continue;
+			}
+			for (const ref of getSessionOwnedGitHubPullRequestRefs(gitHubInfo)) {
+				refsByUri.set(ref.uri.toString(), ref);
+			}
+		}
 	}
 
-	const refs = getSessionOwnedGitHubPullRequestRefs(gitHubInfo);
-
-	return refs.length
-		? refs.map(ref => ({
+	return refsByUri.size
+		? [...refsByUri.values()].map(ref => ({
 			title: ref.title ?? `#${ref.number}`,
 			icon: ref.icon,
 			uri: ref.uri,
