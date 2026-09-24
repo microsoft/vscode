@@ -20,9 +20,10 @@ import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatform
 import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment, resolveMcpServersForAgentHostDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { AgentHostMcpServerSupportScope, createCustomizationMcpServerCompatibilityScope, IAgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { IMcpConfigPath, IMcpServer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -134,6 +135,7 @@ suite('agentHostMcpServerSupport', () => {
 			const owner = new AgentHostMcpServerSupportScope(
 				'agent-host-copilotcli',
 				scopeRoots,
+				null,
 				() => releasedRoots.push(rootStrings),
 				mcpService,
 				mcpWorkbenchService,
@@ -246,6 +248,40 @@ suite('agentHostMcpServerSupport', () => {
 			{ name: 'github', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ProviderBuiltIn, compatibility: 'supported' },
 		]);
 	});
+
+	for (const windowRemoteAuthority of [null, 'ssh-remote+devbox']) {
+		for (const sessionType of ['agent-host-copilotcli', 'remote-ssh-remote+devbox-copilotcli', 'agent-host-claude']) {
+			test(`Copilot-home delivery for ${sessionType} in window ${windowRemoteAuthority}`, async () => {
+				const authorities = [null, 'ssh-remote+devbox', 'ssh-remote+other'];
+				const servers = authorities.map(remoteAuthority => makeMcpServer({
+					id: `copilot.${remoteAuthority}.server`,
+					collectionId: `copilot.${remoteAuthority}`,
+					provenance: McpCollectionProvenance.ExternalConfiguration,
+					discoverySource: ExternalDiscoverySource.Copilot,
+					remoteAuthority,
+					collectionOrigin: URI.file('/custom/copilot/mcp-config.json'),
+				}));
+
+				const result = await resolveMcpServersForAgentHostDelivery(servers, makeConfigurationResolverService(), sessionType, [], windowRemoteAuthority);
+
+				assert.deepStrictEqual(result.map(({ source, delivery, compatibility }) => ({
+					kind: source.kind,
+					group: source.group,
+					remoteAuthority: source.remoteAuthority,
+					delivery,
+					compatibility,
+				})), authorities.map(remoteAuthority => ({
+					kind: AgentHostMcpServerSourceKind.CopilotHome,
+					group: AICustomizationSources.user,
+					remoteAuthority,
+					delivery: sessionType === 'agent-host-copilotcli' && remoteAuthority === windowRemoteAuthority
+						? AgentHostMcpServerDelivery.RuntimeDiscovered
+						: AgentHostMcpServerDelivery.ClientForwarded,
+					compatibility: { kind: 'supported' },
+				})));
+			});
+		}
+	}
 
 	test('reports unsupported configuration without changing existing direct forwarding', async () => {
 		const root = URI.file('/workspace');
@@ -684,6 +720,7 @@ suite('agentHostMcpServerSupport', () => {
 		const owner = new AgentHostMcpServerSupportScope(
 			'agent-host-copilotcli',
 			[],
+			null,
 			() => { },
 			mcpService,
 			mcpWorkbenchService,
@@ -726,6 +763,7 @@ suite('agentHostMcpServerSupport', () => {
 		const owner = new AgentHostMcpServerSupportScope(
 			'agent-host-copilotcli',
 			[],
+			null,
 			() => { },
 			mcpService,
 			mcpWorkbenchService,
@@ -787,6 +825,7 @@ suite('agentHostMcpServerSupport', () => {
 		const owner = new AgentHostMcpServerSupportScope(
 			'agent-host-copilotcli',
 			[],
+			null,
 			() => { },
 			mcpService,
 			mcpWorkbenchService,
@@ -872,6 +911,7 @@ suite('agentHostMcpServerSupport', () => {
 		const owner = new AgentHostMcpServerSupportScope(
 			'agent-host-copilotcli',
 			[root],
+			null,
 			() => { },
 			mcpService,
 			mcpWorkbenchService,
@@ -935,6 +975,7 @@ suite('agentHostMcpServerSupport', () => {
 		const owner = new AgentHostMcpServerSupportScope(
 			'agent-host-copilotcli',
 			[],
+			null,
 			() => { },
 			mcpService,
 			mcpWorkbenchService,
@@ -957,6 +998,7 @@ suite('agentHostMcpServerSupport', () => {
 			const blockedOwner = new AgentHostMcpServerSupportScope(
 				'agent-host-copilotcli',
 				[],
+				null,
 				() => { },
 				mcpService,
 				{
@@ -1006,6 +1048,7 @@ suite('agentHostMcpServerSupport', () => {
 			'agent-host-copilotcli',
 			[],
 			LazyCollectionState.HasUnknown,
+			null,
 		);
 
 		assert.deepStrictEqual(result, { servers: [], discoveryComplete: false });
@@ -1018,6 +1061,7 @@ suite('agentHostMcpServerSupport', () => {
 			'agent-host-claude',
 			[],
 			LazyCollectionState.AllKnown,
+			null,
 		);
 
 		assert.strictEqual(result, undefined);
@@ -1029,6 +1073,7 @@ function makeMcpServer(options: {
 	readonly collectionId: string;
 	readonly provenance?: McpCollectionProvenance;
 	readonly discoverySource?: ExternalDiscoverySource;
+	readonly remoteAuthority?: string | null;
 	readonly configTarget?: ConfigurationTarget;
 	readonly collectionOrigin?: URI;
 	readonly collectionSource?: ExtensionIdentifier;
@@ -1044,6 +1089,7 @@ function makeMcpServer(options: {
 		collectionId,
 		provenance,
 		discoverySource,
+		remoteAuthority = null,
 		configTarget = ConfigurationTarget.USER,
 		collectionOrigin,
 		collectionSource,
@@ -1059,7 +1105,7 @@ function makeMcpServer(options: {
 		provenance,
 		discoverySource,
 		label: collectionId,
-		remoteAuthority: null,
+		remoteAuthority,
 		serverDefinitions: observableValue('serverDefinitions', []),
 		trustBehavior: McpServerTrust.Kind.Trusted,
 		scope: StorageScope.PROFILE,
@@ -1127,6 +1173,7 @@ async function assess(servers: readonly IMcpServer[], roots: readonly URI[] | un
 		'agent-host-copilotcli',
 		roots,
 		LazyCollectionState.AllKnown,
+		null,
 	);
 	assert.ok(result);
 	return result;

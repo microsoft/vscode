@@ -65,6 +65,8 @@ export interface IActionListItemHover {
 	 * time the panel opens, for content that is expensive to construct.
 	 */
 	readonly content?: string | IMarkdownString | HTMLElement | (() => HTMLElement);
+	/** Releases an HTMLElement created by {@link content} when a preservation probe does not use it. */
+	readonly disposeContent?: (content: HTMLElement) => void;
 	/** Actions rendered in the standard hover footer below the content. */
 	readonly actions?: readonly IHoverAction[];
 	/**
@@ -734,6 +736,8 @@ export interface IActionListOptions {
 	 * Use for submenus where toolbar actions mutate the list in place.
 	 */
 	readonly stopToolbarPointerPropagation?: boolean;
+	/** Includes the focused row's toolbar in keyboard navigation without requiring a hover panel. */
+	readonly tabThroughItemActions?: boolean;
 
 	/**
 	 * Optional label shown on the right side of the filter row.
@@ -974,6 +978,7 @@ export class ActionListWidget<T> extends Disposable {
 				});
 			}, (item, toolbar) => {
 				this._itemToolbars.set(item, toolbar);
+				this._updateToolbarFocusability();
 				return toDisposable(() => {
 					if (this._itemToolbars.get(item) === toolbar) {
 						this._itemToolbars.delete(item);
@@ -1081,7 +1086,10 @@ export class ActionListWidget<T> extends Disposable {
 			this._ignoreInitialHover = false;
 			this._setKeyboardNavigation(false);
 		}));
-		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
+		this._register(this._list.onDidChangeFocus(() => {
+			this._updateToolbarFocusability();
+			this.onFocus();
+		}));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		this._register(this._list.onDidScroll(() => {
 			if (!this._isMeasuringWidth) {
@@ -1119,6 +1127,9 @@ export class ActionListWidget<T> extends Disposable {
 					}
 				}));
 				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.MOUSE_DOWN, () => this._setKeyboardNavigation(false)));
+				if (this._options.tabThroughItemActions) {
+					this._register(dom.addDisposableListener(this._filterInput, 'keydown', e => this._handleTabThroughPanelKeyDown(e), true));
+				}
 
 				if (this._options.filterAsCombobox) {
 					const listElement = this._list.getHTMLElement();
@@ -1693,6 +1704,9 @@ export class ActionListWidget<T> extends Disposable {
 		const preserveHover = !this._currentSubmenuWidget && dom.isHTMLElement(preservedContent) && this._submenuContainer.contains(preservedContent);
 		const preserveSubmenu = !!this._currentSubmenuWidget && !!preservedItem?.submenuActions?.length;
 		const preservePanel = preserveHover || preserveSubmenu;
+		if (!preserveHover && typeof content === 'function' && dom.isHTMLElement(preservedContent)) {
+			preservedItem?.hover?.disposeContent?.(preservedContent);
+		}
 		const previousRow = options?.animateItemMove && preservePanel && this._currentSubmenuElement
 			? this._getRowElement(this._list.indexOf(this._currentSubmenuElement))?.getBoundingClientRect()
 			: undefined;
@@ -1787,6 +1801,41 @@ export class ActionListWidget<T> extends Disposable {
 				focusItem();
 			}
 		});
+	}
+
+	/** Restores focus to an item action without scheduling a later list focus. */
+	focusItemAction(itemId: string, actionId: string): boolean {
+		const item = this._allMenuItems.find(item => (item.item as { id?: string } | undefined)?.id === itemId);
+		if (!item) {
+			return false;
+		}
+		if (item.section && this._collapsedSections.has(item.section)) {
+			this._toggleSection(item.section);
+		}
+		const index = this._list.indexOf(item);
+		if (index < 0) {
+			return false;
+		}
+		this._list.setFocus([index]);
+		this._list.reveal(index);
+		const toolbar = this._itemToolbars.get(item);
+		const actionIndex = toolbar?.viewItems.findIndex(item => item.action.id === actionId) ?? -1;
+		if (!toolbar || actionIndex < 0) {
+			return false;
+		}
+		toolbar.focus(actionIndex);
+		return true;
+	}
+
+	private _updateToolbarFocusability(): void {
+		if (!this._options?.tabThroughItemActions) {
+			return;
+		}
+		const [index] = this._list.getFocus();
+		const focused = index !== undefined && index < this._list.length ? this._list.element(index) : undefined;
+		for (const [item, toolbar] of this._itemToolbars) {
+			toolbar.setFocusable(item === focused);
+		}
 	}
 
 	private _focusCheckedOrFirst(): void {
@@ -2300,7 +2349,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _getTabThroughPanelControls(element: IActionListItem<T>, row: HTMLElement): { readonly toolbar: ActionBar | undefined; readonly panelControls: readonly HTMLElement[] } {
-		if (this._currentSubmenuElement !== element) {
+		if (element.hover?.tabThroughPanel && this._currentSubmenuElement !== element) {
 			this._showSubmenuForElement(element, row);
 		}
 		return {
@@ -2331,7 +2380,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		const index = focused[0];
 		const element = this._list.element(index);
-		if (!element.hover?.tabThroughPanel) {
+		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions) {
 			return;
 		}
 		const row = this._getRowElement(index);
@@ -2380,9 +2429,9 @@ export class ActionListWidget<T> extends Disposable {
 					controls.toolbar.focus(toolbarIndex - 1);
 					return;
 				}
-				target = this._list.getHTMLElement();
+				target = this._options?.filterAsCombobox ? this._filterInput : this._list.getHTMLElement();
 			}
-		} else if (activeElement === this._list.getHTMLElement()) {
+		} else if (activeElement === this._list.getHTMLElement() || activeElement === this._filterInput) {
 			if (controls.toolbar?.length()) {
 				dom.EventHelper.stop(event, true);
 				controls.toolbar.focus(0);
@@ -2976,6 +3025,13 @@ export class ActionListWidget<T> extends Disposable {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
+			const focus = typeof e.index === 'number' ? [e.index] : [];
+			const activeElement = dom.getActiveElement();
+			if (this._options?.tabThroughItemActions && this._list.getFocus()[0] !== e.index
+				&& dom.isHTMLElement(activeElement) && this.domNode.contains(activeElement) && activeElement.closest('.action-list-item-toolbar')) {
+				// Moving to another row hides the focused toolbar, so keep DOM focus in the list.
+				this._list.domFocus();
+			}
 			// Check if the hover target is inside a toolbar - if so, skip the splice
 			// to avoid re-rendering which would destroy the element mid-hover.
 			// But still maintain submenu state for items with submenu actions.
@@ -2984,7 +3040,7 @@ export class ActionListWidget<T> extends Disposable {
 				if (!element.submenuActions?.length) {
 					this._cancelSubmenuShow();
 				}
-				this._list.setFocus([]);
+				this._list.setFocus(this._options?.tabThroughItemActions ? focus : []);
 				return;
 			}
 
@@ -2995,7 +3051,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._suppressHover = true;
 			}
 			try {
-				this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+				this._list.setFocus(focus);
 			} finally {
 				this._suppressHover = suppressHover;
 			}
@@ -3219,6 +3275,10 @@ export class ActionList<T> extends Disposable {
 		this._widget.focusItemById(itemId);
 	}
 
+	focusItemAction(itemId: string, actionId: string): boolean {
+		return this._widget.focusItemAction(itemId, actionId);
+	}
+
 	private hasDynamicHeight(): boolean {
 		return this._widget.hasDynamicHeight;
 	}
@@ -3239,7 +3299,7 @@ export class ActionList<T> extends Disposable {
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
-		const headerHeight = this._widget.headerContainer ? this._widget.headerContainer.offsetHeight || 36 : 0;
+		const headerHeight = this._widget.headerContainer && !this._widget.headerContainer.hidden ? this._widget.headerContainer.offsetHeight || 36 : 0;
 		const chromeHeight = filterHeight + footerHeight + headerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;

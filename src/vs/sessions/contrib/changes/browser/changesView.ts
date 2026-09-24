@@ -46,10 +46,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneChangesEditorTransitionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -69,8 +69,9 @@ import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -107,7 +108,7 @@ const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const singlePaneChangesEditorHeader = ContextKeyExpr.and(
 	SinglePaneLayoutEnabledContext,
-	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
+	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), SinglePaneChangesEditorTransitionContext)
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 const CHAT_PET_CREATE_PULL_REQUEST_ACTION_IDS = new Set([
@@ -299,6 +300,16 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
  */
 export const CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP = 'primary';
 
+export function isChangesActionsWorkspaceReady(activeSession: IActiveSession | undefined, mountedFolders: readonly IWorkspaceFolder[], reader: IReader | undefined): boolean {
+	if (!activeSession?.isCreated.read(reader) || activeSession.isQuickChat?.read(reader)) {
+		return true;
+	}
+	const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
+	return !!workspace
+		&& workspace.folders.length === mountedFolders.length
+		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
+}
+
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _buttonBar: WorkbenchButtonBar;
@@ -317,6 +328,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -362,6 +374,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 		const agentMergeEnabledObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
+		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
+			workspaceContextService.getWorkspace().folders);
 
 		// Client-side entries that belong *inside* the operations dropdown rather
 		// than beside it. The `primary` group is special: an action contributed
@@ -424,6 +440,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
 						const chat = session?.activeChat.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
+							chat: chat?.resource,
 							branchName: state?.branchName,
 							baseBranchName: state?.baseBranchName,
 							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation, chat) : undefined,
@@ -478,7 +495,15 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 		this._register(autorun(reader => {
 			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
-			if (isLoading) {
+			if (changesEditorTransitionObs.read(reader) || isLoading) {
+				return;
+			}
+
+			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
+			if (!isChangesActionsWorkspaceReady(sessionsService.activeSession.read(reader), workspaceFoldersObs.read(reader), reader)) {
+				if (buttonBar.buttons.length > 0) {
+					buttonBar.update([], []);
+				}
 				return;
 			}
 
@@ -647,6 +672,16 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
+function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<string | undefined> {
+	return derivedObservableWithCache<string | undefined>(owner, (reader, lastValue) => {
+		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+			return lastValue;
+		}
+		return changeset?.label;
+	});
+}
+
 /** Registers custom Changes action view items. */
 class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -654,16 +689,18 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super();
 
 		const onDidRegister = this._register(new Emitter<void>());
+		const headerLabelObs = createChangesPickerLabelObservable(this, changesViewService);
 
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChangesPickerActionItem, action, true);
+			return instantiationService.createInstance(ChangesPickerActionItem, action, true, headerLabelObs);
 		}, onDidRegister.event));
 
 		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
@@ -1107,8 +1144,8 @@ export class ChangesViewPane extends ViewPane {
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
-			// The tree root and relative paths follow the active chat's folder.
-			const folder = this.getActiveChatFolder(reader);
+			const workspace = this.getActiveChangesetWorkspace(reader);
+			const folder = this.getTreeRootFolder(workspace);
 
 			if (!this.tree || activeSessionLoading) {
 				return;
@@ -1394,9 +1431,16 @@ export class ChangesViewPane extends ViewPane {
 		return selection.filter(item => !!item && isChangesFileItem(item));
 	}
 
-	/** The active chat's first folder, which files are shown relative to; it may differ from the session's. */
-	private getActiveChatFolder(reader: IReader | undefined): ISessionFolder | undefined {
-		return this.sessionsService.activeSession.read(reader)?.activeChat.read(reader).workspace.read(reader)?.folders[0];
+	private getActiveChangesetWorkspace(reader: IReader | undefined): ISessionWorkspace | undefined {
+		const activeSession = this.sessionsService.activeSession.read(reader);
+		if (this.changesViewService.activeSessionChangesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
+			return activeSession?.workspace.read(reader);
+		}
+		return activeSession?.activeChat.read(reader).workspace.read(reader);
+	}
+
+	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {
+		return workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
 	}
 
 	private getTreeRootInfo(items: readonly IChangesFileItem[], folder: ISessionFolder | undefined): IChangesTreeRootInfo | undefined {
@@ -1475,7 +1519,7 @@ export class ChangesViewPane extends ViewPane {
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		if (viewMode === ChangesViewMode.Tree) {
-			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getActiveChatFolder(undefined))));
+			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined)))));
 		} else {
 			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
 		}
@@ -1554,7 +1598,7 @@ export class ChangesViewPane extends ViewPane {
 			[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, actionRunner,
 				() => {
 					// Pass in the tree root to be used to compute the label description
-					const folder = this.getActiveChatFolder(undefined);
+					const folder = this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined));
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: folder?.workingDirectory;
@@ -1632,7 +1676,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, false);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, false, undefined);
 				}
 				return undefined;
 			},
@@ -2046,10 +2090,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					singlePaneChangesEditorHeader,
-					ContextKeyExpr.or(ActiveSessionContextKeys.HasGitRepository, ActiveSessionContextKeys.HasSelectableChangesets)
-				),
+				when: singlePaneChangesEditorHeader,
 			}],
 		});
 	}
@@ -2061,10 +2102,13 @@ registerAction2(VersionsPickerAction);
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<string | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
+	private readonly _pickerEnabledObs: IObservable<boolean>;
+	private _container: HTMLElement | undefined;
 
 	constructor(
 		action: MenuItemAction,
 		private readonly _showSummary: boolean,
+		labelObs: IObservable<string | undefined> | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -2075,6 +2119,8 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			getActions: () => {
 				const changesets = changesViewService.activeSessionChangesetsObs.get() ?? [];
 				const selectedChangeset = changesViewService.activeSessionChangesetObs.get();
+				const sessionResource = changesViewService.activeSessionResourceObs.get();
+				const catalogueLoading = changesViewService.activeSessionChangesetsLoadingObs.get();
 
 				return changesets.map(changeset => ({
 					...action,
@@ -2087,8 +2133,12 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 						showHeader: false,
 						order: 0
 					},
-					enabled: changeset.isEnabled.get(),
+					enabled: !catalogueLoading && changeset.isEnabled.get(),
 					run: async () => {
+						if (changesViewService.activeSessionChangesetsLoadingObs.get()
+							|| !isEqual(changesViewService.activeSessionResourceObs.get(), sessionResource)) {
+							return;
+						}
 						changesViewService.setChangesetId(changeset.id);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
 					}
@@ -2098,13 +2148,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._labelObs = derivedObservableWithCache<string | undefined>(this, (reader, lastValue) => {
-			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-			if (!changeset && changesViewService.activeSessionLoadingObs.read(reader)) {
-				return lastValue;
+		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changesViewService);
+		this._pickerEnabledObs = derived(reader => {
+			const changesets = changesViewService.activeSessionChangesetsObs.read(reader);
+			if (changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+				// Keep the picker stable; its retained entries cannot be selected until the new catalogue arrives.
+				return (changesets?.length ?? 0) > 0;
 			}
-
-			return changeset?.label;
+			return changesets?.some(changeset => changeset.isEnabled.read(reader)) ?? false;
 		});
 
 		this._summaryObs = this._showSummary
@@ -2114,28 +2165,41 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
 			this._summaryObs?.read(reader);
+			const pickerEnabled = this._pickerEnabledObs.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
 				this.updateTooltip();
+				this.updateAvailability(pickerEnabled);
 			}
 		}));
 	}
 
 	override render(container: HTMLElement): void {
+		this._container = container;
 		super.render(container);
 
 		container.classList.add('changes-picker-action-rich');
 		container.classList.toggle('changes-picker-action-with-summary', this._showSummary);
+		this.updateAvailability(this._pickerEnabledObs.get());
+	}
+
+	private updateAvailability(available: boolean): void {
+		const enabled = available && this.action.enabled;
+		this.setDropdownEnabled(available);
+		this._container?.classList.toggle('disabled', !enabled);
+		this.element?.classList.toggle('disabled', !enabled);
+		this.element?.setAttribute('aria-disabled', String(!enabled));
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this.updateAvailability(this._pickerEnabledObs?.get() ?? false);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const label = this._labelObs.get();
-		if (!label) {
-			return null;
-		}
-
-		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label)];
+		const contents: HTMLElement[] = [dom.$('span.changes-picker-label', undefined, label ?? this.action.label)];
 		const summary = this._summaryObs?.get();
 		if (summary) {
 			contents.push(dom.$('span.changes-picker-separator', { 'aria-hidden': 'true' }, '\u00b7'));

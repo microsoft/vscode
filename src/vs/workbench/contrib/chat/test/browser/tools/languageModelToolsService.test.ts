@@ -574,6 +574,26 @@ suite('LanguageModelToolsService', () => {
 		}, async () => 0, CancellationToken.None), /Tool removedTool was not contributed/);
 	});
 
+	test('passes the invocation request id to prepareToolInvocation', async () => {
+		const preparedRequestIds: (string | undefined)[] = [];
+		const tool = registerToolForTest(service, store, 'invocationRequestTool', {
+			prepareToolInvocation: async context => {
+				preparedRequestIds.push(context.invocationRequestId);
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ok' }] }),
+		});
+		const sessionId = 'invocationRequestSession';
+		stubGetSession(chatService, sessionId);
+
+		const withoutRequestId = tool.makeDto({}, { sessionId }, 'call-without-request-id');
+		const withRequestId = tool.makeDto({}, { sessionId }, 'call-with-request-id');
+		await service.invokeTool(withoutRequestId, async () => 0, CancellationToken.None);
+		await service.invokeTool({ ...withRequestId, context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
+	});
+
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
 		const rawInput = { b: 2 };
 		const tool = registerToolForTest(service, store, 'testToolInputOverride', {

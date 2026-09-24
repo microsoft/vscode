@@ -3365,6 +3365,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Hover chevron indicator for collapsible parts */
+.chat-used-context-label .chat-collapsible-hover-chevron.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
 .chat-collapsible-hover-chevron {
 	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0;
@@ -3394,6 +3399,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-collapsible-hover-chevron {
 		transition: none;
 	}
+}
+
+.interactive-item-container .progress-container > .chat-progress-action {
+	flex-shrink: 0;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .interactive-item-container .progress-container {
@@ -3430,7 +3442,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Matching the margin on all .monaco-text-button .codicon */
 		margin: 0 .2em;
 
-		&.codicon-error-compact {
+		&.codicon-error-compact:not(.chat-tool-call-error *) {
 			color: var(--vscode-editorError-foreground) !important;
 		}
 	}

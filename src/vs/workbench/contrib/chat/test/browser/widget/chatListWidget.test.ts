@@ -1343,13 +1343,15 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('persistent progress collapse anchoring', () => {
-		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0) {
+		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false) {
 			const context = createWidget({ paddingBottom }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
 				configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
 				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
 				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+				configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, stickyScroll);
+				configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, stickyScroll);
 			}, true);
 			const { model, container, widget } = context;
 			container.classList.add('interactive-list');
@@ -1369,7 +1371,8 @@ suite('ChatListWidget', () => {
 					value: '**Reviewing the transition**\n\nKeep the preceding paragraph still while this preview folds upward.\n\nCheck the following response after the collapse.',
 				});
 			} else {
-				for (const toolCallId of ['read', 'search', 'check']) {
+				for (let index = 0; index < toolCount; index++) {
+					const toolCallId = `tool-${index}`;
 					const tool = new ChatToolInvocation({
 						invocationMessage: `Running ${toolCallId}`,
 						pastTenseMessage: `Completed ${toolCallId}`,
@@ -1447,27 +1450,96 @@ suite('ChatListWidget', () => {
 				});
 			}
 
-			test(`manually collapsing ${kind} preserves its header and preceding content`, async () => {
-				const context = await createPreview(kind);
+			test(`manually collapsing ${kind} does not reserve scroll space`, async () => {
+				const context = await createPreview(kind, false, 32);
 				await collapsePreview(context);
-				const { preview, precedingParagraph, widget } = context;
+				const { preview, widget } = context;
 				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
 				assert.ok(button);
 				button.click();
 				await waitForStableLayout(widget);
 				widget.scrollToEnd();
 				await waitForStableLayout(widget);
-				const before = { paragraphTop: precedingParagraph.getBoundingClientRect().top, previewTop: preview.getBoundingClientRect().top };
-
 				button.click();
 				await waitForStableLayout(widget);
 
 				assert.deepStrictEqual({
 					collapsed: preview.classList.contains('chat-used-context-collapsed'),
-					paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
-					previewStayedAnchored: Math.abs(preview.getBoundingClientRect().top - before.previewTop) <= 1,
-				}, { collapsed: true, paragraphStayedAnchored: true, previewStayedAnchored: true });
+					padding: widget.scrollHeight - widget.contentHeight,
+					atBottom: widget.isScrolledToBottom,
+				}, { collapsed: true, padding: 32, atBottom: true });
 			});
+
+			test(`manually collapsing an active ${kind} preview does not reserve scroll space`, async () => {
+				const { preview, widget } = await createPreview(kind, false, 32);
+				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+				assert.ok(button);
+				button.click();
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					padding: widget.scrollHeight - widget.contentHeight,
+				}, { collapsed: true, padding: 32 });
+			});
+
+			test(`manually toggling ${kind} releases its automatic collapse reservation`, async () => {
+				const context = await createPreview(kind, false, 32);
+				await collapsePreview(context);
+				const { preview, widget } = context;
+				const reservedSpace = widget.scrollHeight - widget.contentHeight > 32;
+				const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+				assert.ok(button);
+				button.click();
+				await waitForStableLayout(widget);
+				button.click();
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					reservedSpace,
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					padding: widget.scrollHeight - widget.contentHeight,
+				}, { reservedSpace: true, collapsed: true, padding: 32 });
+			});
+
+			for (const animated of [false, true]) {
+				test(`opening ${kind} consumes automatic space without moving its header during any frame (animated: ${animated})`, async () => {
+					const context = await createPreview(kind, true, 32);
+					await collapsePreview(context);
+					const { preview, widget, container } = context;
+					if (animated) {
+						container.classList.remove('monaco-reduce-motion');
+						container.classList.add('monaco-enable-motion');
+					}
+					const button = preview.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+					assert.ok(button);
+					const reservedPadding = widget.scrollHeight - widget.contentHeight;
+					const headerTop = button.getBoundingClientRect().top;
+					const samples: { headerTop: number; padding: number }[] = [];
+					const measure = () => samples.push({ headerTop: button.getBoundingClientRect().top, padding: widget.scrollHeight - widget.contentHeight });
+
+					button.click();
+					measure();
+					for (let frame = 0; frame < 20; frame++) {
+						await nextFrame();
+						measure();
+					}
+
+					assert.deepStrictEqual({
+						hadReservedSpace: reservedPadding > 32,
+						expanded: button.ariaExpanded,
+						maximumHeaderMovement: Math.max(...samples.map(sample => Math.abs(sample.headerTop - headerTop))),
+						addedPadding: samples.some(sample => sample.padding > reservedPadding),
+						remainingPadding: widget.scrollHeight - widget.contentHeight,
+					}, {
+						hadReservedSpace: true,
+						expanded: 'true',
+						maximumHeaderMovement: 0,
+						addedPadding: false,
+						remainingPadding: 32,
+					});
+				});
+			}
 		}
 
 		test('new response content consumes reserved space before following the bottom again', async () => {
@@ -1494,6 +1566,134 @@ suite('ChatListWidget', () => {
 				atBottom: true,
 			});
 		});
+
+		for (const incrementalRendering of [false, true]) {
+			for (const canceled of [false, true]) {
+				test(`releases reserved space when the response ends (canceled: ${canceled}, incremental: ${incrementalRendering})`, async () => {
+					const context = await createPreview('thinking', incrementalRendering, 32);
+					const { request, widget } = context;
+					await collapsePreview(context);
+					const reservedSpace = widget.scrollHeight - widget.contentHeight > 32;
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					widget.refresh();
+					await waitForStableLayout(widget);
+
+					assert.deepStrictEqual({
+						reservedSpace,
+						remainingPadding: widget.scrollHeight - widget.contentHeight,
+						atBottom: widget.isScrolledToBottom,
+					}, { reservedSpace: true, remainingPadding: 32, atBottom: true });
+				});
+
+				for (const hold of [false, true]) {
+					test(`completion during collapse preserves reading position (canceled: ${canceled}, incremental: ${incrementalRendering}, hold: ${hold})`, async () => {
+						const { container, model, request, widget, precedingParagraph, preview } = await createPreview('thinking', incrementalRendering, 32);
+						container.classList.remove('monaco-reduce-motion');
+						container.classList.add('monaco-enable-motion');
+						if (hold) {
+							store.add(widget.acquireAutoScrollHold());
+						} else {
+							widget.scrollTop -= 16;
+						}
+						const before = { scrollTop: widget.scrollTop, paragraphTop: precedingParagraph.getBoundingClientRect().top };
+						model.acceptResponseProgress(request, {
+							kind: 'markdownContent',
+							content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `Following paragraph ${index}.`).join('\n\n')),
+						});
+						widget.refresh();
+						await timeout(40);
+						const animations = preview.getAnimations({ subtree: true });
+						const runningTransition = animations.some(animation => animation.playState === 'running');
+						if (canceled) {
+							request.response?.cancel();
+						} else {
+							request.response?.complete();
+						}
+						widget.refresh();
+						await Promise.all(animations.map(animation => animation.finished));
+						await waitForStableLayout(widget);
+
+						assert.deepStrictEqual({
+							runningTransition,
+							scrollTop: widget.scrollTop,
+							paragraphStayedAnchored: Math.abs(precedingParagraph.getBoundingClientRect().top - before.paragraphTop) <= 1,
+							padding: widget.scrollHeight - widget.contentHeight,
+						}, {
+							runningTransition: true,
+							scrollTop: before.scrollTop,
+							paragraphStayedAnchored: true,
+							padding: 32,
+						});
+					});
+				}
+			}
+
+			test(`offscreen collapse reveals its header below the pinned prompt (incremental: ${incrementalRendering})`, async () => {
+				const context = await createPreview('tools', incrementalRendering, 32, 48, true);
+				const { container, widget, preview } = context;
+				widget.scrollTop += preview.getBoundingClientRect().top - container.getBoundingClientRect().top + 600;
+				await waitForStableLayout(widget);
+				await collapsePreview(context);
+
+				const sticky = container.querySelector<HTMLElement>('.monaco-tree-sticky-container:not(.empty)');
+				const header = preview.querySelector<HTMLElement>('.chat-used-context-label');
+				assert.ok(sticky && header);
+				const headerBounds = header.getBoundingClientRect();
+				const stickyBounds = sticky.getBoundingClientRect();
+				const stickyBottom = Math.max(stickyBounds.bottom, sticky.querySelector('.monaco-tree-sticky-container-shadow')?.getBoundingClientRect().bottom ?? stickyBounds.bottom);
+				assert.deepStrictEqual({
+					promptVisible: stickyBounds.height > 0,
+					headerBelowPrompt: headerBounds.top >= stickyBottom,
+					headerNearPrompt: headerBounds.top <= stickyBounds.bottom + 17,
+					headerVisible: headerBounds.bottom <= container.getBoundingClientRect().bottom,
+					paddingBounded: widget.scrollHeight - widget.contentHeight <= widget.renderHeight,
+				}, { promptVisible: true, headerBelowPrompt: true, headerNearPrompt: true, headerVisible: true, paddingBounded: true });
+			});
+
+			for (const headerVisible of [true, false]) {
+				test(`bounds a long tool chain collapse to the viewport (header visible: ${headerVisible}, incremental: ${incrementalRendering})`, async () => {
+					const context = await createPreview('tools', incrementalRendering, 32, 48);
+					const { container, widget, preview } = context;
+					// Keep the offscreen target within the preview's measured scroll range.
+					const headerOffset = headerVisible ? 16 : -Math.floor((preview.getBoundingClientRect().height - widget.renderHeight) / 2);
+					widget.scrollTop += preview.getBoundingClientRect().top - container.getBoundingClientRect().top - headerOffset;
+					await waitForStableLayout(widget);
+					const before = {
+						headerTop: Math.round(preview.getBoundingClientRect().top - container.getBoundingClientRect().top),
+						height: preview.getBoundingClientRect().height,
+					};
+
+					await collapsePreview(context);
+					const following = Array.from(container.querySelectorAll<HTMLElement>('.interactive-response .value > .chat-markdown-part')).at(-1);
+					assert.ok(following);
+					const viewport = container.getBoundingClientRect();
+					const headerTop = preview.getBoundingClientRect().top - viewport.top;
+
+					assert.deepStrictEqual({
+						initialHeaderTop: before.headerTop,
+						headerInitiallyVisible: before.headerTop >= 0 && before.headerTop < widget.renderHeight,
+						wasLongerThanViewport: before.height > widget.renderHeight,
+						collapsed: preview.classList.contains('chat-used-context-collapsed'),
+						paddingBounded: widget.scrollHeight - widget.contentHeight <= widget.renderHeight,
+						headerAnchored: Math.abs(headerTop - Math.max(0, headerOffset)) <= 2,
+						followingVisible: following.getBoundingClientRect().top >= viewport.top && following.getBoundingClientRect().bottom <= viewport.bottom,
+					}, {
+						initialHeaderTop: headerOffset,
+						headerInitiallyVisible: headerVisible,
+						wasLongerThanViewport: true,
+						collapsed: true,
+						paddingBounded: true,
+						headerAnchored: true,
+						followingVisible: true,
+					});
+				});
+			}
+		}
 
 		for (const hold of [false, true]) {
 			test(`preserves user scroll intent while collapsing and streaming (hold: ${hold})`, async () => {
@@ -1535,6 +1735,24 @@ suite('ChatListWidget', () => {
 			}, { reservedSpace: true, remainingPadding: 32 });
 		});
 
+		test('keeps reserved collapse space bounded when the viewport shrinks', async () => {
+			const context = await createPreview('tools', false, 32, 48);
+			const { container, widget, preview } = context;
+			widget.scrollTop += preview.getBoundingClientRect().top - container.getBoundingClientRect().top - 16;
+			await collapsePreview(context);
+			const reservedSpace = widget.scrollHeight - widget.contentHeight > 32;
+
+			container.style.height = '150px';
+			widget.layout(150, 500);
+			await waitForStableLayout(widget);
+
+			assert.deepStrictEqual({
+				reservedSpace,
+				renderHeight: widget.renderHeight,
+				paddingBounded: widget.scrollHeight - widget.contentHeight <= widget.renderHeight,
+			}, { reservedSpace: true, renderHeight: 150, paddingBounded: true });
+		});
+
 		for (const newRequest of [false, true]) {
 			test(`scrolling to the end reveals content after a tall progress collapse (newRequest=${newRequest})`, async () => {
 				const context = await createPreview('thinking', false, 32);
@@ -1555,7 +1773,7 @@ suite('ChatListWidget', () => {
 				await waitForStableLayout(widget);
 				button.click();
 				await waitForStableLayout(widget);
-				const reservedMoreThanViewport = widget.scrollHeight - widget.contentHeight > widget.renderHeight;
+				const paddingAfterCollapse = widget.scrollHeight - widget.contentHeight;
 				if (newRequest) {
 					const text = 'The latest request';
 					model.addRequest({
@@ -1571,16 +1789,44 @@ suite('ChatListWidget', () => {
 				const viewport = container.getBoundingClientRect();
 				const bounds = latest.getBoundingClientRect();
 				assert.deepStrictEqual({
-					reservedMoreThanViewport,
+					paddingAfterCollapse,
 					remainingPadding: widget.scrollHeight - widget.contentHeight,
 					latestIsVisible: bounds.bottom > viewport.top && bounds.top < viewport.bottom,
 					atBottom: widget.isScrolledToBottom,
-				}, { reservedMoreThanViewport: true, remainingPadding: 32, latestIsVisible: true, atBottom: true });
+				}, { paddingAfterCollapse: 32, remainingPadding: 32, latestIsVisible: true, atBottom: true });
 			});
 		}
 
-		test('completed progress summaries preserve preceding content during automatic and manual collapse', async () => {
-			const { model, container, widget } = createWidget({}, configurationService => {
+		test('collapsing a completed response during a later turn does not reserve space', async () => {
+			const context = await createPreview('tools', false, 32);
+			const { model, request, widget, container } = context;
+			await collapsePreview(context);
+			request.response?.complete();
+			const text = 'The next request is still running';
+			model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			widget.refresh();
+			await waitForStableLayout(widget);
+			const preview = container.querySelector<HTMLElement>('.chat-tool-chain-collapsible');
+			const button = preview?.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			assert.ok(preview && button);
+			button.click();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			button.click();
+			await waitForStableLayout(widget);
+
+			assert.deepStrictEqual({
+				collapsed: preview.classList.contains('chat-used-context-collapsed'),
+				remainingPadding: widget.scrollHeight - widget.contentHeight,
+			}, { collapsed: true, remainingPadding: 32 });
+		});
+
+		test('completed progress summaries do not reserve space during automatic or manual collapse', async () => {
+			const { model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Verbose);
 			}, true);
@@ -1617,14 +1863,13 @@ suite('ChatListWidget', () => {
 			widget.scrollToEnd();
 			await waitForStableLayout(widget);
 
-			const anchor = Array.from(container.querySelectorAll<HTMLElement>('.interactive-request')).at(-1);
 			const request = model.getRequests().at(-1);
-			assert.ok(anchor && request);
-			const before = { top: anchor.getBoundingClientRect().top, atBottom: widget.isScrolledToBottom && widget.scrollTop > 0 };
+			assert.ok(request);
+			const startedAtBottom = widget.isScrolledToBottom && widget.scrollTop > 0;
 			request.response?.complete();
 			widget.refresh();
 			await waitForStableLayout(widget);
-			const automaticCollapseStayedAnchored = Math.abs(anchor.getBoundingClientRect().top - before.top) <= 1;
+			const automaticCollapsePadding = widget.scrollHeight - widget.contentHeight;
 
 			const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
 			const summary = disclosure?.querySelector<HTMLElement>('.completed-response-summary');
@@ -1634,24 +1879,23 @@ suite('ChatListWidget', () => {
 			await waitForStableLayout(widget);
 			widget.scrollToEnd();
 			await waitForStableLayout(widget);
-			const beforeManualCollapse = { top: anchor.getBoundingClientRect().top, headerTop: summary.getBoundingClientRect().top };
 			summary.click();
 			await waitForStableLayout(widget);
 
 			assert.deepStrictEqual({
-				startedAtBottom: before.atBottom,
+				startedAtBottom,
 				automaticallyCollapsed,
-				automaticCollapseStayedAnchored,
+				automaticCollapsePadding,
 				manuallyCollapsed: !disclosure.open,
-				manualCollapseStayedAnchored: Math.abs(anchor.getBoundingClientRect().top - beforeManualCollapse.top) <= 1,
-				headerStayedAnchored: Math.abs(summary.getBoundingClientRect().top - beforeManualCollapse.headerTop) <= 1,
+				manualCollapsePadding: widget.scrollHeight - widget.contentHeight,
+				atBottom: widget.isScrolledToBottom,
 			}, {
 				startedAtBottom: true,
 				automaticallyCollapsed: true,
-				automaticCollapseStayedAnchored: true,
+				automaticCollapsePadding: 32,
 				manuallyCollapsed: true,
-				manualCollapseStayedAnchored: true,
-				headerStayedAnchored: true,
+				manualCollapsePadding: 32,
+				atBottom: true,
 			});
 		});
 	});

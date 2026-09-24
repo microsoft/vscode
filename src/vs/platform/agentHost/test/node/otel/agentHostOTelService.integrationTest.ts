@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import type * as http from 'http';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -18,7 +18,7 @@ import {
 	IOtlpExportTraceServiceRequest,
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
-import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
 import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
 
@@ -268,6 +268,45 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		}
 	});
 
+	for (const protocol of ['http/json', 'http/protobuf', 'grpc'] as const) {
+		test(`native SDK config resolves trace endpoints without changing other signals (${protocol})`, async () => {
+			const saved = saveEnv();
+			try {
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				process.env.OTEL_EXPORTER_OTLP_HEADERS = 'Authorization=Bearer%20test-token';
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmpdir()));
+
+				const endpoints = [
+					['http://collector:4318', 'http://collector:4318/v1/traces'],
+					['http://collector:4318/', 'http://collector:4318/v1/traces'],
+					['https://collector/?tenant=test', 'https://collector/v1/traces?tenant=test'],
+					['http://collector:4318/v1/traces', 'http://collector:4318/v1/traces'],
+					['http://collector:4318/custom/path', 'http://collector:4318/custom/path'],
+					['not a url', 'not a url'],
+				];
+				const actual = [];
+				const expected = [];
+				for (const [endpoint, tracesEndpoint] of endpoints) {
+					process.env.OTEL_EXPORTER_OTLP_ENDPOINT = endpoint;
+					const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+					const native = await svc.getNativeSdkTelemetryConfig();
+					const sdk = await svc.getSdkTelemetryConfig();
+					actual.push({ traces: native?.traces, external: native?.external, sdkEndpoint: sdk?.otlpEndpoint });
+					expected.push({
+						traces: { endpoint: protocol === 'grpc' ? endpoint : tracesEndpoint, protocol, headers: { Authorization: 'Bearer test-token' } },
+						external: { endpoint, protocol, headers: { Authorization: 'Bearer test-token' } },
+						sdkEndpoint: endpoint,
+					});
+				}
+				deepStrictEqual(actual, expected);
+			} finally {
+				restoreEnv(saved);
+			}
+		});
+	}
+
 	test('external-only unsupported synthetic protocols do not propagate a missing anchor', async () => {
 		const saved = saveEnv();
 		try {
@@ -336,6 +375,30 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		}
 	});
 
+	test('DB startup failure falls back to a signal-specific native trace endpoint', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+		try {
+			const userDataPath = join(tmp, 'not-a-directory');
+			await writeFile(userDataPath, '');
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(userDataPath));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const config = await svc.getNativeSdkTelemetryConfig();
+			deepStrictEqual({ traces: config?.traces, external: config?.external }, {
+				traces: { endpoint: 'http://collector:4318/v1/traces', protocol: 'http/json' },
+				external: { endpoint: 'http://collector:4318', protocol: 'http/json' },
+			});
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
 	test('DB mode: starts loopback, persists posted spans to SQLite, and exposes db path', async () => {
 		const saved = saveEnv();
 		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
@@ -385,53 +448,6 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				const operationNames = persisted.map(s => s.operation_name);
 				ok(operationNames.every(op => op === 'invoke_agent'));
 				notStrictEqual(persisted[0].request_model, null);
-			} finally {
-				reader.close();
-			}
-		} finally {
-			restoreEnv(saved);
-			await cleanup();
-		}
-	});
-
-	test('DB mode: adds bounded comparison metadata to the session anchor', async () => {
-		const saved = saveEnv();
-		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
-		const cleanup = () => rm(tmp, { recursive: true, force: true }).catch(() => undefined);
-		try {
-			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
-			const di = store.add(new TestInstantiationService());
-			di.set(ILogService, new NullLogService());
-			di.set(INativeEnvironmentService, makeEnvService(tmp));
-			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
-
-			await svc.getSdkTelemetryConfig();
-			svc.setSessionComparisonMetadata('claude:/attempt', {
-				id: 'comparison-id',
-				role: 'attempt',
-				attemptIndex: 1,
-				attemptCount: 3,
-			});
-			svc.getSessionTraceContext('conversation', 'claude:/attempt');
-			await svc.flush();
-
-			const dbPath = svc.getSpansDbPath();
-			ok(dbPath);
-			const reader = new OTelSqliteStore(dbPath!.fsPath);
-			try {
-				const anchor = reader.getSpansByConversationId('conversation').find(span => span.name === AgentHostSessionSpanName);
-				ok(anchor);
-				deepStrictEqual({
-					comparisonId: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonIdAttribute),
-					role: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonRoleAttribute),
-					attemptIndex: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonAttemptIndexAttribute),
-					attemptCount: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonAttemptCountAttribute),
-				}, {
-					comparisonId: 'comparison-id',
-					role: 'attempt',
-					attemptIndex: '1',
-					attemptCount: '3',
-				});
 			} finally {
 				reader.close();
 			}

@@ -44,7 +44,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -9487,7 +9487,8 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			const response = chatSession.history.find(item => item.type === 'response');
 			const toolPart = response?.type === 'response'
-				? response.parts.find((part): part is IChatToolInvocationSerialized => part.kind === 'toolInvocationSerialized' && part.toolCallId === 'tc-subagent')
+				? response.parts.find((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
+					(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolCallId === 'tc-subagent')
 				: undefined;
 
 			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
@@ -14998,6 +14999,133 @@ suite('AgentHostChatContribution', () => {
 			}));
 			requests.push(upcastPartial<ChatRequestModel>({ id: requestId, response }));
 			return { model, response, requests };
+		}
+
+		for (const initiallyActive of [false, true]) {
+			test(`restored background subagent pills follow new child turns and tools (active=${initiallyActive})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+				const backend = AgentSession.uri('copilot', 'restored-background-child');
+				const sessionResource = URI.parse('agent-host-copilot:/restored-background-child');
+				const parentChat = buildDefaultChatUri(backend.toString());
+				const childChat = buildSubagentChatUri(backend.toString(), 'launch');
+				const summary: SessionSummary = {
+					resource: backend.toString(), provider: 'copilot', title: 'Parent', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				};
+				agentHostService.sessionStates.set(backend.toString(), {
+					...createSessionState(summary),
+					lifecycle: SessionLifecycle.Ready,
+					chats: [{
+						resource: childChat, title: 'Background reviewer', status: initiallyActive ? SessionStatus.InProgress : SessionStatus.Idle,
+						modifiedAt: new Date().toISOString(), origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'launch' },
+						interactivity: ChatInteractivity.ReadOnly,
+					}],
+					turns: [{
+						id: 'parent-turn', message: { text: 'Review', origin: { kind: MessageKind.User } }, state: TurnState.Complete,
+						usage: undefined,
+						responseParts: [{
+							kind: ResponsePartKind.ToolCall,
+							toolCall: {
+								toolCallId: 'launch', toolName: 'task', displayName: 'Task', invocationMessage: 'Reviewing', pastTenseMessage: 'Started in background',
+								status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, success: true, content: [],
+							},
+						}],
+					}],
+				});
+				agentHostService.sessionStates.set(childChat, {
+					...createSessionState({ ...summary, resource: childChat }),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [{
+						id: 'previous-child-turn', message: { text: 'Review', origin: { kind: MessageKind.User } }, state: TurnState.Error,
+						responseParts: [createErrorResponsePart({ errorType: 'previousFailure', message: 'Earlier attempt failed' })], usage: undefined,
+					}],
+					activeTurn: initiallyActive ? createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User } }, new Date().toISOString()) : undefined,
+				});
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				const historyResponse = chatSession.history.find(item => item.type === 'response');
+				assert.ok(historyResponse?.type === 'response');
+				const initialHistoryKinds = historyResponse.parts.map(part => part.kind);
+				const { model, response } = createResponseModel(sessionResource, 'parent-turn');
+				for (const part of historyResponse.parts) {
+					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+						response.updateContent(part);
+					}
+				}
+				response.complete();
+				chatService.setSession(sessionResource, model);
+				if (!initiallyActive) {
+					agentHostService.fireAction({
+						channel: backend.toString(),
+						action: { type: ActionType.SessionChatUpdated, chat: childChat, changes: { status: SessionStatus.InProgress } },
+						serverSeq: 100, origin: undefined,
+					});
+					agentHostService.fireAction({
+						channel: childChat,
+						action: { type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: new Date().toISOString(), message: { text: 'Follow up', origin: { kind: MessageKind.User } } },
+						serverSeq: 101, origin: undefined,
+					});
+				}
+				agentHostService.fireAction({
+					channel: childChat,
+					action: { type: ActionType.ChatToolCallStart, turnId: 'child-turn', toolCallId: 'child-command', toolName: 'shell', displayName: 'Shell' },
+					serverSeq: 102, origin: undefined,
+				});
+				agentHostService.fireAction({
+					channel: childChat,
+					action: { type: ActionType.ChatToolCallReady, turnId: 'child-turn', toolCallId: 'child-command', invocationMessage: 'Run command', confirmationTitle: 'Run Command' },
+					serverSeq: 103, origin: undefined,
+				});
+				await timeout(0);
+				const command = response.response.value.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === 'child-command');
+				const confirmation = command?.state.get();
+				assert.ok(confirmation?.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+				confirmation.confirm({ type: ToolConfirmKind.UserAction });
+				await timeout(0);
+				const parent = response.response.value.find((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
+					(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolCallId === 'launch');
+				const beforeCompletion = parent?.toolSpecificData?.kind === 'subagent' ? {
+					active: parent.toolSpecificData.isActive, available: parent.toolSpecificData.isChatAvailable, resource: parent.toolSpecificData.chatResource,
+				} : undefined;
+				agentHostService.fireAction({
+					channel: childChat,
+					action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 },
+					serverSeq: 104, origin: undefined,
+				});
+				await timeout(0);
+				const afterCompletion = parent?.toolSpecificData?.kind === 'subagent' ? parent.toolSpecificData.isActive : undefined;
+				agentHostService.fireAction({
+					channel: childChat,
+					action: { type: ActionType.ChatTurnStarted, turnId: 'next-child-turn', startedAt: new Date().toISOString(), message: { text: 'Another follow up', origin: { kind: MessageKind.User } } },
+					serverSeq: 105, origin: undefined,
+				});
+				agentHostService.fireAction({
+					channel: childChat,
+					action: { type: ActionType.ChatToolCallStart, turnId: 'next-child-turn', toolCallId: 'next-child-command', toolName: 'shell', displayName: 'Shell' },
+					serverSeq: 106, origin: undefined,
+				});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					initialHistoryKinds,
+					parts: response.response.value.map(part => part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'
+						? { id: part.toolCallId, parent: part.subAgentInvocationId } : part.kind),
+					beforeCompletion,
+					afterCompletion,
+					resumed: parent?.toolSpecificData?.kind === 'subagent' ? parent.toolSpecificData.isActive : undefined,
+					parentComplete: response.isComplete,
+					confirmations: agentHostService.dispatchedActions.flatMap(({ channel, action }) => action.type === ActionType.ChatToolCallConfirmed
+						? [{ channel, turnId: action.turnId, toolCallId: action.toolCallId, approved: action.approved }] : []),
+				}, {
+					initialHistoryKinds: ['toolInvocation'],
+					parts: [{ id: 'launch', parent: undefined }, { id: 'child-command', parent: 'launch' }, { id: 'next-child-command', parent: 'launch' }],
+					beforeCompletion: { active: true, available: true, resource: childChat },
+					afterCompletion: false,
+					resumed: true,
+					parentComplete: true,
+					confirmations: [{ channel: childChat, turnId: 'child-turn', toolCallId: 'child-command', approved: true }],
+				});
+			}));
 		}
 
 		for (const [clientId, lateDiscovery] of [[undefined, false], [undefined, true], ['test-window-1', false], ['other-window', false]] as const) {

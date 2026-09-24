@@ -287,8 +287,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			return true;
 		}
 		const isPhase = this._isPhasePresentation();
+		// The toolbar keeps this action for its lifetime; the open-chat menu item has no `when`, so the inert fallback is not expected in practice.
 		const menuAction = isPhase
-			? this._register(new Action('chat.fusionPhase', localize('chat.fusionPhase', "HydraFusion phase"), undefined, false))
+			? this._getOpenChatMenuAction() ?? this._register(new Action('chat.fusionPhase', localize('chat.fusionPhase', "HydraFusion phase"), undefined, false))
 			: this._getOpenChatMenuAction();
 		if (!menuAction) {
 			return false;
@@ -392,6 +393,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 					presentation: 'phase',
 					phaseStatus: data.phaseStatus,
 					activityLabel: data.activityDescription ? new MarkdownString().appendText(data.activityDescription).value : undefined,
+					...(chatResource ? { chatResource, isChatAvailable: data.isChatAvailable } : {}),
 				} satisfies ISubagentPhaseContext;
 			} else if (chatResource) {
 				this._openChatToolbar.context = { ...commonContext, chatResource, isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined };
