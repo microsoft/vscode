@@ -548,6 +548,10 @@ export interface IPartialEditorMouseEvent {
 export interface IPasteEvent {
 	readonly range: Range;
 	readonly languageId: string | null;
+	/**
+	 * Whether the paste inserted a rectangular block rather than a contiguous range.
+	 */
+	readonly isBlock?: boolean;
 	readonly clipboardEvent?: ClipboardEvent;
 }
 
@@ -558,6 +562,7 @@ export interface PastePayload {
 	text: string;
 	pasteOnNewLine: boolean;
 	multicursorText: string[] | null;
+	isBlock?: boolean;
 	mode: string | null;
 	clipboardEvent?: ClipboardEvent;
 }

@@ -197,7 +197,7 @@ export class NativeEditContext extends AbstractEditContext {
 				mode = pasteEvent.metadata.mode;
 			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
-			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode, pasteEvent.metadata?.isBlock === true);
 		}));
 
 		// Edit context events

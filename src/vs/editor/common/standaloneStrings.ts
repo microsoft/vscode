@@ -12,6 +12,7 @@ export namespace AccessibilityHelpNLS {
 	export const editableDiffEditor = nls.localize("editableDiffEditor", "You are in a pane of a diff editor.");
 	export const readonlyEditor = nls.localize("readonlyEditor", "You are in a read-only code editor.");
 	export const editableEditor = nls.localize("editableEditor", "You are in a code editor.");
+	export const columnSelectionPaste = nls.localize('columnSelectionPaste', "Paste a copied column selection{0} from a single cursor to insert its rows on successive lines. Short lines are not padded. Set editor.columnSelectionPaste to text to use normal text pasting.", '<keybinding:editor.action.clipboardPasteAction>');
 	export const defaultWindowTitleIncludesEditorState = nls.localize("defaultWindowTitleIncludesEditorState", "activeEditorState - such as modified, problems, and more, is included as a part of the window.title setting by default. Disable it with accessibility.windowTitleOptimized.");
 	export const defaultWindowTitleExcludingEditorState = nls.localize("defaultWindowTitleExcludingEditorState", "activeEditorState - such as modified, problems, and more, is currently not included as a part of the window.title setting by default. Enable it with accessibility.windowTitleOptimized.");
 	export const toolbar = nls.localize("toolbar", "Around the workbench, when the screen reader announces you've landed in a toolbar, use narrow keys to navigate between the toolbar's actions.");

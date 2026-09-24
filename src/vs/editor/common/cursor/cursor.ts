@@ -12,6 +12,7 @@ import { DeleteOperations } from './cursorDeleteOperations.js';
 import { CursorChangeReason } from '../cursorEvents.js';
 import { CompositionOutcome, TypeOperations } from './cursorTypeOperations.js';
 import { BaseTypeWithAutoClosingCommand } from './cursorTypeEditOperations.js';
+import { ColumnSelectionPasteCommand } from '../commands/columnSelectionPasteCommand.js';
 import { Position } from '../core/position.js';
 import { Range, IRange } from '../core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../core/selection.js';
@@ -598,18 +599,24 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined, isBlock: boolean = false): boolean {
 		const reason = EditSources.cursor({ kind: 'paste', detailedSource: source });
 
+		let didPasteBlock = false;
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []), reason);
+			const operation = TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || [], isBlock);
+			didPasteBlock = operation.commands[0] instanceof ColumnSelectionPasteCommand;
+			this._executeEditOperation(operation, reason);
 		}, eventsCollector, source, CursorChangeReason.Paste);
+		return didPasteBlock;
 	}
 
 	public cut(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
 		const reason = EditSources.cursor({ kind: 'cut', detailedSource: source });
 		this._executeEdit(() => {
-			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()), reason);
+			const selections = this.getSelections();
+			const isBlock = this.getCursorColumnSelectData().isReal && selections.some(selection => !selection.isEmpty());
+			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, selections, isBlock), reason);
 		}, eventsCollector, source);
 	}
 

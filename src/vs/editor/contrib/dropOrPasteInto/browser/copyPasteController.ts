@@ -191,6 +191,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const defaultPastePayload = {
 			multicursorText: e.dataToCopy.multicursorText ?? null,
 			pasteOnNewLine: e.dataToCopy.isFromEmptySelection,
+			isBlock: e.dataToCopy.isBlock,
 			mode: null
 		};
 
@@ -342,6 +343,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const token = cts.token;
 			try {
+				if (metadata?.defaultPastePayload.isBlock === true && editor.getOption(EditorOption.columnSelectionPaste) === 'block') {
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
+					return;
+				}
+
 				await this.mergeInDataFromCopy(allProviders, dataTransfer, metadata, token);
 				if (token.isCancellationRequested) {
 					return;
@@ -551,6 +557,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					mode: e.metadata.mode,
 					multicursorText: e.metadata.multicursorText ?? null,
 					pasteOnNewLine: !!e.metadata.isFromEmptySelection,
+					isBlock: e.metadata.isBlock === true,
 				},
 			};
 		}
@@ -634,6 +641,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			text,
 			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
+			isBlock: metadata?.defaultPastePayload.isBlock === true,
 			mode: null,
 		};
 		this._logService.trace('CopyPasteController#applyDefaultPasteHandler for id : ', metadata?.id);

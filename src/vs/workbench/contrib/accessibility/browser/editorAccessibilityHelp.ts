@@ -110,6 +110,9 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		content.push(AccessibilityHelpNLS.toggleSuggestionFocus);
 
 		if (!options.get(EditorOption.readOnly)) {
+			if (options.get(EditorOption.columnSelectionPaste) === 'block') {
+				content.push(AccessibilityHelpNLS.columnSelectionPaste);
+			}
 			const dictationInfo = getDictationInfo(this._contextKeyService);
 			if (dictationInfo) {
 				content.push(dictationInfo);

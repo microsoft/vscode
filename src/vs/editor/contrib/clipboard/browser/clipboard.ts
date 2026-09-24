@@ -325,6 +325,7 @@ if (PasteAction) {
 							text: clipboardText,
 							pasteOnNewLine,
 							multicursorText,
+							isBlock: metadata?.isBlock === true,
 							mode
 						});
 					}

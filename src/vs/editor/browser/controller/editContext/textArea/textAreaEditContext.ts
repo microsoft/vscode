@@ -300,7 +300,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
-			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode, e.metadata?.isBlock === true);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
