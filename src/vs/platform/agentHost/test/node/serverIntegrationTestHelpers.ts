@@ -795,6 +795,7 @@ export async function stopServer(
 		} catch (error) {
 			return { descendant, error };
 		}
+		return undefined;
 	}));
 	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
 	await Promises.settled(failedKills.map(async failure => {
