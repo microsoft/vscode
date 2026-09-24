@@ -240,11 +240,11 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.selectDevContainer();
 				const prompt = `start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
 				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
-				await app.workbench.agentsWindow.waitForSessionPreparation();
+				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 				await app.workbench.agentsWindow.showSessionPreparationLog();
 				await app.workbench.agentsWindow.cancelSessionPreparation(prompt);
 				await app.workbench.agentsWindow.retrySessionPreparation();
-				await app.workbench.agentsWindow.waitForSessionPreparation();
+				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
 				await app.workbench.agentsWindow.verifyInputEnabledAfterPreparation();
@@ -279,8 +279,9 @@ export function setup(logger: Logger, quality: Quality) {
 					30_000,
 				);
 				const requestsBeforeReconnect = devContainer.mockServer.requestCount();
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`join reconnecting Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
-				await app.workbench.agentsWindow.waitForSessionPreparation();
+				const reconnectPrompt = `join reconnecting Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(reconnectPrompt, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation(reconnectPrompt);
 				await app.workbench.agentsWindow.waitForAssistantText('OK', 5 * 60 * 1000);
 				assert.ok(devContainer.mockServer.requestCount() > requestsBeforeReconnect, 'Expected a request after joining the automatic reconnect');
 			} catch (error) {
@@ -354,7 +355,7 @@ export function setup(logger: Logger, quality: Quality) {
 					await app.workbench.agentsWindow.selectDevContainer(workspaceLabel);
 					const requestsBefore = context.mockServer.requestCount();
 					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
-					await app.workbench.agentsWindow.waitForSessionPreparation();
+					await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 					await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');

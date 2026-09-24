@@ -30,7 +30,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -930,6 +930,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
+	telemetryContext?: IAgentTelemetryContext;
 	onTurnEnded?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
@@ -1232,6 +1233,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
+			telemetryContext: () => options?.telemetryContext,
 		},
 	));
 
@@ -12239,6 +12241,7 @@ Use the attached image as context.
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
+				telemetryContext: { copilotSku: 'sku-a' },
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
@@ -12283,6 +12286,7 @@ Use the attached image as context.
 						totalToolCalls: data.totalToolCalls,
 						parallelToolCallRounds: data.parallelToolCallRounds,
 						parallelToolCallsTotal: data.parallelToolCallsTotal,
+						copilotSku: data.copilotSku,
 					};
 				}),
 				modelCalls: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => ({
@@ -12304,6 +12308,7 @@ Use the attached image as context.
 					totalToolCalls: 2,
 					parallelToolCallRounds: 1,
 					parallelToolCallsTotal: 2,
+					copilotSku: 'sku-a',
 				}],
 				modelCalls: [
 					{ turnId: 'turn-tool-details', modelCallId: 'api-tools' },
@@ -12352,6 +12357,7 @@ Use the attached image as context.
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession } = await createAgentSession(disposables, {
 				telemetryService,
+				telemetryContext: { copilotSku: 'sku-a' },
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
@@ -12400,13 +12406,14 @@ Use the attached image as context.
 					toolId: data.toolId,
 					confirmKind: data.confirmKind,
 					confirmationNotNeededReason: data.confirmationNotNeededReason,
+					copilotSku: data.copilotSku,
 				};
 			}), [{
-				provider: 'copilotcli', toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}, {
-				provider: 'copilotcli', toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}, {
-				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}]);
 		});
 

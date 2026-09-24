@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../log/common/log.js';
+import { buildInstallRemoteCliFromCacheCommand } from './remoteAgentHostCliCache.js';
 import {
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
@@ -22,6 +24,8 @@ export interface IRemoteAgentHostCliInstallOptions {
 	readonly reportInstalling: () => void;
 	readonly logService: ILogService;
 	readonly logPrefix?: string;
+	readonly cliCacheDir?: string;
+	readonly reportCacheStatus?: (message: string) => void;
 }
 
 /** The resolved CLI path and whether this invocation installed it. */
@@ -77,7 +81,26 @@ async function ensurePinnedCliInstalled(
 	].join(' && ');
 
 	try {
-		await exec(installCommand);
+		let installedFromCache = false;
+		if (options.cliCacheDir) {
+			try {
+				await exec(buildInstallRemoteCliFromCacheCommand(options.cliCacheDir, options.serverDataFolderName, options.quality, commit, url));
+				installedFromCache = true;
+				const message = `Installed private CLI copy from shared cache at ${options.cliCacheDir}`;
+				options.logService.info(`${logPrefix} ${message}`);
+				options.reportCacheStatus?.(message);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				const message = `Shared CLI cache unavailable; downloading a private copy: ${error instanceof Error ? error.message : String(error)}`;
+				options.logService.warn(`${logPrefix} ${message}`);
+				options.reportCacheStatus?.(message);
+			}
+		}
+		if (!installedFromCache) {
+			await exec(installCommand);
+		}
 		const { code: versionCode } = await exec(`${cliBin} --version`, { ignoreExitCode: true });
 		if (versionCode !== 0) {
 			throw new Error(`CLI at ${cliBin} failed --version check after install (exit code ${versionCode})`);
@@ -86,6 +109,9 @@ async function ensurePinnedCliInstalled(
 		await exec(buildCleanupOldCLIsCommand(options.serverDataFolderName, options.quality), { ignoreExitCode: true });
 		return { cliBin, installed: true };
 	} catch (error) {
+		if (isCancellationError(error)) {
+			throw error;
+		}
 		const message = error instanceof Error ? error.message : String(error);
 		options.logService.warn(`${logPrefix} Could not install matching CLI for commit ${commit}: ${message}. Looking for a fallback CLI...`);
 		const fallback = await findFallbackCli(exec, options);

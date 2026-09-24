@@ -501,22 +501,6 @@ function mapResult(
 					outputTokens: message.usage.output_tokens,
 					cacheReadTokens: message.usage.cache_read_input_tokens,
 					...(modelKey ? { model: modelKey } : {}),
-					...(modelKey ? {
-						_meta: {
-							turnTokenTotals: [{
-								model: modelKey,
-								inputTokens: message.usage.input_tokens,
-								cachedTokens: message.usage.cache_read_input_tokens,
-								outputTokens: message.usage.output_tokens,
-							}],
-							directTurnTokenTotals: [{
-								model: modelKey,
-								inputTokens: message.usage.input_tokens,
-								cachedTokens: message.usage.cache_read_input_tokens,
-								outputTokens: message.usage.output_tokens,
-							}],
-						},
-					} : {}),
 				},
 			},
 		});

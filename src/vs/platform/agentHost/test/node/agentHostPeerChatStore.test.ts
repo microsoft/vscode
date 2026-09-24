@@ -472,6 +472,18 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
+	test('updates working directories without dropping provider data', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, 'inherited-turn', ['file:///workspace/first']);
+
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), providerData: 'backing', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/second'] },
+		]);
+	});
+
 	test('persists and reads the explicit empty sentinel', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
