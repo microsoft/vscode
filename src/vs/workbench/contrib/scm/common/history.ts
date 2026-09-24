@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ThemeColor, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMRepository } from './scm.js';
@@ -66,6 +66,7 @@ export interface ISCMHistoryItem {
 	readonly subject: string;
 	readonly message: string;
 	readonly displayId?: string;
+	readonly identifier?: readonly ISCMHistoryItemIdentifierPart[];
 	readonly author?: string;
 	readonly authorEmail?: string;
 	readonly authorIcon?: URI | { light: URI; dark: URI } | ThemeIcon;
@@ -73,6 +74,11 @@ export interface ISCMHistoryItem {
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
 	readonly tooltip?: IMarkdownString | Array<IMarkdownString> | undefined;
+}
+
+export interface ISCMHistoryItemIdentifierPart {
+	readonly text: string;
+	readonly color?: ThemeColor;
 }
 
 export interface ISCMHistoryItemGraphNode {
