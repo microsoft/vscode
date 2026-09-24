@@ -748,6 +748,37 @@ suite.skip('File Watcher (parcel)', function () {
 		assert.strictEqual(instance.failed, true);
 	});
 
+	test('renaming watched path emits watcher fail and delete event if correlated', async function () {
+
+		// Renaming the watched path on Windows/macOS keeps the underlying watcher
+		// handle alive, so unlike deletion no events arrive at all. We detect the
+		// rename by polling and then treat it like a deleted path so that clients
+		// can properly react (https://github.com/microsoft/vscode/issues/309241)
+
+		const folderPath = join(testDir, 'deep');
+		const renamedFolderPath = `${folderPath}-renamed`;
+
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }]);
+
+		let failed = false;
+		const instance = Array.from(watcher.watchers)[0];
+		instance.onDidFail(() => failed = true);
+
+		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
+
+		await promises.rename(folderPath, renamedFolderPath);
+
+		await onDidWatchFail;
+		await changeFuture;
+		assert.strictEqual(failed, true);
+		assert.strictEqual(instance.failed, true);
+
+		// Do not restore the renamed folder here: the suspended watch request is
+		// being monitored and would resume watching (and emit events) while this
+		// test is still running. The suite teardown removes `testDir` entirely.
+	});
+
 	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
 		await testWatchFolderDoesNotExist(false);
 	});
