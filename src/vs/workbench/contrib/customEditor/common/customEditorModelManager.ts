@@ -21,7 +21,11 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		const models = [];
 		for (const [key, entry] of this._references) {
 			if (key.startsWith(keyStart) && entry.model) {
-				models.push(await entry.model);
+				try {
+					models.push(await entry.model);
+				} catch {
+					// Skip models that failed to resolve
+				}
 			}
 		}
 		return models;
@@ -46,7 +50,8 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			return {
 				object: model,
 				dispose: createSingleCallFunction(() => {
-					if (--entry.counter <= 0) {
+					// The model may already be disposed and replaced, for example after its resource was deleted
+					if (--entry.counter <= 0 && this._references.get(key) === entry) {
 						entry.model.then(x => x.dispose());
 						this._references.delete(key);
 					}
@@ -62,14 +67,23 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			throw new Error('Model already exists');
 		}
 
-		this._references.set(key, { viewType, model, counter: 0 });
+		const entry = { viewType, model, counter: 0 };
+		this._references.set(key, entry);
+
+		// Forget models that fail to resolve so that opening the resource again creates a new model
+		model.catch(() => {
+			if (this._references.get(key) === entry) {
+				this._references.delete(key);
+			}
+		});
+
 		return this.tryRetain(resource, viewType)!;
 	}
 
 	public disposeAllModelsForView(viewType: string): void {
 		for (const [key, value] of this._references) {
 			if (value.viewType === viewType) {
-				value.model.then(x => x.dispose());
+				this.disposeModel(value.model);
 				this._references.delete(key);
 			}
 		}
@@ -79,10 +93,14 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		const keyStart = `${resource.toString()}@@@`;
 		for (const [key, value] of this._references) {
 			if (key.startsWith(keyStart)) {
-				value.model.then(x => x.dispose());
+				this.disposeModel(value.model);
 				this._references.delete(key);
 			}
 		}
+	}
+
+	private disposeModel(model: Promise<ICustomEditorModel>): void {
+		model.then(model => model.dispose(), () => { /* nothing to dispose when the model failed to resolve */ });
 	}
 
 	private key(resource: URI, viewType: string): string {
