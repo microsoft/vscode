@@ -814,6 +814,13 @@ class AbstractResponse implements IResponse {
 			}
 		}
 
+		const error = IChatToolInvocation.resultError(toolInvocation);
+		if (error) {
+			text += '\n' + (typeof error === 'string'
+				? localize('toolExecutionFailedWithMessage', "Tool execution failed: {0}", error)
+				: localize('toolExecutionFailed', "Tool execution failed"));
+		}
+
 		return { text, isBlock: true };
 	}
 

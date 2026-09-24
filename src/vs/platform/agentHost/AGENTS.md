@@ -187,7 +187,7 @@ Because listing never opens session storage, migrations the provider/session fal
 
 ## 3a. Session Registry and External Chat Discovery
 
-`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime, external, source } }` in the orchestrator-owned `agent-host.db`. Sessions discovered in a provider-native catalog remain external while merely being opened. Their first accepted outgoing user message adopts them: the registry persists `external: false` and an explicit registration source before provider dispatch, and Agent Service publishes the ownership change through session metadata. Adoption survives cancellation, provider failure, restart, and rediscovery. Provider session databases do not duplicate this ownership property.
+`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime, external, source } }` in the orchestrator-owned `agent-host.db`. Sessions discovered in a provider-native catalog remain external while merely being opened. Their first accepted outgoing user message adopts them: the registry persists `external: false` and an explicit registration source before provider dispatch, and Agent Service publishes the ownership change through session metadata. The capability-gated `vscode/importSession` request performs the same adoption without sending a message or changing the session's identity. Adoption survives cancellation, provider failure, restart, and rediscovery. Provider session databases do not duplicate this ownership property.
 
 `AgentSessionRegistry.list()` reads the registry once and passes every entry through the migration callback supplied by Agent Service. The callback returns a replacement only for legacy entries whose `external` column is `NULL`, resolving them through the `agentHost.workspaceless` classifier. The registry persists all replacements in one transaction and returns the computed list without rereading the database. Migration uses bounded concurrency. Explicit internal registration sources are preserved; externally classified rows become discovery entries.
 
@@ -424,6 +424,8 @@ The orchestrator resolves the owning **session** from the session URI for sessio
 Agent Merge is session-resident but folder-scoped. Client-owned enablement lives in `agentMerge.folders[workingDirectoryKey] = { enabled, overrides?, chat? }`; host-owned lifecycle state lives in `agentMerge.controller.folders[workingDirectoryKey]`; and elevated injected configuration is session-wide in `agentMerge.injectedConfiguration`. Readers migrate legacy `agentMerge` / `agentMerge.controller` into the session folder until a folder entry exists; writers store folder entries and clear the legacy keys for the session folder.
 
 The `chat` value records the chat that enabled Agent Merge for that folder. Repair turns and transcript notices target that chat while it still works in the folder; otherwise the host picks the default chat first, then the first peer chat whose first effective working directory is that folder. Repair concurrency is per chat: a folder waits only for its owning chat to be idle, while session-wide elevation is applied when any folder is enabled and restored only after the last folder stops.
+
+Initial tool enablement validates the invoking folder's current Git branch before persisting and returning the target. Configuration-only updates preserve the folder's target and owning chat; asynchronous evaluations revalidate that folder's live configuration and chat ownership before acting.
 
 ---
 

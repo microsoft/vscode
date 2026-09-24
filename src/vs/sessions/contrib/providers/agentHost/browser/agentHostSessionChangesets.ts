@@ -114,7 +114,7 @@ export function createChangesets(
 			}));
 		} else if (changeset.changeKind === AGENT_MERGE_CHANGESET_ID) {
 			const agentMergeSessionUri = chatUri ? URI.parse(parseRequiredSessionUriFromChatUri(chatUri)) : sessionUri;
-			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAgentMergeChangeset, agentMergeSessionUri, options, isActiveSessionObs, {
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAgentMergeChangeset, agentMergeSessionUri, chatUri, options, isActiveSessionObs, {
 				...changeset, isDefault
 			}));
 		}
@@ -677,6 +677,7 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 
 	constructor(
 		sessionUri: URI,
+		chatUri: URI | undefined,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
@@ -688,27 +689,11 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 		this.description = changesetSummary.description;
 		this.isDefault = constObservable(changesetSummary.isDefault);
 
-		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-			options,
-			isActiveSessionObs,
-			StateComponents.Session,
-			constObservable(sessionUri),
-		);
-
-		const defaultChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const sessionState = sessionStateObs.read(reader).read(reader);
-			return URI.parse(
-				sessionState && !(sessionState instanceof Error)
-					? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri)
-					: buildDefaultChatUri(sessionUri)
-			);
-		});
-
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Chat,
-			defaultChatUriObs,
+			constObservable(chatUri ?? URI.parse(buildDefaultChatUri(sessionUri))),
 		);
 
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {

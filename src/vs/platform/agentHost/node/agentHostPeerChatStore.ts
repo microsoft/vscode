@@ -217,6 +217,22 @@ export class AgentHostPeerChatStore {
 		});
 	}
 
+	updateWorkingDirectories(session: URI, chat: URI, workingDirectories: readonly string[]): Promise<void> {
+		const chatUri = chat.toString();
+		return this._enqueueWrite(session, entries => {
+			const existing = entries.find(entry => entry.uri === chatUri);
+			const next = entries.filter(entry => entry.uri !== chatUri);
+			next.push({
+				uri: chatUri,
+				...(existing?.providerData !== undefined ? { providerData: existing.providerData } : {}),
+				...(existing?.origin !== undefined ? { origin: existing.origin } : {}),
+				...(existing?.inheritedTurnId !== undefined ? { inheritedTurnId: existing.inheritedTurnId } : {}),
+				workingDirectories: [...workingDirectories],
+			});
+			return next;
+		});
+	}
+
 	remove(session: URI, chat: URI): Promise<void> {
 		const chatUri = chat.toString();
 		return this._enqueueWrite(session, entries => entries.filter(entry => entry.uri !== chatUri));

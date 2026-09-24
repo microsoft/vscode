@@ -86,7 +86,7 @@ export function getChatSummaryHoverData(
 		...(includeUpdatedAt ? { updatedAt: chat.updatedAt.get() } : {}),
 		location: getLocation(
 			chat.workspace.get(),
-			session.worktreePending?.get() ?? false,
+			false,
 			() => getChatBranchDiffStats(chat),
 			labelService,
 		),

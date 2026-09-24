@@ -92,6 +92,9 @@ class RecordValidator<T> extends ValidatorBase<Record<string, T>> {
 		}
 		const result: Record<string, T> = {};
 		for (const [key, value] of Object.entries(content)) {
+			if (key === '__proto__' || key === 'constructor') {
+				return { content: undefined, error: { message: 'Keys must not be prototype properties.' } };
+			}
 			if (key.length === 0 || key.length > AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT) {
 				return { content: undefined, error: { message: `Keys must be non-empty and at most ${AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT} characters.` } };
 			}

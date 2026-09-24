@@ -775,7 +775,8 @@ export async function stopServer(
 				await processOperations.killTree(pid, true);
 			}
 		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null
+				&& !await raceTimeout(serverExit.then(() => true), 1_000)) {
 				throw error;
 			}
 		}
@@ -785,16 +786,23 @@ export async function stopServer(
 		throw snapshotError;
 	}
 
-	await Promises.settled(descendants.map(async descendant => {
+	const failedKills = await Promises.settled(descendants.map(async descendant => {
 		if (!await processOperations.isSameProcessRunning(descendant)) {
 			return;
 		}
 		try {
 			await processOperations.killTree(descendant.pid, true);
 		} catch (error) {
+			return { descendant, error };
+		}
+		return undefined;
+	}));
+	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
+	await Promises.settled(failedKills.map(async failure => {
+		if (failure) {
 			await retry(async () => {
-				if (await processOperations.isSameProcessRunning(descendant)) {
-					throw error;
+				if (await processOperations.isSameProcessRunning(failure.descendant)) {
+					throw failure.error;
 				}
 			}, 50, 5);
 		}
