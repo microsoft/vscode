@@ -772,6 +772,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private resetCatalogState(): void {
+		this.installErrors.clear();
 		const cached = this.query.isEmpty() ? this.browseCatalogCache.get(this.selectedSourceId ?? '') : undefined;
 		this.catalogPage = cached?.page;
 		if (cached) {
@@ -1350,6 +1351,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.pendingInstalls.has(resourceKey) || this.installService.getInstallState(resource).kind !== 'available') {
 			return;
 		}
+		const query = this.query;
+		const sourceId = this.selectedSourceId;
 		this.pendingInstalls.add(resourceKey);
 		this.installErrors.delete(resourceKey);
 		status(localize('customizationDiscovery.installStarted', "Installing {0}.", resource.displayName));
@@ -1364,8 +1367,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				status(localize('customizationDiscovery.installCancelled', "Installation cancelled for {0}.", resource.displayName));
 			} else {
 				const message = localize('customizationDiscovery.installFailed', "Could not install {0}. {1}", resource.displayName, getErrorMessage(error));
-				this.installErrors.set(resourceKey, message);
-				if (this.visible) {
+				const currentContext = this.query === query && this.selectedSourceId === sourceId;
+				if (currentContext) {
+					this.installErrors.set(resourceKey, message);
+				}
+				if (this.visible && currentContext) {
 					alert(message);
 					void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
 				} else {
@@ -1425,6 +1431,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.pendingUninstalls.has(resourceKey) || this.installService.getInstallState(resource).kind !== 'installed') {
 			return;
 		}
+		const query = this.query;
+		const sourceId = this.selectedSourceId;
 		this.pendingUninstalls.add(resourceKey);
 		this.installErrors.delete(resourceKey);
 		status(localize('customizationDiscovery.uninstallStarted', "Uninstalling {0}.", resource.displayName));
@@ -1439,8 +1447,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				status(localize('customizationDiscovery.uninstallCancelled', "Uninstallation cancelled for {0}.", resource.displayName));
 			} else {
 				const message = localize('customizationDiscovery.uninstallFailed', "Could not uninstall {0}. {1}", resource.displayName, getErrorMessage(error));
-				this.installErrors.set(resourceKey, message);
-				if (this.visible) {
+				const currentContext = this.query === query && this.selectedSourceId === sourceId;
+				if (currentContext) {
+					this.installErrors.set(resourceKey, message);
+				}
+				if (this.visible && currentContext) {
 					alert(message);
 					void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
 				} else {

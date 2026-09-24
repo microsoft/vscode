@@ -79,6 +79,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const installs: { identifier: string; result: DeferredPromise<void> }[] = [];
 		const deletions: DeferredPromise<void>[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(commandId: string, ..._args: unknown[]): Promise<R | undefined> {
@@ -110,6 +111,11 @@ suite('AICustomizationDiscoveryPage', () => {
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable' as const, message: 'Manual setup required', setupUrl }
 					: { kind: 'available' as const };
+			}
+			override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const result = new DeferredPromise<void>();
+				installs.push({ identifier: resource.identifier, result });
+				await result.p;
 			}
 		}());
 		const sentimentChanged = store.add(new Emitter<void>());
@@ -161,7 +167,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 		}
 		return {
-			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents, opened, deletions,
+			page, container, configuration, requests, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, selectSource, listService, creationEvents, opened, deletions, installs,
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
@@ -530,6 +536,39 @@ suite('AICustomizationDiscoveryPage', () => {
 			});
 		});
 	}
+
+	test('clears an install failure when the search filter changes', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('unity');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('unity')] });
+		fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.click();
+		await fixture.installs[0].result.error(new Error('Manual setup required'));
+		await timeout(0);
+		const failed = fixture.container.querySelector('.customization-discovery-results .customization-discovery-state')?.textContent;
+		fixture.page.setSearchQuery('other');
+		const afterChange = fixture.container.querySelector('.customization-discovery-results .customization-discovery-state')?.textContent;
+		assert.deepStrictEqual({ failed, afterChange }, {
+			failed: 'Could not install unity. Manual setup required',
+			afterChange: 'Loading customizations...',
+		});
+	});
+
+	test('does not show an old install failure after the search changes during installation', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('unity');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('unity')] });
+		fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.click();
+		fixture.page.setSearchQuery('other');
+		await fixture.installs[0].result.error(new Error('Manual setup required'));
+		await timeout(0);
+		const afterFailure = fixture.container.querySelector('.customization-discovery-results .customization-discovery-state')?.textContent;
+		assert.deepStrictEqual({ afterFailure, notifications: fixture.notifications }, {
+			afterFailure: 'Loading customizations...',
+			notifications: ['Could not install unity. Manual setup required'],
+		});
+	});
 
 	test('single-type filters use the native type selector with the global page size', async () => {
 		const fixture = createPage();
