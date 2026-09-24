@@ -220,9 +220,7 @@ suite('Release notes editor Try This integration', () => {
 		const code = container.querySelector('pre code')!;
 		const initialClass = code.querySelector('span')?.className;
 		const link = container.querySelector<HTMLAnchorElement>('.release-notes-tryout-link')!;
-		link.focus();
-		container.scrollTop = 75;
-		const scrollTop = container.scrollTop;
+		link.focus({ preventScroll: true });
 		const pending = new DeferredPromise<OnboardingTryoutResult>();
 		let token: CancellationToken | undefined;
 		run = async (_id, sourceToken) => {
@@ -240,6 +238,10 @@ suite('Release notes editor Try This integration', () => {
 		TokenizationRegistry.setColorMap(theme.getColorMap());
 		await timeout(0);
 		const update = messages.find((message): message is Parameters<typeof applyReleaseNotesTokenization>[1] & { type: string; documentId: string } => 'type' in message && message.type === 'releaseNotesTokenization')!;
+		// Set the scroll position after the async work so only retokenization can change it.
+		const scrollTop = 75;
+		container.scrollTop = scrollTop;
+		assert.strictEqual(container.scrollTop, scrollTop);
 		applyReleaseNotesTokenization(targetDocument, update);
 
 		assert.deepStrictEqual({
