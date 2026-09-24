@@ -137,6 +137,7 @@ export class CustomizationLocationPicker {
 	 * Resolves the target directory for creating a new customization file.
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
+	 * When the target is omitted, offers both workspace and user locations.
 	 *
 	 * Source folders come from the active harness's item provider (via the
 	 * items model) — each session can supply its own set of customization
@@ -145,7 +146,7 @@ export class CustomizationLocationPicker {
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
-	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target: 'local' | 'user'): Promise<URI | undefined | null> {
+	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<URI | undefined | null> {
 		const sessionType = getChatSessionType(sessionResource);
 		const descriptor = this.harnessService.findHarnessById(sessionType);
 		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
@@ -158,7 +159,7 @@ export class CustomizationLocationPicker {
 			return undefined;
 		}
 
-		const matchingFolders = allFolders.filter(f => f.source === target);
+		const matchingFolders = allFolders.filter(f => target ? f.source === target : f.source === 'local' || f.source === 'user');
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
 			// back to askForPromptSourceFolder (not null which means cancellation)

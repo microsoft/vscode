@@ -19,7 +19,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOp
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { ChangesetDiffStrategy, IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -1401,7 +1401,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshBranchChangeset(session: string): void {
 		this.branchRefreshes.push(session);
 	}
-	refreshSessionChangeset(session: string): void {
+	refreshSessionChangeset(session: string, strategy?: ChangesetDiffStrategy): void {
+		assert.strictEqual(strategy, 'fileEditTracker');
 		this.sessionRefreshes.push(session);
 	}
 	onWorkingDirectoryAvailable(session: string): void {
@@ -1418,7 +1419,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 					this.refreshBranchChangeset(session);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session);
+					this.refreshSessionChangeset(session, 'fileEditTracker');
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
@@ -1432,7 +1433,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 		}
 		return `${session}/changeset/uncommitted`;
 	}
-	async computeTurnChangeset(session: string, turnId: string): Promise<string> {
+	async computeTurnChangeset(session: string, turnId: string, strategy?: ChangesetDiffStrategy): Promise<string> {
+		assert.strictEqual(strategy, 'fileEditTracker');
 		const resource = buildTurnChangesetUri(session, turnId);
 		this.turnRefreshes.push(resource);
 		return resource;

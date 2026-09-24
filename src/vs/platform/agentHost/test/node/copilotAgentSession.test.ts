@@ -830,6 +830,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly kind: 'shell';
 	readonly fullCommandText?: string;
 	readonly requestSandboxBypass?: boolean;
+	readonly requestSandboxPermissive?: boolean;
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
@@ -6266,6 +6267,23 @@ suite('CopilotAgentSession', () => {
 
 	suite('permission handling', () => {
 
+		function createShellPermissionRequest(toolCallId = 'tc-duplicate-shell') {
+			return {
+				kind: 'shell',
+				toolCallId,
+				canOfferSessionApproval: false,
+				commands: [{ identifier: 'cat', readOnly: true }],
+				commandSegments: [{ identifier: 'cat', fullCommandText: 'cat /workspace/file.ts' }],
+				fullCommandText: 'cat /workspace/file.ts',
+				hasWriteFileRedirection: false,
+				intention: 'Read a file',
+				possiblePaths: ['/workspace/file.ts'],
+				possibleUrls: [],
+				resolvedPaths: { '/workspace/file.ts': '/real/workspace/file.ts' },
+				resolvedWorkingDirectory: '/real/workspace',
+			} satisfies Extract<PermissionRequest, { kind: 'shell' }>;
+		}
+
 		test('auto-approves reads within applied plugin directories', async () => {
 			const pluginDir = URI.file('/plugins/active');
 			const { runtime, signals } = await createAgentSession(disposables, {
@@ -6784,6 +6802,180 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(result, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
+		test('auto-approves only one identical native shell permission follow-up', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const request = createShellPermissionRequest();
+			const firstResultPromise = runtime.handlePermissionRequest(request);
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+			const firstResult = await firstResultPromise;
+
+			const duplicateResultPromise = runtime.handlePermissionRequest({ ...request });
+			await timeout(0);
+			const duplicatePrompted = session.respondToPermissionRequest(request.toolCallId, true);
+			const duplicateResult = await duplicateResultPromise;
+
+			const thirdResultPromise = runtime.handlePermissionRequest({ ...request });
+			await timeout(0);
+			const thirdPrompted = session.respondToPermissionRequest(request.toolCallId, false);
+			assert.deepStrictEqual({
+				results: [firstResult, duplicateResult, await thirdResultPromise],
+				duplicatePrompted,
+				thirdPrompted,
+				confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
+				duplicatePrompted: false,
+				thirdPrompted: true,
+				confirmations: 2,
+			});
+		});
+
+		for (const kind of ['shell', 'read', 'write'] as const) {
+			test(`does not cache a ${kind} approval that races with abort`, async () => {
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+				const toolCallId = `tc-racing-${kind}`;
+				const request: TestPermissionRequest = kind === 'shell'
+					? createShellPermissionRequest(toolCallId)
+					: kind === 'read'
+						? { kind, toolCallId, path: '/workspace/file.ts' }
+						: { kind, toolCallId, fileName: '/workspace/file.ts' };
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				const [firstResult] = await Promise.all([firstResultPromise, session.abort()]);
+				await session.resume('turn-after-racing-abort');
+
+				const resultPromise = runtime.handlePermissionRequest({ ...request });
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(toolCallId, false);
+				assert.deepStrictEqual({ firstResult, prompted, result: await resultPromise }, {
+					firstResult: { kind: 'reject' },
+					prompted: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+				});
+			});
+		}
+
+		const changedShellRequests: [string, Partial<Extract<PermissionRequest, { kind: 'shell' }>>][] = [
+			['command', { fullCommandText: 'cat /workspace/other.ts' }],
+			['parsed command', { commands: [{ identifier: 'cat', readOnly: false }] }],
+			['command segment', { commandSegments: [{ identifier: 'cat', fullCommandText: 'cat /workspace/other.ts' }] }],
+			['possible path', { possiblePaths: ['/workspace/other.ts'] }],
+			['possible URL', { possibleUrls: [{ url: 'https://example.com' }] }],
+			['canonical path', { resolvedPaths: { '/workspace/file.ts': '/real/other.ts' } }],
+			['canonical working directory', { resolvedWorkingDirectory: '/real/other-directory' }],
+			['sandbox bypass', { requestSandboxBypass: true }],
+			['managed approval', { managedApprovalRequired: true }],
+		];
+		for (const [name, changes] of changedShellRequests) {
+			test(`requires a new shell approval when the ${name} changes`, async () => {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const request = createShellPermissionRequest();
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+				await firstResultPromise;
+
+				const changedResultPromise = runtime.handlePermissionRequest({ ...request, ...changes });
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(request.toolCallId, false);
+				const changedResult = await changedResultPromise;
+				const originalResultPromise = runtime.handlePermissionRequest({ ...request });
+				await timeout(0);
+				const originalPrompted = session.respondToPermissionRequest(request.toolCallId, false);
+				assert.deepStrictEqual({
+					prompted,
+					originalPrompted,
+					results: [changedResult, await originalResultPromise],
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				}, {
+					prompted: true,
+					originalPrompted: true,
+					results: [
+						{ kind: 'reject', feedback: 'The user denied permission.' },
+						{ kind: 'reject', feedback: 'The user denied permission.' },
+					],
+					confirmations: 3,
+				});
+			});
+		}
+
+		test('requires a new shell approval when a permissive retry becomes a full sandbox bypass', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const request = { ...createShellPermissionRequest(), requestSandboxBypass: true, requestSandboxPermissive: true };
+			const firstResultPromise = runtime.handlePermissionRequest(request);
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+			await firstResultPromise;
+
+			const resultPromise = runtime.handlePermissionRequest({ ...request, requestSandboxPermissive: false });
+			await timeout(0);
+			const prompted = session.respondToPermissionRequest(request.toolCallId, false);
+			assert.deepStrictEqual({ prompted, result: await resultPromise }, {
+				prompted: true,
+				result: { kind: 'reject', feedback: 'The user denied permission.' },
+			});
+		});
+
+		for (const followUp of ['another tool call', 'another permission kind', 'a denied shell request', 'a custom shell tool'] as const) {
+			test(`does not reuse shell approval for ${followUp}`, async () => {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const shellRequest = createShellPermissionRequest();
+				const request: TestPermissionRequest = followUp === 'a custom shell tool'
+					? { kind: 'custom-tool', toolCallId: shellRequest.toolCallId, toolName: 'bash', args: { command: shellRequest.fullCommandText } }
+					: shellRequest;
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(shellRequest.toolCallId, followUp !== 'a denied shell request'));
+				await firstResultPromise;
+
+				const nextRequest: TestPermissionRequest = followUp === 'another tool call'
+					? { ...shellRequest, toolCallId: 'another-shell-call' }
+					: followUp === 'another permission kind'
+						? { kind: 'read', toolCallId: shellRequest.toolCallId, path: '/workspace/file.ts' }
+						: { ...request };
+				assert.ok(nextRequest.toolCallId);
+				const resultPromise = runtime.handlePermissionRequest(nextRequest);
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(nextRequest.toolCallId, false);
+				assert.deepStrictEqual({
+					prompted,
+					result: await resultPromise,
+					confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				}, {
+					prompted: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+					confirmations: 2,
+				});
+			});
+		}
+
+		for (const ending of ['tool completion', 'abort'] as const) {
+			test(`clears a duplicate shell approval on ${ending}`, async () => {
+				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+				const request = createShellPermissionRequest();
+				const firstResultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(request.toolCallId, true));
+				await firstResultPromise;
+				if (ending === 'tool completion') {
+					mockSession.fire('tool.execution_complete', { toolCallId: request.toolCallId, success: true });
+				} else {
+					await session.abort();
+					await session.resume('turn-after-abort');
+				}
+
+				const resultPromise = runtime.handlePermissionRequest({ ...request });
+				await timeout(0);
+				const prompted = session.respondToPermissionRequest(request.toolCallId, false);
+				assert.deepStrictEqual({ prompted, result: await resultPromise }, {
+					prompted: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+				});
+			});
+		}
+
 		test('shell permissions carry the tracked shell language when known', async () => {
 			const cases = [
 				{ toolCallId: 'tc-powershell-language', trackedToolName: 'powershell', expected: 'powershell' },
@@ -7206,7 +7398,7 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('managed read and write approvals do not auto-approve duplicate requests', async () => {
+		test('managed read, write, and shell approvals do not auto-approve duplicate requests', async () => {
 			const testCases = [
 				{
 					name: 'read',
@@ -7223,6 +7415,13 @@ suite('CopilotAgentSession', () => {
 						kind: 'write' as const,
 						fileName: '/workspace/src/file.ts',
 						toolCallId: 'tc-managed-duplicate-write',
+						managedApprovalRequired: true,
+					},
+				},
+				{
+					name: 'shell',
+					request: {
+						...createShellPermissionRequest('tc-managed-duplicate-shell'),
 						managedApprovalRequired: true,
 					},
 				},
@@ -11212,14 +11411,15 @@ Use the attached image as context.
 				phaseModels: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [readToolCallMeta(action).fusionPhase?.model] : []),
 				phaseActions: getActions(signals).filter(isChatAction).filter(action => action.type !== ActionType.ChatResponsePart).map(action => action.type),
 				phaseParts: parts.filter(part => part.kind === ResponsePartKind.ToolCall),
-				subagentSignals: signals.filter(signal => signal.kind !== 'action'),
+				subagentSignals: signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [{ kind: signal.kind, toolCallId: signal.toolCallId }] : []),
 				activity,
 				leaksPhaseContent: JSON.stringify(signals).includes('PRIVATE'),
 			}, {
-				statuses: ['selected', 'completed'],
+				statuses: ['selected'],
 				phaseModels: ['model-a'],
 				phaseActions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
 				phaseParts: [],
+				// A phase gets a child chat only once one of its events is routed to it.
 				subagentSignals: [],
 				activity: [
 					'Choosing a HydraFusion workflow...',
@@ -11295,7 +11495,7 @@ Use the attached image as context.
 					status: readToolCallMeta(part.toolCall).fusionPhase?.status,
 					model: readToolCallMeta(part.toolCall).fusionPhase?.model,
 					leaksContent: JSON.stringify(signals).includes('PRIVATE'),
-					subagentSignals: signals.filter(signal => signal.kind !== 'action'),
+					subagentSignals: signals.flatMap((signal): { kind: string; toolCallId?: string }[] => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [{ kind: signal.kind, toolCallId: signal.toolCallId }] : signal.kind !== 'action' ? [{ kind: signal.kind }] : []),
 				}, {
 					actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
 					toolCallId: 'fusion:fusion-1:phase-1',
@@ -11504,7 +11704,7 @@ Use the attached image as context.
 				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, turnId: 'sdk-shared' });
 				const lateEvents = signals.length - beforeLate;
 				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2', activity: 'tool_started' });
-				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared' });
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared', outcome: 'degraded' });
 
 				assert.deepStrictEqual({
 					lateEvents,
@@ -11518,7 +11718,7 @@ Use the attached image as context.
 					latestTelemetryOwner: 'second',
 					pendingEvents: 0,
 					activity: ['Main pass: running a tool', undefined],
-					statuses: ['completed'],
+					statuses: ['degraded'],
 				});
 			});
 		}
@@ -11571,7 +11771,7 @@ Use the attached image as context.
 				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
 				mockSession.fire(phaseEvent, phaseEvent === 'assistant.fusion_phase_completed'
 					? { ...fusionTestData.phaseCompleted, verdict: 'PRIVATE VERDICT' } : fusionTestData.phaseFailed);
-				mockSession.fire('session.fusion_completed', fusionTestData.completed);
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, outcome: 'degraded' });
 				const buffered = {
 					count: session['_pendingFusionEvents'].length,
 					leaksContent: JSON.stringify(session['_pendingFusionEvents']).includes('PRIVATE'),
@@ -11599,7 +11799,7 @@ Use the attached image as context.
 			mockSession.fire('abort', { reason: 'user_initiated' });
 			session.resetTurnState('second');
 			const beforeCompletion = signals.length;
-			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, outcome: 'degraded' });
 			const beforeMapping = signals.length - beforeCompletion;
 			mockSession.fire('user.message', { content: 'Second request', turnId: 'sdk-turn' });
 			assert.deepStrictEqual({
@@ -11610,7 +11810,7 @@ Use the attached image as context.
 			}, {
 				beforeMapping: 0,
 				pendingEvents: 0,
-				statuses: ['completed'],
+				statuses: ['degraded'],
 			});
 		});
 
@@ -11742,6 +11942,158 @@ Use the attached image as context.
 				signals.map(signal => signal.kind === 'action' ? signal.action.type : signal.kind),
 				[ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
 			);
+		});
+
+		test('committed Fusion phase tools and intermediate text nest under the phase; the final answer stays at the root', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const phaseToolCallId = 'fusion:fusion-1:phase-1';
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			const beforeReplay = signals.length;
+			mockSession.fire('assistant.message', { messageId: 'm1', content: 'Starting the server', toolRequests: [{ toolCallId: 'tc-bash', name: 'bash', arguments: {} }], fusion });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-bash', success: true, result: { content: 'a.ts' }, fusion });
+			mockSession.fire('assistant.message', { messageId: 'm2', content: 'The heading is hf repro', fusion });
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			const closedBeforeIdle = signals.some(signal => signal.kind === 'subagent_completed');
+			mockSession.fire('session.idle', {});
+
+			assert.strictEqual(closedBeforeIdle, false);
+			assert.deepStrictEqual(signals.slice(beforeReplay).flatMap((signal): { type: string; toolCallId?: string; content?: string; parent?: string }[] => {
+				if (signal.kind === 'action' && (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallComplete)) {
+					return [{ type: signal.action.type, toolCallId: signal.action.toolCallId, parent: signal.parentToolCallId }];
+				}
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown) {
+					return [{ type: signal.action.type, content: signal.action.part.content, parent: signal.parentToolCallId }];
+				}
+				return signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [{ type: signal.kind, toolCallId: signal.toolCallId }] : [];
+			}), [
+				{ type: 'subagent_started', toolCallId: phaseToolCallId },
+				{ type: ActionType.ChatResponsePart, content: 'Starting the server', parent: phaseToolCallId },
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'tc-bash', parent: phaseToolCallId },
+				{ type: ActionType.ChatToolCallComplete, toolCallId: 'tc-bash', parent: phaseToolCallId },
+				{ type: ActionType.ChatResponsePart, content: 'The heading is hf repro', parent: undefined },
+				{ type: 'subagent_completed', toolCallId: phaseToolCallId },
+			]);
+		});
+
+		test('a Fusion phase chat closes only after its asynchronous edit completions land', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'critique', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-create', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-create', success: true, result: { content: 'created' }, fusion });
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.idle', {});
+			const order = () => signals.flatMap(signal => signal.kind === 'subagent_completed' ? ['closed']
+				: signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'tc-create' ? [`complete:${signal.parentToolCallId}`] : []);
+			const beforeEdit = order();
+			edit.complete(undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ beforeEdit, after: order() }, {
+				beforeEdit: [],
+				after: ['complete:fusion:fusion-1:phase-1', 'closed'],
+			});
+		});
+
+		test('an aborted Fusion phase chat is left for cancellation instead of completed', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			mockSession.fire('session.idle', { aborted: true });
+			session.resetTurnState('next-turn');
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [signal.kind] : []), ['subagent_started']);
+		});
+
+		test('a root session error closes Fusion phase chats, and a resumed phase reopens its chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-bash', success: true, fusion });
+			mockSession.fire('session.error', { errorType: 'rate_limit', message: 'Rate limited' });
+			const afterError = signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [signal.kind] : []);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion });
+			assert.deepStrictEqual({
+				afterError,
+				resumedParent: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart && signal.action.toolCallId === 'tc-view' ? [signal.parentToolCallId] : []),
+				reopened: signals.filter(signal => signal.kind === 'subagent_started').length,
+			}, {
+				afterError: ['subagent_started', 'subagent_completed'],
+				resumedParent: ['fusion:fusion-1:phase-1'],
+				reopened: 2,
+			});
+		});
+
+		test('a phase chat reopened while its close still drains an edit stays open', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'critique', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-create', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-create', success: true, result: { content: 'created' }, fusion });
+			// The error closes the chat, but the close waits on the edit; the phase reopens before it lands.
+			mockSession.fire('session.error', { errorType: 'rate_limit', message: 'Rate limited' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion });
+			const lifecycle = () => signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [signal.kind] : []);
+			const beforeEdit = lifecycle();
+			edit.complete(undefined);
+			await timeout(0);
+			const afterEdit = lifecycle();
+			mockSession.fire('session.idle', {});
+			assert.deepStrictEqual({ beforeEdit, afterEdit, afterIdle: lifecycle() }, {
+				beforeEdit: ['subagent_started', 'subagent_started'],
+				afterEdit: ['subagent_started', 'subagent_started'],
+				afterIdle: ['subagent_started', 'subagent_started', 'subagent_completed'],
+			});
+		});
+
+		test('Fusion tools stay at the root when their phase has no child chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'unknown-phase', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart ? [signal.parentToolCallId] : []), [undefined]);
+		});
+
+		test('a review phase shows its critique in its phase chat; a solver phase keeps its output private', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const critic = { ...fusionTestData.started, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review', pattern: 'critique' } as const;
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('assistant.fusion_phase_started', critic);
+			mockSession.fire('assistant.fusion_phase_completed', {
+				...fusionTestData.phaseCompleted, ...critic,
+				content: JSON.stringify({ assessment: 'approve', feedback: 'All 13 tests pass.', defect: null }),
+			});
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual({
+				chats: signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [`${signal.kind}:${signal.toolCallId}`] : []),
+				markdown: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown
+					? [{ parent: signal.parentToolCallId, content: signal.action.part.content }] : []),
+				leaksPhaseContent: JSON.stringify(signals).includes('PRIVATE'),
+			}, {
+				chats: ['subagent_started:fusion:fusion-1:critic', 'subagent_completed:fusion:fusion-1:critic'],
+				markdown: [{ parent: 'fusion:fusion-1:critic', content: '**Approved**\n\nAll 13 tests pass.' }],
+				leaksPhaseContent: false,
+			});
 		});
 
 		test('assistant.intent from a peer chat targets the owning session', async () => {
@@ -13937,6 +14289,118 @@ Use the attached image as context.
 			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
 		});
 
+		suite('during a Fusion phase', () => {
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			const toolLifecycle = (signals: readonly AgentSignal[], toolCallId: string) => getActions(signals).flatMap(action =>
+				(action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete) && action.toolCallId === toolCallId
+					? [action.type] : []);
+
+			const createFusionSession = async () => {
+				const created = await createAgentSession(disposables, {
+					clientSnapshot: snapshot,
+					activeClientToolSet: activeClientToolSetWith('test-client'),
+					configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+				});
+				await created.session.syncPermissionMode('turn-start');
+				created.session.resetTurnState('fusion-turn');
+				return created;
+			};
+
+			test('surfaces a client tool whose start is staged until commit', async () => {
+				const { session, runtime, mockSession, signals } = await createFusionSession();
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+
+				const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-staged', { file: 'test.ts' });
+				const ready = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'tc-staged');
+				session.handleClientToolCallComplete('tc-staged', {
+					success: true,
+					pastTenseMessage: 'did it',
+					content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+				});
+				const result = await handlerPromise;
+
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-staged', toolName: 'my_tool', arguments: { file: 'test.ts' }, fusion: { ...fusion, commitId: 'commit-1' } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-staged', success: true, result: { content: 'result text' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+				const toolInput = ready && getInlineToolInput(ready.toolInput);
+				assert.deepStrictEqual({
+					result: result.textResultForLlm,
+					contributor: ready?.contributor,
+					confirmed: ready?.confirmed,
+					toolInput: toolInput && JSON.parse(toolInput),
+					parents: [...new Set(signals.flatMap(signal => signal.kind === 'action'
+						&& (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallReady || signal.action.type === ActionType.ChatToolCallComplete)
+						&& signal.action.toolCallId === 'tc-staged' ? [signal.parentToolCallId] : []))],
+					lifecycle: toolLifecycle(signals, 'tc-staged'),
+					tracked: session['_activeToolCalls'].has('tc-staged'),
+				}, {
+					result: 'result text',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					toolInput: { file: 'test.ts' },
+					parents: ['fusion:fusion-1:phase-1'],
+					lifecycle: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+					tracked: false,
+				});
+			});
+
+			test('surfaces a held-back provisional client tool start once', async () => {
+				const { session, runtime, mockSession, signals } = await createFusionSession();
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-provisional', toolName: 'my_tool', arguments: { file: 'test.ts' }, fusion }, { ephemeral: true });
+				const beforeHandler = toolLifecycle(signals, 'tc-provisional');
+
+				const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-provisional', { file: 'test.ts' });
+				const beforeCommit = toolLifecycle(signals, 'tc-provisional');
+				session.handleClientToolCallComplete('tc-provisional', { success: true, pastTenseMessage: 'did it' });
+				await handlerPromise;
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-provisional', success: true, fusion }, { ephemeral: true });
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-provisional', toolName: 'my_tool', arguments: { file: 'test.ts' }, fusion: { ...fusion, commitId: 'commit-1' } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-provisional', success: true, fusion: { ...fusion, commitId: 'commit-1' } });
+
+				assert.deepStrictEqual({ beforeHandler, beforeCommit, lifecycle: toolLifecycle(signals, 'tc-provisional') }, {
+					beforeHandler: [],
+					beforeCommit: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady],
+					lifecycle: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+				});
+			});
+
+			test('leaves a client tool without an observed start alone outside a phase', async () => {
+				const { session, runtime, signals } = await createFusionSession();
+
+				const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-no-phase');
+				session.handleClientToolCallComplete('tc-no-phase', { success: true, pastTenseMessage: 'did it' });
+				await handlerPromise;
+
+				assert.deepStrictEqual(toolLifecycle(signals, 'tc-no-phase'), []);
+			});
+
+			test('routes a subagent client tool to the subagent, and the committed task call to the phase', async () => {
+				const { session, runtime, mockSession, signals } = await createFusionSession();
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				mockSession.fire('subagent.started', { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'General purpose', agentDescription: 'Runs tasks' } as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-sub-client', toolName: 'my_tool', arguments: { file: 'a.ts' } }, { agentId: 'agent-1' });
+				const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-sub-client', { file: 'a.ts' });
+				session.handleClientToolCallComplete('tc-sub-client', { success: true, pastTenseMessage: 'did it' });
+				await handlerPromise;
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-sub-client', success: true }, { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-task', toolName: 'task', arguments: { prompt: 'Inspect src' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+				const parents = (toolCallId: string) => [...new Set(signals.flatMap(signal => signal.kind === 'action'
+					&& (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallReady || signal.action.type === ActionType.ChatToolCallComplete)
+					&& signal.action.toolCallId === toolCallId ? [signal.parentToolCallId] : []))];
+				assert.deepStrictEqual({
+					subagentClientTool: parents('tc-sub-client'),
+					lifecycle: toolLifecycle(signals, 'tc-sub-client'),
+					task: parents('tc-task'),
+				}, {
+					subagentClientTool: ['tc-task'],
+					lifecycle: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+					task: ['fusion:fusion-1:phase-1'],
+				});
+			});
+		});
+
 		test('SDK-approved client tool auto-readies in assisted mode', async () => {
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				clientSnapshot: snapshot,
@@ -14101,6 +14565,36 @@ Use the attached image as context.
 			}, {
 				textResultForLlm: '["everything-get-sum"]',
 				toolReferences: ['everything-get-sum'],
+			});
+		});
+
+		test('tool search inside a Fusion phase runs even though its start is staged', async () => {
+			const { session, runtime, mockSession, signals } = await createToolSearchSession(false);
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const [override] = runtime.createClientSdkTools(true);
+
+			const handlerPromise = invokeClientToolHandler(override, 'tc-phase-search', { query: 'add numbers' }, [
+				{ name: 'everything-get-sum', description: 'Adds numbers', deferLoading: true },
+			]);
+			const ready = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'tc-phase-search');
+			session.handleClientToolCallComplete('tc-phase-search', {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: '["everything-get-sum"]' }],
+			});
+			const result = await handlerPromise;
+
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				toolReferences: result.toolReferences,
+				candidates: ready && readToolCallMeta(ready).toolSearchCandidates,
+				parent: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart && signal.action.toolCallId === 'tc-phase-search' ? [signal.parentToolCallId] : [])[0],
+			}, {
+				resultType: 'success',
+				toolReferences: ['everything-get-sum'],
+				candidates: [{ name: 'everything-get-sum', description: 'Adds numbers' }],
+				parent: 'fusion:fusion-1:phase-1',
 			});
 		});
 

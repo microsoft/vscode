@@ -775,7 +775,8 @@ export async function stopServer(
 				await processOperations.killTree(pid, true);
 			}
 		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null
+				&& !await raceTimeout(serverExit.then(() => true), 1_000)) {
 				throw error;
 			}
 		}

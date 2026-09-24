@@ -284,14 +284,14 @@ export const agentMergeDisableReasons = {
 		log: `branch changed from ${from} to ${to}`,
 		notice: localize(
 			'agentMerge.disabled.branchChanged',
-			"Agent Merge was disabled because the checked-out branch changed from {0} to {1}.",
+			"Agent Merge was disabled because the checked-out branch changed from {0} to {1}. To resume, check out the branch you want to monitor and enable Agent Merge again.",
 			appendEscapedMarkdownInlineCode(from),
 			appendEscapedMarkdownInlineCode(to)
 		),
 	}),
-	branchChangedWhileRefreshing: (): AgentMergeDisableReason => ({
-		log: 'the checked-out branch changed while pull request state was refreshing',
-		notice: localize('agentMerge.disabled.branchChangedWhileRefreshing', "Agent Merge was disabled because the checked-out branch changed while its pull request state was refreshing."),
+	branchUnavailable: (expected: string): AgentMergeDisableReason => ({
+		log: `the checked-out branch could not be confirmed while refreshing pull request state; expected ${expected}`,
+		notice: localize('agentMerge.disabled.branchUnavailable', "Agent Merge was disabled because it could not confirm that {0} is still checked out. To resume, check out the branch you want to monitor and enable Agent Merge again.", appendEscapedMarkdownInlineCode(expected)),
 	}),
 	differentPullRequest: (): AgentMergeDisableReason => ({
 		log: 'the session became associated with a different pull request',
@@ -334,9 +334,10 @@ export const agentMergeDisableReasons = {
 /** The transcript notice shown once Agent Merge starts watching a branch. */
 export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchName' | 'pullRequestUrl'>, configuration: AgentMergeConfiguration): string {
 	const lines = [
+		localize('agentMerge.notice.enabled.summary', "Agent Merge is enabled for {0}. {1}", appendEscapedMarkdownInlineCode(target.branchName), agentMergeMergeBehaviorSummary(configuration.mergePullRequest)),
 		target.pullRequestUrl
-			? localize('agentMerge.notice.enabled.withPullRequest', "Agent Merge is enabled for {0} and is monitoring its pull request.", appendEscapedMarkdownInlineCode(target.branchName))
-			: localize('agentMerge.notice.enabled', "Agent Merge is enabled for {0}. It will wait for a pull request on this branch, then monitor it.", appendEscapedMarkdownInlineCode(target.branchName)),
+			? localize('agentMerge.notice.enabled.withPullRequest', "It is monitoring the pull request for this branch.")
+			: localize('agentMerge.notice.enabled', "It will wait for a pull request on this branch, then monitor it."),
 	];
 	if (configuration.addressReviews) {
 		lines.push(localize('agentMerge.notice.enabled.addressReviews', "It will ask the agent to address new pull request review comments."));
@@ -408,16 +409,29 @@ export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfigu
 			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));
 	}
 	return changes.length > 0
-		? [agentMergeConfigurationChangedHeading(scope), '', ...changes.map(change => `- ${change}`)].join('\n')
+		? [agentMergeConfigurationChangedHeading(scope, current.mergePullRequest), '', ...changes.map(change => `- ${change}`)].join('\n')
 		: undefined;
 }
 
-function agentMergeConfigurationChangedHeading(scope: AgentMergeConfigurationChangeScope): string {
+function agentMergeConfigurationChangedHeading(scope: AgentMergeConfigurationChangeScope, mergePullRequest: AgentMergeMergePullRequest): string {
+	const summary = agentMergeMergeBehaviorSummary(mergePullRequest);
 	switch (scope) {
 		case 'session':
-			return localize('agentMerge.notice.configuration.changed.session', "Agent Merge settings changed for this session.");
+			return localize('agentMerge.notice.configuration.changed.session', "Agent Merge settings changed for this session. {0}", summary);
 		case 'global':
-			return localize('agentMerge.notice.configuration.changed.global', "Agent Merge default settings changed for all sessions.");
+			return localize('agentMerge.notice.configuration.changed.global', "Agent Merge default settings changed for all sessions. For this session: {0}", summary);
+	}
+}
+
+/** Keeps the effective merge policy visible in collapsed notices and tool results. */
+export function agentMergeMergeBehaviorSummary(mergePullRequest: AgentMergeMergePullRequest): string {
+	switch (mergePullRequest) {
+		case 'always':
+			return localize('agentMerge.summary.merge.always', "Automatic merge is on.");
+		case 'ifUnchanged':
+			return localize('agentMerge.summary.merge.ifUnchanged', "Automatic merge is on only while unchanged.");
+		case 'never':
+			return localize('agentMerge.summary.merge.never', "Monitoring only; automatic merge is off.");
 	}
 }
 
