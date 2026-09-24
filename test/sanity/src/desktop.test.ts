@@ -256,8 +256,8 @@ export function setup(context: TestContext) {
 	});
 
 	async function testWindowsInstallation(type: 'user' | 'system', packagePath: string) {
-		const entryPoint = context.installWindowsApp(type, packagePath, true);
 		try {
+			const entryPoint = context.installWindowsApp(type, packagePath, true);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 			context.validateAllVersionInfo(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint, undefined, windowsLaunchers(context, entryPoint, type));
