@@ -6,11 +6,13 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -18,9 +20,9 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ITerminalProfileService } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
@@ -48,6 +50,19 @@ function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader)
 		return undefined;
 	}
 	const workspace = reader ? session.workspace.read(reader) : session.workspace.get();
+	return getWorkspaceTerminalInfo(workspace);
+}
+
+function getActiveSessionTerminalInfo(session: IActiveSession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
+	if (!session) {
+		return undefined;
+	}
+	const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
+	const workspace = reader ? activeChat.workspace.read(reader) : activeChat.workspace.get();
+	return getWorkspaceTerminalInfo(workspace);
+}
+
+function getWorkspaceTerminalInfo(workspace: ISessionWorkspace | undefined): ISessionTerminalInfo | undefined {
 	if (workspace?.isVirtualWorkspace !== false) {
 		return undefined;
 	}
@@ -105,6 +120,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 	) {
 		super();
@@ -147,11 +163,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
-			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader)) {
+			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
+			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
+			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader) || !remoteHostAvailable) {
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
-			const info = getSessionTerminalInfo(session, reader);
+			const info = getActiveSessionTerminalInfo(session, reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 
@@ -160,18 +178,27 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			const session = this._sessionsService.activeSession.read(reader);
 			const isArchived = session?.isArchived.read(reader);
 			const worktreePending = session?.worktreePending?.read(reader);
+			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
+			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
+			const remoteHostPermanentlyUnavailable = remoteConnectionStatus?.kind === 'disconnected' || remoteConnectionStatus?.kind === 'incompatible';
+			const preserveActiveTerminalState = !remoteHostPermanentlyUnavailable
+				&& !remoteHostAvailable
+				&& this._activeSessionId === session?.sessionId;
 			if (session && !isArchived && this._archivedSessionIds.delete(session.sessionId)) {
 				this._invalidateTerminalOperations(session.sessionId);
 			}
-			if (session?.loading.read(reader) || isArchived || worktreePending) {
-				if (session && (isArchived || worktreePending)) {
+			if (session?.loading.read(reader) || isArchived || worktreePending || !remoteHostAvailable) {
+				if (session && (isArchived || worktreePending || !remoteHostAvailable)) {
 					this._invalidateTerminalOperations(session.sessionId);
 				}
-				this._activeKey = undefined;
-				this._activeSessionId = undefined;
+				if (!preserveActiveTerminalState) {
+					this._activeKey = undefined;
+					this._activeSessionId = undefined;
+				}
 				return;
 			}
-			this._onActiveSessionChanged(session);
+			const info = getActiveSessionTerminalInfo(session, reader);
+			this._onActiveSessionChanged(session, info);
 		}));
 
 		// Repeated New Session actions replace one draft with another. Transfer
@@ -284,6 +311,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (!session) {
 			return this._ensureTerminal(cwd, focus, session);
 		}
+		if (!this._isSessionRemoteHostAvailable(session)) {
+			return [];
+		}
 
 		const generation = this._getTerminalOperationGeneration(session.sessionId);
 		this._beginTerminalOperation(session.sessionId);
@@ -294,13 +324,16 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number): Promise<ITerminalInstance[]> {
+	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false): Promise<ITerminalInstance[]> {
 		if (session && this._isTerminalOperationCancelled(session, generation)) {
 			return [];
 		}
 
 		const key = cwd.fsPath.toLowerCase();
 		let existing = session ? this._getTrackedTerminalsForSession(session.sessionId) : [];
+		if (requireCwdMatch && existing.length > 0) {
+			existing = await this._filterTerminalsForKey(existing, key);
+		}
 		if (existing.length === 0) {
 			existing = await this._findTerminalsForKey(key, { excludeTracked: !!session });
 			if (session && this._isTerminalOperationCancelled(session, generation)) {
@@ -342,12 +375,32 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return existing;
 	}
 
+	private async _filterTerminalsForKey(instances: readonly ITerminalInstance[], key: string): Promise<ITerminalInstance[]> {
+		const result: ITerminalInstance[] = [];
+		for (const instance of instances) {
+			try {
+				if ((await instance.getInitialCwd()).toLowerCase() === key) {
+					result.push(instance);
+				}
+			} catch {
+				// Ignore terminals whose cwd cannot be resolved.
+			}
+		}
+		return result;
+	}
+
 	private _isTerminalOperationCancelled(session: ISession, generation = this._getTerminalOperationGeneration(session.sessionId)): boolean {
 		return this._pendingTerminalOperations.get(session.sessionId)?.replaced === true
 			|| this._getTerminalOperationGeneration(session.sessionId) !== generation
 			|| this._archivedSessionIds.has(session.sessionId)
 			|| session.isArchived.get()
-			|| session.worktreePending?.get() === true;
+			|| session.worktreePending?.get() === true
+			|| !this._isSessionRemoteHostAvailable(session);
+	}
+
+	private _isSessionRemoteHostAvailable(session: ISession): boolean {
+		const status = session.remoteConnectionStatus?.get();
+		return status === undefined || status.kind === 'connected';
 	}
 
 	private _getTerminalOperationGeneration(sessionId: string): number {
@@ -388,7 +441,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return provider.remoteAddress ?? '__local__';
 	}
 
-	private async _onActiveSessionChanged(session: ISession | undefined): Promise<void> {
+	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = getActiveSessionTerminalInfo(session)): Promise<void> {
 		if (!session) {
 			return;
 		}
@@ -396,7 +449,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._beginTerminalOperation(session.sessionId);
 		try {
 			const generation = this._getTerminalOperationGeneration(session.sessionId);
-			const info = getSessionTerminalInfo(session);
+			// A legacy session's worktree checkout may not be materialized yet (it is
+			// recreated lazily on the first send). Launching a local terminal into a
+			// missing cwd fails with "starting directory does not exist", so defer
+			// until the directory exists; a later session refresh retries.
+			if (info?.cwd && !info.agentHostCwd && info.cwd.scheme === Schemas.file && !(await this._fileService.exists(info.cwd))) {
+				return;
+			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
 			const targetKey = targetPath.fsPath.toLowerCase();
 			if (this._activeKey === targetKey && this._activeSessionId === session.sessionId) {
@@ -405,7 +464,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._activeKey = targetKey;
 			this._activeSessionId = session.sessionId;
 
-			const instances = await this._ensureTerminal(targetPath, false, session, generation);
+			const instances = await this._ensureTerminal(targetPath, false, session, generation, true);
 
 			// If the active session or key changed while we were awaiting, a newer
 			// call has taken over — skip the visibility update to avoid flicker.

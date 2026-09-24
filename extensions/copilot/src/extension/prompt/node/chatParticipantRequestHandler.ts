@@ -32,7 +32,7 @@ import { ICommandService } from '../../commands/node/commandService';
 import { getAgentForIntent, Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { IIntentService } from '../../intents/node/intentService';
-import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { isAutoExplainabilityHidden, isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
 import { formatAutoModeDetails, formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
@@ -262,8 +262,8 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				const hideAutoModelName = isAutoModel(endpoint) === 1
-					&& this._experimentationService.getTreatmentVariable<boolean>('copilotchat.hideAutoModelName') === true;
+				// Hiding explainability bills the turn to Auto rather than the model it picked.
+				const hideAutoModelName = isAutoModel(endpoint) === 1 && isAutoExplainabilityHidden(this._experimentationService);
 				if (hideAutoModelName) {
 					result.details = formatAutoModeDetails(creditsUsed, endpoint.multiplier);
 				} else if (this._authService.copilotToken?.isNoAuthUser) {

@@ -13,6 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
@@ -24,16 +26,35 @@ import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
-import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -54,7 +75,6 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(): void { }
 	onWorkingDirectoryAvailable(): void { }
 	recomputeSubscribedChangesets(): void { }
-	onSessionDisposed(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
@@ -100,6 +120,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let telemetry: CapturingTelemetryService;
+	let clientConnectionService: AgentHostClientConnectionService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const sessionKey = sessionUri.toString();
@@ -142,6 +163,18 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	function completeTurn(turnId: string): void {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+	}
+
+	function registerClientConnection(clientId: string, initiallyConnected: boolean): (connected: boolean) => void {
+		let connected = initiallyConnected;
+		const source: IAgentHostClientConnectionSource = {
+			hasSeenClient: candidate => candidate === clientId,
+			isClientConnected: candidate => connected && candidate === clientId,
+			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
+			requestWorkspaceTrust: async () => false,
+		};
+		disposables.add(clientConnectionService.registerSource(source));
+		return value => connected = value;
 	}
 
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
@@ -230,22 +263,59 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			whenIdle: async () => { },
 		};
-		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		clientConnectionService = disposables.add(new AgentHostClientConnectionService());
+		const worktreeIsolation = createNoopWorktreeIsolation();
+		const services = new ServiceCollection(
+			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+			[IAgentHostGitStateService, createNoopGitStateService()],
+			[IAgentHostStateManager, stateManager],
+			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+			[IFileService, disposables.add(new FileService(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
-		), /*strict*/ true));
+			[IAgentHostWorktreeIsolation, worktreeIsolation],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
+			[IAgentHostClientConnectionService, clientConnectionService],
+			[ISessionWorkspaceConversionService, {
+				_serviceBrand: undefined,
+				requestSessionWorkspaceUpdate: () => { },
+				isPending: () => false,
+				cancel: () => { },
+				updateSessionWorkspace: async () => { },
+			}],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
+		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		services.set(IAgentHostTelemetryReporter, telemetryReporter);
+		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+		services.set(IAgentHostTurnTracker, turnTracker);
+		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
+		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
+		services.set(IAgentHostLocalCommands, localCommands);
+		// Blocked/unblocked tool-call telemetry is reported by
+		// `SessionInputNeededContribution`, so the built-in contributions must be
+		// registered for this graph to mirror production wiring.
+		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
-			localTurns: new AgentHostLocalTurns(sessionDataService, logService),
-			onTurnComplete: () => { },
+			localTurns: sharedLocalTurns,
 		}));
 		disposables.add(sideEffects.registerProgressListener(agent));
 	});
@@ -672,8 +742,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolConfirmation,
+				toolCallId: 'tc-confirm',
 				toolId: 'write',
 				toolSourceKind: 'agentHost',
+				executorClientConnectionState: undefined,
 				stalledTimeMs: true,
 			},
 		}]);
@@ -703,7 +775,42 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			await timeout(5 * 60 * 1000);
 		});
 
-		assert.deepStrictEqual(stalledEvents().map(e => e.data.blockerKind), [SessionInputRequestKind.ToolClientExecution]);
+		assert.deepStrictEqual(stalledEvents(), [{
+			eventName: 'agentHost.toolCallStalled',
+			data: {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-client-stall',
+				toolId: 'run_tests',
+				toolSourceKind: 'client',
+				executorClientConnectionState: 'unknown',
+				stalledTimeMs: true,
+			},
+		}]);
+	});
+
+	test('reports a disconnected client tool executor', async () => {
+		registerClientConnection('client-1', false);
+
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-1');
+
+			toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-disconnected',
+				invocationMessage: 'Run tests',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await timeout(5 * 60 * 1000);
+		});
+
+		assert.strictEqual(stalledEvents()[0].data.executorClientConnectionState, 'disconnected');
 	});
 
 	test('does not emit after a client tool completes or its turn is cancelled', async () => {
@@ -739,6 +846,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	});
 
 	test('emits when a stalled client tool later completes', async () => {
+		const setClientConnected = registerClientConnection('client-1', true);
+
 		await runWithFakedTimers({}, async () => {
 			setupSession();
 			startTurn('turn-1');
@@ -753,6 +862,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			});
 
 			await timeout(5 * 60 * 1000);
+			setClientConnected(false);
 			toolComplete('turn-1', 'tc-recovered', { success: true, pastTenseMessage: 'ran tests' });
 		});
 
@@ -763,8 +873,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-recovered',
 				toolId: 'run_tests',
 				toolSourceKind: 'client',
+				executorClientConnectionState: 'connected',
 				result: 'success',
 				totalTimeMs: true,
 				timeAfterStallMs: true,

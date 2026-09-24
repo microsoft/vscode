@@ -52,7 +52,7 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 
 	const commonProperties = {} as ICommonProperties;
 
-	function createSender(logService = new NullLogService()): { sender: AgentHostRestrictedTelemetrySender; posts: ICapturedPost[]; envelopes: ICapturedEnvelope[] } {
+	function createSender(logService = new NullLogService(), properties: ICommonProperties = commonProperties): { sender: AgentHostRestrictedTelemetrySender; posts: ICapturedPost[]; envelopes: ICapturedEnvelope[] } {
 		const posts: ICapturedPost[] = [];
 		const envelopes: ICapturedEnvelope[] = [];
 		const fetchFn = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -61,8 +61,35 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 			envelopes.push(envelope);
 			return { ok: true, status: 200 } as Response;
 		}) as typeof globalThis.fetch;
-		const sender = new AgentHostRestrictedTelemetrySender(commonProperties, logService, 'https://default.example/telemetry', undefined, fetchFn);
+		const sender = new AgentHostRestrictedTelemetrySender(properties, logService, 'https://default.example/telemetry', undefined, fetchFn);
 		return { sender, posts, envelopes };
+	}
+
+	for (const { version, expected } of [
+		{ version: '1.136.2', expected: 'vscode-agent-host/1.136.2' },
+		{ version: '1.137.0-insider', expected: 'vscode-agent-host/1.137.0-insider' },
+		{ version: undefined, expected: undefined },
+	]) {
+		test(`formats editor_version for standard and enhanced GH telemetry (${version ?? 'missing version'})`, () => {
+			const { sender, envelopes } = createSender(undefined, { version });
+			sender.setRestrictedTelemetryEnabled(true);
+
+			sender.sendGHTelemetryEvent('agentHost.userMessageSent');
+			sender.sendEnhancedGHTelemetryEvent('engine.messages');
+			sender.sendEnhancedGHTelemetryEventForContext({
+				restrictedTelemetryEnabled: true,
+				trackingId: 'session-account-tid',
+				telemetryEndpoint: 'https://session-account.example/telemetry',
+				isInternal: false,
+				userName: 'session-account',
+				isVscodeTeamMember: false,
+			}, 'engine.messages');
+
+			assert.deepStrictEqual(
+				envelopes.map(envelope => envelope.data.baseData.properties.editor_version),
+				[expected, expected, expected],
+			);
+		});
 	}
 
 	test('enhanced GH telemetry is dropped until the token opts in (rt=1), then routes to the enhanced iKey', () => {
@@ -104,6 +131,28 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 			posts: [{ url: 'https://session-account.example/telemetry', iKey: GH_ENHANCED_IKEY }],
 			trackingId: 'session-account-tid',
 		});
+	});
+
+	test('common properties are added to and removed from standard and enhanced envelopes', () => {
+		const { sender, envelopes } = createSender();
+		sender.setRestrictedTelemetryEnabled(true);
+
+		sender.setCommonProperty('copilotSku', 'copilot_for_business_seat');
+		sender.sendGHTelemetryEvent('standard');
+		sender.sendEnhancedGHTelemetryEvent('enhanced');
+		sender.setCommonProperty('copilotSku', undefined);
+		sender.sendGHTelemetryEvent('standard');
+		sender.sendEnhancedGHTelemetryEvent('enhanced');
+
+		assert.deepStrictEqual(envelopes.map(envelope => ({
+			hasCopilotSku: Object.hasOwn(envelope.data.baseData.properties, 'copilotSku'),
+			copilotSku: envelope.data.baseData.properties.copilotSku,
+		})), [
+			{ hasCopilotSku: true, copilotSku: 'copilot_for_business_seat' },
+			{ hasCopilotSku: true, copilotSku: 'copilot_for_business_seat' },
+			{ hasCopilotSku: false, copilotSku: undefined },
+			{ hasCopilotSku: false, copilotSku: undefined },
+		]);
 	});
 
 	test('oversized enhanced telemetry is not posted when property bytes are below the limit', () => {

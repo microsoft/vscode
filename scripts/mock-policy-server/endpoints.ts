@@ -12,10 +12,9 @@
  * environments without a build step.
  *
  * For the default (github.com) provider these URLs are read verbatim from
- * `product.json` -> `defaultChatAgent.<productKey>`, so pointing all of them at
- * a local server via `product.overrides.json` lets a dev exercise the whole
- * policy pipeline offline. The same paths are also served under a system proxy
- * rule, which is how a stable/Insiders build or the CLI reaches this server.
+ * `product.json` -> `defaultChatAgent.<productKey>`. These paths are served
+ * under a system proxy rule so Code OSS, Stable/Insiders, the CLI, and SDK
+ * clients all exercise the same policy delivery path.
  *
  * Endpoints not marked `mockedByDefault` start in passthrough: the server
  * forwards them to the real API so a blanket proxy rule stays safe.
@@ -31,6 +30,8 @@ export interface EndpointPreset {
 	status?: number;
 	body: unknown;
 }
+
+export type EndpointResponseMode = 'json' | 'malformed-json' | 'disconnect' | 'timeout';
 
 export interface EndpointDef {
 	/** Stable id used by the API + GUI. */
@@ -86,11 +87,98 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				{
 					id: 'disable-bypass-permissions',
 					label: 'Disable bypass permissions',
-					description: 'Disables bypass permissions mode.',
+					description: 'Blocks all escalation to bypass-permissions ("allow-all"/"yolo") mode, including auto-approval.',
 					status: 200,
 					body: {
 						permissions: {
 							disableBypassPermissionsMode: 'disable'
+						}
+					}
+				},
+				{
+					id: 'deny-dangerous-commands',
+					label: 'Deny dangerous shell/file operations',
+					description: 'Blocks specific shell commands, workspace-scoped file writes, and a domain outright. A single leading slash means the workspace root in the managed permission syntax.',
+					status: 200,
+					body: {
+						permissions: {
+							deny: [
+								'Shell(rm -rf *)',
+								'Shell(curl *)',
+								'Write(/.github/workflows/**)',
+								'Domain(evil.example.com)'
+							]
+						}
+					}
+				},
+				{
+					id: 'workspace-scoped-paths',
+					label: 'Workspace-scoped paths',
+					description: 'Demonstrates paths relative to the workspace root: /src/** and /test/** match only inside the workspace, while /package.json targets that workspace file.',
+					status: 200,
+					body: {
+						permissions: {
+							ask: [
+								'Write(/src/**)',
+								'Write(/test/**)'
+							],
+							deny: [
+								'Write(/package.json)'
+							]
+						}
+					}
+				},
+				{
+					id: 'ask-before-publish',
+					label: 'Ask before publishing or deploying',
+					description: 'Requires human approval for package publish/deploy commands and writes anywhere under the user home directory, including workspaces located there. It does not cover paths outside the home directory.',
+					status: 200,
+					body: {
+						permissions: {
+							ask: [
+								'Shell(npm publish *)',
+								'Shell(git push *)',
+								'Write(~/**)'
+							]
+						}
+					}
+				},
+				{
+					id: 'lockdown-allowlist',
+					label: 'Lockdown: allow only an approved set',
+					description: 'Intersects with any other managed allow list, so only requests every managed source admits run without prompting. Combine with deny/ask for defense in depth.',
+					status: 200,
+					body: {
+						permissions: {
+							disableBypassPermissionsMode: 'disable',
+							allow: [
+								'Read(**)',
+								'Shell(git status)',
+								'Shell(git diff *)',
+								'Domain(github.com)',
+								'Domain(*.githubusercontent.com)'
+							],
+							deny: [
+								'Write(/.github/workflows/**)',
+								'Write(~/.ssh/**)'
+							]
+						}
+					}
+				},
+				{
+					id: 'sandbox-no-internet',
+					label: 'Sandbox, no internet',
+					description: 'Enables the agent runtime sandbox with bypass allowed, but denies outbound network access so sandboxed tools run offline.',
+					status: 200,
+					body: {
+						sandbox: {
+							enabled: true,
+							allowBypass: true,
+							userPolicy: {
+								network: {
+									allowOutbound: false
+								}
+							}
 						}
 					}
 				},
@@ -158,6 +246,13 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 						client_version: '1.132.0',
 						minimum_client_version: '1.133.0'
 					}
+				},
+				{
+					id: 'server-error',
+					label: 'Server error (500)',
+					description: 'Returns an HTTP 500 response to exercise the fail-closed HTTP error path.',
+					status: 500,
+					body: { error: 'mock_managed_settings_failure' }
 				}
 			]
 		},

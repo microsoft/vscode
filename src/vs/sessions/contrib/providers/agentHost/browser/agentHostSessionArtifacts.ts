@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { linkKey } from '../../../../common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../../services/sessions/common/session.js';
-import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
+import { parseGitHubArtifactLink } from '../../../github/common/sessionGitHubReferences.js';
 
 const kindByType: ReadonlyMap<SessionArtifactType, SessionArtifactKind> = new Map([
 	[SessionArtifactType.PullRequest, SessionArtifactKind.PullRequest],
@@ -30,14 +30,15 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact | undefined {
+function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri: URI) => URI): ISessionArtifact | undefined {
 	const kind = kindByType.get(artifact.type);
 	if (!kind) {
 		return undefined;
 	}
 
 	const link = parseUri(artifact.link);
-	const uri = parseUri(artifact.uri);
+	const parsedUri = parseUri(artifact.uri);
+	const uri = parsedUri && artifact.type === SessionArtifactType.File ? mapFileUri(parsedUri) : parsedUri;
 	// An artifact the client cannot act on is not worth surfacing.
 	if (!link && !uri && !artifact.commitHash) {
 		return undefined;
@@ -47,6 +48,7 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 		id: artifact.id,
 		kind,
 		label: artifact.label,
+		isArtifact: artifact.isArtifact,
 		...(link ? { link } : {}),
 		...(uri ? { uri } : {}),
 		...(artifact.commitHash ? { commitHash: artifact.commitHash } : {}),
@@ -55,88 +57,75 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 }
 
 /**
- * GitHub pull request and issue artifacts are promoted into the session's
- * GitHub links (polled and shown in their own pills) instead of the artifacts
- * pill, so the two never show the same reference twice.
+ * A GitHub link that was explicitly recorded on the session, so it always
+ * carries the stable id needed to remove that record. Git-/session-discovered
+ * associations are never recorded and so are not represented by this type.
  */
+export interface IRecordedGitHubReference {
+	readonly url: string;
+	readonly title?: string;
+	/** Stable id of the recorded session artifact or reference, used for removal. */
+	readonly recordedReferenceId: string;
+	/**
+	 * Whether the recorded entry is a durable artifact (`true`) or a mere
+	 * reference (`false`). Distinguishes a recorded pull request from one the
+	 * session actually produced, independent of whether it can be removed.
+	 */
+	readonly isArtifact: boolean;
+}
+
+/** All recorded entries, alongside the GitHub entries eligible for promotion into dedicated pills. */
 export interface ISessionArtifactPartition {
-	/** Every artifact in stream order, paired with the link it may be promoted by. */
+	/** Every mapped artifact and reference, most recent first. */
 	readonly entries: readonly ISessionArtifactEntry[];
-	/** Pull requests this session created; eligible to become the main pull request. */
-	readonly createdPullRequestUrls: readonly string[];
-	/** Pull requests the session only referenced; listed and polled, never main. */
-	readonly referencedPullRequestUrls: readonly string[];
-	readonly issueUrls: readonly string[];
+	/** Recorded pull requests, most recent first; polled and shown in the pull request pill. */
+	readonly pullRequests: readonly IRecordedGitHubReference[];
+	/** Recorded issues, most recent first; polled and shown in the issue pill. */
+	readonly issues: readonly IRecordedGitHubReference[];
 }
 
-/** An artifact, and the GitHub link it is promoted by when it has one. */
-export interface ISessionArtifactEntry {
+interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
-	readonly promotedLink?: string;
 }
 
-/** Normalized key for comparing links irrespective of case and trailing slash. */
-export function linkKey(link: string): string {
-	return link.replace(/\/+$/, '').toLowerCase();
-}
-
-/**
- * The artifacts the pill shows: everything except the promoted references that
- * the GitHub pills actually surfaced. A promotion the session cannot surface —
- * no repository, or a reference belonging to another repository — stays an
- * artifact rather than disappearing from both places.
- */
-export function getPresentedArtifacts(partition: ISessionArtifactPartition, surfacedLinks: ReadonlySet<string>): readonly ISessionArtifact[] {
-	return partition.entries
-		.filter(entry => !entry.promotedLink || !surfacedLinks.has(linkKey(entry.promotedLink)))
-		.map(entry => entry.artifact);
-}
-
-/**
- * Only links the pull request and issue pills can actually render are promoted;
- * anything else (an enterprise host, a malformed link) stays an artifact so it
- * never disappears from both places.
- */
-function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
-	if (artifact.isGitHub !== true || !artifact.link) {
-		return undefined;
-	}
-	if (artifact.type === SessionArtifactType.PullRequest) {
-		return parseGitHubPullRequestUrl(artifact.link) ? artifact.link : undefined;
-	}
-	if (artifact.type === SessionArtifactType.Issue) {
-		return parseGitHubIssueUrl(artifact.link) ? artifact.link : undefined;
-	}
-	return undefined;
-}
-
-export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
+export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFileUri: (uri: URI) => URI = uri => uri): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
-	const createdPullRequestUrls: string[] = [];
-	const referencedPullRequestUrls: string[] = [];
-	const issueUrls: string[] = [];
+	const pullRequests: IRecordedGitHubReference[] = [];
+	const issues: IRecordedGitHubReference[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
-		const mapped = toSessionArtifact(artifact);
+		const mapped = toSessionArtifact(artifact, mapFileUri);
 		if (!mapped) {
 			continue;
 		}
-		const link = promotedLink(artifact);
-		entries.push(link ? { artifact: mapped, promotedLink: link } : { artifact: mapped });
-		if (!link) {
+		entries.push({ artifact: mapped });
+		const link = artifact.link;
+		if (!link || !parseGitHubArtifactLink(mapped)) {
 			continue;
 		}
 
+		// Every entry here came from an explicit add_artifact_or_reference call, so
+		// both artifacts and references carry their stable id for removal — only
+		// git-/session-discovered associations (never recorded) go without one.
+		const reference = {
+			url: link,
+			...(mapped.label ? { title: mapped.label } : {}),
+			recordedReferenceId: artifact.id,
+			isArtifact: artifact.isArtifact,
+		};
 		if (artifact.type === SessionArtifactType.Issue) {
-			issueUrls.push(link);
-		} else if (artifact.createdByThisSession) {
-			createdPullRequestUrls.push(link);
-		} else {
-			referencedPullRequestUrls.push(link);
+			issues.push(reference);
+			continue;
 		}
+
+		pullRequests.push(reference);
 	}
 
-	return { entries, createdPullRequestUrls, referencedPullRequestUrls, issueUrls };
+	entries.reverse();
+	pullRequests.reverse();
+	issues.reverse();
+
+	return { entries, pullRequests, issues };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */
@@ -145,7 +134,7 @@ export function dedupeLinks(...groups: readonly (readonly string[] | undefined)[
 	const result: string[] = [];
 	for (const group of groups) {
 		for (const link of group ?? []) {
-			const key = link.replace(/\/+$/, '').toLowerCase();
+			const key = linkKey(link);
 			if (!seen.has(key)) {
 				seen.add(key);
 				result.push(link);

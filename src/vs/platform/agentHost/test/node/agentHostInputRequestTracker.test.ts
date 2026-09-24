@@ -177,7 +177,7 @@ suite('AgentHostInputRequestTracker', () => {
 		}]);
 	});
 
-	test('decline, cancellation, non-ask purposes, missing active turns, and duplicate completion do not emit', () => {
+	test('decline, cancellation, non-ask requests, missing active turns, and duplicate completion do not emit', () => {
 		const { telemetry, tracker } = createTracker();
 		const ask: ChatInputRequest = withChatInputRequestPurpose({ id: 'ask', questions: [] }, ChatInputRequestPurpose.AskUser);
 		const state = completedState(rootChat, 'turn-1', ask);

@@ -202,6 +202,10 @@ If `start-watch-tasks` is already running, use its diagnostics. Start it or run 
 - **Event-driven**: Extensive use of VS Code's event system and disposables
 - **Layered**: Clear separation between platform services and extension features
 
+### Dependency Boundaries
+- Do not import directly from the repository's root `src/vs/` tree. The extension is compiled and bundled from its own `src/` tree, and root VS Code internals are not an extension dependency.
+- Use the corresponding implementation under `extensions/copilot/src/` or the vendored compatibility code under `extensions/copilot/src/util/vs/` when it is already available. Keep shared behavior behind the extension's own platform abstractions.
+
 ### Testing Standards
 - **Unit Tests**: Vitest for isolated component testing
 - **Integration Tests**: VS Code extension host tests for API integration

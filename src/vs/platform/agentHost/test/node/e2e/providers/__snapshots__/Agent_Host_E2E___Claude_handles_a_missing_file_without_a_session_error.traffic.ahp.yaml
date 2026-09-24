@@ -27,11 +27,14 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
+          type: chat/changesetsChanged
+      - channel: ${chat_0}
+        action:
           type: chat/responsePart
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: I'll read missing.txt.
+            content: I'll check for the file.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart

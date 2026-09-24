@@ -13,38 +13,18 @@ Use this skill for failures from the Azure DevOps **Flaky Smoke Tests** pipeline
 - Pipeline YAML: `build/azure-pipelines/product-smoke-flaky.yml`
 - Scheduled runs: twice daily on `main`
 
-The pipeline builds VS Code from source and runs the complete Electron smoke
-suite once per entry in the `iterations` parameter. Each platform runs its
-iterations sequentially in one job.
+The pipeline builds VS Code from source and runs the complete Electron smoke suite once per entry in the `iterations` parameter. Each platform runs its iterations sequentially in one job.
 
 ## Important Pipeline Behavior
 
-- Each iteration is a separate timeline task named
-  `Smoke test iteration <N>/<total> (Electron)`.
-- Iteration tasks use `continueOnError: true`, so a failed iteration normally
-  has result `succeededWithIssues` and later iterations still run.
-- Do not infer smoke-test health from the overall build or job result. Inspect
-  every iteration task.
-- Logs are published once per platform job from the shared `.build/logs`
-  directory. The artifact is job-scoped, not iteration-scoped:
-  `smoke-test-runner.log` can contain multiple iterations, and suite
-  directories are not separated by iteration.
-- Do not cancel a platform job while investigating if you still need its logs
-  artifact. Cancellation can skip the publish steps entirely, even when one or
-  more failed iteration task logs are already available. If a validation run
-  has become predictably red, either let the current job finish or queue a
-  single diagnostic iteration and let that job publish before iterating.
-- Later iterations can overwrite or truncate files in the shared logs
-  directory. The final artifact may therefore contain the last iteration's
-  suite directory or runner log but not the failed iteration's detailed
-  diagnostics. Preserve the exact task log, and use a one-iteration diagnostic
-  run when extension-host, renderer, mock-server, screenshot, or trace evidence
-  from the failed attempt is required.
-- The exact iteration task log is authoritative for its failure summary and
-  time range. Correlate that range with the job-level artifact.
-- Iterations can see persisted smoke-test state from earlier iterations, such
-  as historical session rows. Never assume the newest-looking row or a matching
-  prompt belongs to the active conversation without verifying the active view.
+- Each iteration is a separate timeline task named `Smoke test iteration <N>/<total> (Electron)`.
+- Iteration tasks use `continueOnError: true`, so a failed iteration normally has result `succeededWithIssues` and later iterations still run.
+- Do not infer smoke-test health from the overall build or job result. Inspect every iteration task.
+- Logs are published once per platform job from the shared `.build/logs` directory. The artifact is job-scoped, not iteration-scoped: `smoke-test-runner.log` can contain multiple iterations, and suite directories are not separated by iteration.
+- Do not cancel a platform job while investigating if you still need its logs artifact. Cancellation can skip the publish steps entirely, even when one or more failed iteration task logs are already available. If a validation run has become predictably red, either let the current job finish or queue a single diagnostic iteration and let that job publish before iterating.
+- Later iterations can overwrite or truncate files in the shared logs directory. The final artifact may therefore contain the last iteration's suite directory or runner log but not the failed iteration's detailed diagnostics. Preserve the exact task log, and use a one-iteration diagnostic run when extension-host, renderer, mock-server, screenshot, or trace evidence from the failed attempt is required.
+- The exact iteration task log is authoritative for its failure summary and time range. Correlate that range with the job-level artifact.
+- Iterations can see persisted smoke-test state from earlier iterations, such as historical session rows. Never assume the newest-looking row or a matching prompt belongs to the active conversation without verifying the active view.
 
 Platform definitions and artifacts:
 
@@ -79,8 +59,7 @@ az pipelines build show \
   --output json
 ```
 
-Record `sourceVersion`. Investigate the exact code built by the pipeline, not
-the current working tree.
+Record `sourceVersion`. Investigate the exact code built by the pipeline, not the current working tree.
 
 ## 2. Find Failed Iterations
 
@@ -95,9 +74,7 @@ az devops invoke \
   --output json
 ```
 
-Filter task records whose names contain `Smoke test iteration`. Treat
-`succeededWithIssues`, `failed`, and tasks with error issues as failed
-iterations. Record:
+Filter task records whose names contain `Smoke test iteration`. Treat `succeededWithIssues`, `failed`, and tasks with error issues as failed iterations. Record:
 
 - task `id`
 - parent job `id`
@@ -106,8 +83,7 @@ iterations. Record:
 - `log.id`
 - `issues`
 
-If the user supplied an Azure log URL, its `j=` value is the job ID and its
-`t=` value is the task ID. Query those records directly:
+If the user supplied an Azure log URL, its `j=` value is the job ID and its `t=` value is the task ID. Query those records directly:
 
 ```bash
 az devops invoke \
@@ -121,8 +97,7 @@ az devops invoke \
 
 ## 3. Download the Exact Iteration Task Log
 
-Use timeline record `log.id`. The correct REST resource is `logs`, not
-`buildLog`:
+Use timeline record `log.id`. The correct REST resource is `logs`, not `buildLog`:
 
 ```bash
 az devops invoke \
@@ -133,8 +108,7 @@ az devops invoke \
   --out-file task-log.json
 ```
 
-The downloaded response is JSON with a `value` array containing one string per
-log line. Convert it to plain text.
+The downloaded response is JSON with a `value` array containing one string per log line. Convert it to plain text.
 
 PowerShell:
 
@@ -149,11 +123,7 @@ Bash:
 jq -r '.value[]' task-log.json > task-log.txt
 ```
 
-The task log provides the concise Mocha failure, stack, and the iteration's
-exact time range even before platform artifacts are published. Diagnostics
-written through the smoke runner's `Logger` (including
-`dumpFailureDiagnostics`) may exist only in `smoke-test-runner.log`, so do not
-assume they will be present in the Azure task log.
+The task log provides the concise Mocha failure, stack, and the iteration's exact time range even before platform artifacts are published. Diagnostics written through the smoke runner's `Logger` (including `dumpFailureDiagnostics`) may exist only in `smoke-test-runner.log`, so do not assume they will be present in the Azure task log.
 
 ## 4. Download the Platform Logs Artifact
 
@@ -178,27 +148,20 @@ az pipelines runs artifact download \
   --project Monaco
 ```
 
-Artifacts are available after the platform job publishes its outputs.
-An absent platform artifact after a canceled run is expected; it is not
-evidence that the artifact name was wrong.
+Artifacts are available after the platform job publishes its outputs. An absent platform artifact after a canceled run is expected; it is not evidence that the artifact name was wrong.
 
 ## 5. Correlate the Failure
 
-Start with `<DESTINATION>/smoke-tests-electron/smoke-test-runner.log`.
-Use the failed task's timestamps and test title to isolate the matching
-`Test start` / `Test end` interval. Do not use the first occurrence of a test
-title because the runner log can contain several iterations.
+Start with `<DESTINATION>/smoke-tests-electron/smoke-test-runner.log`. Use the failed task's timestamps and test title to isolate the matching `Test start` / `Test end` interval. Do not use the first occurrence of a test title because the runner log can contain several iterations.
 
 Within that interval, establish this chain:
 
 1. **Gesture**: Was the expected editor clicked and prompt typed?
 2. **Dispatch**: Did the send action fire and did the new-session view close?
 3. **Request**: Did the mock server receive the expected scenario tag?
-4. **Tool loop**: For shell tests, did the second model request contain the
-   expected tool result?
+4. **Tool loop**: For shell tests, did the second model request contain the expected tool result?
 5. **Rendering**: Did an assistant response render, and in which session view?
-6. **Routing**: Did the active session auto-swap to a new composer while the
-   completed response remained in another session?
+6. **Routing**: Did the active session auto-swap to a new composer while the completed response remained in another session?
 
 For mock-LLM suites, search for:
 
@@ -224,17 +187,7 @@ Useful files include:
 
 - `window*/exthost/<extension>/<extension>.log`
 - `main.log`, `renderer.log`, and `agenthost.log`
-- `copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot`
-  CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime
-  session fails. Check these first for a **hang or "Timed out waiting for
-  response"**: they are the SDK/CLI's own record (startup, auth, model request,
-  turn lifecycle, panics, out-of-order or protocol errors) and explain a timeout
-  the test error alone does not. A tail is also mirrored into
-  `smoke-test-runner.log`. **Agent Host** sessions (Agents Window / local
-  AgentHost) write a full log run at `trace`; Chat Sessions editor (Copilot CLI /
-  Claude) and Local sessions write only a minimal startup log here (whether the
-  runtime came up), with their detailed diagnostics in `GitHub Copilot Chat.log`.
-  (Claude / Codex sessions use a different runtime and are not captured here.)
+- `copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot` CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime session fails. Check these first for a **hang or "Timed out waiting for response"**: they are the SDK/CLI's own record (startup, auth, model request, turn lifecycle, panics, out-of-order or protocol errors) and explain a timeout the test error alone does not. A tail is also mirrored into `smoke-test-runner.log`. **Agent Host** sessions (Agents Window / local AgentHost) write a full log run at `trace`; Chat Sessions editor (Copilot CLI / Claude) and Local sessions write only a minimal startup log here (whether the runtime came up), with their detailed diagnostics in `GitHub Copilot Chat.log`. (Claude / Codex sessions use a different runtime and are not captured here.)
 - `playwright-screenshot-*.png`
 - Playwright trace archives
 
@@ -244,24 +197,12 @@ For native exits or renderer crashes, also download the platform crash artifact.
 
 Session-list text and active-view text answer different questions:
 
-- A list row can contain a prompt from the current test but a command or title
-  inherited from a prior request.
-- The active view can already be a fresh untitled composer while the response
-  belongs to a completed, inactive session.
-- Broad response selectors can match stale DOM from an earlier session or
-  iteration.
-- Reusing a fixed warm-up scenario marker can let a later warm-up wait match an
-  earlier response and abandon the actually-running warm-up.
-- Standard smoke suites created through `installAllHandlers` use distinct
-  randomized user-data directories. Do not attribute a setting from the
-  preceding suite to the failing suite without comparing the actual
-  `vscode-userdata:` or `--user-data-dir` paths in their logs. Iterations share
-  broader job state, but sibling suites normally do not share the same profile.
-- A setup change can alter rather than fix the symptom. Re-check the exact
-  stack and the gesture/dispatch/request/rendering chain on every validation
-  run. For example, moving extension enablement before startup can eliminate an
-  editor-open timeout while activating the extension before test settings are
-  written, producing a later request or response timeout instead.
+- A list row can contain a prompt from the current test but a command or title inherited from a prior request.
+- The active view can already be a fresh untitled composer while the response belongs to a completed, inactive session.
+- Broad response selectors can match stale DOM from an earlier session or iteration.
+- Reusing a fixed warm-up scenario marker can let a later warm-up wait match an earlier response and abandon the actually-running warm-up.
+- Standard smoke suites created through `installAllHandlers` use distinct randomized user-data directories. Do not attribute a setting from the preceding suite to the failing suite without comparing the actual `vscode-userdata:` or `--user-data-dir` paths in their logs. Iterations share broader job state, but sibling suites normally do not share the same profile.
+- A setup change can alter rather than fix the symptom. Re-check the exact stack and the gesture/dispatch/request/rendering chain on every validation run. For example, moving extension enablement before startup can eliminate an editor-open timeout while activating the extension before test settings are written, producing a later request or response timeout instead.
 
 Prefer assertions that establish identity:
 
@@ -270,8 +211,7 @@ Prefer assertions that establish identity:
 - expected response in the active session before follow-up input
 - mock-server request count or captured request content after the gesture
 
-Do not "fix" these races by only increasing a timeout. Wait for the actual
-state transition or remove duplicate/in-flight work.
+Do not "fix" these races by only increasing a timeout. Wait for the actual state transition or remove duplicate/in-flight work.
 
 ## 7. Find the Introducing Commit
 
@@ -284,8 +224,7 @@ git blame -L <start>,<end> <file>
 git show <SUSPECT_COMMIT> -- <relevant paths>
 ```
 
-Trace the whole causal sequence, not only the failing assertion. For example,
-inspect setup hooks, warm-ups, session selection, response waits, and teardown.
+Trace the whole causal sequence, not only the failing assertion. For example, inspect setup hooks, warm-ups, session selection, response waits, and teardown.
 
 Distinguish:
 
@@ -293,13 +232,11 @@ Distinguish:
 - a later unrelated commit after which timing happened to expose it
 - a commit that only added diagnostics or made the flake visible
 
-State the introducing commit only when the diff contains the causal behavior
-and the pipeline evidence matches it.
+State the introducing commit only when the diff contains the causal behavior and the pipeline evidence matches it.
 
 ## 8. Queue a Focused Validation Run
 
-The branch and commit must already be pushed to `microsoft/vscode`. Check for
-and cancel obsolete definition-700 runs on the same branch before queueing.
+The branch and commit must already be pushed to `microsoft/vscode`. Check for and cancel obsolete definition-700 runs on the same branch before queueing.
 
 Use `az pipelines run` directly because `iterations` is an object parameter:
 
@@ -317,12 +254,9 @@ az pipelines run \
   --output json
 ```
 
-Enable only platforms relevant to the failure. Confirm the queued run's
-`sourceVersion` and `templateParameters` with `az pipelines build show`.
+Enable only platforms relevant to the failure. Confirm the queued run's `sourceVersion` and `templateParameters` with `az pipelines build show`.
 
-Six iterations are a useful quick validation sample. Use the default 20 when
-the failure is rare or when validating before declaring a recurring flake
-resolved.
+Six iterations are a useful quick validation sample. Use the default 20 when the failure is rare or when validating before declaring a recurring flake resolved.
 
 ## 9. Validate the Local Change
 
@@ -333,9 +267,7 @@ npm run compile --prefix test/smoke
 node --experimental-strip-types build/hygiene.ts <changed-file>
 ```
 
-If local dependencies are missing or stale, report that explicitly and rely on
-the focused definition-700 run for full compiled validation; do not silently
-skip validation or install unrelated tooling.
+If local dependencies are missing or stale, report that explicitly and rely on the focused definition-700 run for full compiled validation; do not silently skip validation or install unrelated tooling.
 
 ## Expected Report
 
