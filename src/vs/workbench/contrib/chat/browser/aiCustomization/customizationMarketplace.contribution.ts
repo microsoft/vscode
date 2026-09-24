@@ -45,11 +45,14 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 		if (!welcomePage) {
 			return undefined;
 		}
+		if (!welcomePage.isDiscover && this.type === AccessibleViewType.View) {
+			return undefined;
+		}
 		const focused = DOM.getActiveElement();
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.CustomizationDiscovery,
 			{ type: this.type, language: 'plaintext' },
-			() => this.type === AccessibleViewType.Help ? [
+			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover ? [
 				localize('customizationDiscovery.help.overview', "Discover customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available items from enabled marketplace sources."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
 				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. The search filter menu updates the same query and filters can be combined."),
@@ -63,6 +66,10 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry button above the results. The Accessible View includes the warnings and retry instructions. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
 				localize('customizationDiscovery.help.authorization', "Choose Sign In in the Sign in to view connectors prompt to access the connector catalog. Normal GitHub sign-in does not request connector permissions. Connector authorization only starts when you choose this action or connect a service. Other marketplace sources remain available if you cancel."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
+			].join('\n\n') : [
+				localize('customizationOverview.help.overview', "The Customizations overview shows categories you can open to manage agents, skills, MCP servers, plugins, and other customizations."),
+				localize('customizationOverview.help.navigation', "Use Tab and Shift+Tab to navigate the category cards, and Enter or Space to open a category."),
+				localize('customizationOverview.help.migrations', "When customizations need migration, choose Review Customization Migrations to see what will change."),
 			].join('\n\n') : welcomePage.getAccessibilityContent(),
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : welcomePage.focus(),
 			AccessibilityVerbositySettingId.CustomizationDiscovery,

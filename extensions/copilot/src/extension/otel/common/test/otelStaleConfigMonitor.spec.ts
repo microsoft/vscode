@@ -81,6 +81,18 @@ describe('OTelStaleConfigMonitor', () => {
 		log = new RecordingLogService();
 	});
 
+	it('prompts on identity revocation without restarting or mutating the running config', async () => {
+		settings.policy = { ...managedPolicy, captureIdentity: true };
+		const resolver = new TestResolver(settings);
+		const monitor = new OTelStaleConfigMonitor(resolver, host, log);
+		settings.policy.captureIdentity = false;
+		expect(await monitor.check()).toBe(OTelConfigDrift.Policy);
+		expect({ prompts: host.prompts, restarts: host.restarts, active: resolver.activeResolution.config.captureIdentity }).toEqual({
+			prompts: 1, restarts: 0, active: true,
+		});
+		expect(resolver.resolve().config.captureIdentity).toBe(false);
+	});
+
 	it('restarts for policy that lands before the contribution can register its watcher', async () => {
 		const resolver = new TestResolver(settings);
 		expect(resolver.activeResolution.config.enabled).toBe(false);

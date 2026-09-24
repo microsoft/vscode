@@ -17,11 +17,12 @@ import { IFileSystemService } from '../../../../platform/filesystem/common/fileS
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
-import { IGithubRepositoryService } from '../../../../platform/github/common/githubService';
+import { IGithubRepositoryService, IOctoKitService } from '../../../../platform/github/common/githubService';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -32,7 +33,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { CopilotCloudSessionsProvider, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRepositoryQuickPickItems, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { CopilotCloudSessionsProvider, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { CloudSessionData } from '../../vscode/cloudAgentBackend';
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
@@ -53,7 +54,7 @@ vi.mock('vscode', async () => {
 			createChatParticipant: () => ({ dispose() { } }),
 		},
 		commands: {
-			registerCommand: () => ({ dispose() { } }),
+			registerCommand: vi.fn(() => ({ dispose() { } })),
 			executeCommand: vi.fn(async () => undefined),
 		},
 	};
@@ -73,33 +74,6 @@ class TestGitService extends mock<IGitService>() {
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
-	it('lists GitHub repositories directly and optionally accepts a pasted clone URL', () => {
-		const repositories = [
-			{ id: 'microsoft/vscode', name: 'microsoft/vscode' },
-			{ id: 'microsoft/vscode-docs', name: 'microsoft/vscode-docs' },
-		];
-
-		expect({
-			search: getRepositoryQuickPickItems(repositories, 'vscode', true),
-			url: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', true),
-			cloud: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', false),
-		}).toEqual({
-			search: [
-				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
-				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
-			],
-			url: [
-				{ label: 'Clone from URL', description: 'https://gitlab.com/example/project.git', cloneUrl: 'https://gitlab.com/example/project.git' },
-				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
-				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
-			],
-			cloud: [
-				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
-				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
-			],
-		});
-	});
-
 	it('formats every redesigned new-session context pill for the cloud request', () => {
 		const references = [
 			{ id: 'github-context:https://github.com/microsoft/vscode/issues/332805', name: 'Issue', value: 'GitHub context' },
@@ -335,6 +309,8 @@ describe('cloud session visibility', () => {
 		});
 
 		beforeEach(() => {
+			vi.mocked(vscode.commands.registerCommand).mockClear();
+			vi.mocked(vscode.commands.executeCommand).mockReset();
 			vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			vi.setSystemTime(now);
 			store = new DisposableStore();
@@ -350,9 +326,9 @@ describe('cloud session visibility', () => {
 			vi.restoreAllMocks();
 		});
 
-		function createProvider(): CopilotCloudSessionsProvider {
+		function createProvider(octoKitService: IOctoKitService = new MockOctoKitService(), extensionContext: IVSCodeExtensionContext = new class extends mock<IVSCodeExtensionContext>() { }()): CopilotCloudSessionsProvider {
 			return store.add(new CopilotCloudSessionsProvider(
-				new MockOctoKitService(),
+				octoKitService,
 				new TestGitService(),
 				new NullTelemetryService(),
 				new TestLogService(),
@@ -363,7 +339,7 @@ describe('cloud session visibility', () => {
 				new class extends mock<IAuthenticationService>() {
 					override readonly onDidAuthenticationChange = Event.None;
 				}(),
-				new class extends mock<IVSCodeExtensionContext>() { }(),
+				extensionContext,
 				new class extends mock<IInstantiationService>() { }(),
 				new class extends mock<IGithubRepositoryService>() { }(),
 				new class extends mock<IChatDelegationSummaryService>() { }(),
@@ -377,6 +353,87 @@ describe('cloud session visibility', () => {
 				configurationService,
 			));
 		}
+
+		it('uses the shared workbench repository picker and preserves repository, clone, and cancellation results', async () => {
+			createProvider();
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.openRepository');
+			expect(registration).toBeDefined();
+			const openRepository = registration![1];
+			vi.mocked(vscode.commands.executeCommand)
+				.mockResolvedValueOnce({ repository: 'microsoft/vscode' })
+				.mockResolvedValueOnce({ cloneUrl: 'https://gitlab.com/example/project.git' })
+				.mockResolvedValueOnce(undefined);
+
+			const results = [
+				await openRepository(undefined, { allowRepositoryUrl: false }),
+				await openRepository(undefined, { allowRepositoryUrl: true }),
+				await openRepository(),
+			];
+
+			expect({
+				results,
+				commands: vi.mocked(vscode.commands.executeCommand).mock.calls,
+			}).toEqual({
+				results: ['microsoft/vscode', 'https://gitlab.com/example/project.git', undefined],
+				commands: [
+					['_chat.pickRepository', '_github.copilot.chat.cloudSessions.searchRepositories', { allowRepositoryUrl: false }],
+					['_chat.pickRepository', '_github.copilot.chat.cloudSessions.searchRepositories', { allowRepositoryUrl: true }],
+					['_chat.pickRepository', '_github.copilot.chat.cloudSessions.searchRepositories', undefined],
+				],
+			});
+		});
+
+		it('supplies the existing repository search to the shared picker', async () => {
+			const octoKitService: IOctoKitService = new MockOctoKitService();
+			const search = vi.spyOn(octoKitService, 'getUserRepositories').mockResolvedValue([{ owner: 'microsoft', name: 'vscode' }]);
+			createProvider(octoKitService);
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === '_github.copilot.chat.cloudSessions.searchRepositories');
+			expect(registration).toBeDefined();
+			const repositories = await registration![1]('vscode');
+
+			expect({ repositories, searches: search.mock.calls }).toEqual({
+				repositories: ['microsoft/vscode'],
+				searches: [[{}, 'vscode']],
+			});
+		});
+
+		it('keeps session-option updates in the extension and does not apply clone URLs or cancelled picks', async () => {
+			const extensionContext = new class extends mock<IVSCodeExtensionContext>() {
+				override readonly globalState = {
+					...new MockExtensionContext().globalState,
+					setKeysForSync: () => { },
+				};
+			}();
+			const updates = vi.spyOn(extensionContext.globalState, 'update');
+			const provider = createProvider(new MockOctoKitService(), extensionContext);
+			const changes: vscode.ChatSessionOptionChangeEvent[] = [];
+			store.add(provider.onDidChangeChatSessionOptions(event => changes.push(event)));
+			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.openRepository');
+			expect(registration).toBeDefined();
+			const resource = vscode.Uri.parse('copilot-cloud-agent:/untitled-repository-test');
+			vi.mocked(vscode.commands.executeCommand)
+				.mockResolvedValueOnce({ repository: 'microsoft/vscode' })
+				.mockResolvedValueOnce({ cloneUrl: 'https://gitlab.com/example/project.git' })
+				.mockResolvedValueOnce(undefined);
+
+			await registration![1](resource);
+			await registration![1](resource, { allowRepositoryUrl: true });
+			await registration![1](resource);
+
+			expect({
+				changes,
+				storedValues: updates.mock.calls.map(([, value]) => value),
+			}).toEqual({
+				changes: [{
+					resource,
+					updates: [{
+						optionId: 'repositories',
+						value: { id: 'microsoft/vscode', name: 'microsoft/vscode', icon: new vscode.ThemeIcon('repo') },
+					}],
+				}],
+				storedValues: [[{ name: 'microsoft/vscode', timestamp: now }]],
+			});
+		});
 
 		it('filters before fetching changes and refreshes when visibility changes', async () => {
 			fetchSessionList.mockResolvedValue([session('recent', now - 2 * day), session('old', now - 31 * day)]);

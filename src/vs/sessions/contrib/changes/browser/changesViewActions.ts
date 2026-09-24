@@ -78,13 +78,13 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		// Bind context key: true when the active session has changes
+		// Bind context key: true when the active chat has changes
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
-			const changes = activeSession.changes.read(reader);
+			const changes = activeSession.activeChat.read(reader).changes.read(reader);
 			return changes.length > 0;
 		}));
 

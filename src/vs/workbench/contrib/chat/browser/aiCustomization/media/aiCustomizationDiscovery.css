@@ -69,34 +69,6 @@
 	outline-offset: var(--vscode-spacing-size20);
 }
 
-.customization-discovery-migration {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	box-sizing: border-box;
-	margin-bottom: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
-	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-inputValidation-warningBackground);
-}
-
-.customization-discovery-migration[hidden] {
-	display: none;
-}
-
-.customization-discovery-migration-label {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.customization-discovery-migration > .monaco-button {
-	width: auto;
-}
-
 .customization-discovery-search-row {
 	display: flex;
 	align-items: stretch;
@@ -178,10 +150,21 @@
 	background: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editorWidget-background));
 }
 
+.customization-discovery-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size120);
+}
+
 .customization-discovery-section-title {
+	min-width: 0;
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .customization-discovery-grid {
@@ -232,7 +215,7 @@
 
 .customization-discovery-card-icon.is-fallback,
 .customization-discovery-result-icon.is-fallback {
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
 }
 
 .customization-discovery-card-icon img {
@@ -315,11 +298,12 @@
 }
 
 .customization-discovery-show-all {
-	align-self: flex-start;
+	flex-shrink: 0;
 	padding: var(--vscode-spacing-size20) 0;
 	border: 0;
 	background: transparent;
 	font: inherit;
+	font-size: var(--vscode-fontSize-body1);
 	cursor: pointer;
 }
 
@@ -476,4 +460,11 @@
 .hc-black .customization-discovery-section.featured,
 .hc-light .customization-discovery-section.featured {
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+.hc-black .customization-discovery-card-icon.is-fallback,
+.hc-light .customization-discovery-card-icon.is-fallback,
+.hc-black .customization-discovery-result-icon.is-fallback,
+.hc-light .customization-discovery-result-icon.is-fallback {
+	border-color: var(--vscode-contrastBorder);
 }

@@ -19,7 +19,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveElement, isHTMLElement, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -34,8 +34,11 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionGridLayout } from '../../services/sessions/browser/sessionsPartService.js';
+import { arrangeSessionGrid, getSessionGridColumns } from './sessionGridLayout.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 
 interface IGridSlot {
@@ -65,6 +68,8 @@ export class SessionsPart extends Part {
 
 	/** Internal grid that hosts the part's session views. */
 	protected _gridWidget: SerializableGrid<SessionView> | undefined;
+	private _gridLayout: SessionGridLayout = 'columns';
+	private _gridShape = '';
 
 	/** Lazily-created progress bar shown at the top of the content area. */
 	private _progressBar: ProgressBar | undefined;
@@ -209,7 +214,7 @@ export class SessionsPart extends Part {
 	 * the number of visible sessions changes, and rebinds each slot to its
 	 * session by position via {@link SessionView.openSession}.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, layout: SessionGridLayout = 'columns'): void {
 		if (!this._gridWidget) {
 			return;
 		}
@@ -242,6 +247,8 @@ export class SessionsPart extends Part {
 			slot.boundSessionId = session?.sessionId;
 			slot.view.openSession(session, {});
 		}
+		this._gridLayout = layout;
+		this._arrangeGrid();
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
@@ -269,8 +276,42 @@ export class SessionsPart extends Part {
 		});
 	}
 
+	private _arrangeGrid(): void {
+		if (!this._gridWidget) {
+			return;
+		}
+		const count = this._slots.length;
+		const columns = this._gridLayout === 'grid' ? this.getGridColumnCount(count) : count;
+		const shape = this._gridLayout === 'grid' ? `grid:${count}:${columns}` : 'columns';
+		if (shape === this._gridShape) {
+			return;
+		}
+		if (shape === 'columns' && !this._gridShape) {
+			this._gridShape = shape;
+			return;
+		}
+		const focused = getActiveElement();
+		const restoreFocus = isHTMLElement(focused) && isAncestor(focused, this._gridWidget.element);
+		const maximized = this._slots.find(slot => this._gridWidget!.isViewMaximized(slot.view));
+		this._gridWidget.exitMaximizedView();
+		arrangeSessionGrid(this._gridWidget, this._slots.map(slot => slot.view), columns);
+		this._gridShape = shape;
+		if (maximized) {
+			this._gridWidget.maximizeView(maximized.view);
+		}
+		if (restoreFocus) {
+			focused.focus();
+		}
+	}
+
+	protected getGridColumnCount(count: number): number {
+		return getSessionGridColumns(count);
+	}
+
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
-		this._multipleSessionsVisibleKey.set(visible.length > 1);
+		const multipleSessionsVisible = visible.length > 1;
+		this._multipleSessionsVisibleKey.set(multipleSessionsVisible);
+		this.element.classList.toggle('multiple-sessions-visible', multipleSessionsVisible);
 	}
 
 	/**
@@ -354,7 +395,8 @@ export class SessionsPart extends Part {
 		}
 		const containerRect = this._gridWidget.element.getBoundingClientRect();
 		const viewRect = view.element.getBoundingClientRect();
-		const isFullyVisible = viewRect.left >= containerRect.left - 1 && viewRect.right <= containerRect.right + 1;
+		const isFullyVisible = viewRect.left >= containerRect.left - 1 && viewRect.right <= containerRect.right + 1
+			&& viewRect.top >= containerRect.top - 1 && viewRect.bottom <= containerRect.bottom + 1;
 		if (!isFullyVisible) {
 			view.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		}
@@ -455,16 +497,26 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
-		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
+		const cardSize = getAgentsPartCardContentSize(
+			width,
+			height,
+			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.layoutService.isVisible(Parts.SIDEBAR_PART),
+			isPhoneLayout(this.layoutService)
+		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
-		// Layout the internal grid widget within the content area.
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);
+		this.layoutSessionGrid(contentSize.width, contentSize.height, top, left);
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);
+	}
+
+	protected layoutSessionGrid(width: number, height: number, top: number, left: number): void {
+		this._arrangeGrid();
+		this._gridWidget?.layout(width, height, top, left);
 	}
 
 	override dispose(): void {

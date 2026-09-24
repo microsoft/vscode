@@ -45,7 +45,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed. Another catalog revision or version at the same repository path must remain available to install.
 15. Install an MCP server with a supported package or remote endpoint. It must resolve the version-pinned GitHub Feed record independently of the configured VS Code gallery and use the normal MCP policy and installation flow, not executable configuration supplied by the search result. For a server whose version record has only unsupported local prerequisites (for example, Unity's `uv --directory <local path>` setup), verify the publisher's setup link replaces Retry Install after the installability check.
 16. Check that installation errors allow retry without losing search results and disappear when the search or filter changes; a failure finishing after that change must not restore the old banner. Cancellations do not announce success, and resources without validated installation provenance explain why installation is unavailable. Cursor-format plugins must not appear in browse or search, even when the first native page contains only Cursor plugins.
-17. With both source settings unset or false, verify Discover still searches installed customizations but performs no catalog or installation work. Former settings `chat.agentFinder.enabled`, `chat.customizations.unifiedMarketplace.enabled`, `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled`, and `chat.customizations.marketplace.sources.publicGitHubFeed.enabled` must not enable a source.
+17. With both source settings unset or false, verify the original Overview cards and migration guidance appear instead of Discover, and no catalog or installation work starts. Former settings `chat.agentFinder.enabled`, `chat.customizations.unifiedMarketplace.enabled`, `chat.customizations.marketplace.sources.agentFinderPublicFeed.enabled`, and `chat.customizations.marketplace.sources.publicGitHubFeed.enabled` must not enable a source.
 18. Enable each source separately and together. Only enabled sources are queried or initialized. Disable a source during a query or install: discovery resets, that source's pending work is cancelled, and its resources become unavailable for installation. Other sources' installs and cached skill state remain intact. Re-enabling must not revive cancelled work.
 19. Return overlapping identifiers, multiple versions, and different source continuation tokens. All distinct source/identifier/version entries remain visible, exhausted sources stop querying, and installation state/actions do not collide. Changing the selected source set requires a new search.
 20. Supply independently ranked sources and search. Each combined page contains at most 24 entries in descending relevance order, including across automatically loaded page boundaries. Short native pages are backfilled, undisplayed entries are retained, and a failed or cancelled continuation can be retried without losing entries. Equal scores use source-registration order; unscored entries rank as zero. Queryless browsing interleaves the feeds while preserving each feed's native order, continues the rotation across page boundaries, and fills remaining slots from other feeds when one exhausts. Scores are internal ranking signals, not displayed quality or trust ratings.
@@ -67,7 +67,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 1. Search Discover for a Copilot connector. It appears as an available MCP resource with GitHub Copilot provenance and uses the standard installation action.
 2. Install the connector and finish browser authorization. The action remains pending until the connected catalog confirms success; cancellation, experiment disablement, and hidden AI features stop polling without announcing success.
 3. Open MCP Servers. Connected connector MCP servers appear under Installed, and connector products appear in a separate Connectors section with connection status and the applicable Connect, Retry, Review, or overflow action.
-4. Verify the MCP page does not show an Available marketplace section; available MCP resources remain owned by Discover.
+4. Verify the MCP page retains its Available catalog while its independent feed is not in Discover; connector products are shown separately in Connectors.
 5. Open a connector. Its detail shows status, metadata, contained MCP servers, external information, and connection lifecycle actions instead of a raw editable MCP configuration.
 6. Disable `chat.customizations.copilotConnectors.enabled`. Connector discovery and pending authorization stop, the Connectors section disappears, and Agent Host clears connector MCP servers.
 7. Compare exact connector names, prefixes, abbreviations, mixed-case multi-word queries, keywords/tags/capabilities, and descriptions/example queries. Exact full names score 100; otherwise each word's best match is averaged from name (70–95), keyword/capability/tag (40–65), or description/example (10–35) bands. Within a band, exact, prefix, substring, and compact fuzzy matches descend in that order. These are heuristic rankings, not calibrated equivalents to AgentFinder semantic scores. Every word must match, including at the end of long metadata. Clear search and verify connectors return without scores in native catalog order, interleaved with public-feed entries when that source is enabled.
@@ -301,3 +301,20 @@ This tests the transition from the empty state to having an active workspace sel
 9. Dismiss an activity entry. Its record disappears; migrated files remain untouched.
 10. Navigate with Tab and Shift+Tab, expand activity with Enter or Space, and open Accessibility Help and Accessible View. Focus returns to the invoking control on dismissal.
 11. Verify dark, light, high-contrast, and narrow layouts. No Chat Participants, agent verification, issue creation, or optional multi-root controls are present.
+
+### Scenario 7: New-chat migration notice
+
+#### Preconditions
+
+- The migration settings and candidates from Scenario 6
+- The new-chat view with an agent-host session type selected
+
+#### Actions and expected results
+
+1. Select a workspace with pending migrations. A muted, compact banner below the composer summarizes the workspace and profile candidates from the migration overview. Its faint border, subtle background, and secondary text leave the chat input as the primary visual focus.
+2. Show and dismiss the notice. The input and its controls remain in exactly the same centered position, including at narrow widths.
+3. Activate **Review Migrations** with the keyboard. The customizations modal opens directly to **Migrations** for the selected workspace, even if an older chat was previously focused.
+4. Dismiss the notice, restart, and return to that workspace. It stays dismissed. Select another workspace with candidates; its notice remains available.
+5. Complete all migrations, then return to new chat. The notice disappears. Profile-only migrations also show in a workspace without local candidates or in a workspace-less quick chat.
+6. Disable the migration settings or AI features. No notice appears and disabled migration categories are not scanned for the notice.
+7. Verify light, dark, high-contrast, and keyboard focus states. Dismissal returns focus to the input.

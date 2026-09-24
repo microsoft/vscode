@@ -21,12 +21,12 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -258,9 +258,30 @@ import './widget/input/editor/chatInputEditorContrib.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { ChatPasteProvidersFeature } from './widget/input/editor/chatPasteProviders.js';
 import { QuickChatService } from './widgetHosts/chatQuick.js';
+import { IRepositoryPickerOptions, PICK_REPOSITORY_COMMAND_ID, RepositoryPicker } from './agentSessions/repositoryPicker.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
+});
+
+CommandsRegistry.registerCommand(PICK_REPOSITORY_COMMAND_ID, async (accessor: ServicesAccessor, repositoriesCommand: string, options?: IRepositoryPickerOptions) => {
+	if (typeof repositoriesCommand !== 'string' || !repositoriesCommand || repositoriesCommand === PICK_REPOSITORY_COMMAND_ID) {
+		throw new Error('A repository search command is required');
+	}
+	const commandService = accessor.get(ICommandService);
+	const store = new DisposableStore();
+	try {
+		const picker = store.add(accessor.get(IInstantiationService).createInstance(RepositoryPicker));
+		return await picker.pickRepository(async query => {
+			const repositories = await commandService.executeCommand<readonly string[]>(repositoriesCommand, query);
+			if (!Array.isArray(repositories) || !repositories.every(repository => typeof repository === 'string')) {
+				throw new Error('The repository search command did not return repository names');
+			}
+			return repositories;
+		}, options);
+	} finally {
+		store.dispose();
+	}
 });
 
 const toolReferenceNameEnumValues: string[] = [];
@@ -732,7 +753,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows a \"Sandboxing for terminal\" toggle. Local sessions show it on the Default permissions option. Copilot Agent Host sessions show it as a session-specific setting that applies to every permission mode; changing it saves the choice only for that session. New Copilot Agent Host sessions initially follow `#chat.agent.sandbox.enabled#` or `#chat.agent.sandbox.enabledWindows#` for both the SDK's built-in shell tool and the Agent Host terminal tool."),
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows a \"Sandboxing for terminal\" toggle. Local sessions show it on the Default permissions option. Local and remote Copilot Agent Host sessions show it as a session-specific setting that applies to every permission mode; changing it saves the choice only for that session. New Copilot Agent Host sessions initially follow `#chat.agent.sandbox.enabled#` or `#chat.agent.sandbox.enabledWindows#` based on the host's operating system, for both the SDK's built-in shell tool and the Agent Host terminal tool."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1717,12 +1738,6 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			tags: ['experimental', 'advanced'],
 		},
-		[AgentHostReasoningEffortOverrideSettingId]: {
-			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
-			default: '',
-			tags: ['experimental', 'advanced'],
-		},
 		[AgentHostHydraFusionEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
@@ -2513,7 +2528,7 @@ configurationRegistry.registerConfiguration({
 		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in the customization marketplace. When disabled, this source is not initialized or queried."),
+			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in the customization marketplace. When disabled, this source is not initialized or queried. The original Overview appears when no marketplace sources are enabled."),
 			default: false,
 			experiment: { mode: 'auto' },
 		},
@@ -2547,7 +2562,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.mcpServerMigration.enabled', "Controls whether the Chat Customizations editor offers to move supported workspace MCP servers out of .vscode/mcp.json and into a .mcp.json file at the workspace root, where the active agent-host harness discovers them directly. When disabled, the migration card and sidebar shortcut are hidden."),
+			description: nls.localize('chat.customizations.mcpServerMigration.enabled', "Controls whether VS Code shows MCP server migration actions, hints, compatibility badges, and compatibility details. Migration moves eligible workspace MCP servers out of .vscode/mcp.json and into a .mcp.json file at the workspace root, where the active agent-host harness discovers them directly."),
 			default: false,
 		},
 		[ChatConfiguration.ChatCustomizationsMigrationHint]: {
@@ -3246,21 +3261,6 @@ class ChatSpeechToTextInitContribution implements IWorkbenchContribution {
 	}
 }
 
-class CustomizationMigrationHintContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.customizationMigrationHint';
-
-	constructor(
-		@IChatService chatService: IChatService,
-		@ICustomizationMigrationService customizationMigrationService: ICustomizationMigrationService,
-	) {
-		super();
-		this._register(chatService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => customizationMigrationService.computeMigrationHint(sessionResource, token)
-		));
-	}
-}
-
 AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
@@ -3277,7 +3277,6 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(EditorChatUsageContribution.ID, EditorChatUsageContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(CustomizationMigrationHintContribution.ID, CustomizationMigrationHintContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribution, WorkbenchPhase.BlockRestore);

@@ -1,0 +1,177 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	width: min(520px, calc(100vw - 2 * var(--vscode-spacing-size240) - 2 * var(--vscode-strokeThickness)));
+	max-width: 100%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	color: var(--vscode-editorHoverWidget-foreground);
+}
+
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover).compact {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a {
+	color: var(--vscode-textLink-foreground);
+}
+
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a:hover,
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) :is(a, button):focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+:is(.sessions-issue-hover-header, .sessions-pr-hover-header, .sessions-commit-hover-header) {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+}
+
+:is(.sessions-issue-hover-repository, .sessions-pr-hover-repository, .sessions-commit-hover-repository) {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+:is(.sessions-issue-hover-date, .sessions-pr-hover-date, .sessions-commit-hover-date, .sessions-issue-hover-author, .sessions-pr-hover-author, .sessions-commit-hover-author) {
+	color: var(--vscode-descriptionForeground);
+}
+
+:is(.sessions-issue-hover-date, .sessions-pr-hover-date, .sessions-commit-hover-date) {
+	flex-shrink: 0;
+}
+
+.sessions-pr-hover-status-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.sessions-issue-hover-status-row {
+	display: flex;
+}
+
+:is(.sessions-issue-hover-status, .sessions-pr-hover-status, .sessions-pr-hover-checks) {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	width: max-content;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-descriptionForeground);
+}
+
+:is(.sessions-issue-hover-status, .sessions-pr-hover-status, .sessions-pr-hover-checks) .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-pr-hover-checks[data-status='pending'] .codicon {
+	color: var(--vscode-testing-iconQueued, var(--vscode-editorWarning-foreground));
+}
+
+.sessions-pr-hover-checks[data-status='failure'] .codicon {
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
+}
+
+.sessions-pr-hover-checks[data-status='success'] .codicon {
+	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
+:is(.sessions-issue-hover-title, .sessions-pr-hover-title, .sessions-commit-hover-title) {
+	min-width: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+}
+
+:is(.sessions-issue-hover-title-content, .sessions-pr-hover-title-content, .sessions-commit-hover-title-content) {
+	display: block;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+:is(.sessions-issue-hover-title-tail, .sessions-pr-hover-title-tail, .sessions-commit-hover-title-tail) {
+	white-space: nowrap;
+}
+
+.sessions-issue-hover .sessions-issue-hover-reference,
+.sessions-pr-hover .sessions-pr-hover-reference {
+	font-weight: var(--vscode-fontWeight-regular);
+	overflow-wrap: normal;
+	white-space: nowrap;
+}
+
+.sessions-commit-hover .sessions-commit-hover-reference {
+	font-weight: var(--vscode-fontWeight-regular);
+	overflow-wrap: normal;
+	white-space: nowrap;
+}
+
+:is(.sessions-issue-hover-description, .sessions-pr-hover-description, .sessions-commit-hover-description) {
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+:is(.sessions-issue-hover-description-content, .sessions-pr-hover-description-content, .sessions-commit-hover-description-content) {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+}
+
+.sessions-pr-hover-branches {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.sessions-pr-hover-branch {
+	appearance: none;
+	min-width: 0;
+	max-width: 200px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-textCodeBlock-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	color: var(--vscode-textLink-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+}
+
+button.sessions-pr-hover-branch {
+	cursor: pointer;
+}
+
+button.sessions-pr-hover-branch:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-pr-hover-branch-arrow {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}

@@ -779,38 +779,38 @@
 	background-color: transparent !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):hover > .tab-actions {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):hover > .tab-actions {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	border-right: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	box-sizing: border-box;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover > .tab-actions {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):hover > .tab-actions {
 	border-top: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 	border-right: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 	border-bottom: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 	box-sizing: border-box;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions:focus-within {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions:focus-within {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	box-sizing: border-box;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected).tab-actions-left:hover > .tab-actions {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected).tab-actions-left:hover > .tab-actions {
 	border-right: 0;
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected).tab-actions-left:hover > .tab-actions {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected).tab-actions-left:hover > .tab-actions {
 	border-right: 0;
 	border-left: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.tab-actions-left > .tab-actions:focus-within {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.tab-actions-left > .tab-actions:focus-within {
 	border-right: 0;
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }

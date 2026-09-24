@@ -24,6 +24,7 @@ import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -88,6 +89,11 @@ export interface ICustomizationMcpServerCompatibilityScope extends IDisposable {
 
 export interface ICustomizationMcpServerCompatibilityProvider {
 	acquire(sessionResource: URI): ICustomizationMcpServerCompatibilityScope | undefined;
+}
+
+export interface ICustomizationMcpServerMigrationProvider {
+	computeMigration(sessionResource: URI, token: CancellationToken): Promise<McpServerCustomizationMigration>;
+	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
 }
 
 /**
@@ -163,6 +169,10 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific compatibility for MCP servers in the active session.
 	 */
 	readonly mcpServerCompatibilityProvider?: ICustomizationMcpServerCompatibilityProvider;
+	/**
+	 * Supplies harness-specific MCP server migration behavior.
+	 */
+	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
 }
 
 /**

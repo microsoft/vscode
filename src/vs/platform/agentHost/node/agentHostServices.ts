@@ -58,6 +58,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionPromptService, IAgentHostSessionPromptService } from './agentHostSessionPromptService.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
@@ -108,6 +109,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
 	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));

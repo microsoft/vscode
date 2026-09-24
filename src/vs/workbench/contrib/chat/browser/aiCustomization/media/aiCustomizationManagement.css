@@ -1012,6 +1012,11 @@ per-word capitalization does not survive translation. */
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
 
+.ai-customization-management-editor .prompt-migration-footer-inline {
+	width: 100%;
+	box-sizing: border-box;
+}
+
 .ai-customization-management-editor .prompt-migration-selected-count {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -1299,6 +1304,78 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .prompt-migration-item-name {
 	color: inherit;
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item {
+	align-items: center;
+	min-height: 64px;
+	gap: var(--vscode-spacing-size160);
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item:not(:first-child) {
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-items {
+	border-color: var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-group {
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size200);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item .item-text {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-item .item-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .prompt-migration-source-link {
+	align-self: flex-start;
+	max-width: 100%;
+	color: var(--vscode-descriptionForeground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .prompt-migration-source-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .prompt-migration-source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-actions {
+	display: flex;
+	margin-left: 0;
+	opacity: 1;
+}
+
+.ai-customization-management-editor .prompt-migration-details-button.monaco-button {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .prompt-migration-details-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: transparent;
+	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .prompt-migration-item .item-left {
@@ -2707,7 +2784,6 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path {
-	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
