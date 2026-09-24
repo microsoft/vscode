@@ -1327,7 +1327,10 @@ export class CodeApplication extends Disposable {
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
 		// MCP
-		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService, [
+			process.env,
+			() => this.resolveShellEnvironment(this.environmentMainService.args, process.env, false),
+		]));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 		// Dev Only: CSS service (for ESM)
