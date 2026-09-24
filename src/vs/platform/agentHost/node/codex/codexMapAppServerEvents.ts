@@ -1229,6 +1229,7 @@ export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
 	fallbackDuration?: number,
+	retainedOutputResources?: ReadonlyMap<string, string>,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
@@ -1244,7 +1245,7 @@ export function mapTurnCompleted(
 				turnId: params.turn.id,
 				item,
 				completedAtMs: typeof params.turn.completedAt === 'number' ? params.turn.completedAt * 1000 : 0,
-			}));
+			}, retainedOutputResources?.get(item.id)));
 		}
 	}
 	// Finalize any command whose completion was deferred to coalesce a possible

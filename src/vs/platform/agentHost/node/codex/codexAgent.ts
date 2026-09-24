@@ -3098,7 +3098,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		// A replacement send can claim the host turn before the interrupted
 		// turn's completion arrives. Preserve the replacement's identity and timer.
 		const isCurrentTurn = session.currentTurnId === hostTurnId;
-		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), isCurrentTurn ? this._clearTurnStopWatch(session) : undefined);
+		const mapped = this._withHostTurn(session, params);
+		const retainedOutputResources = this._retainRecoveredCommandOutputs(session, mapped.turn.items);
+		const out = mapTurnCompleted(session.mapState, mapped, isCurrentTurn ? this._clearTurnStopWatch(session) : undefined, retainedOutputResources);
 		// Remember which codex (app-server) turn each workbench turn maps to so
 		// truncateChat can translate a host turn id to a thread rollback even
 		// after the live correlation below is cleared.
@@ -3128,6 +3130,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		return out;
+	}
+
+	private _retainRecoveredCommandOutputs(session: ICodexSession, items: TurnCompletedNotification['turn']['items']): ReadonlyMap<string, string> | undefined {
+		const resources = new Map<string, string>();
+		for (const item of items) {
+			const resource = this._retainCommandOutput(session, item);
+			if (resource) {
+				resources.set(item.id, resource);
+			}
+		}
+		return resources.size > 0 ? resources : undefined;
 	}
 
 	/**
