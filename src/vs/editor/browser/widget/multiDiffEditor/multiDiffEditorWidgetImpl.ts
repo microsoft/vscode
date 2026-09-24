@@ -123,6 +123,21 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						this._variantConfiguration,
 						this._optionsOverride,
 					),
+					// Reuse a template of the same weight when possible, so expanding a file
+					// does not construct another editor while an editor template is idle.
+					preferUnusedTemplate: (item, template) => !!template.editorIfCreated === (!item.collapsed.get() && !item.isBinary),
+					// A fast scroll can replace a full viewport of headers at once. Keep
+					// lightweight headers and allocated editors within separate limits.
+					shouldKeepUnusedTemplate: (template, unusedTemplates) => {
+						const hasEditor = !!template.editorIfCreated;
+						let sameKindCount = 0;
+						for (const unusedTemplate of unusedTemplates) {
+							if (!!unusedTemplate.editorIfCreated === hasEditor) {
+								sameKindCount++;
+							}
+						}
+						return sameKindCount < (hasEditor ? 5 : 30);
+					},
 					onDidBind: binding => {
 						const selections = binding.item.lastTemplateData.get().selections;
 						this._logger.log('acquired editor template', {
@@ -132,7 +147,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 							selections: selections?.length ?? 0,
 						});
 						if (selections) {
-							binding.editor.setSelections(selections);
+							binding.editor?.setSelections(selections);
 						}
 					},
 					onWillUnbind: (binding, tx) => {
@@ -142,7 +157,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						});
 						binding.item.lastTemplateData.set({
 							expandedContentHeight: binding.getExpandedContentHeight(),
-							selections: binding.editor.getSelections() ?? undefined,
+							selections: binding.item.collapsed.get() ? binding.item.lastTemplateData.get().selections : binding.editor?.getSelections() ?? undefined,
 						}, tx);
 					},
 				}));
@@ -210,7 +225,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			const activeDiffItem = this._viewModel.read(reader)?.activeDiffItem.read(reader);
 			if (!activeDiffItem) { return undefined; }
 			const viewItem = this._viewItemsInfo.read(reader).getItem(activeDiffItem);
-			return viewItem.template.read(reader)?.editor;
+			return viewItem.template.read(reader)?.editorObservable.read(reader);
 		});
 		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(
@@ -425,7 +440,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	public resetWidthBasedLayout(): void {
 		for (const item of this._viewItemsInfo.get().items) {
-			item.template.get()?.editor.resetWidthBasedLayout();
+			item.template.get()?.editorIfCreated?.resetWidthBasedLayout();
 		}
 	}
 
@@ -453,7 +468,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
-		const diffEditor = viewItem.template.get()?.editor;
+		const diffEditor = options?.range && !viewItem.viewModel.collapsed.get() ? viewItem.template.get()?.editor : undefined;
 		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
 		if (editor && options?.range) {
 			editor.revealRangeInCenter(options.range);
@@ -594,7 +609,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			v.viewModel.modifiedUri?.toString() === resource.toString()
 			|| v.viewModel.originalUri?.toString() === resource.toString()
 		);
-		const editor = item?.template.get()?.editor;
+		const editor = item?.template.get()?.editorIfCreated;
 		if (!editor || item.viewModel.isBinary) {
 			return undefined;
 		}
@@ -868,7 +883,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 		}, tx);
 		const binding = this.binding.get();
 		if (binding && selections) {
-			binding.editor.setSelections(selections);
+			binding.editor?.setSelections(selections);
 		}
 	}
 
@@ -877,7 +892,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 		if (!binding) { return; }
 		this.viewModel.lastTemplateData.set({
 			expandedContentHeight: binding.getExpandedContentHeight(),
-			selections: binding.editor.getSelections() ?? undefined,
+			selections: this.viewModel.collapsed.get() ? this.viewModel.lastTemplateData.get().selections : binding.editor?.getSelections() ?? undefined,
 		}, tx);
 	}
 
