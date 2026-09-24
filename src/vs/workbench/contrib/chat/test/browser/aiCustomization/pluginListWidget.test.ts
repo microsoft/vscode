@@ -118,7 +118,7 @@ suite('pluginListWidget', () => {
 	test('legacy Available discovery remains unless the independent plugin feed is enabled', () => {
 		assert.deepStrictEqual([undefined, false, true].map(enabled =>
 			shouldShowLegacyPluginMarketplace(new TestConfigurationService({ [CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: enabled }))),
-		[true, true, false]);
+			[true, true, false]);
 	});
 
 	test('accepts marketplace results only for the initiating search', () => {

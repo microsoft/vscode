@@ -14,6 +14,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -777,6 +778,17 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await assert.rejects(fixture.service.install(candidate), /Enable this resource/);
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 			const available = fixture.service.getInstallState(candidate);
+			if (isWeb) {
+				await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+				assert.deepStrictEqual({
+					disabled, available, directInstalls: fixture.pluginService.directInstalls,
+				}, {
+					disabled: { kind: 'unavailable', message: 'Enable this resource\'s marketplace source to install it.' },
+					available: { kind: 'unavailable', message: 'Installing configured marketplace plugins is not available in VS Code for the Web.' },
+					directInstalls: [],
+				});
+				return;
+			}
 			await fixture.service.install(candidate);
 			fixture.installedPlugins.set([plugin], undefined);
 			const installed = fixture.service.getInstallState(candidate);
@@ -817,6 +829,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 				installation: undefined,
 			});
+			if (isWeb) {
+				await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+				assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
+				return;
+			}
 			const started = new DeferredPromise<void>();
 			const release = new DeferredPromise<void>();
 			let installerToken: CancellationToken | undefined;

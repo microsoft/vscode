@@ -145,10 +145,12 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const pending = service.query({ pageSize: 2 }, CancellationToken.None);
 		await Promise.resolve();
 		const started = [...calls];
-		await publicResult.complete({ items: [{
-			sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
-			mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
-		}] });
+		await publicResult.complete({
+			items: [{
+				sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
+				mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
+			}]
+		});
 		await pluginResult.complete([]);
 		const page = await pending;
 		const selected = await service.query({ sourceIds: [CustomizationMarketplaceSources.PluginMarketplaces.id] }, CancellationToken.None);
