@@ -6589,6 +6589,9 @@ suite('ChatListRenderer', () => {
 				override removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
 					carousels.get(sessionResource.toString())?.removeToolInvocation(tool);
 				}
+				override dispose(): void {
+					carousels.clearAndDisposeAll();
+				}
 			}();
 			let widgetInputPart: ChatInputPart | undefined = inputPart;
 			const widget = new class extends mock<IChatWidget>() {
@@ -6641,6 +6644,27 @@ suite('ChatListRenderer', () => {
 				.filter(part => part.style.display !== 'none' && !part.closest('[style*="display: none"]'));
 			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
+
+		test('disposes pending confirmations after the widget input part has been cleared', () => {
+			const context = createConfirmationRenderer();
+			const tool = createPendingTool('pending-at-disposal');
+			context.model.acceptResponseProgress(context.request, tool);
+			const pendingBeforeDisposal = context.carousel?.pendingCount;
+
+			context.inputPart.dispose();
+			context.clearWidgetInputPart();
+			context.renderer.dispose();
+
+			assert.deepStrictEqual({
+				pendingBeforeDisposal,
+				pendingAfterDisposal: context.carousel?.pendingCount ?? 0,
+				toolState: tool.state.get().type,
+			}, {
+				pendingBeforeDisposal: 1,
+				pendingAfterDisposal: 0,
+				toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		test('removes confirmations when the widget input is cleared before renderer disposal', () => {
 			const context = createConfirmationRenderer();
