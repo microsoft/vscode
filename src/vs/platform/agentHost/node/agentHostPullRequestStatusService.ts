@@ -20,7 +20,7 @@ import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { parsePullRequestUrl } from './agentMergeController.js';
-import { isAgentMergePullRequestReadyForReview, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 
 /**
@@ -412,9 +412,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 	private _getSubscriptionOptions(folder: IGitHubStateFolder): PullRequestSubscriptionOptions {
 		const visible = this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size > 0;
-		// Agent Merge follows the session folder's pull request.
-		const agentMergeEnabled = folder.isSessionFolder
-			&& readAgentMergeSessionState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values)?.enabled === true;
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
+		const agentMergeEnabled = readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
 		return {
 			priority: visible ? 'visible' : 'background',
 			core: true,
@@ -490,7 +489,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (snapshot.core.status !== 'ready' && (watch.status?.state === 'merged' || persistedMergedStateApplies)) {
 			return;
 		}
-		const agentMerge = watch.folder.isSessionFolder ? readAgentMergeSessionState(this._stateManager.getSessionState(watch.sessionUri)?.config?.values) : undefined;
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, watch.sessionUri).folderKey;
+		const agentMerge = readAgentMergeFolderState(this._stateManager.getSessionState(watch.sessionUri)?.config?.values, watch.folder.folderKey, sessionFolderKey);
 		this._setStatus(key, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
 	}
 

@@ -859,6 +859,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		this._outputVersion++;
 	}
 
+	public hasSelection(): boolean {
+		return !this._store.isDisposed && !!this._resolvedTerminal && getMirrorRaw(this._resolvedTerminal).hasSelection();
+	}
+
 	public async attach(container: HTMLElement): Promise<void> {
 		const terminal = await this._getTerminal();
 		if (this._store.isDisposed) {

@@ -394,6 +394,8 @@ export class ChatListWidget extends Disposable {
 	private readonly _useTreeHierarchy: boolean;
 	/** Scrollable space kept below the last item, see {@link IChatListWidgetOptions.paddingBottom}. */
 	private _paddingBottom: number;
+	private _effectivePaddingBottom: number;
+	private _minimumScrollHeight = 0;
 
 	//#endregion
 
@@ -491,6 +493,7 @@ export class ChatListWidget extends Disposable {
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._useTreeHierarchy = !options.filter;
 		this._paddingBottom = options.paddingBottom ?? 0;
+		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
 
@@ -543,6 +546,7 @@ export class ChatListWidget extends Disposable {
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
+			preserveScrollPosition: target => this.preserveScrollPosition(target),
 		};
 
 		// Create renderer
@@ -742,7 +746,8 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
-				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
+				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
+				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}
@@ -889,6 +894,10 @@ export class ChatListWidget extends Disposable {
 	 * Set the view model for the list to render.
 	 */
 	setViewModel(viewModel: IChatViewModel | undefined): void {
+		if (this._viewModel !== viewModel) {
+			this._minimumScrollHeight = 0;
+			this.updateBottomPadding();
+		}
 		this._viewModel = viewModel;
 		this._renderer.updateViewModel(viewModel);
 	}
@@ -1074,6 +1083,7 @@ export class ChatListWidget extends Disposable {
 			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
 			if (userToggleResizeTracker) {
 				this._tree.updateElementHeight(element, height);
+				this.updateBottomPadding();
 				userToggleResizeTracker.restoreScrollAnchor();
 				return;
 			}
@@ -1081,6 +1091,30 @@ export class ChatListWidget extends Disposable {
 				this._tree.updateElementHeight(element, height);
 			});
 		}
+	}
+
+	private preserveScrollPosition(target: HTMLElement): void {
+		if (!this._container.contains(target)) {
+			return;
+		}
+		const viewport = this._tree.getHTMLElement().getBoundingClientRect();
+		const targetTop = target.getBoundingClientRect().top;
+		if (targetTop >= viewport.top && targetTop < viewport.bottom) {
+			this._minimumScrollHeight = Math.max(this._minimumScrollHeight, this._tree.scrollHeight);
+		}
+	}
+
+	private updateBottomPadding(): void {
+		// Keep released space below the transcript until new content fills it instead of clamping scrollTop.
+		const paddingBottom = Math.max(this._paddingBottom, this._minimumScrollHeight - this._tree.contentHeight);
+		if (paddingBottom === this._effectivePaddingBottom) {
+			return;
+		}
+		this._effectivePaddingBottom = paddingBottom;
+		if (paddingBottom === this._paddingBottom) {
+			this._minimumScrollHeight = 0;
+		}
+		this._tree.updateOptions({ paddingBottom });
 	}
 
 	private trackUserToggleResize(element: ChatTreeItem, target: HTMLElement): void {
@@ -1171,17 +1205,23 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
+		this._minimumScrollHeight = 0;
+		this.updateBottomPadding();
+		this.revealLastItem();
+	}
+
+	private revealLastItem(): void {
 		// Reveal the tree's actual last visible item rather than the held `_lastItem`. `reveal` reliably
 		// scrolls all the way down even while item heights are still settling (see #234089)
 		const lastElement = this.getItems().at(-1);
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);
-			if (this._paddingBottom) {
+			if (this._effectivePaddingBottom) {
 				// `reveal` stops at the last item's edge, leaving the padding
 				// unscrolled - which would keep the list from ever reporting that
 				// it is at the bottom. Overshoot is clamped.
-				this._tree.scrollTop += this._paddingBottom;
+				this._tree.scrollTop += this._effectivePaddingBottom;
 			}
 		}
 	}
@@ -1202,14 +1242,11 @@ export class ChatListWidget extends Disposable {
 	}
 
 	private _withPersistedAutoScroll(fn: () => void): void {
-		if (this.isAutoScrollHeld) {
-			fn();
-			return;
-		}
-		const wasScrolledToBottom = this.isScrolledToBottom;
+		const wasScrolledToBottom = !this.isAutoScrollHeld && this.isScrolledToBottom;
 		fn();
+		this.updateBottomPadding();
 		if (wasScrolledToBottom) {
-			this.scrollToEnd();
+			this.revealLastItem();
 		}
 	}
 
@@ -1299,9 +1336,9 @@ export class ChatListWidget extends Disposable {
 		}
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
-		this._tree.updateOptions({ paddingBottom: value });
+		this.updateBottomPadding();
 		if (wasScrolledToBottom) {
-			this.scrollToEnd();
+			this.revealLastItem();
 		}
 	}
 

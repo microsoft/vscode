@@ -6,7 +6,7 @@
 import { ChildProcess, fork } from 'child_process';
 import type { IProcessInfo } from '@vscode/windows-process-tree';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -663,7 +663,7 @@ export interface IServerHandle {
 }
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
-const SERVER_EXIT_TIMEOUT_MS = 5_000;
+const SERVER_EXIT_TIMEOUT_MS = 1_000;
 
 interface IServerDescendant {
 	readonly pid: number;
@@ -779,10 +779,11 @@ export async function stopServer(
 		try {
 			await processOperations.killTree(descendant.pid, true);
 		} catch (error) {
-			if (!await processOperations.isSameProcessRunning(descendant)) {
-				return;
-			}
-			throw error;
+			await retry(async () => {
+				if (await processOperations.isSameProcessRunning(descendant)) {
+					throw error;
+				}
+			}, 50, 5);
 		}
 	}));
 }

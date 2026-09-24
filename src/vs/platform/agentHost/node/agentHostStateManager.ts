@@ -841,6 +841,11 @@ export class AgentHostStateManager extends Disposable {
 		return this._changesets.get(changeset);
 	}
 
+	/** Whether the cached changeset has produced a complete file list, including an empty one. */
+	hasCompletedChangesetResult(changeset: URI): boolean {
+		return this._changesets.hasCompletedResult(changeset);
+	}
+
 	/** Reconsiders changeset state retention after subscribers or computes release their pins. */
 	onChangesetLivenessChanged(): void {
 		this._changesets.trimEvictableEntries();

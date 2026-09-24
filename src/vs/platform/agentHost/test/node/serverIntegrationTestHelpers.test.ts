@@ -90,7 +90,7 @@ suite('Agent Host test server cleanup', () => {
 					attempts: 1,
 					exitCode: null,
 					exitListeners: 0,
-					elapsedMs: 5_000,
+					elapsedMs: 1_000,
 				});
 			}));
 		}
@@ -117,7 +117,8 @@ suite('Agent Host test server cleanup', () => {
 	for (const { name, identityChecks } of [
 		{ name: 'skips missing or reused descendants', identityChecks: [false] },
 		{ name: 'accepts descendants exiting during taskkill', identityChecks: [true, false] },
-		{ name: 'preserves errors for surviving descendants', identityChecks: [true, true] },
+		{ name: 'waits for the descendant process list to catch up', identityChecks: [true, true, false] },
+		{ name: 'preserves errors for surviving descendants', identityChecks: [true, true, true, true, true, true] },
 	]) {
 		test(`a queued server exit after taskkill failure ${name}`, () => runWithFakedTimers({}, async () => {
 			const server = new TestServerProcess();
@@ -163,7 +164,7 @@ suite('Agent Host test server cleanup', () => {
 					`kill:${server.pid}:true`,
 					'server:exit',
 					identityCheck,
-					...(identityChecks[0] ? [`kill:${descendant.pid}:true`, identityCheck] : []),
+					...(identityChecks[0] ? [`kill:${descendant.pid}:true`, ...identityChecks.slice(1).map(() => identityCheck)] : []),
 				],
 				exitCode: 0,
 				exitListeners: 0,
@@ -286,9 +287,24 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
+	test('ignores a failed descendant kill after the process list catches up', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true, false]);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123:true',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
 	test('preserves a failed descendant kill when the same process identity is still present', async function () {
 		this.timeout(15_000);
-		const result = await runDescendantKillFailureTest([true, true]);
+		const result = await runDescendantKillFailureTest([true, true, true, true, true, true]);
 
 		assert.deepStrictEqual({
 			error: result.error?.message,
@@ -299,8 +315,66 @@ suite('Agent Host test server cleanup', () => {
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'kill:123:true',
 				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
 			],
 		});
+	});
+
+	test('ignores a failed server tree kill when the server exits during taskkill', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdout.write('ready');
+			process.stdin.resume();
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+				killTree: async () => {
+					server.kill();
+					throw new Error('taskkill failed after the server exited');
+				},
+				isSameProcessRunning: async () => false,
+			});
+			assert.deepStrictEqual(server.exitCode !== null || server.signalCode !== null, true);
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
+	});
+
+	test('preserves a failed server tree kill when the server is still running', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdout.write('ready');
+			process.stdin.resume();
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+				killTree: async () => {
+					throw new Error('taskkill failed while server was running');
+				},
+				isSameProcessRunning: async () => false,
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			assert.deepStrictEqual(error?.message, 'taskkill failed while server was running');
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
 	});
 
 	(isWindows ? test : test.skip)('stops owned descendants after the server exits gracefully', async function () {

@@ -4900,11 +4900,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		const hasRetainedNonPtySnapshot = tc.status === ToolCallStatus.Completed
+		const hasSettledNonPtySnapshot = tc.status === ToolCallStatus.Completed
 			&& !isPty
-			&& terminalContent.result?.exitCode !== undefined
-			&& terminalContent.result.preview !== undefined;
-		if (hasRetainedNonPtySnapshot) {
+			&& terminalContent.result?.preview !== undefined;
+		if (hasSettledNonPtySnapshot) {
 			outputTerminalAttachment.disposable.clear();
 			outputTerminalAttachment.sessionId = undefined;
 		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {

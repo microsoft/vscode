@@ -7,7 +7,7 @@ import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../.
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 
-export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
 }
 
