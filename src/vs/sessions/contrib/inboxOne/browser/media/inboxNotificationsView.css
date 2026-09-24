@@ -282,6 +282,16 @@
 	flex: 0 0 auto;
 }
 
+.inbox-notifications-sort-buttons .inbox-notifications-filter-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-sort-buttons .inbox-notifications-filter-button .codicon {
+	margin: 0;
+}
+
 .inbox-notifications-toolbar-actions {
 	display: flex;
 	align-items: center;

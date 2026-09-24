@@ -67,6 +67,7 @@ import {
 	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
+	compareInboxNotificationsByRecency,
 } from '../common/inboxNotificationsService.js';
 import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
@@ -103,6 +104,30 @@ const TIER_SECTIONS: readonly IInboxTierSpec[] = [
 	{ key: 'next', priority: InboxNotificationPriority.Next },
 	{ key: 'later', priority: InboxNotificationPriority.Later },
 ];
+
+/** Categories the toolbar filter can toggle: the importance tiers plus completed items. */
+type InboxFilterCategory = 'now' | 'next' | 'later' | 'completed';
+const FILTER_CATEGORIES: readonly InboxFilterCategory[] = ['now', 'next', 'later', 'completed'];
+/** Completed is hidden by default; the active tiers are shown. */
+const DEFAULT_VISIBLE_CATEGORIES: readonly InboxFilterCategory[] = ['now', 'next', 'later'];
+const VISIBLE_CATEGORIES_STORAGE_KEY = 'sessions.inboxNotifications.visibleCategories';
+
+function priorityCategory(priority: InboxNotificationPriority): InboxFilterCategory {
+	switch (priority) {
+		case InboxNotificationPriority.Now: return 'now';
+		case InboxNotificationPriority.Next: return 'next';
+		case InboxNotificationPriority.Later: return 'later';
+	}
+}
+
+function filterCategoryLabel(category: InboxFilterCategory): string {
+	switch (category) {
+		case 'now': return localize('inboxNotifications.filter.now', "Now");
+		case 'next': return localize('inboxNotifications.filter.next', "Next");
+		case 'later': return localize('inboxNotifications.filter.later', "Later");
+		case 'completed': return localize('inboxNotifications.filter.completed', "Completed");
+	}
+}
 
 const ALWAYS_MERGED_SESSION_CLEANUP_AFTER_DAYS = 15;
 
@@ -190,7 +215,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private collapsedSectionsLoaded = false;
 	private pendingRevealId: string | undefined;
 	private lastRevealToken = -1;
-	private readonly showCompleted = observableValue<boolean>('inboxNotificationsShowCompleted', false);
+	private readonly visibleCategories = observableValue<ReadonlySet<InboxFilterCategory>>('inboxNotificationsVisibleCategories', new Set(DEFAULT_VISIBLE_CATEGORIES));
 	private deferredItems: readonly IInboxNotificationItem[] | undefined;
 	private deferredNewNotificationsCount = 0;
 	private announcedDeferredNewNotificationsCount = 0;
@@ -355,44 +380,37 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.logInboxInteraction('sort.recent', 'toolbar');
 		}));
 
-		const filterCompletedButton = this._register(new Button(sortButtons, {
+		const filterButton = this._register(new Button(sortButtons, {
 			...defaultButtonStyles,
 			secondary: true,
 			small: true,
-			ariaLabel: localize('inboxNotifications.filter.completedAria', "Toggle Completed Notifications"),
+			supportIcons: true,
+			ariaLabel: localize('inboxNotifications.filter.buttonAria', "Filter notifications by tier and completed"),
 		}));
-		filterCompletedButton.label = localize('inboxNotifications.filter.completed', "Completed");
-		this._register(filterCompletedButton.onDidClick(() => {
-			const nextShowing = !this.showCompleted.get();
-			this.showCompleted.set(nextShowing, undefined);
-			this.logInboxInteraction(nextShowing ? 'filter.completed.on' : 'filter.completed.off', 'toolbar');
-		}));
+		filterButton.element.classList.add('inbox-notifications-filter-button');
+		filterButton.element.setAttribute('aria-haspopup', 'true');
+		this._register(filterButton.onDidClick(() => this.showFilterMenu(filterButton.element)));
+
+		this.ensureVisibleCategoriesLoaded();
 
 		this._register(autorun(reader => {
 			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
-			const showingCompleted = this.showCompleted.read(reader);
 			const prioritySelected = sortMode === InboxNotificationsSortMode.Priority;
 			const recencySelected = !prioritySelected;
-			const showSortSelection = !showingCompleted;
-			sortByPriorityButton.enabled = !showingCompleted;
-			sortByRecencyButton.enabled = !showingCompleted;
-			sortByPriorityButton.checked = showSortSelection && prioritySelected;
-			sortByRecencyButton.checked = showSortSelection && recencySelected;
-			sortByPriorityButton.element.classList.toggle('active', showSortSelection && prioritySelected);
-			sortByRecencyButton.element.classList.toggle('active', showSortSelection && recencySelected);
-			sortByPriorityButton.element.setAttribute('aria-pressed', String(showSortSelection && prioritySelected));
-			sortByRecencyButton.element.setAttribute('aria-pressed', String(showSortSelection && recencySelected));
-			if (showingCompleted) {
-				const disabledDescription = localize('inboxNotifications.sort.disabledDescription', "Disabled while Completed filter is active");
-				sortByPriorityButton.element.setAttribute('aria-description', disabledDescription);
-				sortByRecencyButton.element.setAttribute('aria-description', disabledDescription);
-			} else {
-				sortByPriorityButton.element.removeAttribute('aria-description');
-				sortByRecencyButton.element.removeAttribute('aria-description');
-			}
-			filterCompletedButton.checked = showingCompleted;
-			filterCompletedButton.element.classList.toggle('active', showingCompleted);
-			filterCompletedButton.element.setAttribute('aria-pressed', String(showingCompleted));
+			sortByPriorityButton.checked = prioritySelected;
+			sortByRecencyButton.checked = recencySelected;
+			sortByPriorityButton.element.classList.toggle('active', prioritySelected);
+			sortByRecencyButton.element.classList.toggle('active', recencySelected);
+			sortByPriorityButton.element.setAttribute('aria-pressed', String(prioritySelected));
+			sortByRecencyButton.element.setAttribute('aria-pressed', String(recencySelected));
+
+			const visible = this.visibleCategories.read(reader);
+			const filtered = !this.isDefaultVisibleCategories(visible);
+			filterButton.label = filtered ? '$(filter-filled)' : '$(filter)';
+			filterButton.element.classList.toggle('active', filtered);
+			filterButton.element.setAttribute('aria-label', filtered
+				? localize('inboxNotifications.filter.buttonAriaActive', "Filter notifications by tier and completed (filter active)")
+				: localize('inboxNotifications.filter.buttonAria', "Filter notifications by tier and completed"));
 		}));
 
 		const toolbarActions = toolbar.appendChild($('.inbox-notifications-toolbar-actions'));
@@ -463,8 +481,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 
 		this._register(autorun(reader => {
-			const showing = this.showCompleted.read(reader);
-			if (showing) {
+			const visible = this.visibleCategories.read(reader);
+			if (visible.has('completed')) {
 				this.inboxNotificationsService.dismissedNotifications.read(reader);
 			}
 			this.renderList(this.renderedItems);
@@ -597,15 +615,17 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.renderedCards = [];
 		this.agentMergeDropdownButtons.clear();
 
-		const showingCompletedOnly = this.showCompleted.get();
-		const activeItems = showingCompletedOnly ? [] : items;
-		const completedItems = showingCompletedOnly ? this.inboxNotificationsService.dismissedNotifications.get() : [];
-		const visibleItems = showingCompletedOnly ? completedItems : activeItems;
-		this.updateSplit(visibleItems.length > 0);
-		if (visibleItems.length === 0) {
+		const visible = this.visibleCategories.get();
+		const allCompletedItems = this.inboxNotificationsService.dismissedNotifications.get();
+		const activeItems = items.filter(item => visible.has(priorityCategory(item.priority)));
+		const completedItems = visible.has('completed') ? allCompletedItems : [];
+		const hasVisibleItems = activeItems.length > 0 || completedItems.length > 0;
+		this.updateSplit(hasVisibleItems);
+		if (!hasVisibleItems) {
 			this.pendingRevealId = undefined;
-			list.appendChild($('.inbox-notifications-empty', undefined, showingCompletedOnly
-				? localize('inboxNotifications.empty.completed', "No completed notifications.")
+			const hiddenByFilter = items.length > 0 || allCompletedItems.length > 0;
+			list.appendChild($('.inbox-notifications-empty', undefined, hiddenByFilter
+				? localize('inboxNotifications.empty.filtered', "No notifications match the current filter.")
 				: localize('inboxNotifications.empty', "You're all caught up.")));
 			this.scrollableElement.scanDomNode();
 			return;
@@ -613,19 +633,21 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		if (this.inboxNotificationsService.sortMode.get() === InboxNotificationsSortMode.Priority) {
 			for (const tier of TIER_SECTIONS) {
-				const tierItems = visibleItems.filter(item => item.priority === tier.priority);
+				const tierItems = activeItems.filter(item => item.priority === tier.priority);
 				if (tierItems.length === 0) {
 					continue;
 				}
 				this.renderSection(list, tier.key, getInboxNotificationPriorityLabel(tier.priority), tierItems, tier.priority);
 			}
+			if (completedItems.length > 0) {
+				this.renderSection(list, COMPLETED_SECTION_KEY, localize('inboxNotifications.section.completed', "Completed"), completedItems, undefined);
+			}
 		} else {
 			const cards = list.appendChild($('.inbox-notifications-section-cards'));
 			cards.setAttribute('role', 'list');
-			cards.setAttribute('aria-label', showingCompletedOnly
-				? localize('inboxNotifications.listAriaLabel.completed', "Completed notifications")
-				: localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
-			for (const item of visibleItems) {
+			cards.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
+			const merged = [...activeItems, ...completedItems].sort(compareInboxNotificationsByRecency);
+			for (const item of merged) {
 				this.appendCard(cards, item);
 			}
 		}
@@ -748,11 +770,67 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.persistCollapsedSections();
 		}
 		this.pendingRevealId = id;
-		if (isCompleted && !this.showCompleted.get()) {
-			this.showCompleted.set(true, undefined);
+		// Revealing a completed item requires the Completed category to be visible.
+		if (isCompleted && !this.visibleCategories.get().has('completed')) {
+			this.setCategoryVisible('completed', true);
 		} else {
 			this.renderList(this.renderedItems);
 		}
+	}
+
+	private ensureVisibleCategoriesLoaded(): void {
+		const raw = this.storageService.get(VISIBLE_CATEGORIES_STORAGE_KEY, StorageScope.APPLICATION);
+		if (raw === undefined) {
+			return;
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed)) {
+				const categories = parsed.filter((value): value is InboxFilterCategory => FILTER_CATEGORIES.includes(value as InboxFilterCategory));
+				this.visibleCategories.set(new Set(categories), undefined);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+	}
+
+	private persistVisibleCategories(): void {
+		this.storageService.store(
+			VISIBLE_CATEGORIES_STORAGE_KEY,
+			JSON.stringify([...this.visibleCategories.get()]),
+			StorageScope.APPLICATION,
+			StorageTarget.USER,
+		);
+	}
+
+	private isDefaultVisibleCategories(categories: ReadonlySet<InboxFilterCategory>): boolean {
+		return categories.size === DEFAULT_VISIBLE_CATEGORIES.length
+			&& DEFAULT_VISIBLE_CATEGORIES.every(category => categories.has(category));
+	}
+
+	private setCategoryVisible(category: InboxFilterCategory, visible: boolean): void {
+		const next = new Set(this.visibleCategories.get());
+		if (visible) {
+			next.add(category);
+		} else {
+			next.delete(category);
+		}
+		this.visibleCategories.set(next, undefined);
+		this.persistVisibleCategories();
+		this.logInboxInteraction(`filter.${category}.${visible ? 'on' : 'off'}`, 'toolbar');
+	}
+
+	private showFilterMenu(anchor: HTMLElement): void {
+		const visible = this.visibleCategories.get();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => FILTER_CATEGORIES.map(category => toAction({
+				id: `inboxNotifications.filter.${category}`,
+				label: filterCategoryLabel(category),
+				checked: visible.has(category),
+				run: () => this.setCategoryVisible(category, !visible.has(category)),
+			})),
+		});
 	}
 
 	private sectionKeyForItem(item: IInboxNotificationItem): string | undefined {
