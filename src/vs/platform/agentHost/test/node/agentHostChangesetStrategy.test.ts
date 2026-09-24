@@ -18,7 +18,8 @@ import { type IAgentHostChangesetOperationService } from '../../common/agentHost
 import { type ChangesetDiffStrategy } from '../../common/agentHostChangesetService.js';
 import { type IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -84,6 +85,7 @@ suite('AgentHostChangesetStrategy', () => {
 		workingDirectories?: string[];
 		db?: TestSessionDatabase;
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string };
+		unavailableDatabase?: string;
 	} = {}) {
 		const state = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = disposables.add(new AgentConfigurationService(state, new NullLogService()));
@@ -145,6 +147,9 @@ suite('AgentHostChangesetStrategy', () => {
 			...data,
 			openDatabase: resource => {
 				databaseCalls.push(resource.toString());
+				if (resource.toString() === options.unavailableDatabase) {
+					throw new Error('Database unavailable');
+				}
 				return options.peer?.resource === resource.toString() && peerData
 					? peerData.openDatabase(resource)
 					: data.openDatabase(resource);
@@ -445,6 +450,22 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { turn: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [] }, reads: [0, 0], git: [] });
 	});
 
+	test('tracker preserves cached session files when a peer database cannot be opened', async () => {
+		const peer = buildChatUri(session, 'peer');
+		const fixture = createFixture({
+			peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn' },
+			unavailableDatabase: peer,
+		});
+		addEdit(fixture.db);
+		fixture.service.restoreStaticChangeset(session, 'session', [gitOnlyDiff]);
+		await refresh(fixture, 'fileEditTracker');
+		assert.deepStrictEqual({
+			state: snapshot(fixture.state, sessionChangeset),
+			git: fixture.gitCalls,
+			tracked: fixture.db.getAllFileEditsCalls,
+		}, { state: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [gitOnlyDiff] }, git: [], tracked: 0 });
+	});
+
 	test('tracker includes every tracked root without repository partitioning or path filtering', async () => {
 		const fixture = createFixture({ isolation: 'folder', workingDirectories: ['file:///repo', 'file:///non-git'] });
 		const paths = ['/non-git/file.txt', '/outside/file.txt', trackedPath];
@@ -466,6 +487,7 @@ suite('AgentHostChangesetStrategy', () => {
 		test(`strict multi-root Git rejects ${failure} rather than publishing partial success`, async () => {
 			const fixture = createFixture({ workingDirectories: ['file:///repo', 'file:///second'] });
 			addEdit(fixture.db);
+			await refresh(fixture, 'git');
 			await fixture.service.computeTurnChangeset(session, turnId, 'git');
 			const repositoryRoot = fixture.git.getRepositoryRoot;
 			const checkpointPair = fixture.checkpoints.getTurnCheckpointPair;
@@ -485,11 +507,17 @@ suite('AgentHostChangesetStrategy', () => {
 					return computeGit(directory, refs);
 				};
 			}
+			await refresh(fixture, 'git');
 			await fixture.service.computeTurnChangeset(session, turnId, 'git');
 			assert.deepStrictEqual({
-				state: snapshot(fixture.state, turnChangeset),
+				session: snapshot(fixture.state, sessionChangeset),
+				turn: snapshot(fixture.state, turnChangeset),
 				tracked: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls, fixture.diff.callCount],
-			}, { state: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [gitOnlyDiff] }, tracked: [0, 0, 0] });
+			}, {
+				session: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [gitOnlyDiff] },
+				turn: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [gitOnlyDiff] },
+				tracked: [0, 0, 0],
+			});
 		});
 	}
 
@@ -512,6 +540,27 @@ suite('AgentHostChangesetStrategy', () => {
 				reads: [1, 0, 2],
 			});
 		});
+
+		test(`a lifecycle tracker recompute does not incrementally reuse a ${baseline} cache`, async () => {
+			const fixture = createFixture();
+			addEdit(fixture.db);
+			if (baseline === 'git') {
+				await refresh(fixture, 'git');
+			} else {
+				fixture.service.restoreStaticChangeset(session, 'session', [gitOnlyDiff]);
+			}
+			addEdit(fixture.db, '/repo/second.txt', 'turn-2', 'edit-2');
+			const published = nextPublication(fixture.state, sessionChangeset);
+			fixture.service.onTurnComplete(session, 'turn-2');
+			await published;
+			assert.deepStrictEqual({
+				state: snapshot(fixture.state, sessionChangeset),
+				reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
+			}, {
+				state: ready([trackedDiff('/repo/second.txt', session, 'edit-2'), trackedDiff()]),
+				reads: [1, 0],
+			});
+		});
 	}
 
 	test('auto fallback retains incremental tracker computation for the next turn', async () => {
@@ -529,38 +578,71 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { state: ready([trackedDiff('/repo/second.txt', session, 'edit-2'), trackedDiff()]), reads: [1, 1, 2] });
 	});
 
-	test('tool edits and turn completion keep folder changesets on auto', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = createFixture({ isolation: 'folder' });
-		addEdit(fixture.db);
-		let published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, turnChangeset)]);
-		fixture.service.onToolCallEditsApplied(session, turnId);
-		await published;
-		const midTurn = [snapshot(fixture.state, sessionChangeset), snapshot(fixture.state, turnChangeset)];
-		addEdit(fixture.db, '/repo/second.txt', turnId, 'edit-2');
-		published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, turnChangeset)]);
-		fixture.service.onToolCallEditsApplied(session, turnId);
-		fixture.service.onTurnComplete(session, turnId);
-		await published;
-		await timeout(6_000);
-		assert.deepStrictEqual({
-			midTurn,
-			completed: [snapshot(fixture.state, sessionChangeset), snapshot(fixture.state, turnChangeset)],
-			gitCalls: fixture.gitCalls.length,
-			trackedReads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
-		}, {
-			midTurn: [ready([gitOnlyDiff]), ready([gitOnlyDiff])],
-			completed: [ready([gitOnlyDiff]), ready([gitOnlyDiff])],
-			gitCalls: 4,
-			trackedReads: [0, 0],
-		});
-	}));
+	for (const isolation of ['folder', 'worktree']) {
+		test(`tool edits and turn completion use tracker for ${isolation} changesets`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = createFixture({ isolation });
+			addEdit(fixture.db);
+			let published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, turnChangeset)]);
+			fixture.service.onToolCallEditsApplied(session, turnId);
+			await published;
+			const midTurn = [snapshot(fixture.state, sessionChangeset), snapshot(fixture.state, turnChangeset)];
+			addEdit(fixture.db, '/repo/second.txt', turnId, 'edit-2');
+			published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, turnChangeset)]);
+			fixture.service.onToolCallEditsApplied(session, turnId);
+			fixture.service.onTurnComplete(session, turnId);
+			await published;
+			await timeout(6_000);
+			assert.deepStrictEqual({
+				midTurn,
+				completed: [snapshot(fixture.state, sessionChangeset), snapshot(fixture.state, turnChangeset)],
+				gitCalls: fixture.gitCalls.length,
+				trackedReads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
+			}, {
+				midTurn: [ready([trackedDiff()]), ready([trackedDiff()])],
+				completed: [
+					ready([trackedDiff('/repo/second.txt', session, 'edit-2'), trackedDiff()]),
+					ready([trackedDiff('/repo/second.txt', session, 'edit-2'), trackedDiff()]),
+				],
+				gitCalls: 0,
+				trackedReads: [2, 3],
+			});
+		}));
+	}
+
+	for (const owner of ['default', 'peer'] as const) {
+		test(`${owner} chat lifecycle changesets use only that chat's tracked snapshots`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const peer = buildChatUri(session, 'peer');
+			const peerDb = new TestSessionDatabase();
+			const fixture = createFixture({ peer: { resource: peer, db: peerDb, turnId: 'peer-turn' } });
+			addEdit(fixture.db);
+			addEdit(peerDb, '/repo/peer.txt', 'peer-turn', 'peer-edit');
+			const chat = owner === 'default' ? buildDefaultChatUri(session) : peer;
+			const id = owner === 'default' ? turnId : 'peer-turn';
+			const chatChangeset = buildSessionChangesetUri(chat);
+			const chatTurnChangeset = buildTurnChangesetUri(chat, id);
+			fixture.subscriptions.add(chatTurnChangeset);
+			const expected = ready([owner === 'default' ? trackedDiff() : trackedDiff('/repo/peer.txt', peer, 'peer-edit')]);
+			let published = Promise.all([nextPublication(fixture.state, chatChangeset), nextPublication(fixture.state, chatTurnChangeset)]);
+			fixture.service.onToolCallEditsApplied(chat, id);
+			await published;
+			const midTurn = [snapshot(fixture.state, chatChangeset), snapshot(fixture.state, chatTurnChangeset)];
+			published = Promise.all([nextPublication(fixture.state, chatChangeset), nextPublication(fixture.state, chatTurnChangeset)]);
+			fixture.service.onTurnComplete(chat, id);
+			await published;
+			assert.deepStrictEqual({
+				midTurn,
+				completed: [snapshot(fixture.state, chatChangeset), snapshot(fixture.state, chatTurnChangeset)],
+				git: fixture.gitCalls,
+				checkpoints: fixture.checkpointCalls,
+			}, { midTurn: [expected, expected], completed: [expected, expected], git: [], checkpoints: [] });
+		}));
+	}
 
 	test('truncation drops removed edits instead of reusing the previous tracker baseline', async () => {
 		const fixture = createFixture({ isolation: 'folder' });
-		fixture.results.pair = undefined;
 		addEdit(fixture.db);
 		addEdit(fixture.db, '/repo/deleted-turn.txt', 'turn-2', 'edit-2');
-		await refresh(fixture);
+		await refresh(fixture, 'fileEditTracker');
 		await fixture.db.deleteTurn('turn-2');
 		const published = nextPublication(fixture.state, sessionChangeset);
 		fixture.service.onSessionTruncated(session);
@@ -572,7 +654,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { state: ready([trackedDiff()]), reads: [2, 0], git: [] });
 	});
 
-	test('restore and subscription refreshes keep auto after isolation changes', async () => {
+	test('restore and subscription refreshes select tracker after isolation changes', async () => {
 		const fixture = createFixture();
 		addEdit(fixture.db);
 		await refresh(fixture);
@@ -586,6 +668,35 @@ suite('AgentHostChangesetStrategy', () => {
 			turn: snapshot(fixture.state, turnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
-		}, { session: ready([gitOnlyDiff]), turn: ready([gitOnlyDiff]), gitCalls: 4, reads: [0, 0] });
+		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 2, reads: [1, 1] });
+	});
+
+	test('branch, uncommitted, and compare-turns computations remain Git-backed', async () => {
+		const fixture = createFixture();
+		addEdit(fixture.db);
+		const workingTreeCalls: string[] = [];
+		fixture.git.computeSessionFileDiffs = async directory => {
+			workingTreeCalls.push(directory.toString());
+			return [gitOnlyDiff];
+		};
+		fixture.checkpoints.getTurnCheckpointPair = async (_resource, id) => ({ parent: 'parent', current: id });
+		const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///repo'])));
+		const published = nextPublication(fixture.state, branchUri);
+		fixture.service.refreshBranchChangeset(session);
+		await published;
+		fixture.subscriptions.add(buildUncommittedChangesetUri(session));
+		const uncommittedUri = await fixture.service.computeUncommittedChangeset(session);
+		const compareUri = await fixture.service.computeCompareTurnsChangeset(session, turnId, 'turn-2');
+		assert.deepStrictEqual({
+			states: [branchUri, uncommittedUri, compareUri].map(uri => snapshot(fixture.state, uri)),
+			workingTreeCalls,
+			checkpointDiffs: fixture.gitCalls,
+			trackedReads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
+		}, {
+			states: [ready([gitOnlyDiff]), ready([gitOnlyDiff]), ready([gitOnlyDiff])],
+			workingTreeCalls: ['file:///repo', 'file:///repo'],
+			checkpointDiffs: [{ directory: 'file:///repo', fromRef: turnId, toRef: 'turn-2' }],
+			trackedReads: [0, 0],
+		});
 	});
 });

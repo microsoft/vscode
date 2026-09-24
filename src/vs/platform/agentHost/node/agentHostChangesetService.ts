@@ -178,6 +178,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
 	private readonly _perTurnDebouncedDiffTimerKeys = new Set<string>();
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
+	private readonly _incrementalTrackerBaselines = new WeakSet<readonly ChangesetFile[]>();
 	private readonly _scheduledStaticRecomputes = new Map<string, {
 		dirty: boolean;
 		request: {
@@ -551,14 +552,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session);
+					this.refreshSessionChangeset(session, 'fileEditTracker');
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
 					break;
 				case ChangesetKind.Turn:
 					if (parsed.turnId !== undefined) {
-						void this.computeTurnChangeset(session, parsed.turnId);
+						void this.computeTurnChangeset(session, parsed.turnId, 'fileEditTracker');
 					}
 					break;
 			}
@@ -1236,13 +1237,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (this._shouldScheduleBranchRecompute(session)) {
 			this._scheduleBranchRecompute(session, turnId, true, clientContext);
 		}
-		this._scheduleStaticRecompute(session, 'session', turnId, true, clientContext);
+		this._scheduleStaticRecompute(session, 'session', turnId, true, clientContext, 'fileEditTracker');
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
 		this._scheduleBranchRecompute(session, undefined, true);
-		this._scheduleStaticRecompute(session, 'session', undefined, true);
+		this._scheduleStaticRecompute(session, 'session', undefined, true, undefined, 'fileEditTracker');
 	}
 
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {
@@ -1278,7 +1279,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		this._debouncedSessionDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedSessionDiffTimers.deleteAndDispose(session);
-			this._scheduleStaticRecompute(session, 'session', turnId, false, clientContext);
+			this._scheduleStaticRecompute(session, 'session', turnId, false, clientContext, 'fileEditTracker');
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
 
@@ -1333,7 +1334,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * are logged inside `computeTurnChangeset` and do not fail the turn.
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
-		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext);
+		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext, 'fileEditTracker');
 	}
 
 	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
@@ -1367,7 +1368,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (existing) {
 			existing.dirty = true;
 			existing.request = {
-				changedTurnId: changedTurnId !== undefined && changedTurnId === existing.request.changedTurnId
+				changedTurnId: strategy === existing.request.strategy && changedTurnId !== undefined && changedTurnId === existing.request.changedTurnId
 					? changedTurnId
 					: undefined,
 				statusBeforeRefresh: existing.request.statusBeforeRefresh ?? statusBeforeRefresh,
@@ -1491,6 +1492,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let branchResult: BranchDiffResult | undefined;
 			let diffs: readonly ISessionFileDiff[] | undefined;
+			let incrementalTrackerBaseline = false;
 			if (kind === 'branch' && isMultiRootSession(workingDirectories)) {
 				branchResult = await this._computeMultiFolderBranchDiffs(session, ref.object, workingDirectories!);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
@@ -1528,11 +1530,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					throw new Error(localize('sessionGitDiffUnavailable', "Git diff is unavailable for the session changeset."));
 				}
 				usedEditTrackerFallback = strategy === 'auto';
-				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session);
+				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker');
 				try {
 					if (peerSources.length > 0) {
 						const sources: ISessionDiffSource[] = [
-							{ sessionUri: session, db: ref.object },
+							{ sessionUri: this._getTrackedDatabaseUri(session), db: ref.object },
 							...peerSources.map(p => ({ sessionUri: p.sessionUri, db: p.ref.object })),
 						];
 						// TODO (debt): multi-chat always does a full recompute
@@ -1550,7 +1552,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 								incrementalUsed = true;
 							}
 						}
-						diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
+						diffs = await computeSessionDiffs(this._getTrackedDatabaseUri(session), ref.object, this._diffComputeService, incremental);
+						incrementalTrackerBaseline = true;
 					}
 				} finally {
 					for (const peer of peerSources) {
@@ -1572,6 +1575,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs, reviewed);
+			const published = this._stateManager.getChangesetState(changesetUri);
+			if (incrementalTrackerBaseline && published) {
+				this._incrementalTrackerBaselines.add(published.files);
+			}
 			if (kind === 'branch') {
 				this._unavailableBranchOwners.delete(session);
 				this._failedBranchOwners.delete(session);
@@ -1642,7 +1649,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _readPreviousChangesetDiffs(changesetUri: ProtocolURI): readonly ISessionFileDiff[] | undefined {
 		const state = this._stateManager.getChangesetState(changesetUri);
-		if (!state || state.files.length === 0) {
+		if (!state || state.files.length === 0 || !this._incrementalTrackerBaselines.has(state.files)) {
 			return undefined;
 		}
 		return state.files.map(f => f.edit);

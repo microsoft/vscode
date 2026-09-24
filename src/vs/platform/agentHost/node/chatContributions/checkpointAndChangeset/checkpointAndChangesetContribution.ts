@@ -39,11 +39,7 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 			return;
 		}
 
-		// Capture the end-of-turn git checkpoint BEFORE notifying the changeset
-		// service so the per-turn changeset recompute can take the authoritative
-		// git-diff fast path, including terminal-tool edits missed by the
-		// FileEditTracker. Keep the capture fire-and-forget: later contributions
-		// must not wait for it.
+		// Preserve checkpoints for compare-turns and explicit Git strategies without blocking later contributions.
 		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(turn.channel)?.map(w => URI.parse(w));
 		this._checkpointService.captureTurnCheckpoint(URI.parse(turn.session), URI.parse(turn.channel), turn.turnId, workingDirectories).then(() => {
 			this._onTurnComplete(turn);
