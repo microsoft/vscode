@@ -7,11 +7,13 @@ import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
+import { DisableTsgoCommand, tsNativeExtensionIds } from './commands/useTsgo';
 import { registerBaseCommands } from './commands/index';
 import { TypeScriptServiceConfiguration } from './configuration/configuration';
 import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { registerAtaSupport } from './filesystems/ata';
+import { conditionalRegistration, requireGlobalUnifiedConfig, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { Logger } from './logging/logger';
 import RemoteRepositories from './remoteRepositories.browser';
@@ -22,7 +24,7 @@ import { PluginManager } from './tsServer/plugins';
 import { WorkerServerProcessFactory } from './tsServer/serverProcess.browser';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
-import { Disposable } from './utils/dispose';
+import { Disposable, DisposableStore } from './utils/dispose';
 import { getPackageInfo } from './utils/packageInfo';
 import { isWebAndHasSharedArrayBuffers } from './utils/platform';
 
@@ -48,20 +50,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	const pluginManager = new PluginManager();
 	context.subscriptions.push(pluginManager);
 
-	const commandManager = new CommandManager();
-	context.subscriptions.push(commandManager);
-
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
-
-	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
-	context.subscriptions.push(activeJsTsEditorTracker);
-
-	const versionProvider = new StaticVersionProvider(
-		new TypeScriptVersion(
-			TypeScriptVersionSource.Bundled,
-			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.9.0')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -72,41 +62,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		context.subscriptions.push(experimentTelemetryReporter);
 	}
 
-	const logger = new Logger();
-
-	const lazyClientHost = createLazyClientHost(context, false, {
-		pluginManager,
-		commandManager,
-		logDirectoryProvider: noopLogDirectoryProvider,
-		cancellerFactory: noopRequestCancellerFactory,
-		versionProvider,
-		processFactory: new WorkerServerProcessFactory(context.extensionUri, logger),
-		activeJsTsEditorTracker,
-		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
-		experimentTelemetryReporter,
-		logger,
-	}, item => {
-		onCompletionAccepted.fire(item);
-	});
-
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
-
-	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
-
 	import('./languageFeatures/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
-		await startPreloadWorkspaceContentsIfNeeded(context, logger);
-	}));
+	context.subscriptions.push(conditionalRegistration([
+		requireGlobalUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' }),
+		requireHasVsCodeExtension(tsNativeExtensionIds),
+	], () => {
+		const disposables = new DisposableStore();
 
-	context.subscriptions.push(registerAtaSupport(logger));
+		const commandManager = disposables.add(new CommandManager());
+		commandManager.register(new DisableTsgoCommand());
+
+		return disposables;
+	}, () => {
+		const disposables = new DisposableStore();
+
+		const commandManager = disposables.add(new CommandManager());
+		const activeJsTsEditorTracker = disposables.add(new ActiveJsTsEditorTracker());
+		const versionProvider = new StaticVersionProvider(
+			new TypeScriptVersion(
+				TypeScriptVersionSource.Bundled,
+				vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
+				API.fromSimpleString('5.9.0')));
+		const logger = new Logger();
+
+		const lazyClientHost = createLazyClientHost(context, false, {
+			pluginManager,
+			commandManager,
+			logDirectoryProvider: noopLogDirectoryProvider,
+			cancellerFactory: noopRequestCancellerFactory,
+			versionProvider,
+			processFactory: new WorkerServerProcessFactory(context.extensionUri, logger),
+			activeJsTsEditorTracker,
+			serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
+			experimentTelemetryReporter,
+			logger,
+		}, item => {
+			onCompletionAccepted.fire(item);
+		});
+
+		registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
+
+		disposables.add(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
+			await startPreloadWorkspaceContentsIfNeeded(disposables, logger);
+		}));
+
+		disposables.add(registerAtaSupport(logger));
+
+		return disposables;
+	}));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
-async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionContext, logger: Logger): Promise<void> {
+async function startPreloadWorkspaceContentsIfNeeded(disposables: DisposableStore, logger: Logger): Promise<void> {
 	if (!isWebAndHasSharedArrayBuffers()) {
 		return;
 	}
@@ -123,7 +134,7 @@ async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionCo
 		}
 
 		const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
-		context.subscriptions.push(loader);
+		disposables.add(loader);
 		try {
 			await loader.triggerPreload();
 		} catch (error) {
