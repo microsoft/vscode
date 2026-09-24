@@ -806,6 +806,16 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(new types.ResolvedAuthority('localhost', 65535).port, 65535);
 	});
 
+	test('ResolvedAuthority.isResolvedAuthority port validation', () => {
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: -1 }), false);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 65536 }), false);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: NaN }), false);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 1.5 }), false);
+
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 1 }), true);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 65535 }), true);
+	});
+
 	test('runtime stable, type-def changed', function () {
 		// see https://github.com/microsoft/vscode/issues/231938
 		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);

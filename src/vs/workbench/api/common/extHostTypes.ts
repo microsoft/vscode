@@ -107,7 +107,7 @@ export class ResolvedAuthority {
 		return resolvedAuthority
 			&& typeof resolvedAuthority === 'object'
 			&& typeof resolvedAuthority.host === 'string'
-			&& typeof resolvedAuthority.port === 'number'
+			&& isValidAuthorityPort(resolvedAuthority.port)
 			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
 	}
 
