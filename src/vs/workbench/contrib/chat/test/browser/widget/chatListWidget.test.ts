@@ -1655,10 +1655,12 @@ suite('ChatListWidget', () => {
 				}, { promptVisible: true, headerBelowPrompt: true, headerNearPrompt: true, headerVisible: true, paddingBounded: true });
 			});
 
-			for (const headerOffset of [16, -600]) {
-				test(`bounds a long tool chain collapse to the viewport (header: ${headerOffset}, incremental: ${incrementalRendering})`, async () => {
+			for (const headerVisible of [true, false]) {
+				test(`bounds a long tool chain collapse to the viewport (header visible: ${headerVisible}, incremental: ${incrementalRendering})`, async () => {
 					const context = await createPreview('tools', incrementalRendering, 32, 48);
 					const { container, widget, preview } = context;
+					// Keep the offscreen target within the preview's measured scroll range.
+					const headerOffset = headerVisible ? 16 : -Math.floor((preview.getBoundingClientRect().height - widget.renderHeight) / 2);
 					widget.scrollTop += preview.getBoundingClientRect().top - container.getBoundingClientRect().top - headerOffset;
 					await waitForStableLayout(widget);
 					const before = {
@@ -1674,6 +1676,7 @@ suite('ChatListWidget', () => {
 
 					assert.deepStrictEqual({
 						initialHeaderTop: before.headerTop,
+						headerInitiallyVisible: before.headerTop >= 0 && before.headerTop < widget.renderHeight,
 						wasLongerThanViewport: before.height > widget.renderHeight,
 						collapsed: preview.classList.contains('chat-used-context-collapsed'),
 						paddingBounded: widget.scrollHeight - widget.contentHeight <= widget.renderHeight,
@@ -1681,6 +1684,7 @@ suite('ChatListWidget', () => {
 						followingVisible: following.getBoundingClientRect().top >= viewport.top && following.getBoundingClientRect().bottom <= viewport.bottom,
 					}, {
 						initialHeaderTop: headerOffset,
+						headerInitiallyVisible: headerVisible,
 						wasLongerThanViewport: true,
 						collapsed: true,
 						paddingBounded: true,
