@@ -58,7 +58,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 					url: first.items[0].url, externalUrl: server.webUrl,
 					repository: first.items[0].repository,
 					publisher: 'Owner', version: '1.0.0', stars: 42,
-					installation: { kind: 'mcp', name: server.name },
+					installation: { kind: 'mcpGallery', name: server.name },
 				}],
 				total: 2, nextCursor: 'opaque+/=',
 			},

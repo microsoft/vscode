@@ -45,7 +45,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer): ICustomizationMarketplac
 		publisher: server.publisherDisplayName ?? server.publisher,
 		version: server.version,
 		stars: server.starsCount,
-		installation: { kind: 'mcp', name: server.name },
+		installation: { kind: 'mcpGallery', name: server.name },
 	};
 }
 

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ICustomizationMarketplaceResource } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' | 'installed' | 'uninstalling' }
-	| { readonly kind: 'unavailable'; readonly message: string };
+	| { readonly kind: 'unavailable'; readonly message: string; readonly setupUrl?: URI };
 
 export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
 
