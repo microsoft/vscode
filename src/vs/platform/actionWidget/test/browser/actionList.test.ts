@@ -3097,16 +3097,40 @@ suite('ActionListWidget', () => {
 		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 
 		const footer = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .hover-row.status-bar')!;
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const footerActions = footer.querySelector<HTMLElement>('.actions')!;
 		const actions = [...footer.querySelectorAll<HTMLElement>('.action-container')];
 		actions[1].click();
+		const panelRect = panel.getBoundingClientRect();
+		const footerRect = footerActions.getBoundingClientRect();
+		const panelStyle = mainWindow.getComputedStyle(panel);
+		const panelInnerEdges = {
+			left: panelRect.left + parseFloat(panelStyle.borderLeftWidth),
+			right: panelRect.right - parseFloat(panelStyle.borderRightWidth),
+			bottom: panelRect.bottom - parseFloat(panelStyle.borderBottomWidth),
+		};
 
 		assert.deepStrictEqual({
 			footerClassName: footer.className,
 			actions: actions.map(action => action.textContent),
+			panelPadding: panelStyle.padding,
+			panelOverflow: panelStyle.overflow,
+			footerFlush: {
+				left: Math.abs(footerRect.left - panelInnerEdges.left) < 1,
+				right: Math.abs(footerRect.right - panelInnerEdges.right) < 1,
+				bottom: Math.abs(footerRect.bottom - panelInnerEdges.bottom) < 1,
+			},
 			runs,
 		}, {
 			footerClassName: 'hover-row status-bar',
 			actions: ['Copy URL', 'Remove'],
+			panelPadding: '4px',
+			panelOverflow: 'hidden',
+			footerFlush: {
+				left: true,
+				right: true,
+				bottom: true,
+			},
 			runs: ['remove'],
 		});
 	});
