@@ -68,8 +68,19 @@ suite('LocalGitService', () => {
 	});
 
 	test('clone passes scoped HTTP authentication through Git config environment variables', async () => {
-		const configuredCount = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '', 10);
-		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
+		const environmentNames = new Map(Object.keys(process.env).map(key => [key.toUpperCase(), key]));
+		const configuredCountName = environmentNames.get('GIT_CONFIG_COUNT');
+		const configuredCount = Number.parseInt(configuredCountName ? process.env[configuredCountName] ?? '' : '', 10);
+		let index = 0;
+		if (Number.isInteger(configuredCount) && configuredCount >= 0) {
+			for (let inheritedIndex = 0; inheritedIndex < configuredCount; inheritedIndex++) {
+				const keyName = environmentNames.get(`GIT_CONFIG_KEY_${inheritedIndex}`);
+				const key = keyName ? process.env[keyName] : undefined;
+				if (key !== undefined && !/^http\..+\.extraheader$/i.test(key)) {
+					index++;
+				}
+			}
+		}
 		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
 			args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
 			environment: {
@@ -78,9 +89,9 @@ suite('LocalGitService', () => {
 				GIT_TRACE2_PERF: '0',
 				GIT_TRACE_REDACT: '1',
 				GIT_CONFIG_COUNT: String(index + 2),
-				[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraHeader',
+				[`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/test/private.git.extraHeader',
 				[`GIT_CONFIG_VALUE_${index}`]: '',
-				[`GIT_CONFIG_KEY_${index + 1}`]: 'http.https://github.com/.extraHeader',
+				[`GIT_CONFIG_KEY_${index + 1}`]: 'http.https://github.com/test/private.git.extraHeader',
 				[`GIT_CONFIG_VALUE_${index + 1}`]: 'Authorization: Basic secret',
 			},
 		}];
@@ -88,7 +99,7 @@ suite('LocalGitService', () => {
 
 		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
 			authentication: {
-				urlPrefix: 'https://github.com/',
+				url: 'https://github.com/test/private.git',
 				authorizationHeader: 'Authorization: Basic secret',
 			},
 		});
@@ -113,7 +124,7 @@ suite('LocalGitService', () => {
 
 			await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
 				authentication: {
-					urlPrefix: 'https://github.com/',
+					url: 'https://github.com/test/private.git',
 					authorizationHeader: 'Authorization: Basic secret',
 				},
 			});
@@ -130,6 +141,61 @@ suite('LocalGitService', () => {
 		}
 	});
 
+	test('authenticated Git removes inherited extra headers and preserves other indexed config', async () => {
+		const configEnvironmentPattern = /^GIT_CONFIG_(?:COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)$/i;
+		const previous = Object.fromEntries(Object.entries(process.env).filter(([key]) => configEnvironmentPattern.test(key)));
+		for (const key of Object.keys(previous)) {
+			delete process.env[key];
+		}
+		Object.assign(process.env, {
+			git_config_count: '3',
+			git_config_key_0: 'http.https://github.com/test/.extraHeader',
+			git_config_value_0: 'Authorization: Basic inherited',
+			GIT_CONFIG_KEY_1: 'http.proxy',
+			GIT_CONFIG_VALUE_1: 'http://proxy.test',
+			GIT_CONFIG_KEY_2: 'http.https://example.com/.extraHeader',
+			GIT_CONFIG_VALUE_2: 'Authorization: Basic unrelated',
+			GIT_CONFIG_PARAMETERS: `'http.https://github.com/.extraHeader=Authorization: Basic parameter'`,
+		});
+		try {
+			const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
+				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				environment: {
+					GIT_CONFIG_COUNT: '3',
+					GIT_CONFIG_KEY_0: 'http.proxy',
+					GIT_CONFIG_VALUE_0: 'http://proxy.test',
+					GIT_CONFIG_KEY_1: 'http.https://github.com/test/private.git.extraHeader',
+					GIT_CONFIG_VALUE_1: '',
+					GIT_CONFIG_KEY_2: 'http.https://github.com/test/private.git.extraHeader',
+					GIT_CONFIG_VALUE_2: 'Authorization: Basic editor',
+				},
+				absentEnvironment: [
+					'git_config_count',
+					'git_config_key_0',
+					'git_config_value_0',
+					'GIT_CONFIG_PARAMETERS',
+				],
+			}];
+			const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+			await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+				authentication: {
+					url: 'https://github.com/test/private.git',
+					authorizationHeader: 'Authorization: Basic editor',
+				},
+			});
+
+			assert.strictEqual(expectations.length, 0);
+		} finally {
+			for (const key of Object.keys(process.env)) {
+				if (configEnvironmentPattern.test(key)) {
+					delete process.env[key];
+				}
+			}
+			Object.assign(process.env, previous);
+		}
+	});
+
 	test('authenticated Git rejects old versions and rechecks after an upgrade', async () => {
 		const expectations: IExecFileExpectation[] = [
 			{ args: ['--version'], stdout: 'git version 2.30.9\n' },
@@ -138,7 +204,7 @@ suite('LocalGitService', () => {
 			{ args: ['fetch'] },
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
-		const options = { authentication: { urlPrefix: 'https://github.com/', authorizationHeader: 'Authorization: Basic secret' } };
+		const options = { authentication: { url: 'https://github.com/test/private.git', authorizationHeader: 'Authorization: Basic secret' } };
 
 		await assert.rejects(service.fetch('old-git', '/tmp/private', options), /requires Git 2\.31 or later/);
 		await service.fetch('upgraded-git', '/tmp/private', options);
@@ -151,7 +217,7 @@ suite('LocalGitService', () => {
 		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 		const operation = service.fetch('cancelled', '/tmp/private', {
-			authentication: { urlPrefix: 'https://github.com/', authorizationHeader: 'Authorization: Basic secret' },
+			authentication: { url: 'https://github.com/test/private.git', authorizationHeader: 'Authorization: Basic secret' },
 		});
 		const rejected = assert.rejects(operation, isCancellationError);
 		await service.cancel('cancelled');
@@ -174,7 +240,7 @@ suite('LocalGitService', () => {
 		}]));
 
 		await assert.rejects(service.fetch('test-op', '/tmp/private', {
-			authentication: { urlPrefix: 'https://github.com/', authorizationHeader: 'Authorization: Basic dummy-credential' },
+			authentication: { url: 'https://github.com/test/private.git', authorizationHeader: 'Authorization: Basic dummy-credential' },
 		}), error);
 		assert.deepStrictEqual({
 			message: error.message,
@@ -187,6 +253,17 @@ suite('LocalGitService', () => {
 			stackContainsCredential: false,
 			logContainsCredential: false,
 		});
+	});
+
+	test('getRemoteUrl returns the origin URL', async () => {
+		const expectations: IExecFileExpectation[] = [{
+			args: ['remote', 'get-url', 'origin'],
+			stdout: 'https://github.com/test/private.git\n',
+		}];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		assert.strictEqual(await service.getRemoteUrl('test-op', '/tmp/private'), 'https://github.com/test/private.git');
+		assert.strictEqual(expectations.length, 0);
 	});
 
 	test('pull runs ff-only for normal updates', async () => {

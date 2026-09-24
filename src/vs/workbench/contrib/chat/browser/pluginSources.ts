@@ -123,16 +123,15 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		try {
 			const doUpdate = async (cts?: CancellationTokenSource) => {
 				const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
-				const remoteUrl = this._cloneUrl(descriptor);
 				let changed: boolean;
 				if (git.sha) {
 					const headBefore = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
-					await this._pluginGit.fetch(repoDir, remoteUrl, cts?.token);
+					await this._pluginGit.fetch(repoDir, cts?.token);
 					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
 					const headAfter = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
 					changed = headBefore !== headAfter;
 				} else {
-					changed = await this._pluginGit.pull(repoDir, remoteUrl, cts?.token);
+					changed = await this._pluginGit.pull(repoDir, cts?.token);
 					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
 				}
 				return changed;

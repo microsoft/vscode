@@ -25,6 +25,7 @@ suite('NativePluginGitCommandService', () => {
 			checkout: async () => { },
 			checkoutCommit: async () => { },
 			revParse: async () => '',
+			getRemoteUrl: async () => 'https://example.com/test/repo.git',
 			fetch: async () => { },
 			revListCount: async () => 0,
 			cancel: async () => { },
@@ -98,7 +99,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
 
 		assert.deepStrictEqual(authentications, [undefined, {
-			urlPrefix: 'https://github.com/',
+			url: 'https://github.com/test/private.git',
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}]);
 		assert.strictEqual(deleted, true);
@@ -119,7 +120,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
 
 		assert.deepStrictEqual(authentications, [undefined, {
-			urlPrefix: 'https://github.com/',
+			url: 'https://github.com/test/private.git',
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}]);
 	});
@@ -152,7 +153,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		}, {
 			sessionLookups: [[], []],
 			authentication: {
-				urlPrefix: 'https://github.com/',
+				url: 'https://github.com/test/private.git',
 				authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 			},
 		});
@@ -213,6 +214,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 	test('pull and fetch forward an existing GitHub session', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];
 		const service = createService(createLocalGitStub({
+			getRemoteUrl: async () => 'https://github.com/test/private.git',
 			pull: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
 				if (!options?.authentication) {
@@ -229,11 +231,11 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		}), 'github-token');
 
 		const repository = URI.file('/tmp/repo');
-		await service.pull(repository, 'https://github.com/test/private.git');
-		await service.fetchRepository(repository, 'https://github.com/test/private.git');
+		await service.pull(repository);
+		await service.fetchRepository(repository);
 
 		const expectedAuthentication = {
-			urlPrefix: 'https://github.com/',
+			url: 'https://github.com/test/private.git',
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		};
 		assert.deepStrictEqual(authentications, [undefined, expectedAuthentication, undefined, expectedAuthentication]);
@@ -242,6 +244,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 	test('pull and fetch do not forward GitHub authentication to non-GitHub remotes', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];
 		const service = createService(createLocalGitStub({
+			getRemoteUrl: async () => 'https://gitlab.com/test/private.git',
 			pull: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
 				return false;
@@ -252,8 +255,8 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		}), 'github-token');
 
 		const repository = URI.file('/tmp/repo');
-		await service.pull(repository, 'https://gitlab.com/test/private.git');
-		await service.fetchRepository(repository, 'https://gitlab.com/test/private.git');
+		await service.pull(repository);
+		await service.fetchRepository(repository);
 
 		assert.deepStrictEqual(authentications, [undefined, undefined]);
 	});

@@ -76,9 +76,30 @@ export class LocalGitService implements ILocalGitService {
 		}
 
 		const environment = { ...process.env };
+		const environmentNames = new Map(Object.keys(environment).map(key => [key.toUpperCase(), key]));
+		const configuredCountName = environmentNames.get('GIT_CONFIG_COUNT');
+		const configuredCount = Number.parseInt(configuredCountName ? environment[configuredCountName] ?? '' : '', 10);
+		const inheritedConfig: { key: string; value: string }[] = [];
+		if (Number.isInteger(configuredCount) && configuredCount >= 0) {
+			for (let index = 0; index < configuredCount; index++) {
+				const keyName = environmentNames.get(`GIT_CONFIG_KEY_${index}`);
+				const valueName = environmentNames.get(`GIT_CONFIG_VALUE_${index}`);
+				const key = keyName ? environment[keyName] : undefined;
+				const value = valueName ? environment[valueName] : undefined;
+				if (key !== undefined && value !== undefined && !/^http\..+\.extraheader$/i.test(key)) {
+					inheritedConfig.push({ key, value });
+				}
+			}
+		}
 		for (const key of Object.keys(environment)) {
 			const normalizedKey = key.toUpperCase();
-			if (normalizedKey.startsWith('GIT_TRACE') || normalizedKey === 'GIT_CURL_VERBOSE') {
+			if (
+				normalizedKey.startsWith('GIT_TRACE')
+				|| normalizedKey === 'GIT_CURL_VERBOSE'
+				|| normalizedKey === 'GIT_CONFIG_PARAMETERS'
+				|| normalizedKey === 'GIT_CONFIG_COUNT'
+				|| /^GIT_CONFIG_(?:KEY|VALUE)_\d+$/.test(normalizedKey)
+			) {
 				delete environment[key];
 			}
 		}
@@ -87,12 +108,15 @@ export class LocalGitService implements ILocalGitService {
 		environment.GIT_TRACE2_EVENT = '0';
 		environment.GIT_TRACE2_PERF = '0';
 		environment.GIT_TRACE_REDACT = '1';
-		const configuredCount = Number.parseInt(environment.GIT_CONFIG_COUNT ?? '', 10);
-		const index = Number.isInteger(configuredCount) && configuredCount >= 0 ? configuredCount : 0;
+		for (const [index, entry] of inheritedConfig.entries()) {
+			environment[`GIT_CONFIG_KEY_${index}`] = entry.key;
+			environment[`GIT_CONFIG_VALUE_${index}`] = entry.value;
+		}
+		const index = inheritedConfig.length;
 		environment.GIT_CONFIG_COUNT = String(index + 2);
-		environment[`GIT_CONFIG_KEY_${index}`] = `http.${authentication.urlPrefix}.extraHeader`;
+		environment[`GIT_CONFIG_KEY_${index}`] = `http.${authentication.url}.extraHeader`;
 		environment[`GIT_CONFIG_VALUE_${index}`] = '';
-		environment[`GIT_CONFIG_KEY_${index + 1}`] = `http.${authentication.urlPrefix}.extraHeader`;
+		environment[`GIT_CONFIG_KEY_${index + 1}`] = `http.${authentication.url}.extraHeader`;
 		environment[`GIT_CONFIG_VALUE_${index + 1}`] = authentication.authorizationHeader;
 		return environment;
 	}
@@ -215,6 +239,10 @@ export class LocalGitService implements ILocalGitService {
 
 	async revParse(repoPath: string, ref: string): Promise<string> {
 		return (await this._exec(generateUuid(), ['rev-parse', ref], repoPath)).trim();
+	}
+
+	async getRemoteUrl(operationId: string, repoPath: string): Promise<string> {
+		return (await this._exec(operationId, ['remote', 'get-url', 'origin'], repoPath)).trim();
 	}
 
 	async fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void> {
