@@ -1394,10 +1394,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render();
 		try {
 			await this.installService.install(resource);
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (this.installService.getInstallState(resource).kind === 'installed') {
 				status(localize('customizationDiscovery.installComplete', "Installed {0}.", resource.displayName));
 			}
 		} catch (error) {
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (isCancellationError(error)) {
 				status(localize('customizationDiscovery.installCancelled', "Installation cancelled for {0}.", resource.displayName));
 			} else {
@@ -1412,8 +1418,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		} finally {
 			this.pendingInstalls.delete(resourceKey);
-			this.refreshInstalledItems();
-			this.render();
+			if (!this._store.isDisposed) {
+				this.refreshInstalledItems();
+				this.render();
+			}
 		}
 	}
 
@@ -1427,10 +1435,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render();
 		try {
 			await this.installService.repair(resource);
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (this.installService.getInstallState(resource).kind === 'installed') {
 				status(localize('customizationDiscovery.repairComplete', "Repaired {0}.", resource.displayName));
 			}
 		} catch (error) {
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (isCancellationError(error)) {
 				status(localize('customizationDiscovery.repairCancelled', "Repair cancelled for {0}.", resource.displayName));
 			} else {
@@ -1444,8 +1458,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				}
 			}
 		} finally {
-			this.refreshInstalledItems();
-			this.render();
+			if (!this._store.isDisposed) {
+				this.refreshInstalledItems();
+				this.render();
+			}
 		}
 	}
 
@@ -1477,6 +1493,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					});
 				}
 			} catch (error) {
+				if (this._store.isDisposed) {
+					return;
+				}
 				const message = localize('customizationDiscovery.uninstallFailed', "Could not uninstall {0}. {1}", item.name, getErrorMessage(error));
 				if (this.visible) {
 					alert(message);
@@ -1486,7 +1505,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				}
 			} finally {
 				this.pendingDirectUninstalls.delete(item.id);
-				this.refreshInstalledItems();
+				if (!this._store.isDisposed) {
+					this.refreshInstalledItems();
+				}
 			}
 			return;
 		}
@@ -1502,10 +1523,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render();
 		try {
 			await this.installService.uninstall(resource);
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (this.installService.getInstallState(resource).kind === 'available') {
 				status(localize('customizationDiscovery.uninstallComplete', "Uninstalled {0}.", resource.displayName));
 			}
 		} catch (error) {
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (isCancellationError(error)) {
 				status(localize('customizationDiscovery.uninstallCancelled', "Uninstallation cancelled for {0}.", resource.displayName));
 			} else {
@@ -1520,8 +1547,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		} finally {
 			this.pendingUninstalls.delete(resourceKey);
-			this.refreshInstalledItems();
-			this.render();
+			if (!this._store.isDisposed) {
+				this.refreshInstalledItems();
+				this.render();
+			}
 		}
 	}
 

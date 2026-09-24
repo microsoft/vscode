@@ -145,6 +145,9 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 	readonly writes: URI[] = [];
 	readonly moves: { source: URI; target: URI; overwrite: boolean }[] = [];
 	statCalls = 0;
+	activeStatCalls = 0;
+	maxConcurrentStatCalls = 0;
+	statDelayMs = 0;
 	statErrorResource: URI | undefined;
 	beforeWrite: ((resource: URI) => Promise<void>) | undefined;
 	afterWrite: ((resource: URI) => Promise<void>) | undefined;
@@ -153,11 +156,20 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 
 	override async stat(resource: URI): Promise<IStat> {
 		this.statCalls++;
-		if (this.statErrorResource && isEqual(resource, this.statErrorResource)) {
-			throw new Error('Permission denied');
+		this.activeStatCalls++;
+		this.maxConcurrentStatCalls = Math.max(this.maxConcurrentStatCalls, this.activeStatCalls);
+		try {
+			if (this.statDelayMs) {
+				await timeout(this.statDelayMs);
+			}
+			if (this.statErrorResource && isEqual(resource, this.statErrorResource)) {
+				throw new Error('Permission denied');
+			}
+			const stat = await super.stat(resource);
+			return { ...stat, type: this.fileTypes.get(resource.path) ?? stat.type };
+		} finally {
+			this.activeStatCalls--;
 		}
-		const stat = await super.stat(resource);
-		return { ...stat, type: this.fileTypes.get(resource.path) ?? stat.type };
 	}
 
 	override async readdir(resource: URI): Promise<[string, FileType][]> {
@@ -897,6 +909,21 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+
+		test('round-trips file names accepted by the installed package', async () => {
+			const fixture = await createFixture();
+			const candidate = resource({ version: '1.0.0' });
+			await fixture.fileService.writeFile(joinPath(sourceDirectory, 'notes:extra.md'), VSBuffer.fromString('notes'));
+			await fixture.service.install(candidate);
+			fixture.service.dispose();
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: restored.getInstallState(candidate).kind,
+				files: await readTree(fixture.fileService, skillDestination),
+			}, { state: 'installed', files: [['notes:extra.md', 'notes'], [SKILL_FILENAME, skillContent]] });
+		});
+
 		test('does not associate an exact local plugin without an installation record', async () => {
 			const fixture = await createFixture();
 			const candidate = pluginResource();
@@ -944,6 +971,23 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.mcpChanges.fire(undefined);
 			await timeout(0);
 			assert.strictEqual(fixture.provider.statCalls, 0);
+		});
+
+		test('bounds concurrent skill file verification', async () => {
+			const fixture = await createFixture();
+			for (let index = 0; index < 40; index++) {
+				await fixture.fileService.writeFile(joinPath(sourceDirectory, `file-${index}.txt`), VSBuffer.fromString('content'));
+			}
+			await fixture.service.install(resource());
+			fixture.provider.statCalls = 0;
+			fixture.provider.maxConcurrentStatCalls = 0;
+			fixture.provider.statDelayMs = 2;
+			fixture.harnessService.activeHarness.set('other-harness', undefined);
+			fixture.harnessService.activeHarness.set('test-harness', undefined);
+			for (let attempt = 0; attempt < 200 && (fixture.provider.statCalls < 41 || fixture.provider.activeStatCalls > 0); attempt++) {
+				await timeout(2);
+			}
+			assert.deepStrictEqual({ enoughChecked: fixture.provider.statCalls >= 41, settled: fixture.provider.activeStatCalls === 0, maxConcurrent: fixture.provider.maxConcurrentStatCalls }, { enoughChecked: true, settled: true, maxConcurrent: 16 });
 		});
 	});
 
@@ -1437,6 +1481,19 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: 'available',
 				deletions: [joinPath(skillDestination, SKILL_FILENAME).toString()],
 			});
+		});
+
+
+		test('retains the skill record when uninstall cannot verify the target', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+			fixture.provider.statErrorResource = skillDestination;
+			await assert.rejects(fixture.service.uninstall(candidate), /Permission denied/);
+			assert.deepStrictEqual({
+				state: fixture.service.getInstallState(candidate).kind,
+				records: fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.includes('customizations.marketplace.installationRecord.v1')).length,
+			}, { state: 'installed', records: 1 });
 		});
 
 		test('repairs only missing recorded files while preserving edits and extra files', async () => {

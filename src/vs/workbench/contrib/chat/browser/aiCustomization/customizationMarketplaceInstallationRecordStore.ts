@@ -351,6 +351,6 @@ function isSafeStoredRelativePath(value: unknown): value is string {
 		&& value.length > 0
 		&& value.length <= maxStoredStringLength
 		&& !value.startsWith('/')
-		&& !/[:\\\u0000-\u001f\u007f]/.test(value)
+		&& !value.includes('\u0000')
 		&& value.split('/').every(segment => !!segment && segment !== '.' && segment !== '..' && segment.toLowerCase() !== '.git');
 }

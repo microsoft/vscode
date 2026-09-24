@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -55,6 +56,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private readonly pendingUninstalls = new Map<string, Promise<void>>();
 	private readonly manualMcpSetups = new Map<string, { readonly sourceId: string; readonly url?: URI }>();
 	private readonly recordStates = new Map<string, InstallationRecordState>();
+	private readonly skillVerificationLimiter = this._register(new Limiter<boolean>(16));
 	private readonly reconciliationVersions = new Map<string, number>();
 	private readonly recordStore: CustomizationMarketplaceInstallationRecordStore;
 	private readonly lifetimeToken = cancelOnDispose(this._store);
@@ -352,20 +354,18 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async isSkillInstallationComplete(target: Extract<CustomizationMarketplaceInstallationRecordTarget, { kind: 'skill' }>): Promise<boolean> {
 		const root = dirname(target.uri);
-		for (const path of target.files) {
+		const results = await Promise.all(target.files.map(path => this.skillVerificationLimiter.queue(async () => {
 			try {
 				const stat = await this.fileService.resolve(joinPath(root, ...path.split('/')));
-				if (!stat.isFile || stat.isSymbolicLink) {
-					return false;
-				}
+				return stat.isFile && !stat.isSymbolicLink;
 			} catch (error) {
 				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 					return false;
 				}
 				throw error;
 			}
-		}
-		return true;
+		})));
+		return results.every(Boolean);
 	}
 
 	private getSourceUnavailableMessage(sourceId: string): string | undefined {
@@ -605,8 +605,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return;
 		}
 		const target = dirname(record.target.uri);
-		if (!await this.fileService.exists(target)) {
-			return;
+		try {
+			await this.fileService.resolve(target);
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return;
+			}
+			throw error;
 		}
 		await this.commandService.executeCommand(DELETE_AI_CUSTOMIZATION_ID, {
 			uri: record.target.uri,
