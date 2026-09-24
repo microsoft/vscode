@@ -144,6 +144,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	get label(): string { return this._label; }
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];

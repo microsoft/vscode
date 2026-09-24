@@ -1783,6 +1783,11 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 		activeSessionMcpServers: inlineErrorMcpServers,
 		mcpSearchQuery: 'component',
 	});
+	const workspaceTab = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container [role="tab"]')]
+		.find(tab => tab.textContent?.includes('Workspace'));
+	assert(workspaceTab !== undefined, 'The fixture must render the Workspace MCP tab.');
+	workspaceTab.click();
+	await timeout(50);
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
 		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
@@ -2398,7 +2403,7 @@ async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureCont
 
 	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
 	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
-	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
+	assert(row.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
 	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
 	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
 	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
@@ -2495,10 +2500,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with workspace-relative configuration paths beneath installed server names and no Featured section.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows User, Workspace, and Available tabs with count badges. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	McpServersTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
@@ -2581,6 +2596,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
+		}),
+	}),
+
+	AgentsTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Agents page uses a classic tree with collapsible Workspace, User, Plugins, Extensions, and Built-In groups where applicable.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Agents,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 
@@ -2722,6 +2747,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ToolsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as compact tabs with count badges above a flat tree of tool sets.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Tools,
@@ -2733,10 +2759,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	ToolsTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as collapsible parent nodes in a classic tree.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Tools,
+			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+		}),
+	}),
+
 	ToolsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
-		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows Built-in Tools and an Extension Tools section with a count of eight.'],
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows compact tabs for Built-in Tools and Extension Tools, including an Extension Tools count of eight.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
@@ -2830,10 +2871,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The Plugins page shows User, Workspace, and Available tabs with count badges. The selected User tab contains installed plugin tree rows.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
+		}),
+	}),
+
+	PluginsTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
 		}),
 	}),
 

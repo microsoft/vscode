@@ -38,6 +38,9 @@ import { IPromptsService } from '../../../../workbench/contrib/chat/common/promp
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
+import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsCustomizationHarnessService } from './customizationHarnessService.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ChatViewFactory } from './chatView.js';
@@ -213,14 +216,28 @@ class NewChatInSessionsWindowAction extends Action2 {
 			sessionsService.unsetNewSession();
 			return;
 		}
-		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
-		// Inherit the active session's harness so the new session defaults to
-		// the kind the user is working in — but only while the folder still
-		// offers it (see `inheritableSessionTarget`).
+		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+		const activeProvider = activeFolderUri && activeSession
+			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId)
+			: undefined;
+		const devContainerSource = resolveDevContainerSourceWorkspace(activeProvider);
+		const folderUri = devContainerSource?.folderUri ?? activeFolderUri;
+		const draftRequestsDevContainer = !!activeSession && !!activeProvider && isAgentHostProvider(activeProvider)
+			&& activeProvider.isDevContainerRequested?.(activeSession.sessionId) === true;
+		const containerSourceProviderId = devContainerSource?.providerId ?? (draftRequestsDevContainer ? activeSession?.providerId : undefined);
+		const inheritedTarget = inheritableSessionTarget(
+			sessionsManagementService,
+			devContainerSource && activeSession
+				? { providerId: devContainerSource.providerId, sessionType: activeSession.sessionType }
+				: activeSession,
+			folderUri,
+		);
 		await sessionsService.openNewSession({
 			folderUri,
 			toSide: options?.toSide,
-			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
+			...(containerSourceProviderId ? { providerId: containerSourceProviderId } : {}),
+			...inheritedTarget,
+			...(containerSourceProviderId ? { requireDevContainer: true } : {}),
 		});
 	}
 }
@@ -456,7 +473,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask with /btw, Quote, and Copy when selecting assistant response text in the Agents Window."),
+			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask in a Side Chat, Quote, and Copy when selecting assistant response text in the Agents Window."),
 		},
 		[SESSION_ARCHIVE_NUDGE_SETTING]: {
 			type: 'boolean',
