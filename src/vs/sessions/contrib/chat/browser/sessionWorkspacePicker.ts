@@ -1823,7 +1823,7 @@ export class WorkspacePicker extends Disposable {
 				openSubmenuOnClick: true,
 				submenuOptions: {
 					showFilter: true,
-					filterPlaceholder: localize('workspacePicker.remoteFilter', "Search Remote Connections"),
+					filterPlaceholder: localize('workspacePicker.remoteFilter', "Search remote connections"),
 					filterAsCombobox: true,
 					focusFilterOnOpen: true,
 					minWidth: 180,
