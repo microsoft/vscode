@@ -134,6 +134,8 @@ async function renderAutomationDialog(context: ComponentFixtureContext, populate
 		override readonly mode = constObservable({ id: 'agent', kind: ChatModeKind.Agent });
 		override readonly interactivity = constObservable(ChatInteractivity.Full);
 		override readonly workspace = constObservable(workspace);
+		override readonly changes = constObservable([]);
+		override readonly changesets = constObservable(undefined);
 	}();
 	const session = new class extends mock<ISession>() {
 		override readonly sessionId = 'automation-fixture';
@@ -145,13 +147,11 @@ async function renderAutomationDialog(context: ComponentFixtureContext, populate
 		override readonly workspace = constObservable(workspace);
 		override readonly mainChat = constObservable(chat);
 		override readonly chats = constObservable([chat]);
-		override readonly modelId = chat.modelId;
-		override readonly mode = chat.mode;
+		override readonly modelId = constObservable(model.identifier);
+		override readonly mode = constObservable({ id: 'agent', kind: ChatModeKind.Agent });
 		override readonly isArchived = constObservable(false);
 		override readonly isRead = constObservable(true);
 		override readonly capabilities = constObservable({ supportsMultipleChats: false });
-		override readonly changes = constObservable([]);
-		override readonly changesets = constObservable([]);
 	}();
 	const automationSession = observableValue<ISession | undefined>('automationSession', undefined);
 	const provider = new class extends mock<IAgentHostSessionsProvider>() {
