@@ -34,7 +34,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatModel } from '../../common/model/chatModel.js';
@@ -48,6 +48,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../common/attachments/chatDraft.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -785,10 +787,19 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	}
 }
 
+const enum AgentsParallelWorkNotificationKind {
+	CopilotHarnessIntroduction = 'copilotHarnessIntroduction',
+	ParallelWork = 'parallelWork',
+}
+
 export class AgentsParallelWorkContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
+	private static readonly COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT = 5;
+	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://code.visualstudio.com/docs/agents/run/agent-harnesses?referrer=in-product#_use-the-copilot-harness';
+	private static readonly COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
 	private static readonly NOTIFICATION_ID = 'chat.agentsParallelWork';
 	private static readonly OPEN_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.open';
+	private static readonly LEARN_MORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.learnMore';
 	private static readonly IGNORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.ignore';
 	private static readonly TITLE_TREATMENT = 'chatAgentsParallelWorkBannerTitle';
 	private static readonly DESCRIPTION_TREATMENT = 'chatAgentsParallelWorkBannerDescription';
@@ -801,33 +812,47 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	private _titleTreatment: string | undefined;
 	private _descriptionTreatment: string | undefined;
 	private _updating = false;
-	private _posted: { readonly widget: IChatWidget; readonly resource: URI; readonly inputUri: URI; readonly title: string; readonly description: string } | undefined;
+	private _posted: { readonly widget: IChatWidget; readonly resource: URI; readonly inputUri: URI; readonly kind: AgentsParallelWorkNotificationKind; readonly title: string; readonly description: string } | undefined;
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.OPEN_COMMAND_ID, (accessor, inputUri: URI, resource: URI) => {
-			const widget = this._chatWidgetService.getWidgetByInputUri(inputUri);
-			if (!isAgentHostDraftWidget(widget) || this._posted?.widget !== widget
-				|| !isEqual(this._posted.resource, resource) || !isEqual(widget.viewModel?.sessionResource, resource)
-				|| this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) !== true
-				|| !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))) {
+			const widget = this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.ParallelWork);
+			if (!widget) {
 				return;
 			}
 			const draft = captureDraftHandoffOptions(accessor, widget);
 			this._dismissChat(resource);
 			return openCurrentWorkspaceInAgentsWindow(accessor, AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff, resource, draft);
 		}));
+		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID, (_accessor, inputUri: URI, resource: URI) => {
+			if (!this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
+				return;
+			}
+			this._dismissChat(resource);
+			return this._openerService.open(AgentsParallelWorkContribution.COPILOT_HARNESS_DOCS_URL, { openExternal: true });
+		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
-			if (this._posted) {
-				this._dismissChat(this._posted.resource);
+			const posted = this._posted;
+			if (!posted) {
+				return;
+			}
+			this._dismissChat(posted.resource);
+			if (posted.kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction) {
+				this._storageService.store(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+				return;
 			}
 			return this._configurationService.updateValue(ChatConfiguration.AgentsParallelWorkBannerEnabled, false, ConfigurationTarget.USER);
 		}));
@@ -840,6 +865,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		}));
 		this._register(this._agentSessionsService.model.onDidChangeSessions(() => this._update()));
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, this._store)(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.AgentsParallelWorkBannerEnabled)) {
 				this._update();
@@ -858,6 +884,33 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			logService,
 		));
 		this._onSessionChanged();
+	}
+
+	private _getPostedWidget(inputUri: URI, resource: URI, kind: AgentsParallelWorkNotificationKind): IChatWidget | undefined {
+		const widget = this._chatWidgetService.getWidgetByInputUri(inputUri);
+		if (!isAgentHostDraftWidget(widget) || this._posted?.widget !== widget || this._posted.kind !== kind
+			|| !isEqual(this._posted.resource, resource) || !isEqual(widget.viewModel?.sessionResource, resource)
+			|| this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) !== true
+			|| !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))
+			|| this._getNotificationKind(widget) !== kind) {
+			return undefined;
+		}
+		return widget;
+	}
+
+	private _isCopilotHarnessSessionType(sessionType: string): boolean {
+		return sessionType === SessionType.AgentHostCopilot
+			|| this._chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId === SessionType.CopilotCLI;
+	}
+
+	private _getCopilotHarnessSessionCount(): number {
+		let count = 0;
+		for (const session of this._agentSessionsService.model.sessions) {
+			if (this._isCopilotHarnessSessionType(session.providerType)) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	private _dismissChat(resource: URI): void {
@@ -887,19 +940,51 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		this._update();
 	}
 
-	private _isEligibleOwner(widget: IChatWidget): boolean {
+	private _getNotificationKind(widget: IChatWidget): AgentsParallelWorkNotificationKind | undefined {
 		const resource = isAgentHostDraftWidget(widget) ? widget.viewModel?.sessionResource : undefined;
-		return widget.visible && !!resource && this._eligible.has(resource) && !this._dismissed.has(resource)
-			&& widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled));
+		if (!widget.visible || !resource || this._dismissed.has(resource)
+			|| !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))) {
+			return undefined;
+		}
+
+		if (this._isCopilotHarnessSessionType(getChatSessionType(resource))) {
+			const sessionCount = this._getCopilotHarnessSessionCount();
+			const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
+			if (sessionCount <= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT) {
+				const isEmptyWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+				if (!introductionIgnored && !isEmptyWorkspace) {
+					return AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction;
+				}
+				const canTransitionToParallelWork = (introductionIgnored && sessionCount === AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT)
+					|| (!introductionIgnored && isEmptyWorkspace);
+				if (!canTransitionToParallelWork) {
+					return undefined;
+				}
+			}
+		}
+
+		return this._eligible.has(resource) && hasRunningAgentHostSession(this._agentSessionsService)
+			? AgentsParallelWorkNotificationKind.ParallelWork
+			: undefined;
 	}
 
-	private _getOwner(): IChatWidget | undefined {
+	private _getOwner(): { readonly widget: IChatWidget; readonly kind: AgentsParallelWorkNotificationKind } | undefined {
 		const widgets = this._chatWidgetService.getAllWidgets();
 		const focused = this._chatWidgetService.lastFocusedWidget;
 		if (focused && widgets.includes(focused) && focused.visible) {
-			return this._isEligibleOwner(focused) ? focused : undefined;
+			const kind = this._getNotificationKind(focused);
+			return kind ? { widget: focused, kind } : undefined;
 		}
-		return [...this._recentWidgets].reverse().find(widget => widgets.includes(widget) && this._isEligibleOwner(widget));
+		for (const widget of [...this._recentWidgets].reverse()) {
+			if (!widgets.includes(widget)) {
+				continue;
+			}
+			const kind = this._getNotificationKind(widget);
+			if (kind) {
+				return { widget, kind };
+			}
+		}
+		return undefined;
 	}
 
 	private _update(): void {
@@ -915,24 +1000,29 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	}
 
 	private _updateOwner(): void {
-		const widget = this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) === true
-			&& hasRunningAgentHostSession(this._agentSessionsService) ? this._getOwner() : undefined;
+		const owner = this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) === true ? this._getOwner() : undefined;
+		const widget = owner?.widget;
+		const kind = owner?.kind;
 		const resource = widget?.viewModel?.sessionResource;
 		const inputUri = widget?.inputPart?.inputUri;
-		if (!widget || !resource || !inputUri) {
+		if (!widget || !kind || !resource || !inputUri) {
 			if (this._posted) {
 				this._posted = undefined;
 				this._notificationService.deleteNotification(AgentsParallelWorkContribution.NOTIFICATION_ID);
 			}
 			return;
 		}
-		const title = this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
-		const description = this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
-		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.title === title && this._posted.description === description) {
+		const title = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+			? localize('chat.agentsParallelWorkBanner.copilotHarnessTitle', "You're using the Copilot harness")
+			: this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
+		const description = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "The Copilot harness connects your model to tools and keeps your session state as work progresses.")
+			: this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
+		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.kind === kind && this._posted.title === title && this._posted.description === description) {
 			return;
 		}
 		const previous = this._posted;
-		const posted = { widget, resource, inputUri, title, description };
+		const posted = { widget, resource, inputUri, kind, title, description };
 		this._posted = posted;
 		if (previous && (previous.widget !== widget || !isEqual(previous.inputUri, inputUri))) {
 			// Revoke the old render before publishing its successor, retaining announcement de-duplication.
@@ -951,8 +1041,13 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			autoDismissOnMessage: true,
 			actions: [{
 				kind: ChatInputNotificationActionKind.Command,
-				label: localize('agentsParallelWork.open', "Open Agents Window"),
-				commandId: AgentsParallelWorkContribution.OPEN_COMMAND_ID,
+				label: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+					? localize('agentsParallelWork.learnMore', "Learn More")
+					: localize('agentsParallelWork.open', "Open Agents Window"),
+				telemetryActionId: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? 'learnMore' : undefined,
+				commandId: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+					? AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID
+					: AgentsParallelWorkContribution.OPEN_COMMAND_ID,
 				commandArgs: [posted.inputUri, resource],
 				primary: true,
 				keepOpen: true,
