@@ -8,6 +8,9 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enabledApiProposals": [
+    "quickPickSortByLabel"
+  ],
   "categories": [
     "Other"
   ],
