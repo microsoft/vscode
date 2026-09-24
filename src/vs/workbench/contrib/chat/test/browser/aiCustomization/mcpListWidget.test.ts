@@ -47,6 +47,7 @@ import {
 	getMcpCompatibilityPresentation,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
+	getMcpRowActionFocusIndex,
 	getMcpStatusPresentation,
 	isMcpServerCollectionVisible,
 	isPrimaryMcpServerEnabled,
@@ -271,6 +272,108 @@ suite('mcpListWidget', () => {
 		];
 
 		assert.strictEqual(widget.itemCount, 1);
+	});
+
+	for (const searchQuery of ['', 'server']) {
+		test(`sorts effectively enabled MCP servers first (query: '${searchQuery}')`, () => {
+			const local = ['disabled-server', 'enabled-server', 'mixed-server'].map(id => new class extends mock<IWorkbenchMcpServer>() {
+				override readonly id = id;
+				override readonly name = id;
+				override readonly label = id;
+				override readonly description = '';
+				override readonly local = undefined;
+			}());
+			const disabledIds = new Set(['disabled-server', 'mixed-server']);
+			const sessionServers = [
+				createAgentHostServer({
+					id: 'plugin-disabled',
+					name: 'Plugin disabled server',
+					enabled: true,
+					isPluginProvided: true,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+					disabledReason: {
+						source: 'plugin',
+						plugin: {
+							id: 'plugin-1',
+							name: 'Plugin One',
+							uri: URI.file('/plugins/plugin-1').toString(),
+							enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+						},
+					},
+				}),
+				createAgentHostServer({
+					id: 'workspace-disabled',
+					name: 'Workspace disabled server',
+					enabled: false,
+					enablement: [
+						{ kind: CustomizationEnablementKind.Workspace, enabled: false, uri: URI.file('/workspace').toString() },
+						{ kind: CustomizationEnablementKind.Global, enabled: true },
+					],
+				}),
+				createAgentHostServer({
+					id: 'mixed-server',
+					name: 'mixed-server',
+					enabled: true,
+				}),
+				createAgentHostServer({ id: 'enabled-session', name: 'Enabled session server' }),
+			];
+			const widget = Object.create(McpListWidget.prototype) as {
+				filterServers(render: boolean): void;
+				installedEntries: { entry: { type: string; id?: string; server?: { id: string } } }[];
+				searchQuery: string;
+				customizationHarnessService: unknown;
+				agentHostCustomizationService: unknown;
+				mcpWorkbenchService: unknown;
+				mcpService: unknown;
+				mcpRegistry: unknown;
+				_onDidChangeItemCount: Emitter<number>;
+			};
+			Object.assign(widget, {
+				searchQuery,
+				customizationHarnessService: {
+					activeSessionResource: observableValue('session', URI.file('/session')),
+					getActiveDescriptor: () => ({}),
+				},
+				agentHostCustomizationService: { getMcpServers: () => sessionServers },
+				mcpWorkbenchService: { local },
+				mcpService: {
+					servers: observableValue('servers', []),
+					enablementModel: {
+						readEnabled: (id: string) => disabledIds.has(id) ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile,
+					},
+				},
+				mcpRegistry: { collections: observableValue('collections', []) },
+				_onDidChangeItemCount: disposables.add(new Emitter<number>()),
+			});
+
+			widget.filterServers(false);
+
+			assert.deepStrictEqual(
+				widget.installedEntries.map(({ entry }) => entry.type === 'builtin-item' ? entry.id : entry.server?.id),
+				['enabled-server', 'enabled-session', 'disabled-server', 'mixed-server', 'plugin-disabled', 'workspace-disabled'],
+			);
+			assert.deepStrictEqual(local.map(server => server.id), ['disabled-server', 'enabled-server', 'mixed-server']);
+		});
+	}
+
+	test('records the focused MCP row action so a reorder can restore it', () => {
+		const row = DOM.$('.monaco-list-row');
+		const actions = DOM.append(row, DOM.$('.plugin-list-item-action'));
+		const toggle = DOM.append(actions, DOM.$('button.monaco-switch'));
+		const more = DOM.append(actions, DOM.$('button.mcp-more'));
+		document.body.append(row);
+
+		toggle.focus();
+		const focusedToggle = DOM.getActiveElement();
+		assert.ok(focusedToggle);
+		assert.strictEqual(getMcpRowActionFocusIndex(row, focusedToggle), 0);
+		more.focus();
+		const focusedMore = DOM.getActiveElement();
+		assert.ok(focusedMore);
+		assert.strictEqual(getMcpRowActionFocusIndex(row, focusedMore), 1);
+		assert.strictEqual(getMcpRowActionFocusIndex(row, row), undefined);
+
+		row.remove();
 	});
 
 	test('effective count includes enabled active-session-only MCP servers', () => {
