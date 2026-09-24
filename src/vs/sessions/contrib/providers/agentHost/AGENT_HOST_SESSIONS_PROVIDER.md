@@ -105,7 +105,7 @@ create draft
 
 The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
 
-For workspace-bound drafts, the provider owns a branch-list snapshot loaded when the draft is created. The new-session pickers search it locally on desktop and phone; if loading fails, the branch picker is unavailable. Replacing or disposing the draft discards its snapshot. Running sessions continue to request branch completions on demand.
+The host returns the complete ordered local branch list for branch completions; clients filter and limit it. For workspace-bound drafts, the provider starts loading branches when the draft is created and serves the result through its existing configuration-completions API. The new-session pickers search it locally on desktop and phone; load errors are reported rather than treated as an empty list. Replacing or disposing the draft discards the loaded list. Running sessions request a fresh list when their picker opens.
 
 Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. Agent Host providers advertise Automation configuration support, restore the initial template before configuration resolution, and capture it asynchronously after pending resolution. Capture rechecks draft identity, omits transient, permission-grant, target-owned, and host-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
 

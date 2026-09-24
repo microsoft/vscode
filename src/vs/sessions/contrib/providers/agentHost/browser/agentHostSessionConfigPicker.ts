@@ -14,6 +14,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -63,7 +64,6 @@ import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { BRANCH_COMPLETION_LIMIT } from '../../../../../platform/agentHost/common/agentHostGitService.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -72,6 +72,7 @@ import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -615,9 +616,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession)
 				|| (this._requiresBranchCheckout(provider, session.sessionId, property) && !this._getCheckoutChangeset(session.sessionId));
-			const branchLoadStatus = property === SessionConfigKey.Branch && isNewSession
-				? provider.getNewSessionBranches(session.sessionId)?.status
-				: undefined;
 			// Isolation renders as a Worktree checkbox on desktop; the phone layout keeps the chip for the unified repo sheet.
 			if (property === SessionConfigKey.Isolation && this._shouldRenderIsolationAsCheckbox(schema)) {
 				this._renderIsolationCheckbox(provider, session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
@@ -635,7 +633,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// state is transient and uses `aria-disabled` while preserving
 			// the trigger's appearance. The click handler bails when resolving
 			// in `_showPicker`.
-			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => {
+				void this._showPicker(provider, session.sessionId, property, schema, trigger).catch(onUnexpectedError);
+			});
 			this._focusableElement = trigger;
 
 			// The Branch chip owns its own hover in `_renderTrigger`, because
@@ -647,15 +647,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
-			if (!isReadOnly && (isLoading || branchLoadStatus === 'loading' || branchLoadStatus === 'error')) {
-				slot.classList.add(branchLoadStatus === 'error' ? 'disabled' : 'resolving');
+			if (!isReadOnly && isLoading) {
+				slot.classList.add('resolving');
 				trigger.setAttribute('aria-disabled', 'true');
 			}
-			this._renderTrigger(trigger, session.sessionId, property, schema, value, isReadOnly, branchLoadStatus === 'error');
-			if (branchLoadStatus === 'loading') {
-				trigger.setAttribute('aria-busy', 'true');
-				trigger.setAttribute('aria-label', localize('agentHostSessionConfig.branchLoadingAria', "{0}, loading branches", trigger.getAttribute('aria-label') ?? schema.title));
-			}
+			this._renderTrigger(trigger, session.sessionId, property, schema, value, isReadOnly);
 		}
 
 		if (!renderedIsolationCheckbox) {
@@ -806,7 +802,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
-	protected _renderTrigger(trigger: HTMLElement, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, branchesUnavailable = false): void {
+	protected _renderTrigger(trigger: HTMLElement, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(property, value);
@@ -815,16 +811,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			: undefined;
 
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		const label = branchesUnavailable
-			? localize('agentHostSessionConfig.branchesUnavailable', "Branches unavailable")
-			: this._getLabel(sessionId, property, schema, value);
+		const label = this._getLabel(sessionId, property, schema, value);
 		labelSpan.textContent = label;
 
-		trigger.setAttribute('aria-label', branchesUnavailable
-			? localize('agentHostSessionConfig.branchErrorAria', "{0}, {1}", schema.title, label)
-			: triggerAriaLabel(schema.title, label, isReadOnly, false));
+		trigger.setAttribute('aria-label', triggerAriaLabel(schema.title, label, isReadOnly, false));
 
-		if (property === SessionConfigKey.Branch && icon && iconElement && !branchesUnavailable) {
+		if (property === SessionConfigKey.Branch && icon && iconElement) {
 			this._trackBranchRepositoryState(trigger, iconElement, icon, schema, label, value, isReadOnly);
 		} else if (property === SessionConfigKey.AutoApprove) {
 			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
@@ -960,8 +952,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	protected async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
-		if (schema.readOnly || this._actionWidgetService.isVisible || !this._isCurrentSession(provider, sessionId)
-			|| (property === SessionConfigKey.Branch && provider.getNewSessionBranches(sessionId)?.status === 'error')) {
+		if (schema.readOnly || this._actionWidgetService.isVisible || !this._isCurrentSession(provider, sessionId)) {
 			return;
 		}
 		// Mobile bottom-sheet override dispatches through this entry
@@ -970,7 +961,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 
-		const rawItems = await this._getItems(provider, sessionId, property, schema);
+		const branchCompletions = property === SessionConfigKey.Branch && schema.enumDynamic
+			? await provider.getSessionConfigCompletions(sessionId, property)
+			: undefined;
+		const rawItems = await this._getItems(provider, sessionId, property, schema, undefined, branchCompletions);
 		if (!this._isCurrentSession(provider, sessionId)) {
 			return;
 		}
@@ -997,13 +991,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (actionItems.length === 0) {
 			return;
 		}
-		const branchSnapshot = isBranchPicker ? provider.getNewSessionBranches(sessionId) : undefined;
-
 		const filterItems = async (query: string) => {
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
 			}
-			const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
+			const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query, branchCompletions);
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
 			}
@@ -1045,8 +1037,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				const nextValue = schema.type === 'boolean' ? item.value === 'true' : item.value;
 				this._setSessionConfigValue(provider, sessionId, property, nextValue).catch(() => { /* best-effort */ });
 			},
-			onFilter: schema.enumDynamic && branchSnapshot?.status !== 'error'
-				? query => branchSnapshot ? filterItems(query) : this._filterDelayer.trigger(() => filterItems(query))
+			onFilter: schema.enumDynamic
+				? query => branchCompletions !== undefined ? filterItems(query) : this._filterDelayer.trigger(() => filterItems(query))
 				: undefined,
 			onHide: () => {
 				this._openedPickerSessionId = undefined;
@@ -1125,38 +1117,19 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[]): Promise<readonly IConfigPickerItem[]> {
 		if (schema.type === 'boolean') {
 			return [
 				{ value: 'true', label: localize('agentHostSessionConfig.boolean.true', "On") },
 				{ value: 'false', label: localize('agentHostSessionConfig.boolean.false', "Off") },
 			];
 		}
-		const branches = property === SessionConfigKey.Branch ? provider.getNewSessionBranches(sessionId) : undefined;
-		if (branches) {
-			if (branches.status === 'loading') {
-				return [];
-			}
-			if (branches.status === 'error') {
-				return [];
-			}
-			const normalizedQuery = query?.toLowerCase();
-			const allItems = branches.items.length > 0 ? branches.items : (schema.enum ?? []).map((value, index) => ({
-				value: String(value),
-				label: schema.enumLabels?.[index] ?? String(value),
-			}));
-			const items = normalizedQuery
-				? allItems.filter(item => item.label.toLowerCase().includes(normalizedQuery))
-				: allItems;
-			const result = items.slice(0, BRANCH_COMPLETION_LIMIT).map(item => this._fromCompletionItem(item));
-			this._cacheDynamicValueLabels(sessionId, property, result);
-			return result;
-		}
 		const dynamicItems = schema.enumDynamic
-			? await provider.getSessionConfigCompletions(sessionId, property, query || undefined)
+			? branchCompletions ?? await provider.getSessionConfigCompletions(sessionId, property, property === SessionConfigKey.Branch ? undefined : query || undefined)
 			: undefined;
 		if (dynamicItems) {
-			const items = dynamicItems.map(item => this._fromCompletionItem(item));
+			const items = (property === SessionConfigKey.Branch ? filterBranchPickerItems(dynamicItems, query) : dynamicItems)
+				.map(item => this._fromCompletionItem(item));
 			this._cacheDynamicValueLabels(sessionId, property, items);
 			return items;
 		}
@@ -1330,13 +1303,16 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const isolationSchema = config.schema.properties[SessionConfigKey.Isolation];
 		const branchSchema = config.schema.properties[SessionConfigKey.Branch];
 		const canSelectBranch = !this._requiresBranchCheckout(provider, sessionId, SessionConfigKey.Branch) || !!this._getCheckoutChangeset(sessionId);
+		const branchCompletions = branchSchema?.enumDynamic && !branchSchema.readOnly && canSelectBranch
+			? await provider.getSessionConfigCompletions(sessionId, SessionConfigKey.Branch)
+			: undefined;
 
 		const [isolationItems, branchItems] = await Promise.all([
 			isolationSchema && !isolationSchema.readOnly
 				? this._getItems(provider, sessionId, SessionConfigKey.Isolation, isolationSchema)
 				: Promise.resolve([] as readonly IConfigPickerItem[]),
 			branchSchema && !branchSchema.readOnly && canSelectBranch
-				? this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema)
+				? this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema, undefined, branchCompletions)
 				: Promise.resolve([] as readonly IConfigPickerItem[]),
 		]);
 		if (!this._isCurrentSession(provider, sessionId)) {
@@ -1346,20 +1322,14 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const isolationValue = config.values[SessionConfigKey.Isolation];
 		const branchValue = config.values[SessionConfigKey.Branch];
 		const repositoryState = this._getRepositoryBranchState(sessionId);
-		const branchSnapshot = provider.getNewSessionBranches(sessionId);
 		const sheetItems: IMobilePickerSheetItem[] = [];
 
 		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
-		const configToId = new Map<string, string>();
 		const registerId = (property: string, item: IConfigPickerItem, isPII: boolean): string => {
-			const key = `${property}\0${item.value}`;
-			const existingId = configToId.get(key);
-			if (existingId) {
-				return existingId;
+			const id = `${property}\0${item.value}`;
+			if (!idToConfig.has(id)) {
+				idToConfig.set(id, { property, ...item, isPII });
 			}
-			const id = `repo-row-${idToConfig.size}`;
-			idToConfig.set(id, { property, ...item, isPII });
-			configToId.set(key, id);
 			return id;
 		};
 
@@ -1375,21 +1345,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		});
 
 		const branchSectionTitle = branchSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.branchSection', "Base Branch");
-		if (branchSnapshot?.status === 'loading') {
-			sheetItems.push({
-				id: 'loading-branches',
-				label: localize('agentHostSessionConfig.loadingBranches', "Loading branches…"),
-				disabled: true,
-				sectionTitle: branchSectionTitle,
-			});
-		} else if (branchSnapshot?.status === 'error') {
-			sheetItems.push({
-				id: 'unavailable-branches',
-				label: localize('agentHostSessionConfig.branchesUnavailable', "Branches unavailable"),
-				disabled: true,
-				sectionTitle: branchSectionTitle,
-			});
-		} else if (!branchSchema?.enumDynamic) {
+		if (!branchSchema?.enumDynamic) {
 			branchItems.forEach((item, index) => {
 				const uncommittedChanges = getBranchUncommittedChanges(item.value, repositoryState.branchName, repositoryState.uncommittedChanges);
 
@@ -1411,7 +1367,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		}
 
 		let search: IMobilePickerSheetSearchSource | undefined;
-		if (branchSchema?.enumDynamic && !branchSchema.readOnly && canSelectBranch && (!branchSnapshot || branchSnapshot.status === 'ready')) {
+		if (branchSchema?.enumDynamic && !branchSchema.readOnly && canSelectBranch) {
 			search = {
 				placeholder: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchPlaceholder', "Search branches"),
 				ariaLabel: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchAria', "Search base branches"),
@@ -1419,7 +1375,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				emptyMessage: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchEmpty', "No matching branches."),
 				loadItems: async (query, token) => {
 					const items = query
-						? await this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema, query)
+						? await this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema, query, branchCompletions)
 						: branchItems;
 					if (token.isCancellationRequested || !this._isCurrentSession(provider, sessionId)) {
 						return [];

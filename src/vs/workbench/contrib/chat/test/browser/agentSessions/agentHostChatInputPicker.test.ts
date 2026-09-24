@@ -12,6 +12,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListItemInlineToggle, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -50,7 +51,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import type { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -126,6 +127,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override viewModel: IChatViewModel | undefined;
 		}();
 		const onDidShow = store.add(new Emitter<void>());
+		const branchCompletionQueries: (string | undefined)[] = [];
+		const branchCompletionItems: SessionConfigValueItem[] = [];
 		const actionWidget = new class extends mock<IActionWidgetService>() {
 			override isVisible = false;
 			showCount = 0;
@@ -134,6 +137,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			options: IActionListOptions | undefined;
 			selectedLabels: (string | undefined)[] = [];
 			select: (label: string) => Promise<void> = async () => { };
+			filterLabels: (query: string) => Promise<(string | undefined)[]> = async () => [];
 			onHide: (() => void) | undefined;
 			override show<T>(_id: string, _preview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: Parameters<IActionWidgetService['show']>[4], _container: Parameters<IActionWidgetService['show']>[5], _actions?: Parameters<IActionWidgetService['show']>[6], _accessibility?: Parameters<IActionWidgetService['show']>[7], options?: IActionListOptions): void {
 				this.showCount++;
@@ -149,6 +153,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 						await delegate.onSelect(item);
 					}
 				};
+				this.filterLabels = async query => (await delegate.onFilter?.(query, CancellationToken.None) ?? []).map(item => item.label);
 				onDidShow.fire();
 			}
 			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
@@ -176,6 +181,10 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			getNetworkDiagnosticsInfo: () => {
 				diagnosticsRequests++;
 				return getHostInfo();
+			},
+			sessionConfigCompletions: async params => {
+				branchCompletionQueries.push(params.query);
+				return { items: branchCompletionItems };
 			},
 			dispatch: (_session, action) => {
 				if (action.type === ActionType.SessionConfigChanged) {
@@ -252,8 +261,46 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				});
 			}
 		};
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionItems, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
+
+	test('branch picker filters the full list locally and reloads it only when reopened', async () => {
+		const { config, widget, instantiationService, actionWidget, branchCompletionItems, branchCompletionQueries } = setup(false);
+		config.schema.properties[SessionConfigKey.Branch] = { title: 'Branch', type: 'string', enumDynamic: true, default: 'main' };
+		config.values[SessionConfigKey.Branch] = 'main';
+		branchCompletionItems.push(
+			{ value: 'main', label: 'main' },
+			...Array.from({ length: 35 }, (_, index) => ({ value: `feature/${index}`, label: `feature/${index}` })),
+		);
+		const branchPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Branch));
+		branchPicker['_initialResolved'] = { sessionResource: widget.viewModel!.sessionResource, result: config };
+		const container = dom.$('div');
+		branchPicker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+
+		await branchPicker['_showPicker'](trigger);
+		const initialLabels = actionWidget.items.map(item => item.label);
+		const filteredLabels = await actionWidget.filterLabels('FEATURE/34');
+		const queriesAfterFilter = [...branchCompletionQueries];
+		actionWidget.hide();
+		await branchPicker['_showPicker'](trigger);
+
+		assert.deepStrictEqual({
+			initialCount: initialLabels.length,
+			first: initialLabels[0],
+			last: initialLabels.at(-1),
+			filteredLabels,
+			queriesAfterFilter,
+			queriesAfterReopen: branchCompletionQueries,
+		}, {
+			initialCount: 25,
+			first: 'main',
+			last: 'feature/23',
+			filteredLabels: ['feature/34'],
+			queriesAfterFilter: [undefined],
+			queriesAfterReopen: [undefined, undefined],
+		});
+	});
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {

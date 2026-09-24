@@ -2131,6 +2131,10 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getBranches = async () => [
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
+		];
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
@@ -2208,10 +2212,23 @@ suite('AgentService (node dispatcher)', () => {
 			},
 			property: 'providerSetting',
 		});
+		const branchesWithQuery = await localService.sessionConfigCompletions({
+			provider: 'codex',
+			workingDirectory,
+			property: SessionConfigKey.Branch,
+			query: 'missing-branch',
+		});
+		const branchesWithoutQuery = await localService.sessionConfigCompletions({
+			provider: 'codex',
+			workingDirectory,
+			property: SessionConfigKey.Branch,
+		});
 
 		assert.deepStrictEqual({
 			providerResolveConfigs,
 			providerCompletionConfigs,
+			branchesWithQuery: branchesWithQuery.items,
+			branchesWithoutQuery: branchesWithoutQuery.items,
 			initial: {
 				isolation: initial.values[SessionConfigKey.Isolation],
 				branchDefault: initial.schema.properties[SessionConfigKey.Branch]?.default,
@@ -2241,6 +2258,14 @@ suite('AgentService (node dispatcher)', () => {
 				{ providerSetting: 'folder' },
 			],
 			providerCompletionConfigs: [{ providerSetting: 'completion' }],
+			branchesWithQuery: [
+				{ value: 'feature', label: 'feature' },
+				{ value: 'main', label: 'main' },
+			],
+			branchesWithoutQuery: [
+				{ value: 'feature', label: 'feature' },
+				{ value: 'main', label: 'main' },
+			],
 			initial: {
 				isolation: 'worktree',
 				branchDefault: 'main',

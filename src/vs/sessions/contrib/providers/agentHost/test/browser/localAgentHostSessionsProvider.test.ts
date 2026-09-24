@@ -20,7 +20,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ALL_BRANCH_COMPLETIONS_QUERY } from '../../../../../../platform/agentHost/common/agentHostGitService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
@@ -735,13 +734,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	async function waitForBranchStatus(provider: LocalAgentHostSessionsProvider, sessionId: string, status: 'ready' | 'error'): Promise<void> {
-		if (provider.getNewSessionBranches(sessionId)?.status !== status) {
-			await Event.toPromise(Event.filter(provider.onDidChangeSessionConfig, id =>
-				id === sessionId && provider.getNewSessionBranches(id)?.status === status));
-		}
-	}
 
 	// ---- Provider identity -------
 
@@ -4535,27 +4527,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 			label: `branch-${index}`,
 		}));
 		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
-		await waitForBranchStatus(provider, first.sessionId, 'ready');
+		const firstBranches = await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch);
 		await waitForSessionConfig(provider, first.sessionId, () => !provider.isSessionConfigResolving(first.sessionId).get());
 		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'folder');
-		const firstBranches = provider.getNewSessionBranches(first.sessionId);
+		await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch);
 
 		provider.deleteNewSession(first.sessionId);
 		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
-		await waitForBranchStatus(provider, second.sessionId, 'ready');
+		const secondBranches = await provider.getSessionConfigCompletions(second.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
-			firstBranches: firstBranches?.items.length,
-			disposedBranches: provider.getNewSessionBranches(first.sessionId),
-			secondBranches: provider.getNewSessionBranches(second.sessionId)?.items.length,
+			firstBranches: firstBranches.length,
+			disposedBranches: await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch),
+			secondBranches: secondBranches.length,
 			requests: agentHost.branchCompletionRequests.map(request => ({ workingDirectory: request.workingDirectory?.toString(), property: request.property, query: request.query })),
 		}, {
 			firstBranches: 30,
-			disposedBranches: undefined,
+			disposedBranches: [],
 			secondBranches: 30,
 			requests: [
-				{ workingDirectory: URI.file('/project-one').toString(), property: SessionConfigKey.Branch, query: ALL_BRANCH_COMPLETIONS_QUERY },
-				{ workingDirectory: URI.file('/project-two').toString(), property: SessionConfigKey.Branch, query: ALL_BRANCH_COMPLETIONS_QUERY },
+				{ workingDirectory: URI.file('/project-one').toString(), property: SessionConfigKey.Branch, query: undefined },
+				{ workingDirectory: URI.file('/project-two').toString(), property: SessionConfigKey.Branch, query: undefined },
 			],
 		});
 	});
@@ -4564,46 +4556,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.branchCompletionItems = [];
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
-		await waitForBranchStatus(provider, session.sessionId, 'ready');
+		const branches = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
-			snapshot: provider.getNewSessionBranches(session.sessionId),
+			branches,
 			queries: agentHost.branchCompletionRequests.map(request => request.query),
 		}, {
-			snapshot: { status: 'ready', items: [] },
-			queries: [ALL_BRANCH_COMPLETIONS_QUERY],
+			branches: [],
+			queries: [undefined],
 		});
 	});
 
-	test('a snapshot of exactly 25 branches does not search the host again', async () => {
-		const provider = createProvider(disposables, agentHost);
-		agentHost.branchCompletionItems = Array.from({ length: 25 }, (_, index) => ({
-			value: `branch-${index}`,
-			label: `branch-${index}`,
-		}));
-		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
-		await waitForBranchStatus(provider, session.sessionId, 'ready');
-
-		assert.deepStrictEqual({
-			count: provider.getNewSessionBranches(session.sessionId)?.items.length,
-			queries: agentHost.branchCompletionRequests.map(request => request.query),
-		}, {
-			count: 25,
-			queries: [ALL_BRANCH_COMPLETIONS_QUERY],
-		});
-	});
-
-	test('failed branch loading keeps the draft in an error state without retrying', async () => {
+	test('failed branch loading reports the error without retrying', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.failBranchCompletions = true;
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
-		await waitForBranchStatus(provider, session.sessionId, 'error');
+		let error: string | undefined;
+		try {
+			await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		} catch (cause) {
+			error = String(cause);
+		}
 
 		assert.deepStrictEqual({
-			branches: provider.getNewSessionBranches(session.sessionId),
+			error,
 			requestCount: agentHost.branchCompletionRequests.length,
 		}, {
-			branches: { status: 'error', items: [] },
+			error: 'Error: branch completions unavailable',
 			requestCount: 1,
 		});
 	});
@@ -4615,15 +4594,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.deleteNewSession(first.sessionId);
 		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
 		barrier.complete();
-		await waitForBranchStatus(provider, second.sessionId, 'ready');
+		const secondBranches = await provider.getSessionConfigCompletions(second.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
-			first: provider.getNewSessionBranches(first.sessionId),
-			second: provider.getNewSessionBranches(second.sessionId),
+			first: await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch),
+			second: secondBranches,
 			requestCount: agentHost.branchCompletionRequests.length,
 		}, {
-			first: undefined,
-			second: { status: 'ready', items: [{ value: 'main', label: 'main' }] },
+			first: [],
+			second: [{ value: 'main', label: 'main' }],
 			requestCount: 2,
 		});
 	});

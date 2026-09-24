@@ -22,7 +22,6 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVI
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeSessionState, rekeyAgentMergeFolders } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { ALL_BRANCH_COMPLETIONS_QUERY } from '../../../../../platform/agentHost/common/agentHostGitService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -39,7 +38,7 @@ import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agen
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -64,7 +63,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
-import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, INewSessionBranches, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
@@ -2438,8 +2437,7 @@ class NewSession extends Disposable {
 	private _configOperation: Promise<void> | undefined;
 	private _unresolvedConfigValues: Record<string, unknown> | undefined;
 	private readonly _explicitlySetConfigProperties = new Set<string>();
-	private _branches: INewSessionBranches = { status: 'loading', items: [] };
-	private _branchLoad: Promise<void> | undefined;
+	private _branchLoad: Promise<readonly SessionConfigValueItem[]> | undefined;
 
 	/**
 	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
@@ -2878,25 +2876,8 @@ class NewSession extends Disposable {
 		});
 	}
 
-	get branches() { return this._branches; }
-
-	loadBranches(connection: IAgentConnection): Promise<void> {
-		return this._branchLoad ??= this._loadBranches(connection);
-	}
-
-	private async _loadBranches(connection: IAgentConnection): Promise<void> {
-		this._branches = { status: 'loading', items: [] };
-		try {
-			const { items } = await this.getConfigCompletions(connection, SessionConfigKey.Branch, ALL_BRANCH_COMPLETIONS_QUERY);
-			if (!this._lifetimeCts.token.isCancellationRequested) {
-				this._branches = { status: 'ready', items };
-			}
-		} catch (error) {
-			if (!this._lifetimeCts.token.isCancellationRequested) {
-				this._branches = { status: 'error', items: [] };
-				this._logService.warn(`[${this._providerId}] Failed to load branches for ${this.sessionId}: ${error}`);
-			}
-		}
+	loadBranches(connection: IAgentConnection): Promise<readonly SessionConfigValueItem[]> {
+		return this._branchLoad ??= this.getConfigCompletions(connection, SessionConfigKey.Branch, undefined).then(result => result.items);
 	}
 
 	// -- Backend session lifecycle -------------------------------------------
@@ -4250,9 +4231,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
 		if (newSession.workspaceUri) {
-			void newSession.loadBranches(connection).then(() => {
+			void newSession.loadBranches(connection).catch(error => {
 				if (this._getNewSession(newSession.sessionId) === newSession) {
-					this._onDidChangeSessionConfig.fire(newSession.sessionId);
+					this._logService.warn(`[${this.id}] Failed to load branches for ${newSession.sessionId}: ${error}`);
 				}
 			});
 		}
@@ -4874,12 +4855,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession || !connection) {
 			return [];
 		}
+		if (property === SessionConfigKey.Branch && newSession.workspaceUri) {
+			return newSession.loadBranches(connection);
+		}
 		const result = await newSession.getConfigCompletions(connection, property, query);
 		return result.items;
-	}
-
-	getNewSessionBranches(sessionId: string) {
-		return this._getNewSession(sessionId)?.branches;
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {

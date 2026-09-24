@@ -13,7 +13,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { ALL_BRANCH_COMPLETIONS_QUERY, GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -277,35 +277,22 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('the full-list query returns all branches without changing regular completion limits', async () => {
+	test('branchCompletions returns all branches in priority order', async () => {
 		const gitService = createGitService();
-		gitService.getBranches = async () => Array.from({ length: 35 }, (_, index) => ({
-			ref: `refs/heads/branch-${index}`,
-			name: `branch-${index}`,
-			kind: GitRefType.Head,
-		}));
+		gitService.getBranches = async () => [
+			...Array.from({ length: 35 }, (_, index) => ({
+				ref: `refs/heads/branch-${index}`,
+				name: `branch-${index}`,
+				kind: GitRefType.Head as const,
+			})),
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
+		];
 		const isolation = createIsolation(disposables, { gitService });
 
-		const capped = await isolation.branchCompletions(repoRoot);
-		const emptyQuery = await isolation.branchCompletions(repoRoot, '');
-		const all = await isolation.branchCompletions(repoRoot, ALL_BRANCH_COMPLETIONS_QUERY);
-		const matching = await isolation.branchCompletions(repoRoot, 'BRANCH-34');
+		const all = await isolation.branchCompletions(repoRoot);
 
-		assert.deepStrictEqual({
-			cappedCount: capped.items.length,
-			emptyQueryCount: emptyQuery.items.length,
-			allCount: all.items.length,
-			first: all.items[0]?.value,
-			last: all.items.at(-1)?.value,
-			matching: matching.items.map(item => item.value),
-		}, {
-			cappedCount: 25,
-			emptyQueryCount: 25,
-			allCount: 35,
-			first: 'branch-0',
-			last: 'branch-34',
-			matching: ['branch-34'],
-		});
+		assert.deepStrictEqual(all.items.map(item => item.value), ['feature', 'main', ...Array.from({ length: 35 }, (_, index) => `branch-${index}`)]);
 	});
 
 	test('uses the selected local default branch as the worktree start point', async () => {
