@@ -117,13 +117,19 @@ suite('PagedModel', () => {
 	});
 
 	test('rejects an incomplete fetched page', async () => {
-		const pager = new TestPager(() => Promise.resolve([]));
+		let requestCount = 0;
+		const pager = new TestPager(() => {
+			requestCount++;
+			return Promise.resolve([]);
+		});
 		const model = new PagedModel(pager);
 
 		await assert.rejects(
 			model.resolve(5, CancellationToken.None),
 			new Error('Invalid pager: page 1 has 0 elements, but expected at least 5 based on a total of 100 and a page size of 5.')
 		);
+		await assert.rejects(model.resolve(5, CancellationToken.None));
+		assert.strictEqual(requestCount, 2);
 	});
 
 	test('preemptive cancellation works', async function () {

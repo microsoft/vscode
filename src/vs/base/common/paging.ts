@@ -18,6 +18,13 @@ export interface IPager<T> {
 	getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<T[]>;
 }
 
+export function validatePagerPage<T>(pager: IPager<T>, pageIndex: number, elements: T[]): void {
+	const expectedLength = Math.min(pager.pageSize, pager.total - pageIndex * pager.pageSize);
+	if (elements.length < expectedLength) {
+		throw new Error(`Invalid pager: page ${pageIndex} has ${elements.length} elements, but expected at least ${expectedLength} based on a total of ${pager.total} and a page size of ${pager.pageSize}.`);
+	}
+}
+
 export interface IIterativePage<T> {
 	readonly items: T[];
 	readonly hasMore: boolean;
@@ -85,7 +92,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	constructor(arg: IPager<T> | T[]) {
 		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
-		this.validatePage(0, this.pager.firstPage);
+		validatePagerPage(this.pager, 0, this.pager.firstPage);
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
@@ -127,16 +134,17 @@ export class PagedModel<T> implements IPagedModel<T> {
 			page.cts = new CancellationTokenSource();
 			page.promise = this.pager.getPage(pageIndex, page.cts.token)
 				.then(elements => {
-					this.validatePage(pageIndex, elements);
+					validatePagerPage(this.pager, pageIndex, elements);
 					page.elements = elements;
 					page.isResolved = true;
 					page.promise = null;
 					page.cts = null;
-				}, err => {
+				})
+				.catch(err => {
 					page.isResolved = false;
 					page.promise = null;
 					page.cts = null;
-					return Promise.reject(err);
+					throw err;
 				});
 		}
 
@@ -156,13 +164,6 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 		return page.promise.then(() => page.elements[indexInPage])
 			.finally(() => listener.dispose());
-	}
-
-	private validatePage(pageIndex: number, elements: T[]): void {
-		const expectedLength = Math.min(this.pager.pageSize, this.pager.total - pageIndex * this.pager.pageSize);
-		if (elements.length < expectedLength) {
-			throw new Error(`Invalid pager: page ${pageIndex} has ${elements.length} elements, but expected at least ${expectedLength} based on a total of ${this.pager.total} and a page size of ${this.pager.pageSize}.`);
-		}
 	}
 }
 
