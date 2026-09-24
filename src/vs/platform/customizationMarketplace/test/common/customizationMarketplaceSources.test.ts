@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,10 +22,31 @@ suite('CustomizationMarketplaceSources', () => {
 	];
 
 	function createConfiguration(enabledIds: readonly string[]) {
-		const configuration = new TestConfigurationService(Object.fromEntries(sources.map(source => [source.enablementSetting, enabledIds.includes(source.id)])));
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			...Object.fromEntries(sources.map(source => [source.enablementSetting, enabledIds.includes(source.id)])),
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return configuration;
 	}
+
+	test('visibility gate is independent of enabled feeds and cancels active queries', async () => {
+		const configuration = createConfiguration(['first']);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.Enabled, false);
+		const disabled = getEnabledCustomizationMarketplaceSources(configuration, sources);
+		await assert.rejects(queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, async () => ({ items: [] })), isCancellationError);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.Enabled, true);
+		const pendingResult = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, () => pendingResult.p);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.Enabled, false);
+		await cancelled;
+		await pendingResult.complete({ items: [] });
+		assert.deepStrictEqual({
+			disabled, cancelledListeners: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+			enabledFeeds: sources.map(source => configuration.getValue<boolean>(source.enablementSetting)),
+		}, { disabled: [], cancelledListeners: false, enabledFeeds: [true, false] });
+	});
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);

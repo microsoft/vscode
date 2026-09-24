@@ -16,7 +16,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { affectsCustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -77,7 +77,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		super();
 		this.locationPicker = instantiationService.createInstance(CustomizationLocationPicker);
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (this.customizationMarketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
+			if (affectsCustomizationMarketplaceSources(event, this.customizationMarketplaceService.sources)) {
 				this.updateEnablement();
 			} else if (this.isEnabled() && event.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this._onDidChange.fire();
@@ -92,7 +92,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private isSourceEnabled(sourceId: string): boolean {
 		const source = this.customizationMarketplaceService.sources.find(source => source.id === sourceId);
-		return !!source && this.configurationService.getValue<boolean>(source.enablementSetting) === true;
+		return !!source && getEnabledCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).includes(source);
 	}
 
 	private getInstalledMcpServer(name: string, version: string): IWorkbenchMcpServer | undefined {

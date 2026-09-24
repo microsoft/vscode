@@ -296,7 +296,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onDidChangeSentiment = sentimentChanges.event;
 			override readonly sentiment = { hidden: false };
 		}();
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true });
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
+		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		for (const source of sources) {
 			const enabled = source.id === 'testSource' ? options.enabled : options.otherSourceEnabled ?? options.enabled;

@@ -39,7 +39,10 @@ suite('CustomizationMarketplaceIpc', () => {
 				return server.listen('test', event);
 			},
 		};
-		const configuration = new TestConfigurationService(Object.fromEntries(sources.map(source => [source.enablementSetting, true])));
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			...Object.fromEntries(sources.map(source => [source.enablementSetting, true])),
+		});
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		return new class extends CustomizationMarketplaceChannelClient {
 			override readonly sources = sources;
@@ -78,6 +81,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		};
 		for (const enabled of [undefined, false]) {
 			const configuration = new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.Enabled]: true,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled,
 				'chat.agentFinder.enabled': true,
 				'chat.customizations.unifiedMarketplace.enabled': true,
@@ -133,8 +137,8 @@ suite('CustomizationMarketplaceIpc', () => {
 				{ id: 'second', enablementSetting: secondSetting },
 			];
 		}
-		const firstConfiguration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true });
-		const secondConfiguration = new TestConfigurationService({ [secondSetting]: true });
+		const firstConfiguration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.Enabled]: true, [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true });
+		const secondConfiguration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.Enabled]: true, [secondSetting]: true });
 		disposables.add(firstConfiguration.onDidChangeConfigurationEmitter);
 		disposables.add(secondConfiguration.onDidChangeConfigurationEmitter);
 		const first = new TestChannelClient(channel, firstConfiguration).query({}, CancellationToken.None);

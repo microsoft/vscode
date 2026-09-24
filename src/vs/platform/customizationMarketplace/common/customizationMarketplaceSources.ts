@@ -9,10 +9,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { CancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
+	Enabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
 	McpGalleryEnabled = 'chat.customizations.marketplace.sources.mcpGallery.enabled',
 }
@@ -31,7 +32,15 @@ export const CustomizationMarketplaceSources = {
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
+	if (configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true) {
+		return [];
+	}
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
+}
+
+export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
+	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.Enabled)
+		|| sources.some(source => event.affectsConfiguration(source.enablementSetting));
 }
 
 export async function queryEnabledCustomizationMarketplaceSources(
@@ -51,7 +60,7 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	const store = new DisposableStore();
 	const cancellation = store.add(new CancellationTokenSource(token));
 	store.add(configurationService.onDidChangeConfiguration(event => {
-		if (sources.some(source => event.affectsConfiguration(source.enablementSetting)) &&
+		if (affectsCustomizationMarketplaceSources(event, sources) &&
 			!equals(sourceIds, getSourceIds())) {
 			cancellation.cancel();
 		}

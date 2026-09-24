@@ -26,7 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { affectsCustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -565,7 +565,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render();
 		this.updateSources();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
+			if (affectsCustomizationMarketplaceSources(event, this.marketplaceService.sources)) {
 				this.updateSources();
 				this.handleAvailabilityChanged();
 			}

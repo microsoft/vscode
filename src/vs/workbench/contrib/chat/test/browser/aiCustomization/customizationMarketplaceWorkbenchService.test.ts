@@ -52,6 +52,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.None), isCancellationError);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.Enabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };

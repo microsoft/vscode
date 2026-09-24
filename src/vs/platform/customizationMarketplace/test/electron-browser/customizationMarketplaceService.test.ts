@@ -26,6 +26,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('merges public IPC and renderer-local MCP pages without sending MCP queries through IPC', async () => {
 		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
@@ -91,6 +92,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('continues desktop public-feed pages using the shared-process cursor contract', async () => {
 		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -139,6 +141,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('isolates gallery failures and never opens a public IPC channel for MCP-only discovery', async () => {
 		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.Enabled]: true,
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});

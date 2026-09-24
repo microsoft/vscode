@@ -838,6 +838,7 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
+	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly mcpGalleryEnabled?: boolean;
 	readonly togglePublicFeed?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -883,7 +884,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = agentFinderPublicFeedEnabled || options.mcpGalleryEnabled === true;
+	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false && (agentFinderPublicFeedEnabled || options.mcpGalleryEnabled === true);
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
@@ -975,6 +976,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+				[CustomizationMarketplaceConfiguration.Enabled]: options.marketplaceVisibilityEnabled !== false,
 				[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: options.mcpGalleryEnabled ?? false,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
@@ -1491,6 +1493,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 	editor.setVisible(true);
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (marketplaceEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false && options.mcpGalleryEnabled) {
+		await Promise.resolve();
+		assert(ctx.container.querySelector('.mcp-list-widget')?.textContent?.includes('Available') === true, 'Legacy MCP Available must remain when Marketplace visibility is off.');
+	}
 	if (!marketplaceEnabled) {
 		await Promise.resolve();
 		const overview = ctx.container.querySelector<HTMLElement>('.welcome-page-host');
@@ -2507,6 +2513,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	LegacyMcpAvailableWithoutMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['With marketplace visibility off, MCP management keeps its Available tab even while its MCP Discover feed setting remains enabled.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
+			mcpGalleryEnabled: true,
+		}),
+	}),
+
 	McpServersTree: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
@@ -2906,6 +2924,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
+			marketplaceVisibilityEnabled: false,
+			mcpGalleryEnabled: true,
 		}),
 	}),
 

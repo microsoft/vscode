@@ -2549,18 +2549,25 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
 			default: 'switch',
 		},
+		[CustomizationMarketplaceConfiguration.Enabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.marketplace.enabled', "Shows Discover in the Customizations editor and moves enabled marketplace feeds there. When disabled, the original Overview and MCP server Available section remain available."),
+			default: false,
+			experiment: { mode: 'auto' },
+		},
 		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in the customization marketplace. When disabled, this source is not initialized or queried. The marketplace is hidden when no sources are enabled."),
+			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in Discover when the customization marketplace is enabled."),
 			default: false,
 			experiment: { mode: 'auto' },
 		},
 		[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.mcpGallery.enabled', "Enables the configured MCP gallery as an independent source in Discover customizations. When enabled, MCP server discovery moves from the MCP management page to Discover."),
-			default: false,
+			description: nls.localize('chat.customizations.marketplace.sources.mcpGallery.enabled', "When the customization marketplace is enabled, moves MCP server discovery from the MCP management page to Discover. Discover queries only an explicitly configured custom MCP gallery URL; the default gallery remains available in the MCP management page when the marketplace is disabled."),
+			default: true,
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
