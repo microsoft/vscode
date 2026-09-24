@@ -2601,6 +2601,44 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(errorEvents[0].data.toolId, 'errorTool');
 	});
 
+	test('resolved tool result telemetry treats toolResultError as error but cannot infer content-encoded cancellation', async () => {
+		const testTelemetryService = new TestTelemetryService();
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			telemetryService: testTelemetryService
+		});
+		const returnedErrorTool = registerToolForTest(testService, store, 'returnedErrorTool', {
+			invoke: async () => ({
+				content: [{ kind: 'text', value: 'No changes were made' }],
+				toolResultError: 'Mutation was blocked',
+			})
+		});
+		const contentCancellationTool = registerToolForTest(testService, store, 'contentCancellationTool', {
+			invoke: async () => ({
+				content: [{ kind: 'text', value: '{"status":"cancelled"}' }],
+			})
+		});
+		stubGetSession(testChatService, 'returned-error', { requestId: 'returned-error-request' });
+		stubGetSession(testChatService, 'content-cancellation', { requestId: 'content-cancellation-request' });
+
+		await testService.invokeTool(
+			returnedErrorTool.makeDto({}, { sessionId: 'returned-error' }),
+			async () => 0,
+			CancellationToken.None,
+		);
+		await testService.invokeTool(
+			contentCancellationTool.makeDto({}, { sessionId: 'content-cancellation' }),
+			async () => 0,
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual(testTelemetryService.events
+			.filter(event => event.eventName === 'languageModelToolInvoked')
+			.map(event => ({ toolId: event.data.toolId, result: event.data.result })), [
+			{ toolId: 'returnedErrorTool', result: 'error' },
+			{ toolId: 'contentCancellationTool', result: 'success' },
+		]);
+	});
+
 	test('call tracking and cleanup', async () => {
 		// Test that cancelToolCallsForRequest method exists and can be called
 		// (The detailed cancellation behavior is already tested in "cancel tool call" test)
