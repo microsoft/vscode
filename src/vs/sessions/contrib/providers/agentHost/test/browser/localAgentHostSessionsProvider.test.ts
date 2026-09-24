@@ -7899,6 +7899,114 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('releases removed advertised default-chat output across repeated replacements', () => {
+			const rawId = 'replaced-default-output';
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const session = setupMultiChatSession(provider, rawId);
+			assert.ok(session instanceof AgentHostSessionAdapter);
+			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check private cache identity without exposing a test-only API.
+			const output = session['_sessionOutput'];
+			const releaseChat = spy(output, 'releaseChat');
+			disposables.add(toDisposable(() => releaseChat.restore()));
+			const chatUris = ['first', 'second', 'third', 'fourth'].map(id => URI.parse(`ahp-chat:/${id}`));
+			for (const chatUri of chatUris) {
+				agentHost.setChatState(chatUri.toString(), {
+					...makeChatSummary(chatUri.toString(), chatUri.path),
+					turns: [],
+				});
+			}
+			const setCatalog = (defaultChat: URI, chats: readonly URI[]) => {
+				agentHost.setSessionState(rawId, 'copilotcli', makeState(
+					chats.map(chat => makeChatSummary(chat.toString(), chat.path)),
+					{ defaultChat: defaultChat.toString() },
+				));
+			};
+			setCatalog(chatUris[0], [chatUris[0]]);
+			disposables.add(autorun(reader => {
+				const chat = session.mainChat.read(reader);
+				chat.lastTurnChanges?.read(reader);
+				chat.customizations?.read(reader);
+			}));
+			const firstChanges = output.getLastTurnChanges(chatUris[0]);
+			const firstCustomizations = output.getChatCustomizations(chatUris[0]);
+
+			setCatalog(chatUris[1], [chatUris[0], chatUris[1]]);
+			const retainedWhileListed = {
+				changes: output.getLastTurnChanges(chatUris[0]) === firstChanges,
+				customizations: output.getChatCustomizations(chatUris[0]) === firstCustomizations,
+				releases: releaseChat.callCount,
+			};
+			setCatalog(chatUris[1], [chatUris[1]]);
+			for (const chatUri of chatUris.slice(2)) {
+				setCatalog(chatUri, [chatUri]);
+			}
+			setCatalog(chatUris[0], [chatUris[0]]);
+
+			assert.deepStrictEqual({
+				retainedWhileListed,
+				released: releaseChat.args.map(([uri]) => uri.toString()),
+				reusedAfterRemoval: {
+					changes: output.getLastTurnChanges(chatUris[0]) === firstChanges,
+					customizations: output.getChatCustomizations(chatUris[0]) === firstCustomizations,
+				},
+			}, {
+				retainedWhileListed: { changes: true, customizations: true, releases: 0 },
+				released: chatUris.map(uri => uri.toString()),
+				reusedAfterRemoval: { changes: false, customizations: false },
+			});
+		});
+
+		test('metadata removes advertised chat output but retains unlisted tool chats until catalog removal', () => {
+			const rawId = 'metadata-output-removal';
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, rawId);
+			assert.ok(session instanceof AgentHostSessionAdapter);
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse('ahp-chat:/primary');
+			const replacementChat = URI.parse('ahp-chat:/replacement');
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer'));
+			const toolChat = URI.parse(buildSubagentChatUri(sessionUri, 'worker'));
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check private cache identity without exposing a test-only API.
+			const output = session['_sessionOutput'];
+			const releaseChat = spy(output, 'releaseChat');
+			disposables.add(toDisposable(() => releaseChat.restore()));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'Peer'),
+				{
+					...makeChatSummary(toolChat.toString(), 'Worker'),
+					origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat.toString(), toolCallId: 'worker' },
+				},
+			], { defaultChat: defaultChat.toString() }));
+			const toolChanges = output.getLastTurnChanges(toolChat);
+			const toolCustomizations = output.getChatCustomizations(toolChat);
+			output.getLastTurnChanges(defaultChat);
+			output.getChatCustomizations(defaultChat);
+
+			session.applyChatMetadata([{ chat: replacementChat, kind: 'default' }]);
+			const afterMetadata = releaseChat.args.map(([uri]) => uri.toString());
+			const retainedToolOutput = {
+				changes: output.getLastTurnChanges(toolChat) === toolChanges,
+				customizations: output.getChatCustomizations(toolChat) === toolCustomizations,
+			};
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(replacementChat.toString(), 'Replacement'),
+			], { defaultChat: replacementChat.toString() }));
+
+			assert.deepStrictEqual({
+				afterMetadata,
+				retainedToolOutput,
+				afterCatalog: releaseChat.args.map(([uri]) => uri.toString()),
+			}, {
+				afterMetadata: [defaultChat.toString(), peerChat.toString()],
+				retainedToolOutput: { changes: true, customizations: true },
+				afterCatalog: [defaultChat.toString(), peerChat.toString(), toolChat.toString()],
+			});
+		});
+
 		test('default chat title diverges from the session title when renamed in the catalog', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-title');

@@ -460,6 +460,7 @@ import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
+import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';

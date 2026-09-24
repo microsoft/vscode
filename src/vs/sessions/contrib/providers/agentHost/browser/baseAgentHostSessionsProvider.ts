@@ -10,9 +10,9 @@ import { arrayEquals, structuralEquals } from '../../../../../base/common/equals
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
+import { mapsStrictEqualIgnoreOrder, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -733,9 +733,9 @@ export interface IAgentHostAdapterOptions {
 	 */
 	readonly readOnly?: IObservable<boolean>;
 	/**
-	 * Returns the agent connection for the session, if it exists.
+	 * Returns the agent connection for the session, tracking replacements when a reader is provided.
 	 */
-	readonly getConnection: () => IAgentConnection | undefined;
+	readonly getConnection: (reader?: IReader) => IAgentConnection | undefined;
 	/**
 	 * Maps a client chat resource of this provider to its backend chat channel URI,
 	 * for operations that name a chat to the host.
@@ -895,6 +895,7 @@ function createChangesObservable(changesets: IObservable<readonly ISessionChange
 class AdditionalChat extends Disposable {
 
 	readonly chat: IChat;
+	readonly backendUri: URI;
 
 	private readonly _title: ISettableObservable<string>;
 	private readonly _status: ISettableObservable<SessionStatus>;
@@ -910,6 +911,7 @@ class AdditionalChat extends Disposable {
 
 	constructor(resource: URI, summary: ChatSummary, changesets: IObservable<readonly ISessionChangeset[] | undefined>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
+		this.backendUri = URI.parse(summary.resource);
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
@@ -1142,6 +1144,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** Additional (non-default) peer chats keyed by chatId. */
 	private readonly _additionalChats = this._register(new DisposableMap<string, AdditionalChat>());
 	private readonly _sessionOutputCache = new Map<string, unknown>();
+	private _chatOutputResources = new ResourceSet();
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
 	/**
@@ -1383,12 +1386,23 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				this._getChatScopeGitState(reader, workingDirectories),
 			);
 		});
-		const defaultChatUri = URI.parse(buildDefaultChatUri(this.backendUri));
-		const defaultChatChangesets = createChatChangesets(
-			defaultChatUri,
+		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			this._options,
 			this.isActiveSessionObs,
-			this._createChatCurrentTurnChangesObservable(defaultChatUri),
+			StateComponents.Session,
+			constObservable(this.backendUri),
+		);
+		const defaultChatUriObs = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
+			const state = sessionStateObs.read(reader).read(reader);
+			const resource = state && !(state instanceof Error) ? state.defaultChat ?? state.chats[0]?.resource : undefined;
+			return resource ? URI.parse(resource) : undefined;
+		});
+		const defaultChatChangesets = createChatChangesets(
+			this.backendUri,
+			defaultChatUriObs,
+			this._options,
+			this.isActiveSessionObs,
+			this._createChatCurrentTurnChangesObservable(defaultChatUriObs),
 		);
 		const defaultChatChanges = createChangesObservable(defaultChatChangesets);
 		const mainChat: IChat = {
@@ -1400,8 +1414,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
 			changes: defaultChatChanges,
 			changesets: defaultChatChangesets,
-			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
-			customizations: sessionOutput.getChatCustomizations(URI.parse(buildDefaultChatUri(this.backendUri))),
+			lastTurnChanges: derived(reader => {
+				const chatUri = defaultChatUriObs.read(reader);
+				return chatUri ? sessionOutput.getLastTurnChanges(chatUri).read(reader) : [];
+			}),
+			customizations: derived(reader => {
+				const chatUri = defaultChatUriObs.read(reader);
+				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
+			}),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
 			modelSource: this.modelSource,
@@ -1486,12 +1506,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			.map(chat => parseChatUri(chat.chat)?.chatId)
 			.filter(chatId => chatId !== undefined);
 		const survivingPeers = new Set(peerIds);
+		const chatOutputResources = new ResourceSet(chats.map(chat => chat.chat));
 		for (const [chatId, entry] of this._additionalChats) {
-			if (!survivingPeers.has(chatId) && entry.chat.origin?.kind !== ChatOriginKind.Tool) {
+			if (entry.chat.origin?.kind === ChatOriginKind.Tool) {
+				chatOutputResources.add(entry.backendUri);
+			} else if (!survivingPeers.has(chatId)) {
 				this._chatModelSelections.delete(chatId);
-				this._sessionOutput.releaseChat(URI.parse(buildChatUri(this.backendUri, chatId)));
 			}
 		}
+		this._updateChatOutputResources(chatOutputResources);
 
 		const ordered: IChat[] = [];
 		for (const chat of chats) {
@@ -1538,7 +1561,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return !arrayEquals(previousChats, nextChats);
 	}
 
+	private _updateChatOutputResources(resources: ResourceSet): void {
+		for (const resource of this._chatOutputResources) {
+			if (!resources.has(resource)) {
+				this._sessionOutput.releaseChat(resource);
+			}
+		}
+		this._chatOutputResources = resources;
+	}
+
 	private _applyChatCatalog(state: SessionState): void {
+		this._updateChatOutputResources(new ResourceSet(state.chats.map(chat => URI.parse(chat.resource))));
 		// The default chat's catalog title drives its independent tab title.
 		// Empty means "inherit the session title"; a non-empty value means it was
 		// renamed independently of the session.
@@ -1575,13 +1608,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// what takes a session back down to a single chat. Only chats this session had already
 		// materialized count as gone: a selection recorded for one that has never appeared is
 		// waiting for the state that creates it, which {@link setChatModelId} allows.
-		// The session-output caches are keyed by protocol chat URI and are released here too,
-		// so a removed peer does not retain its observables and parser state for the lifetime
-		// of this adapter.
 		for (const chatId of this._additionalChats.keys()) {
 			if (!survivingPeers.has(chatId)) {
 				this._chatModelSelections.delete(chatId);
-				this._sessionOutput.releaseChat(URI.parse(buildChatUri(this.backendUri, chatId)));
 			}
 		}
 
@@ -1650,7 +1679,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const chat = new AdditionalChat(
 			resource,
 			summary,
-			createChatChangesets(backendUri, this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(backendUri)),
+			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(constObservable(backendUri))),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
 			this._options.mapWorkingDirectoryUri ?? (uri => uri),
@@ -2291,20 +2320,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: undefined;
 	}
 
-	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionTurnFileChange[] | undefined> {
+	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>): IObservable<readonly ISessionTurnFileChange[] | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
 			this.isActiveSessionObs,
 			StateComponents.Chat,
-			constObservable(chatUri),
+			chatUriObs,
 		);
-		const lastTurnChanges = this._sessionOutput.getLastTurnChanges(chatUri);
 		return derived(reader => {
+			const chatUri = chatUriObs.read(reader);
 			const chatState = chatStateObs.read(reader).read(reader);
-			if (!chatState || chatState instanceof Error || !chatState.activeTurn) {
+			if (!chatUri || !chatState || chatState instanceof Error || !chatState.activeTurn) {
 				return undefined;
 			}
-			return lastTurnChanges.read(reader).filter(change => !change.isOutsideWorkspace);
+			return this._sessionOutput.getLastTurnChanges(chatUri).read(reader).filter(change => !change.isOutsideWorkspace);
 		});
 	}
 
@@ -3106,7 +3135,7 @@ class NewSession extends Disposable {
 		}
 
 		const chatUri = URI.parse(buildDefaultChatUri(this.backendUri));
-		const changesets = createChangesets(chatUri, this._options, this._isActiveSessionObs, changesetsMetadata, chatUri);
+		const changesets = createChangesets(this.backendUri, this._options, this._isActiveSessionObs, changesetsMetadata, chatUri);
 
 		this._changesets.set(changesets, undefined);
 	}
@@ -3390,6 +3419,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * state can be evicted on the agent host. Keyed by session ID.
 	 */
 	protected readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+	protected readonly _connectionChanged = observableSignal(this);
 	private readonly _chatCatalogLoading = new Map<string, ISettableObservable<boolean>>();
 	private readonly _agentMergeSessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _agentMergeSessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
@@ -3604,7 +3634,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
-			getConnection: () => this.connection,
+			getConnection: reader => {
+				this._connectionChanged.read(reader);
+				return this.connection;
+			},
 			getBackendChatResource: chat => this.getBackendChatResource(chat),
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
@@ -4153,7 +4186,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
 				gitHubService: this._gitHubService,
 				instantiationService: this._instantiationService,
-				getConnection: () => this.connection,
+				getConnection: reader => {
+					this._connectionChanged.read(reader);
+					return this.connection;
+				},
 				getBackendChatResource: chat => this.getBackendChatResource(chat),
 				agentCapabilities: this._agentCapabilities,
 				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
