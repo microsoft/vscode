@@ -5,7 +5,23 @@
 
 import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../../nls.js';
-import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { isToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
+
+export function hasToolInvocationError(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+	if (IChatToolInvocation.resultError(toolInvocation) || (isToolResultInputOutputDetails(resultDetails) && resultDetails.isError)) {
+		return true;
+	}
+	const terminal = toolInvocation.toolSpecificData;
+	if (terminal?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(terminal)) {
+		const exitCode = terminal.terminalCommandState?.exitCode;
+		if (exitCode !== undefined && exitCode !== 0) {
+			return true;
+		}
+	}
+	return false;
+}
 
 export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');

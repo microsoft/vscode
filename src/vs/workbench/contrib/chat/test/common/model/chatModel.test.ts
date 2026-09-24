@@ -1487,7 +1487,7 @@ suite('Response', () => {
 		});
 
 		const responseString = response.toString();
-		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)');
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)\nTool execution failed');
 		assert.ok(!responseString.includes('sandbox-runtime'));
 		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
 		assert.ok(!responseString.includes('python -c "print(1)"'));
@@ -2507,6 +2507,40 @@ suite('ChatResponseModel', () => {
 			}, { liveError: error, restoredError: error, liveDetails: undefined, restoredDetails: undefined, liveText: text, restoredText: text });
 		});
 	}
+
+	for (const exitCode of [undefined, 0, 2]) {
+		test(`includes terminal failures in the response text (exit code: ${exitCode})`, async () => {
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Run tests',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'bash',
+					terminalCommandState: { exitCode },
+				},
+			}, {
+				id: 'terminal', displayName: 'Terminal', modelDescription: 'Run a command', source: ToolDataSource.Internal,
+			}, 'terminal', undefined, {});
+			await invocation.didExecuteTool(undefined);
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+			const text = 'Ran terminal command: npm test' + (exitCode === 2 ? '\nTool execution failed with exit code 2' : '');
+			assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+		});
+	}
+
+	test('includes result-detail failures in the response text', async () => {
+		const invocation = new ChatToolInvocation({ invocationMessage: 'Read issue' }, {
+			id: 'read', displayName: 'Read', modelDescription: 'Read an issue', source: ToolDataSource.Internal,
+		}, 'read', undefined, {});
+		await invocation.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [], isError: true } });
+		const liveResponse = testDisposables.add(new Response([]));
+		liveResponse.updateContent(invocation);
+		const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+		const text = 'Read issue\nCompleted with input: {}\nTool execution failed';
+		assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+	});
 
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
