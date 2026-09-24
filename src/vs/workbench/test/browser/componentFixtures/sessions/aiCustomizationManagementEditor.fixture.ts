@@ -1041,6 +1041,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
+				override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
+					return customizationMarketplaceResources.filter(resource => {
+						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
+						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error';
+					});
+				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A disabled Marketplace fixture must not install resources.');
 					if (options.customizationMarketplaceInstallationState === 'error') {

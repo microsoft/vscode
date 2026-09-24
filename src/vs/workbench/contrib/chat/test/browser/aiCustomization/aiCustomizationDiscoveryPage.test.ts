@@ -103,6 +103,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		}());
 		const installChanges = store.add(new Emitter<void>());
 		const installStates = new Map<string, CustomizationMarketplaceInstallState>();
+		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
 		const repairs: string[] = [];
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
@@ -110,6 +111,9 @@ suite('AICustomizationDiscoveryPage', () => {
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
 					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+			}
+			override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
+				return [...recordedResources.values()];
 			}
 			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
 				const key = getCustomizationMarketplaceResourceKey(resource);
@@ -158,7 +162,15 @@ suite('AICustomizationDiscoveryPage', () => {
 		page.layout(new DOM.Dimension(900, 600));
 		return {
 			page, container, configuration, requests, listService, creationEvents, opened, deletions, repairs,
-			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => installStates.set(getCustomizationMarketplaceResourceKey(resource), state),
+			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				installStates.set(key, state);
+				if (state.kind === 'checking' || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'repairing' || state.kind === 'uninstalling' || state.kind === 'error') {
+					recordedResources.set(key, resource);
+				} else {
+					recordedResources.delete(key);
+				}
+			},
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryAction = action; },
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
@@ -436,6 +448,49 @@ suite('AICustomizationDiscoveryPage', () => {
 			repairs: ['repair-mail'],
 			actionsAfter: ['Uninstall'],
 		});
+	});
+
+	test('shows missing records in installed-only search without querying the catalog', async () => {
+		const candidate = resource('retired-skill', {
+			sourceId: 'retired',
+			displayName: 'Retired recorded skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/retired' },
+		});
+		const fixture = createPage();
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/retired/SKILL.md') } });
+		fixture.page.setSearchQuery('@installed retired');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: fixture.requests.length,
+			name: fixture.container.querySelector('.customization-discovery-result-name')?.textContent,
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, {
+			requests: 0,
+			name: 'Retired recorded skill',
+			detail: 'Skill · retired · Missing files',
+			actions: ['Repair', 'Uninstall'],
+		});
+	});
+
+	test('keeps uninstall available when installation verification fails', async () => {
+		const candidate = resource('unreadable-skill', {
+			displayName: 'Unreadable recorded skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/unreadable' },
+		});
+		const fixture = createPage();
+		fixture.setInstallState(candidate, { kind: 'error', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/unreadable/SKILL.md') }, message: 'Permission denied' });
+		fixture.page.setSearchQuery('@installed unreadable');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			action: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.textContent,
+			disabled: fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button')?.getAttribute('aria-disabled'),
+		}, { detail: 'Skill · GitHub Feed · Could not verify installation', action: 'Uninstall', disabled: 'false' });
 	});
 
 	for (const query of ['', '@type:plugin demo']) {

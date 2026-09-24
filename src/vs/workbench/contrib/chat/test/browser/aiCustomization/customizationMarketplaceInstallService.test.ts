@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -39,13 +39,16 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { CustomizationMarketplaceInstallationRecordStore } from '../../../browser/aiCustomization/customizationMarketplaceInstallationRecordStore.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IPluginGitService } from '../../../common/plugins/pluginGitService.js';
 import { IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 import { IMarketplaceInstalledPlugin, IMarketplaceReference, IPluginMarketplaceService, IMarketplacePlugin, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -141,12 +144,18 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 	readonly fileTypes = new Map<string, FileType>();
 	readonly writes: URI[] = [];
 	readonly moves: { source: URI; target: URI; overwrite: boolean }[] = [];
+	statCalls = 0;
+	statErrorResource: URI | undefined;
 	beforeWrite: ((resource: URI) => Promise<void>) | undefined;
 	afterWrite: ((resource: URI) => Promise<void>) | undefined;
 	beforeMove: (() => Promise<void>) | undefined;
 	afterMove: (() => Promise<void>) | undefined;
 
 	override async stat(resource: URI): Promise<IStat> {
+		this.statCalls++;
+		if (this.statErrorResource && isEqual(resource, this.statErrorResource)) {
+			throw new Error('Permission denied');
+		}
 		const stat = await super.stat(resource);
 		return { ...stat, type: this.fileTypes.get(resource.path) ?? stat.type };
 	}
@@ -225,7 +234,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				const reference = parseMarketplaceReference(source);
 				assert.ok(reference?.githubRepo);
 				const path = options?.path ?? '';
-				const entry = installedPlugin({ kind: PluginSourceKind.GitHub, repo: reference.githubRepo, ref: reference.ref, path }, path, this.versions.get(path) ?? this.version, URI.file(`/cache/${reference.githubRepo}/${path || 'root'}`));
+				const entry = installedPlugin({ kind: PluginSourceKind.GitHub, repo: reference.githubRepo, ref: reference.ref, path }, path, this.versions.get(path) ?? this.version, URI.file(`/cache/${reference.githubRepo}/ref_${reference.ref ?? 'default'}/${path || 'root'}`));
 				installedPlugins.set([...installedPlugins.get(), entry], undefined);
 				return { ...result, matchedPlugin: entry.plugin };
 			}
@@ -233,12 +242,35 @@ suite('CustomizationMarketplaceInstallService', () => {
 				return installedPlugins.get().find(entry => entry.plugin === plugin)?.pluginUri ?? URI.file('/cache/missing-plugin');
 			}
 		}();
+		const pluginSource = new class extends mock<IPluginSource>() {
+			override getCleanupTarget(): URI {
+				return URI.file('/cache/plugin-repository');
+			}
+		}();
 		const repositoryService = new class extends mock<IAgentPluginRepositoryService>() {
+			override readonly agentPluginsHome = URI.file('/cache');
 			readonly calls: { reference: IMarketplaceReference; options: IEnsureRepositoryOptions | undefined }[] = [];
 			onEnsure: (() => Promise<URI>) | undefined;
+			override getPluginSource(): IPluginSource {
+				return pluginSource;
+			}
 			override async ensureRepository(reference: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
 				this.calls.push({ reference, options });
 				return this.onEnsure ? this.onEnsure() : repository;
+			}
+			override async ensurePluginSource(plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
+				this.calls.push({ reference: plugin.marketplaceReference, options });
+				let source = repository;
+				for (const segment of plugin.source ? plugin.source.split('/') : []) {
+					source = joinPath(source, segment);
+				}
+				return source;
+			}
+		}();
+		const pluginGitService = new class extends mock<IPluginGitService>() {
+			revision = 'a'.repeat(40);
+			override async revParse(): Promise<string> {
+				return this.revision;
 			}
 		}();
 		const mcpChanges = store.add(new Emitter<IWorkbenchMcpServer | undefined>());
@@ -368,6 +400,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IPluginMarketplaceService, marketplaceService);
 		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
+		instantiationService.stub(IPluginGitService, pluginGitService);
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
@@ -386,7 +419,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(ICommandService, commandService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
-			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, agentPlugins, pluginService, repositoryService, mcpService, mcpChanges,
+			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
 			harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
 		};
 	}
@@ -470,7 +503,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const secondOperation = fixture.service.install(secondPlugin);
 			await setSourcesEnabled(fixture.configurationService, false, ['testSource']);
 			const afterDisable = {
-				cancelled: fixture.repositoryService.calls[1].options?.token?.isCancellationRequested,
+				cancelled: fixture.repositoryService.calls.at(-1)?.options?.token?.isCancellationRequested,
 				first: fixture.service.getInstallState(first).kind,
 				second: fixture.service.getInstallState(second).kind,
 				secondPlugin: fixture.service.getInstallState(secondPlugin).kind,
@@ -792,13 +825,44 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 
 	suite('installation records', () => {
+		test('rejects malformed persisted targets and bounds record count', () => {
+			const storage = store.add(new TestStorageService());
+			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';
+			const id = 'a'.repeat(64);
+			storage.store(`${prefix}${id}`, JSON.stringify({
+				version: 1,
+				record: {
+					id,
+					sourceId: 'testSource',
+					identifier: 'bad-skill',
+					displayName: 'Bad Skill',
+					description: '',
+					mediaType: CustomizationMarketplaceMediaType.Skill,
+					installation: { kind: 'skill', repository: 'owner/repo', ref: 'main', path: 'skill' },
+					target: { kind: 'skill', uri: URI.file('/outside/SKILL.md').toString(), files: [SKILL_FILENAME], resolvedRevision: 'a'.repeat(40), source: 'local', harness: 'test-harness', sourceFolder: URI.file('/workspace').toString() },
+				},
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const malformed = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService())));
+			for (let index = 0; index < 999; index++) {
+				storage.store(`${prefix}${index.toString(16).padStart(64, '0')}`, '{}', StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+			let bounded = false;
+			try {
+				malformed.ensureCanAdd();
+			} catch (error) {
+				bounded = error instanceof Error && error.message === 'Too many customization marketplace installations are recorded. Uninstall an existing marketplace customization before installing another.';
+			}
+			assert.deepStrictEqual({ records: malformed.records.size, bounded }, { records: 0, bounded: true });
+		});
+
 		test('persists exact targets and reconciles a missing skill after service recreation', async () => {
 			const fixture = await createFixture();
 			const candidate = resource({ version: '1.0.0' });
 			await fixture.service.install(candidate);
-			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecords'));
+			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
 			assert.ok(storageKey);
 			const stored = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!);
+			const storedRecord = stored.record;
 			fixture.service.dispose();
 			await fixture.fileService.del(skillDestination, { recursive: true });
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
@@ -807,12 +871,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				record: {
 					version: stored.version,
-					sourceId: stored.records[0]?.sourceId,
-					identifier: stored.records[0]?.identifier,
-					resourceVersion: stored.records[0]?.version,
-					targetKind: stored.records[0]?.target.kind,
-					targetUri: stored.records[0]?.target.uri,
-					files: stored.records[0]?.target.files,
+					sourceId: storedRecord?.sourceId,
+					identifier: storedRecord?.identifier,
+					resourceVersion: storedRecord?.version,
+					targetKind: storedRecord?.target.kind,
+					targetUri: storedRecord?.target.uri,
+					files: storedRecord?.target.files,
+					resolvedRevision: storedRecord?.target.resolvedRevision,
 				},
 				state: state.kind,
 				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri : undefined,
@@ -825,6 +890,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					targetKind: 'skill',
 					targetUri: joinPath(skillDestination, SKILL_FILENAME).toString(),
 					files: [SKILL_FILENAME],
+					resolvedRevision: 'a'.repeat(40),
 				},
 				state: 'missing',
 				target: joinPath(skillDestination, SKILL_FILENAME),
@@ -836,6 +902,48 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const candidate = pluginResource();
 			fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' })], undefined);
 			assert.deepStrictEqual(fixture.service.getInstallState(candidate), { kind: 'available' });
+		});
+
+		test('preserves independent records written by concurrent workbench services', async () => {
+			const fixture = await createFixture();
+			const second = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await fixture.service.install(mcpResource());
+			await second.install(pluginResource());
+			const storageKeys = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.includes('customizations.marketplace.installationRecord.v1'));
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			assert.deepStrictEqual({
+				storageKeys: storageKeys.length,
+				recorded: restored.getRecordedResources().map(resource => resource.identifier).sort(),
+			}, { storageKeys: 2, recorded: ['mcp-resource', 'plugin-resource'] });
+		});
+
+		test('reports verification errors instead of treating inaccessible files as missing', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+			fixture.provider.statErrorResource = joinPath(skillDestination, SKILL_FILENAME);
+			const verificationFailed = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'error'));
+			await fixture.fileService.writeFile(joinPath(skillDestination, 'trigger.txt'), VSBuffer.fromString('trigger'));
+			await verificationFailed;
+			const state = fixture.service.getInstallState(candidate);
+			fixture.provider.statErrorResource = undefined;
+			await fixture.service.uninstall(candidate);
+			assert.deepStrictEqual({
+				state: state.kind,
+				message: state.kind === 'error' ? state.message : undefined,
+				afterUninstall: fixture.service.getInstallState(candidate).kind,
+			}, { state: 'error', message: 'Could not verify this customization installation. Permission denied', afterUninstall: 'available' });
+		});
+
+		test('does not rescan skill manifests for unrelated plugin or MCP changes', async () => {
+			const fixture = await createFixture();
+			await fixture.service.install(resource());
+			await timeout(0);
+			fixture.provider.statCalls = 0;
+			fixture.installedPlugins.set([installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' })], undefined);
+			fixture.mcpChanges.fire(undefined);
+			await timeout(0);
+			assert.strictEqual(fixture.provider.statCalls, 0);
 		});
 	});
 
@@ -871,6 +979,29 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: fixture.service.getInstallState(candidate).kind,
 				calls: fixture.pluginService.calls,
 			}, { state: 'unavailable', calls: [] });
+		});
+
+		test('keeps missing plugin records uninstallable while plugin policy disables repair', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			await fixture.service.install(candidate);
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+			fixture.installedPlugins.set([], undefined);
+			await missing;
+			await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
+			fireConfigurationChange(fixture.configurationService, ChatConfiguration.PluginsEnabled);
+			const state = fixture.service.getInstallState(candidate);
+			await assert.rejects(fixture.service.repair(candidate), /Enable agent plugins/);
+			await fixture.service.uninstall(candidate);
+			assert.deepStrictEqual({
+				state: state.kind,
+				repairUnavailableMessage: state.kind === 'missing' ? state.repairUnavailableMessage : undefined,
+				afterUninstall: fixture.service.getInstallState(candidate).kind,
+			}, {
+				state: 'missing',
+				repairUnavailableMessage: 'Enable agent plugins to install this resource.',
+				afterUninstall: 'unavailable',
+			});
 		});
 
 		test('deduplicates pending installs and continues after a view unsubscribes', async () => {
@@ -1011,6 +1142,27 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+
+		test('pins plugin repair to the immutable revision recorded at install time', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			await fixture.service.install(candidate);
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+			fixture.installedPlugins.set([], undefined);
+			await missing;
+			fixture.pluginGitService.revision = 'b'.repeat(40);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.onInstall = async () => ({
+				success: true,
+				matchedPlugin: installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'a'.repeat(40), path: 'plugins/demo' }).plugin,
+			});
+			await assert.rejects(fixture.service.repair(candidate), /recorded plugin revision is no longer available/);
+			assert.deepStrictEqual({
+				repairSource: fixture.pluginService.calls[1]?.source,
+				state: fixture.service.getInstallState(candidate).kind,
+			}, { repairSource: `owner/catalog#${'a'.repeat(40)}`, state: 'missing' });
+		});
+
 		test('matches an immutable plugin SHA only when the requested revision is that SHA', async () => {
 			const fixture = await createFixture();
 			const sha = 'a'.repeat(40);
@@ -1103,9 +1255,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const candidate = mcpResource();
 			await fixture.service.install(candidate);
 			const installed = fixture.mcpService.local[0];
-			fixture.mcpService.local = [{ ...installed, gallery: undefined }];
+			fixture.mcpService.local = [{ ...installed, id: 'mcp:moved', gallery: undefined }];
+			const moved = Event.toPromise(Event.filter(fixture.service.onDidChange, () => {
+				const state = fixture.service.getInstallState(candidate);
+				return state.kind === 'installed' && state.target.kind === 'mcp' && state.target.id === 'mcp:moved';
+			}));
 			fixture.mcpChanges.fire(fixture.mcpService.local[0]);
-			await timeout(0);
+			await moved;
 			const firstVersion = fixture.service.getInstallState(candidate).kind;
 			const otherVersion = fixture.service.getInstallState(resource({
 				...candidate,
@@ -1290,7 +1446,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await fixture.service.install(candidate);
 			await fixture.fileService.writeFile(joinPath(skillDestination, SKILL_FILENAME), VSBuffer.fromString('# Locally edited skill'));
 			await fixture.fileService.writeFile(joinPath(skillDestination, 'notes.txt'), VSBuffer.fromString('local notes'));
-			const reconciled = Event.toPromise(fixture.service.onDidChange);
+			const reconciled = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
 			await fixture.fileService.del(joinPath(skillDestination, 'scripts', 'run.sh'));
 			await reconciled;
 			const stateBeforeRepair = fixture.service.getInstallState(candidate).kind;
@@ -1315,6 +1471,40 @@ suite('CustomizationMarketplaceInstallService', () => {
 				repositoryCalls: 2,
 				confirmations: ['Install', 'Repair'],
 			});
+		});
+
+
+		test('pins repair to the immutable revision recorded at install time', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+			await fixture.fileService.del(joinPath(skillDestination, SKILL_FILENAME));
+			await missing;
+			fixture.pluginGitService.revision = 'b'.repeat(40);
+			await assert.rejects(fixture.service.repair(candidate), /recorded skill revision is no longer available/);
+			assert.deepStrictEqual({
+				repairReference: fixture.repositoryService.calls[1]?.reference.rawValue,
+				state: fixture.service.getInstallState(candidate).kind,
+				targetExists: await fixture.fileService.exists(joinPath(skillDestination, SKILL_FILENAME)),
+			}, { repairReference: `owner/catalog#${'a'.repeat(40)}`, state: 'missing', targetExists: false });
+		});
+
+		test('associates projectless local records through the provider destination identity', async () => {
+			const fixture = await createFixture();
+			fixture.workspaceService.activeProjectRoot.set(undefined, undefined);
+			fixture.harnessService.folders = [{ uri: destinationDirectory, label: 'Workspace', source: PromptsStorage.local, destinationGroupId: 'shared-workspace' }];
+			const candidate = resource();
+			await fixture.service.install(candidate);
+			const mappedFolder = URI.file('/mapped/skills');
+			const mappedSkill = joinPath(mappedFolder, 'demo-skill', SKILL_FILENAME);
+			await fixture.fileService.writeFile(mappedSkill, VSBuffer.fromString(skillContent));
+			fixture.harnessService.folders = [{ uri: mappedFolder, label: 'Workspace', source: PromptsStorage.local, destinationGroupId: 'shared-workspace' }];
+			fixture.harnessService.activeSessionResource.set(URI.parse('test-harness:///another-session'), undefined);
+			const associated = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'installed'));
+			await associated;
+			const state = fixture.service.getInstallState(candidate);
+			assert.deepStrictEqual({ kind: state.kind, target: state.kind === 'installed' && state.target.kind === 'skill' ? state.target.uri.toString() : undefined }, { kind: 'installed', target: mappedSkill.toString() });
 		});
 
 		test('supports a repository-root skill and the harness user source location', async () => {
@@ -1428,6 +1618,22 @@ suite('CustomizationMarketplaceInstallService', () => {
 				}, { targetExists: false, staging: [], state: { kind: 'available' } });
 			});
 		}
+
+
+		test('rejects a skill when its repository revision changes during staging', async () => {
+			const fixture = await createFixture();
+			fixture.provider.afterWrite = async uri => {
+				if (isStaging(uri)) {
+					fixture.pluginGitService.revision = 'b'.repeat(40);
+				}
+			};
+			await assert.rejects(fixture.service.install(resource()), /source changed while it was being copied/);
+			assert.deepStrictEqual({
+				targetExists: await fixture.fileService.exists(skillDestination),
+				staging: await stagingDirectories(fixture.fileService),
+				state: fixture.service.getInstallState(resource()).kind,
+			}, { targetExists: false, staging: [], state: 'available' });
+		});
 
 		test('rejects a skill whose staged SKILL.md disappears before commit', async () => {
 			const fixture = await createFixture();
@@ -1700,9 +1906,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 			states.push(fixture.service.getInstallState(candidate).kind);
 			fixture.harnessService.activeHarness.set('test-harness', undefined);
 			states.push(fixture.service.getInstallState(candidate).kind);
-			const changed = Event.toPromise(fixture.service.onDidChange);
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
 			await fixture.fileService.del(joinPath(skillDestination, SKILL_FILENAME));
-			await changed;
+			await missing;
 			states.push(fixture.service.getInstallState(candidate).kind);
 			assert.deepStrictEqual(states, ['installed', 'available', 'available', 'installed', 'missing']);
 		});

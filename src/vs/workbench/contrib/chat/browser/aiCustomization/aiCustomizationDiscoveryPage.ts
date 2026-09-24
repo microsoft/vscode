@@ -182,6 +182,46 @@ function matchesInstallationTarget(item: IInstalledDiscoveryItem, target: Custom
 	}
 }
 
+function getInstallationStateLabel(state: CustomizationMarketplaceInstallState): string {
+	switch (state.kind) {
+		case 'missing': return localize('customizationDiscovery.missingFiles', "Missing files");
+		case 'checking': return localize('customizationDiscovery.checking', "Checking installation");
+		case 'repairing': return localize('customizationDiscovery.repairing', "Repairing");
+		case 'uninstalling': return localize('customizationDiscovery.uninstallingState', "Uninstalling");
+		case 'error': return localize('customizationDiscovery.verificationFailed', "Could not verify installation");
+		default: return localize('customizationDiscovery.installed', "Installed");
+	}
+}
+
+function getInstallActionLabel(state: CustomizationMarketplaceInstallState, hasSetupUrl: boolean, operationError: string | undefined): string {
+	switch (state.kind) {
+		case 'installed': return localize('customizationDiscovery.installed', "Installed");
+		case 'missing': return operationError ? localize('customizationDiscovery.retryRepair', "Retry Repair") : localize('customizationDiscovery.repair', "Repair");
+		case 'repairing': return localize('customizationDiscovery.repairingProgress', "Repairing...");
+		case 'checking': return localize('customizationDiscovery.checkingProgress', "Checking...");
+		case 'uninstalling': return localize('customizationDiscovery.uninstalling', "Uninstalling...");
+		case 'installing': return localize('customizationDiscovery.installing', "Installing...");
+		case 'error': return localize('customizationDiscovery.unavailable', "Unavailable");
+		default: return hasSetupUrl
+			? localize('customizationDiscovery.viewSetup', "View Setup")
+			: operationError
+				? localize('customizationDiscovery.retryInstall', "Retry Install")
+				: localize('customizationDiscovery.install', "Install");
+	}
+}
+
+function isInstallActionEnabled(state: CustomizationMarketplaceInstallState, hasSetupUrl: boolean): boolean {
+	return state.kind === 'available' || state.kind === 'missing' && !state.repairUnavailableMessage || hasSetupUrl;
+}
+
+function isInstallActionBusy(state: CustomizationMarketplaceInstallState): boolean {
+	return state.kind === 'installing' || state.kind === 'checking' || state.kind === 'repairing';
+}
+
+function getInstallActionError(state: CustomizationMarketplaceInstallState, operationError: string | undefined): string | undefined {
+	return state.kind === 'unavailable' || state.kind === 'error' ? state.message : state.kind === 'missing' ? state.repairUnavailableMessage : operationError;
+}
+
 function getCatalogMediaType(types: ReadonlySet<CustomizationDiscoveryType>): CustomizationMarketplaceMediaType | undefined {
 	return types.size === 1 && types.has('skill') ? CustomizationMarketplaceMediaType.Skill
 		: types.size === 1 && types.has('mcp') ? CustomizationMarketplaceMediaType.McpServer : undefined;
@@ -249,13 +289,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const type = installed ? element.type : getCatalogType(element.resource);
 		const resource = installed ? element.catalogResource : element.resource;
 		const marketplaceState = installed && element.catalogResource ? this.getInstallState(element.catalogResource) : undefined;
-		const installationDetail = marketplaceState?.kind === 'missing'
-			? localize('customizationDiscovery.missingFiles', "Missing files")
-			: marketplaceState?.kind === 'checking'
-				? localize('customizationDiscovery.checking', "Checking installation")
-				: marketplaceState?.kind === 'repairing'
-					? localize('customizationDiscovery.repairing', "Repairing")
-					: undefined;
+		const installationDetail = marketplaceState && marketplaceState.kind !== 'installed' ? getInstallationStateLabel(marketplaceState) : undefined;
 		const detail = [
 			type ? getTypeLabel(type) : !installed ? element.resource.mediaType : undefined,
 			installed ? element.sourceLabel : this.getSourceLabel(element.resource),
@@ -313,36 +347,25 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 			const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 			const installError = this.getInstallError(element.resource);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
-			button.label = state.kind === 'installed'
-				? localize('customizationDiscovery.installed', "Installed")
-				: state.kind === 'missing'
-					? installError ? localize('customizationDiscovery.retryRepair', "Retry Repair") : localize('customizationDiscovery.repair', "Repair")
-					: state.kind === 'repairing'
-						? localize('customizationDiscovery.repairingProgress', "Repairing...")
-						: state.kind === 'checking'
-							? localize('customizationDiscovery.checkingProgress', "Checking...")
-							: state.kind === 'uninstalling'
-								? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-								: state.kind === 'installing'
-									? localize('customizationDiscovery.installing', "Installing...")
-									: setupUrl
-										? localize('customizationDiscovery.viewSetup', "View Setup")
-										: installError
-											? localize('customizationDiscovery.retryInstall', "Retry Install")
-											: localize('customizationDiscovery.install', "Install");
-			button.enabled = state.kind === 'available' || state.kind === 'missing' || !!setupUrl;
+			button.label = getInstallActionLabel(state, !!setupUrl, installError);
+			button.enabled = isInstallActionEnabled(state, !!setupUrl);
 			button.setAriaLabel(setupUrl
 				? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", element.resource.displayName)
 				: state.kind === 'missing'
-					? localize('customizationDiscovery.repairLabel', "{0} {1}", button.label, element.resource.displayName)
-					: state.kind === 'unavailable'
-						? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
-						: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
-			button.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'checking' || state.kind === 'repairing'));
+					? state.repairUnavailableMessage
+						? localize('customizationDiscovery.repairUnavailableLabel', "Repair {0}. {1}", element.resource.displayName, state.repairUnavailableMessage)
+						: localize('customizationDiscovery.repairLabel', "{0} {1}", button.label, element.resource.displayName)
+					: state.kind === 'error'
+						? localize('customizationDiscovery.installVerificationError', "{0}. {1}", element.resource.displayName, state.message)
+						: state.kind === 'unavailable'
+							? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
+							: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
+			button.element.setAttribute('aria-busy', String(isInstallActionBusy(state)));
 			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 			templateData.elementDisposables.add(button.onDidClick(() => setupUrl ? this.onOpen(setupUrl) : state.kind === 'missing' ? this.onRepair(element.resource) : this.onInstall(element.resource)));
-			if (state.kind === 'unavailable' || installError) {
-				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
+			const actionError = getInstallActionError(state, installError);
+			if (actionError) {
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: actionError }));
 			}
 		} else if (element.catalogResource) {
 			const state = marketplaceState!;
@@ -350,11 +373,15 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 			if (state.kind === 'missing') {
 				const repair = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, small: true }));
 				repair.label = error ? localize('customizationDiscovery.retryRepair', "Retry Repair") : localize('customizationDiscovery.repair', "Repair");
-				repair.setAriaLabel(localize('customizationDiscovery.repairLabel', "{0} {1}", repair.label, element.name));
+				repair.enabled = !state.repairUnavailableMessage;
+				repair.setAriaLabel(state.repairUnavailableMessage
+					? localize('customizationDiscovery.repairUnavailableLabel', "Repair {0}. {1}", element.name, state.repairUnavailableMessage)
+					: localize('customizationDiscovery.repairLabel', "{0} {1}", repair.label, element.name));
 				templateData.elementDisposables.add(DOM.addDisposableListener(repair.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 				templateData.elementDisposables.add(repair.onDidClick(() => this.onRepair(element.catalogResource!)));
-				if (error) {
-					templateData.elementDisposables.add(this.hoverService.setupDelayedHover(repair.element, { content: error }));
+				const repairError = state.repairUnavailableMessage ?? error;
+				if (repairError) {
+					templateData.elementDisposables.add(this.hoverService.setupDelayedHover(repair.element, { content: repairError }));
 				}
 			}
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -367,11 +394,14 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 						: error && state.kind === 'installed'
 							? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
 							: localize('customizationDiscovery.uninstall', "Uninstall");
-			button.enabled = state.kind === 'installed' || state.kind === 'missing';
+			button.enabled = state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
 			button.setAriaLabel(localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, element.name));
 			button.element.setAttribute('aria-busy', String(state.kind === 'uninstalling' || state.kind === 'repairing' || state.kind === 'checking'));
 			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 			templateData.elementDisposables.add(button.onDidClick(() => this.onUninstall(element)));
+			if (state.kind === 'error') {
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: state.message }));
+			}
 		} else if (element.removable) {
 			const uninstalling = this.isDirectUninstalling(element);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -1111,16 +1141,31 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				: localize('customizationDiscovery.loading', "Loading customizations...");
 	}
 
+	private getSearchMarketplaceResources(): readonly ICustomizationMarketplaceResource[] {
+		const resources = new Map(this.catalogItems.map(resource => [getCustomizationMarketplaceResourceKey(resource), resource]));
+		for (const resource of this.installService.getRecordedResources()) {
+			const key = getCustomizationMarketplaceResourceKey(resource);
+			if (!resources.has(key)) {
+				resources.set(key, resource);
+			}
+		}
+		const query = normalizedName(this.query.text);
+		return [...resources.values()].filter(resource => {
+			const type = getCatalogType(resource);
+			return !!type
+				&& this.matchesType(type)
+				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
+				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
+		});
+	}
+
 	private renderSearchResults(): void {
 		this.resultStatusDisposables.clear();
 		const installed = [...this.getFilteredInstalledItems()];
 		const installedCatalog: IInstalledDiscoveryItem[] = [];
 		const available: ICatalogDiscoveryItem[] = [];
-		for (const resource of this.catalogItems) {
-			const type = getCatalogType(resource);
-			if (!type || !this.matchesType(type)) {
-				continue;
-			}
+		for (const resource of this.getSearchMarketplaceResources()) {
+			const type = getCatalogType(resource)!;
 			const state = this.getInstallState(resource);
 			if (hasInstallationTarget(state)) {
 				const matchingInstalledIndex = installed.findIndex(item => matchesInstallationTarget(item, state.target));
@@ -1317,35 +1362,24 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 		const installError = this.installErrors.get(getCustomizationMarketplaceResourceKey(item));
 		const install = this.browseDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, small: true }));
-		install.label = state.kind === 'installed'
-			? localize('customizationDiscovery.installed', "Installed")
-			: state.kind === 'missing'
-				? installError ? localize('customizationDiscovery.retryRepair', "Retry Repair") : localize('customizationDiscovery.repair', "Repair")
-				: state.kind === 'repairing'
-					? localize('customizationDiscovery.repairingProgress', "Repairing...")
-					: state.kind === 'checking'
-						? localize('customizationDiscovery.checkingProgress', "Checking...")
-						: state.kind === 'uninstalling'
-							? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-							: state.kind === 'installing'
-								? localize('customizationDiscovery.installing', "Installing...")
-								: setupUrl
-									? localize('customizationDiscovery.viewSetup', "View Setup")
-									: installError
-										? localize('customizationDiscovery.retryInstall', "Retry Install")
-										: localize('customizationDiscovery.install', "Install");
-		install.enabled = state.kind === 'available' || state.kind === 'missing' || !!setupUrl;
+		install.label = getInstallActionLabel(state, !!setupUrl, installError);
+		install.enabled = isInstallActionEnabled(state, !!setupUrl);
 		install.setAriaLabel(setupUrl
 			? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", item.displayName)
 			: state.kind === 'missing'
-				? localize('customizationDiscovery.repairLabel', "{0} {1}", install.label, item.displayName)
-				: state.kind === 'unavailable'
-					? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
-					: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
-		install.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'checking' || state.kind === 'repairing'));
+				? state.repairUnavailableMessage
+					? localize('customizationDiscovery.repairUnavailableLabel', "Repair {0}. {1}", item.displayName, state.repairUnavailableMessage)
+					: localize('customizationDiscovery.repairLabel', "{0} {1}", install.label, item.displayName)
+				: state.kind === 'error'
+					? localize('customizationDiscovery.installVerificationError', "{0}. {1}", item.displayName, state.message)
+					: state.kind === 'unavailable'
+						? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
+						: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
+		install.element.setAttribute('aria-busy', String(isInstallActionBusy(state)));
 		this.browseDisposables.add(install.onDidClick(() => setupUrl ? void this.openExternal(setupUrl) : state.kind === 'missing' ? void this.repair(item) : void this.install(item)));
-		if (state.kind === 'unavailable' || installError) {
-			this.browseDisposables.add(this.hoverService.setupDelayedHover(install.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
+		const actionError = getInstallActionError(state, installError);
+		if (actionError) {
+			this.browseDisposables.add(this.hoverService.setupDelayedHover(install.element, { content: actionError }));
 		}
 	}
 
@@ -1526,14 +1560,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private getEntryAriaLabel(entry: DiscoveryListEntry): string {
 		if (entry.kind === 'installed') {
 			const state = entry.catalogResource ? this.getInstallState(entry.catalogResource) : undefined;
-			const stateLabel = state?.kind === 'missing'
-				? localize('customizationDiscovery.missingAriaLabel', "installed, missing files")
-				: state?.kind === 'repairing'
-					? localize('customizationDiscovery.repairingAriaLabel', "repairing")
-					: state?.kind === 'checking'
-						? localize('customizationDiscovery.checkingAriaLabel', "checking installation")
-						: localize('customizationDiscovery.installed', "Installed");
-			return localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}{3}{4}. {5}", entry.name, getTypeLabel(entry.type), stateLabel, entry.sourceLabel ? localize('customizationDiscovery.sourceAriaLabel', ", source {0}", entry.sourceLabel) : '', entry.disabled ? localize('customizationDiscovery.disabledAriaLabel', ", disabled") : '', entry.description);
+			const stateLabel = state ? getInstallationStateLabel(state) : localize('customizationDiscovery.installed', "Installed");
+			const stateDetail = state?.kind === 'error' ? localize('customizationDiscovery.verificationErrorDetail', ", {0}", state.message) : '';
+			return localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}{3}{4}. {5}", entry.name, getTypeLabel(entry.type), `${stateLabel}${stateDetail}`, entry.sourceLabel ? localize('customizationDiscovery.sourceAriaLabel', ", source {0}", entry.sourceLabel) : '', entry.disabled ? localize('customizationDiscovery.disabledAriaLabel', ", disabled") : '', entry.description);
 		}
 		const type = getCatalogType(entry.resource);
 		const state = this.getInstallState(entry.resource);
@@ -1600,15 +1629,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	getAccessibilityContent(): string {
-		const recorded = this.catalogItems
-			.filter(resource => {
-				const type = getCatalogType(resource);
-				return !!type && this.matchesType(type);
-			})
+		const searchResources = this.getSearchMarketplaceResources();
+		const recorded = searchResources
 			.map(resource => ({ resource, state: this.getInstallState(resource) }))
 			.filter(entry => hasInstallationTarget(entry.state));
 		const installed = this.getFilteredInstalledItems().filter(item => !recorded.some(entry => hasInstallationTarget(entry.state) && matchesInstallationTarget(item, entry.state.target)));
-		const available = this.catalogItems.filter(item => {
+		const available = searchResources.filter(item => {
 			const type = getCatalogType(item);
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));
 		});
@@ -1624,7 +1650,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),
 			...installed.map(item => `${item.name}\n${[getTypeLabel(item.type), item.sourceLabel, localize('customizationDiscovery.installed', "Installed")].filter(Boolean).join(' · ')}\n${item.description}`),
-			...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), state.kind === 'missing' ? localize('customizationDiscovery.missingFiles', "Missing files") : state.kind === 'repairing' ? localize('customizationDiscovery.repairing', "Repairing") : state.kind === 'checking' ? localize('customizationDiscovery.checking', "Checking installation") : localize('customizationDiscovery.installed', "Installed")].join(' · ')}\n${resource.description}`),
+			...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), getInstallationStateLabel(state)].join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
 			...available.map(item => {
 				const state = this.getInstallState(item);
 				return `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceSourceLabel(item.sourceId)}\n${item.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;

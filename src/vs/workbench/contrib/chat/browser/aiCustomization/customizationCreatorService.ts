@@ -133,61 +133,44 @@ export class CustomizationLocationPicker {
 		@ILabelService private readonly labelService: ILabelService
 	) { }
 
-	/**
-	 * Resolves the target directory for creating a new customization file.
-	 * If multiple source folders exist for the given storage type, shows a
-	 * picker to let the user choose. Otherwise, returns the single match.
-	 * When the target is omitted, offers both workspace and user locations.
-	 *
-	 * Source folders come from the active harness's item provider (via the
-	 * items model) — each session can supply its own set of customization
-	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
-	 *
-	 * @returns the resolved URI, `undefined` when no folder is available,
-	 *          or `null` when the user cancelled the picker.
-	 */
+	/** Resolves a writable target URI, or `null` when the user cancels destination selection. */
 	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<URI | undefined | null> {
 		const folder = await this.resolveTargetFolderWithPicker(sessionResource, type, target);
 		return folder ? folder.uri : folder;
 	}
 
+	/** Resolves a writable target folder, asking the user when more than one destination is available. */
 	public async resolveTargetFolderWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<ICustomizationSourceFolder | undefined | null> {
+		const matchingFolders = await this.resolveTargetFolders(sessionResource, type, target);
+		if (!matchingFolders?.length) {
+			return undefined;
+		}
+		if (matchingFolders.length === 1) {
+			return matchingFolders[0];
+		}
+		const items: (IQuickPickItem & { folder: ICustomizationSourceFolder })[] = matchingFolders.map(folder => ({
+			label: folder.label,
+			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+			folder,
+		}));
+		const picked = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
+		});
+		return picked?.folder ?? null;
+	}
+
+	/** Returns writable source folders without prompting for a destination. */
+	public async resolveTargetFolders(sessionResource: URI, type: PromptsType, target?: 'local' | 'user', token = CancellationToken.None): Promise<readonly ICustomizationSourceFolder[] | undefined> {
 		const sessionType = getChatSessionType(sessionResource);
 		const descriptor = this.harnessService.findHarnessById(sessionType);
 		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 		if (!provider.provideSourceFolders) {
 			return undefined;
 		}
-		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
-		if (!allFolders) {
-			// Provider returned no source folders for this type/session.
-			return undefined;
-		}
-
-		const matchingFolders = allFolders.filter(f => target ? f.source === target : f.source === 'local' || f.source === 'user');
-		if (matchingFolders.length === 0) {
-			// No matching folders — return undefined so the command can fall
-			// back to askForPromptSourceFolder (not null which means cancellation)
-			return undefined;
-		}
-
-		if (matchingFolders.length === 1) {
-			return matchingFolders[0];
-		}
-
-		// Multiple directories — ask the user which one to use
-		const items: (IQuickPickItem & { folder: ICustomizationSourceFolder })[] = matchingFolders.map(folder => ({
-			label: folder.label,
-			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
-			folder,
-		}));
-
-		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
-		});
-
-		return picked?.folder ?? null;
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, token);
+		return allFolders?.filter(folder => target ? folder.source === target : folder.source === 'local' || folder.source === 'user');
 	}
+
 }
 
 /**

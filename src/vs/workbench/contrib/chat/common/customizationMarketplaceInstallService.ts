@@ -10,7 +10,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' }
-	| { readonly kind: 'checking' | 'installed' | 'missing' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
+	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
+	| { readonly kind: 'missing'; readonly target: CustomizationMarketplaceInstallationTarget; readonly repairUnavailableMessage?: string }
+	| { readonly kind: 'error'; readonly target: CustomizationMarketplaceInstallationTarget; readonly message: string }
 	| { readonly kind: 'unavailable'; readonly message: string; readonly setupUrl?: URI };
 
 export type CustomizationMarketplaceInstallationTarget =
@@ -23,6 +25,8 @@ export interface ICustomizationMarketplaceInstallService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
+	/** Returns recorded resources applicable to the active customization destination, including missing targets. */
+	getRecordedResources(): readonly ICustomizationMarketplaceResource[];
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Restores files or registrations missing from a recorded installation. */
