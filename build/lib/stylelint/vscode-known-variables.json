@@ -1063,6 +1063,8 @@
 		"--notebook-editor-font-weight",
 		"--outline-element-color",
 		"--agents-aquarium-strip-index",
+		"--agents-part-corner-radius",
+		"--agents-window-corner-radius",
 		"--separator-border",
 		"--chat-bar-background",
 		"--chat-tab-active-foreground",

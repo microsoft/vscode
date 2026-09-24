@@ -15,8 +15,8 @@
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius);
+	border-bottom-left-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 	overflow: hidden;
 }

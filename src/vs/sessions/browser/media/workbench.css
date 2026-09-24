@@ -9,6 +9,7 @@
  * The hover is portaled but mounts inside this workbench root, so it inherits this value. */
 .monaco-workbench.agent-sessions-workbench {
 	background-color: var(--vscode-agents-background);
+	--agents-part-corner-radius: var(--vscode-cornerRadius-large);
 	--model-hover-surface-background: var(--vscode-agentsPanel-background);
 	--modern-ui-notifications-inline-inset: var(--vscode-spacing-size80);
 	--modern-ui-notifications-block-end-inset: var(--vscode-spacing-size80);
@@ -105,14 +106,32 @@
 
 /* ---- Workbench Parts ---- */
 
+.agent-sessions-workbench.mac:not(.web):not(.fullscreen) {
+	--agents-window-corner-radius: 10px;
+	/* The native radius does not zoom; subtract the inset after converting to CSS pixels. */
+	--agents-part-corner-radius: max(0px, calc(var(--agents-window-corner-radius) / var(--zoom-factor, 1) - var(--vscode-agents-layout-floatingPanelGap)));
+}
+
+.agent-sessions-workbench.mac.macos-tahoe:not(.web):not(.fullscreen) {
+	--agents-window-corner-radius: 16px;
+}
+
+/* Match the native window's continuous corners on inset content surfaces. */
+.agent-sessions-workbench:not(.web) .agents-part-card,
+.agent-sessions-workbench:not(.web) .monaco-grid-view .part.editor:not(.modal-editor-part),
+.agent-sessions-workbench:not(.web) .part.auxiliarybar,
+.agent-sessions-workbench:not(.web) .part.panel {
+	-electron-corner-smoothing: system-ui;
+}
+
 .agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius);
+	border-bottom-left-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 	overflow: hidden;
 }
@@ -123,8 +142,8 @@
 
 .agent-sessions-workbench.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border-right-width: var(--vscode-strokeThickness);
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-top-right-radius: var(--agents-part-corner-radius);
+	border-bottom-right-radius: var(--agents-part-corner-radius);
 }
 
 /* Floating content card. Shared by every full-surface content part (the
@@ -133,7 +152,7 @@
 	margin: 0 var(--vscode-agents-layout-floatingPanelGap) 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 }
 
@@ -152,15 +171,15 @@
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-top-right-radius: var(--agents-part-corner-radius);
+	border-bottom-right-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench:not(.dock-detail-panel).nomaineditorarea .part.auxiliarybar {
 	padding-left: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius);
+	border-bottom-left-radius: var(--agents-part-corner-radius);
 }
 
 .agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
@@ -171,7 +190,7 @@
 	margin: var(--vscode-agents-layout-floatingPanelGap) 0 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 }
 
@@ -267,8 +286,8 @@
 	overflow: hidden;
 	background: var(--vscode-editor-background);
 	border-right-width: var(--vscode-strokeThickness);
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-top-right-radius: var(--agents-part-corner-radius);
+	border-bottom-right-radius: var(--agents-part-corner-radius);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar {
