@@ -16,7 +16,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { editorGutter } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
-import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -96,7 +96,8 @@ suite('Sessions Chat Background Tint', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('offers the tint toggle in both background menus and the Command Palette only for supported images', () => {
-		disposables.add(registerAction2(ToggleChatBackgroundTintAction));
+		const { menu, precondition, f1 } = new ToggleChatBackgroundTintAction().desc;
+		assert.ok(Array.isArray(menu));
 		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const context = disposables.add(new ContextKeyService(configuration));
@@ -105,9 +106,11 @@ suite('Sessions Chat Background Tint', () => {
 		for (const key of keys) {
 			key.set(true);
 		}
-		const items = [Menus.SessionChatBackgroundContext, MenuId.ChatContext, MenuId.CommandPalette].map(menu =>
-			MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === ToggleChatBackgroundTintAction.ID)!);
-		const visibility = () => items.map(item => context.contextMatchesRules(item.when) && context.contextMatchesRules(item.command.precondition));
+		const items = [Menus.SessionChatBackgroundContext, MenuId.ChatContext].map(id => menu.find(item => item.id === id)!);
+		const visibility = () => [
+			...items.map(item => context.contextMatchesRules(item.when) && context.contextMatchesRules(precondition)),
+			f1 === true && context.contextMatchesRules(precondition),
+		];
 		const supported = visibility();
 		const unsupported = keys.map(key => {
 			key.set(false);
@@ -116,7 +119,7 @@ suite('Sessions Chat Background Tint', () => {
 			return visible;
 		});
 		assert.deepStrictEqual({
-			placements: items.slice(0, 2).map(item => ({ group: item.group, order: item.order })),
+			placements: items.map(item => ({ group: item.group, order: item.order })),
 			supported,
 			unsupported,
 		}, {
