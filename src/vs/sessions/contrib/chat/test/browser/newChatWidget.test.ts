@@ -9,13 +9,13 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
@@ -350,6 +350,11 @@ interface IRestoreNoWorkspaceDraftHarness {
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
+const updateContextualMessage = Reflect.get(NewChatWidget.prototype, '_updateContextualMessage') as (container: HTMLElement, visible: boolean, hasRunningSession: boolean) => void;
+const hasRunningSession = Reflect.get(NewChatWidget.prototype, '_hasRunningSession') as (
+	this: { readonly sessionsManagementService: { getSessions(): ISession[] } },
+	reader: IReader,
+) => boolean;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
@@ -386,6 +391,54 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows contextual guidance only for the experimental layout', () => {
+		const container = document.createElement('div');
+		updateContextualMessage(container, true, false);
+		const defaultMessage = {
+			hidden: container.hidden,
+			title: container.querySelector('h2')?.textContent,
+			childCount: container.childElementCount,
+		};
+		updateContextualMessage(container, true, true);
+		const parallelMessage = {
+			hidden: container.hidden,
+			title: container.querySelector('h2')?.textContent,
+			childCount: container.childElementCount,
+		};
+		updateContextualMessage(container, false, true);
+		const legacy = { hidden: container.hidden, childCount: container.childElementCount };
+
+		assert.deepStrictEqual({ defaultMessage, parallelMessage, legacy }, {
+			defaultMessage: {
+				hidden: false,
+				title: 'What do you want to work on?',
+				childCount: 1,
+			},
+			parallelMessage: {
+				hidden: false,
+				title: 'Keep building in parallel',
+				childCount: 1,
+			},
+			legacy: { hidden: true, childCount: 0 },
+		});
+	});
+
+	test('uses all active sessions for contextual guidance, not only visible sessions', () => {
+		const inProgress = upcastPartial<ISession>({
+			status: observableValue('inProgressStatus', SessionStatus.InProgress),
+		});
+		const completed = upcastPartial<ISession>({
+			status: observableValue('completedStatus', SessionStatus.Completed),
+		});
+		const harness = {
+			sessionsManagementService: {
+				getSessions: () => [inProgress, completed],
+			},
+		};
+
+		assert.strictEqual(derived(reader => hasRunningSession.call(harness, reader)).get(), true);
+	});
 
 	test('workspace row hosts the workspace picker before the harness and context pickers', () => {
 		const container = document.createElement('div');

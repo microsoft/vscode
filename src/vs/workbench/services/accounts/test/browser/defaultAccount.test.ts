@@ -1122,32 +1122,37 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('repeated no-response fetches let cached managed settings age out instead of renewing them', async () => {
-		const requestService = new TestRequestService(async () => {
-			throw new Error('managed settings unavailable');
-		});
-		const provider = await createProvider(requestService);
+	test('failed fetches retain the last successful managed settings without renewing them', async () => {
+		const failures: { name: string; response: () => IRequestContext }[] = [
+			{ name: 'no response', response: () => { throw new Error('managed settings unavailable'); } },
+			{ name: '401', response: () => jsonResponse({}, 401) },
+			{ name: '403', response: () => jsonResponse({}, 403) },
+		];
 		const freshlyCached = createCachedPolicy(false);
-		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
+		const staleFetchedAt = Date.now() - 7 * 24 * 60 * 60 * 1000; // long past the one-hour cache boundary
+		const outcomes = [];
 
-		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
-		const onceStale = await provider['getManagedSettings'](
-			sessions,
-			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
-			{ forceRefresh: true }
-		);
+		for (const failure of failures) {
+			const provider = await createProvider(new TestRequestService(async () => failure.response()));
+			const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
+			const onceStale = await provider['getManagedSettings'](
+				sessions,
+				{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
+				{ forceRefresh: true }
+			);
+			outcomes.push({
+				name: failure.name,
+				whileFresh: { data: whileFresh.data, fetchedAt: whileFresh.fetchedAt },
+				onceStale: { data: onceStale.data, fetchedAt: onceStale.fetchedAt },
+			});
+		}
 
-		assert.deepStrictEqual({
-			status: provider.managedSettingsFetchStatus,
-			whileFresh: { data: whileFresh.data, fetchedAt: whileFresh.fetchedAt },
-			onceStale: { data: onceStale.data, fetchedAt: onceStale.fetchedAt },
-		}, {
-			status: 'no-response',
-			// A fresh cache still applies, but keeps its original timestamp so it can expire.
+		// Only an affirmative service answer withdraws policy, and a failure never renews the cached timestamp.
+		assert.deepStrictEqual(outcomes, failures.map(failure => ({
+			name: failure.name,
 			whileFresh: { data: freshlyCached.policyData, fetchedAt: freshlyCached.managedSettingsFetchedAt },
-			// Once expired it is dropped rather than replayed with a renewed timestamp.
-			onceStale: { data: { managedSettings: undefined }, fetchedAt: undefined },
-		});
+			onceStale: { data: freshlyCached.policyData, fetchedAt: staleFetchedAt },
+		})));
 	});
 
 	test('transient failure does not clear an update-required state', async () => {

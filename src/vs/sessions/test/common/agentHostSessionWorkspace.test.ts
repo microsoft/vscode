@@ -8,7 +8,8 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
+import type { ISessionGitState } from '../../../platform/agentHost/common/state/sessionState.js';
+import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace } from '../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
@@ -62,5 +63,72 @@ suite('Agent Host Session Workspace', () => {
 			inheritingChatWithoutResolver: true,
 			sessionFolderUnchanged: true,
 		});
+	});
+
+	test('a chat in an additional worktree reports the worktree\'s repository as its project', () => {
+		const worktree = URI.file('/src/tools.worktrees/task');
+		const plainFolder = URI.file('/src/notes');
+		const workspace = buildAgentHostSessionWorkspace(
+			{ uri: primary, displayName: 'repo' },
+			[primary, worktree, plainFolder],
+			{ requiresWorkspaceTrust: false, fallbackIcon: Codicon.folder },
+			sessionGitHubInfo,
+		);
+		const worktreeChat = buildAgentHostChatWorkspace(workspace, [worktree]);
+
+		assert.deepStrictEqual({
+			additionalFolders: workspace?.folders.slice(1).map(folder => ({
+				root: folder.root.toString(),
+				workingDirectory: folder.workingDirectory.toString(),
+				name: folder.name,
+				repository: folder.gitRepository && { uri: folder.gitRepository.uri.toString(), workTreeUri: folder.gitRepository.workTreeUri?.toString() },
+			})),
+			worktreeChat: { uri: worktreeChat?.uri.toString(), label: worktreeChat?.label },
+		}, {
+			additionalFolders: [
+				{ root: URI.file('/src/tools').toString(), workingDirectory: worktree.toString(), name: 'tools', repository: { uri: URI.file('/src/tools').toString(), workTreeUri: worktree.toString() } },
+				{ root: plainFolder.toString(), workingDirectory: plainFolder.toString(), name: 'notes', repository: undefined },
+			],
+			worktreeChat: { uri: URI.file('/src/tools').toString(), label: 'tools' },
+		});
+	});
+
+	test('projects chat-scoped Git state onto the chat workspace', () => {
+		const gitState: ISessionGitState = {
+			branchName: 'peer-feature',
+			baseBranchName: 'main',
+			hasGitRemote: true,
+			hasGitHubRemote: true,
+			incomingChanges: 2,
+			outgoingChanges: 3,
+			uncommittedChanges: 1,
+		};
+		const workspace = buildAgentHostChatWorkspace(sessionWorkspace, [other], undefined, gitState);
+
+		assert.deepStrictEqual(workspace?.folders.map(folder => ({
+			name: folder.name,
+			repository: folder.gitRepository && {
+				uri: folder.gitRepository.uri.toString(),
+				branchName: folder.gitRepository.branchName,
+				baseBranchName: folder.gitRepository.baseBranchName,
+				hasGitRemote: folder.gitRepository.hasGitRemote,
+				hasGitHubRemote: folder.gitRepository.hasGitHubRemote,
+				incomingChanges: folder.gitRepository.incomingChanges,
+				outgoingChanges: folder.gitRepository.outgoingChanges,
+				uncommittedChanges: folder.gitRepository.uncommittedChanges,
+			},
+		})), [{
+			name: 'other',
+			repository: {
+				uri: other.toString(),
+				branchName: 'peer-feature',
+				baseBranchName: 'main',
+				hasGitRemote: true,
+				hasGitHubRemote: true,
+				incomingChanges: 2,
+				outgoingChanges: 3,
+				uncommittedChanges: 1,
+			},
+		}]);
 	});
 });

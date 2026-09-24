@@ -39,6 +39,7 @@ import { generateColorThemeCSS } from '../../../../services/themes/browser/color
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
+import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
@@ -2385,6 +2386,37 @@ suite('ModernUIContribution', () => {
 				}, `${themeType}, active group: ${active}`);
 			}
 		}
+	});
+
+	test('preserves the connected HC focus frame in a multi-tab modal editor', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs hc-black');
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-focusBorder: #ffaa00; --vscode-editorWidget-border: #888888; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
+		const modalBlock = appendElement(root, 'monaco-modal-editor-block');
+		const editor = appendElement(modalBlock, 'part editor editor-tabs-multiple modal-editor-part');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+		const activeTab = appendElement(tabs, 'tab active connected-tab-top-row');
+		const activeFill = appendElement(activeTab, 'tab-fill');
+		appendElement(group, 'editor-container');
+		const targetWindow = getWindow(root);
+		const frame = targetWindow.getComputedStyle(group, '::after');
+
+		assert.deepStrictEqual({
+			tabCount: tabs.children.length,
+			activeCap: targetWindow.getComputedStyle(activeFill).borderTopColor,
+			groupFrame: [frame.content, frame.borderTopWidth, frame.borderTopColor, frame.borderRadius],
+			modalBorderWidth: targetWindow.getComputedStyle(editor).borderTopWidth,
+		}, {
+			tabCount: 2,
+			activeCap: 'rgba(0, 0, 0, 0)',
+			groupFrame: ['""', '1px', 'rgb(255, 170, 0)', '8px'],
+			modalBorderWidth: '1px',
+		});
 	});
 
 	test('reserves the connected terminal shoulder without moving tab content', () => {
