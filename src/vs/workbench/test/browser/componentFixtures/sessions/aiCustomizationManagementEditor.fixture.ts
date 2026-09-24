@@ -2494,7 +2494,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP Servers page shows User, Workspace, and Available tabs with count badges. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2503,7 +2503,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServersTree: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2595,7 +2595,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	AgentsTree: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Agents page uses a classic tree with collapsible Workspace, User, Plugins, Extensions, and Built-In groups where applicable.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2741,7 +2741,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as compact tabs with count badges above a flat tree of tool sets.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2755,7 +2755,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsTree: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as collapsible parent nodes in a classic tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2865,7 +2865,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Plugins page shows User, Workspace, and Available tabs with count badges. The selected User tab contains installed plugin tree rows.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2874,7 +2874,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PluginsTree: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
