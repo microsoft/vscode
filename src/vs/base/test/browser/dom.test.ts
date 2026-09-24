@@ -302,6 +302,8 @@ suite('dom', () => {
 		assert.strictEqual(asCssValueWithDefault('var(--my-var)', 'blue'), 'var(--my-var, blue)');
 		assert.strictEqual(asCssValueWithDefault('var(--my-var, red)', 'blue'), 'var(--my-var, red)');
 		assert.strictEqual(asCssValueWithDefault('var(--my-var, var(--my-var2))', 'blue'), 'var(--my-var, var(--my-var2, blue))');
+		assert.strictEqual(asCssValueWithDefault('var(--my-var, rgba(0, 0, 0, 0.5))', 'blue'), 'var(--my-var, rgba(0, 0, 0, 0.5))');
+		assert.strictEqual(asCssValueWithDefault('var(--my-var, 1px, solid)', 'blue'), 'var(--my-var, 1px, solid)');
 	});
 
 	test('copyAttributes', () => {
