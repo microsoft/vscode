@@ -106,6 +106,21 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['lower', 'upper', 'mixed']);
 		});
 
+		test('keeps quoted host names with spaces as one entry', () => {
+			const config = 'Host "Dev Instance (EU)"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev Instance (EU)']);
+		});
+
+		test('mixes plain and quoted host names', () => {
+			const config = 'Host plain "With Space" other';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['plain', 'With Space', 'other']);
+		});
+
+		test('still filters quoted wildcards', () => {
+			const config = 'Host "foo*"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), []);
+		});
+
 		test('ignores non-Host directives', () => {
 			const config = [
 				'Host myserver',

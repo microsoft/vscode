@@ -24,7 +24,7 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 		const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
 		if (hostMatch) {
 			const hostValue = stripSSHComment(hostMatch[1]);
-			for (const h of hostValue.split(/\s+/)) {
+			for (const { path: h } of tokenizeSSHPathList(hostValue)) {
 				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
 					hosts.push(h);
 				}
