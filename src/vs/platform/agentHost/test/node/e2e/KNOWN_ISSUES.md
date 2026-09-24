@@ -18,7 +18,7 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 
 ### Copilot managed-settings diagnostics cannot return an account snapshot
 
-A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the bundled `1.0.15-preview.2` runtime, the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
+A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
 
 - Test: `managed settings diagnostics expose the provider snapshot`.
 - Scope: Copilot on all platforms, in strict replay.
