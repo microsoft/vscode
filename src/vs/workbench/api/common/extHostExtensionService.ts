@@ -25,7 +25,7 @@ import type * as vscode from 'vscode';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ExtensionGlobalMemento, ExtensionMemento } from './extHostMemento.js';
-import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority } from './extHostTypes.js';
+import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority, isValidAuthorityPort } from './extHostTypes.js';
 import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, ManagedRemoteConnection, WebSocketRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IInstantiationService, createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
@@ -962,6 +962,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				connectionToken: result.connectionToken
 			};
 		} else {
+			if (!isValidAuthorityPort(result.port)) {
+				return normalizeError(new RemoteAuthorityResolverError(`Resolver for ${remoteAuthorityChain} returned invalid port ${result.port}. Port must be an integer between 1 and 65535.`, RemoteAuthorityResolverErrorCode.InvalidAuthority));
+			}
 			authority = {
 				authority: remoteAuthorityChain,
 				connectTo: new WebSocketRemoteConnection(result.host, result.port),

@@ -98,6 +98,10 @@ const validateConnectionToken = (connectionToken: string) => {
 };
 
 
+export function isValidAuthorityPort(port: unknown): port is number {
+	return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
 export class ResolvedAuthority {
 	public static isResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ResolvedAuthority {
 		return resolvedAuthority
@@ -115,7 +119,7 @@ export class ResolvedAuthority {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
-		if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
+		if (!isValidAuthorityPort(port)) {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {

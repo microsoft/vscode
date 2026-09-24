@@ -781,6 +781,18 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
 	});
 
+	test('isValidAuthorityPort', () => {
+		assert.strictEqual(types.isValidAuthorityPort(1), true);
+		assert.strictEqual(types.isValidAuthorityPort(65535), true);
+		assert.strictEqual(types.isValidAuthorityPort(0), false);
+		assert.strictEqual(types.isValidAuthorityPort(-1), false);
+		assert.strictEqual(types.isValidAuthorityPort(65536), false);
+		assert.strictEqual(types.isValidAuthorityPort(1.5), false);
+		assert.strictEqual(types.isValidAuthorityPort(NaN), false);
+		assert.strictEqual(types.isValidAuthorityPort(Infinity), false);
+		assert.strictEqual(types.isValidAuthorityPort(-Infinity), false);
+	});
+
 	test('ResolvedAuthority port validation', () => {
 		assert.throws(() => new types.ResolvedAuthority('localhost', -1));
 		assert.throws(() => new types.ResolvedAuthority('localhost', 0));
