@@ -6,14 +6,15 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { getConnectorActionLabel, getConnectorPrimaryAction, getConnectorStatusLabel } from './connectorPresentation.js';
+import { ConnectorRowAction, getConnectorActionLabel, getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 
 const $ = DOM.$;
@@ -43,6 +44,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 	private readonly emptyEl: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
+	private readonly actionCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private current: ICopilotConnector | undefined;
 	private narrowLayout = false;
 
@@ -105,13 +107,22 @@ export class EmbeddedConnectorDetail extends Disposable {
 	}
 
 	setInput(connector: ICopilotConnector): void {
+		this.actionCancellation.value?.cancel();
+		this.actionCancellation.clear();
 		this.current = connector;
 		this.renderItem();
 	}
 
 	clearInput(): void {
+		this.actionCancellation.value?.cancel();
+		this.actionCancellation.clear();
 		this.current = undefined;
 		this.renderItem();
+	}
+
+	override dispose(): void {
+		this.actionCancellation.value?.cancel();
+		super.dispose();
 	}
 
 	private renderItem(): void {
@@ -141,28 +152,31 @@ export class EmbeddedConnectorDetail extends Disposable {
 		this.descriptionEl.textContent = connector.description;
 
 		DOM.clearNode(this.titleActionsEl);
-		const action = getConnectorPrimaryAction(connector.connectionStatus);
-		const actionLabel = getConnectorActionLabel(action);
-		const actionButton = this.renderDisposables.add(new Button(this.titleActionsEl, {
-			...defaultButtonStyles,
-			secondary: connector.connectionStatus === 'connected',
-			ariaLabel: localize('connectorDetailActionAriaLabel', "{0} {1}", actionLabel, connector.displayName),
-		}));
-		actionButton.label = actionLabel;
-		this.renderDisposables.add(actionButton.onDidClick(async () => {
-			actionButton.enabled = false;
-			try {
-				await this.runAction(connector);
-			} finally {
-				actionButton.enabled = true;
-			}
-		}));
+		const presentation = getConnectorRowPresentation(connector);
+		const action = presentation.action === 'more' ? 'disconnect' : presentation.action ?? (connector.connectionStatus === 'pending' ? 'refresh' : undefined);
+		if (action) {
+			const actionLabel = presentation.actionLabel ?? getConnectorActionLabel(action === 'disconnect' ? 'disconnect' : 'refresh');
+			const actionButton = this.renderDisposables.add(new Button(this.titleActionsEl, {
+				...defaultButtonStyles,
+				secondary: connector.connectionStatus === 'connected',
+				ariaLabel: localize('connectorDetailActionAriaLabel', "{0} {1}", actionLabel, connector.displayName),
+			}));
+			actionButton.label = actionLabel;
+			this.renderDisposables.add(actionButton.onDidClick(async () => {
+				actionButton.enabled = false;
+				try {
+					await this.runAction(connector, action, actionLabel);
+				} finally {
+					actionButton.enabled = true;
+				}
+			}));
+		}
 
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.containsListEl);
 		DOM.clearNode(this.otherInfoFactsEl);
 		this.detailsEl.style.display = '';
-		this.appendFact(this.factsEl, localize('connectorStatusFact', "Status"), getConnectorStatusLabel(connector.connectionStatus));
+		this.appendFact(this.factsEl, localize('connectorStatusFact', "Status"), presentation.statusLabel);
 		this.appendFact(this.factsEl, localize('connectorIdentifierFact', "Identifier"), connector.name);
 		this.appendFact(this.factsEl, localize('connectorVersionFact', "Version"), connector.version);
 		this.appendFact(this.factsEl, localize('connectorAuthorFact', "Author"), this.formatAuthor(connector.author));
@@ -261,42 +275,63 @@ export class EmbeddedConnectorDetail extends Disposable {
 		}
 	}
 
-	private async runAction(connector: ICopilotConnector): Promise<void> {
-		const action = getConnectorPrimaryAction(connector.connectionStatus);
+	private async runAction(connector: ICopilotConnector, action: Exclude<ConnectorRowAction, 'more'> | 'disconnect' | 'refresh', actionLabel: string): Promise<void> {
+		this.actionCancellation.value?.cancel();
+		const cancellation = new CancellationTokenSource();
+		this.actionCancellation.value = cancellation;
 		try {
 			switch (action) {
 				case 'connect':
 				case 'reconnect':
-					await this.connectorsService.connect(connector.name, CancellationToken.None);
+				case 'sign_in':
+				case 'review':
+				case 'retry':
+					await this.connectorsService.connect(connector.name, cancellation.token);
 					break;
 				case 'refresh':
-					await this.connectorsService.refresh(CancellationToken.None);
+					await this.connectorsService.refresh(cancellation.token);
 					break;
 				case 'disconnect':
-					await this.connectorsService.disconnect(connector.name, CancellationToken.None);
+					await this.connectorsService.disconnect(connector.name, cancellation.token);
 					break;
 			}
-			await this.refreshCurrent();
-			status(localize('connectorDetailActionComplete', "{0}: {1}", connector.displayName, getConnectorActionLabel(action)));
+			if (cancellation.token.isCancellationRequested) {
+				return;
+			}
+			await this.refreshCurrent(cancellation.token);
+			if (!cancellation.token.isCancellationRequested) {
+				status(localize('connectorDetailActionComplete', "{0}: {1}", connector.displayName, actionLabel));
+			}
 		} catch (error) {
-			this.notificationService.error(localize('connectorDetailActionFailed', "Unable to update {0}: {1}", connector.displayName, error instanceof Error ? error.message : String(error)));
+			if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
+				this.notificationService.error(localize('connectorDetailActionFailed', "Unable to update {0}: {1}", connector.displayName, error instanceof Error ? error.message : String(error)));
+			}
+		} finally {
+			if (this.actionCancellation.value === cancellation) {
+				this.actionCancellation.clear();
+			}
 		}
 	}
 
-	private async refreshCurrent(): Promise<void> {
+	private async refreshCurrent(token: CancellationToken = CancellationToken.None): Promise<void> {
 		const connectorName = this.current?.name;
 		if (!connectorName) {
 			return;
 		}
 		try {
-			const connectors = await this.connectorsService.getConnectors(CancellationToken.None);
+			const connectors = await this.connectorsService.getConnectors(token);
+			if (token.isCancellationRequested) {
+				return;
+			}
 			const connector = connectors.find(candidate => candidate.name === connectorName);
 			if (connector) {
 				this.current = connector;
 				this.renderItem();
 			}
 		} catch (error) {
-			this.notificationService.error(localize('connectorDetailRefreshFailed', "Unable to refresh connector details: {0}", error instanceof Error ? error.message : String(error)));
+			if (!token.isCancellationRequested && !isCancellationError(error)) {
+				this.notificationService.error(localize('connectorDetailRefreshFailed', "Unable to refresh connector details: {0}", error instanceof Error ? error.message : String(error)));
+			}
 		}
 	}
 }

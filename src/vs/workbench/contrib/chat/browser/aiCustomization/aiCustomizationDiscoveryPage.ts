@@ -544,7 +544,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 		this._register(this.searchWidget.onShouldFocusResults(() => this.resultList.domFocus()));
 		this._register(this.resultList.onDidScroll(event => {
-			if (!this.query.isEmpty() && !this.filteredBackfillLimitReached && !this.errorMessage && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
+			if (!this.query.isEmpty() && (!this.filteredBackfillLimitReached || event.scrollHeight > event.height) && !this.errorMessage && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
 				void this.loadCatalog(true);
 			}
 		}));
@@ -1063,7 +1063,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					break;
 				}
 				if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {
-					this.filteredBackfillLimitReached = this.getFilteredInstalledItems().length === 0;
+					this.filteredBackfillLimitReached = true;
 				}
 			}
 			this.loaded = true;
@@ -1177,7 +1177,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else {
 			this.resultStatus.textContent = catalogPending ? this.getLoadingLabel() : '';
 		}
-		if (this.filteredBackfillLimitReached && entries.length === 0 && this.hasNextCatalogPage() && !this.errorMessage) {
+		if (this.filteredBackfillLimitReached && this.resultList.scrollHeight <= this.resultList.renderHeight && this.hasNextCatalogPage() && !this.errorMessage) {
 			const loadMore = this.resultStatusDisposables.add(new Button(this.resultStatus, { ...defaultButtonStyles, secondary: true, small: true }));
 			loadMore.label = localize('customizationDiscovery.loadMore', "Load More");
 			this.resultStatusDisposables.add(loadMore.onDidClick(() => void this.loadCatalog(true)));

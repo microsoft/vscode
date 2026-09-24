@@ -82,7 +82,20 @@ function isHttpsUrl(value: string): boolean {
 	}
 }
 
-function parseConnectedConnectors(body: string, token: string, onDuplicateServerName?: (serverName: string, firstPluginName: string, duplicatePluginName: string) => void): readonly IAgentHostMcpConnector[] {
+function isTrustedConnectorUrl(value: string, copilotResource: string): boolean {
+	if (!isHttpsUrl(value)) {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		const resource = new URL(copilotResource);
+		return resource.protocol === 'https:' && url.origin === resource.origin && !url.username && !url.password;
+	} catch {
+		return false;
+	}
+}
+
+function parseConnectedConnectors(body: string, token: string, copilotResource: string, onDuplicateServerName?: (serverName: string, firstPluginName: string, duplicatePluginName: string) => void): readonly IAgentHostMcpConnector[] {
 	const document = asRecord(JSON.parse(body));
 	const plugins = document?.plugins;
 	if (!Array.isArray(plugins)) {
@@ -109,7 +122,8 @@ function parseConnectedConnectors(body: string, token: string, onDuplicateServer
 		for (const [serverName, serverValue] of Object.entries(mcpServers ?? {})) {
 			const server = asRecord(serverValue);
 			const url = server?.url;
-			if (!serverName || server?.type !== 'http' || typeof url !== 'string' || !isHttpsUrl(url)) {
+			// The catalog is not authority to send a GitHub OAuth token to a new host.
+			if (!serverName || server?.type !== 'http' || typeof url !== 'string' || !isTrustedConnectorUrl(url, copilotResource)) {
 				continue;
 			}
 			const firstPluginName = serverOwners.get(serverName);
@@ -284,7 +298,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	}
 
 	private _parseConnectors(body: string, token: string): readonly IAgentHostMcpConnector[] {
-		return parseConnectedConnectors(body, token, (serverName, firstPluginName, duplicatePluginName) => {
+		return parseConnectedConnectors(body, token, this._gitHubEndpointService.getCopilotResource().resource, (serverName, firstPluginName, duplicatePluginName) => {
 			this._logService.warn(`[AgentHostMcpConnectorsService] Ignoring duplicate MCP server '${serverName}' from plugin '${duplicatePluginName}'; plugin '${firstPluginName}' already owns that name`);
 		});
 	}

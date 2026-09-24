@@ -32,7 +32,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { ConfigureModelAccessAction, DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction, getContextMenuActions, RestartServerAction, ShowSamplingRequestsAction, ShowServerOutputAction, StartServerAction, StopServerAction } from '../../../../contrib/mcp/browser/mcpServerActions.js';
@@ -54,7 +54,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -1433,6 +1433,7 @@ export class McpListWidget extends Disposable {
 	private connectorsLoading = false;
 	private connectorsError: string | undefined;
 	private readonly connectorsCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly connectorActionCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	/** Survives section rerenders, but not a hidden or disabled MCP page. */
 	private readonly connectorSignIn = this._register(new MutableDisposable<CustomizationMarketplaceSourceWarnings>());
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -1481,6 +1482,8 @@ export class McpListWidget extends Disposable {
 			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)) {
 				this.connectorsCancellation.value?.cancel();
 				this.connectorsCancellation.clear();
+				this.connectorActionCancellation.value?.cancel();
+				this.connectorActionCancellation.clear();
 				this.connectorsError = undefined;
 				if (this.visible && this.isConnectorsEnabled()) {
 					void this.refreshConnectors();
@@ -1676,10 +1679,17 @@ export class McpListWidget extends Disposable {
 		} else {
 			this.connectorsCancellation.value?.cancel();
 			this.connectorsCancellation.clear();
+			this.connectorActionCancellation.value?.cancel();
+			this.connectorActionCancellation.clear();
 			this.connectorSignIn.clear();
 			this.connectorsLoading = false;
 			this.clearMcpServerCompatibilityScope();
 		}
+	}
+
+	override dispose(): void {
+		this.connectorActionCancellation.value?.cancel();
+		super.dispose();
 	}
 
 	private updateMcpServerCompatibilityScope(): void {
@@ -1724,6 +1734,8 @@ export class McpListWidget extends Disposable {
 		if (disabled) {
 			this.connectorsCancellation.value?.cancel();
 			this.connectorsCancellation.clear();
+			this.connectorActionCancellation.value?.cancel();
+			this.connectorActionCancellation.clear();
 			this.connectorSignIn.clear();
 			this.connectorsLoading = false;
 			this.searchInput.hideMessage();
@@ -2245,6 +2257,7 @@ export class McpListWidget extends Disposable {
 			this._onDidSelectConnector.fire(connector);
 			return;
 		}
+		const cancellation = this.startConnectorAction();
 		const actionLabel = getConnectorRowPresentation(connector).actionLabel ?? localize('connectors.action.updated', "Updated");
 		try {
 			switch (action) {
@@ -2252,14 +2265,31 @@ export class McpListWidget extends Disposable {
 				case 'sign_in':
 				case 'reconnect':
 				case 'retry':
-					await this.connectorsService.connect(connector.name, CancellationToken.None);
+					await this.connectorsService.connect(connector.name, cancellation.token);
 					break;
 			}
-			await this.refreshConnectors();
-			status(localize('connectors.actionComplete', "{0}: {1}", connector.displayName, actionLabel));
+			if (!cancellation.token.isCancellationRequested) {
+				await this.refreshConnectors();
+				if (!cancellation.token.isCancellationRequested) {
+					status(localize('connectors.actionComplete', "{0}: {1}", connector.displayName, actionLabel));
+				}
+			}
 		} catch (error) {
-			this.notificationService.error(localize('connectors.actionFailed', "Unable to update {0}: {1}", connector.displayName, getErrorMessage(error)));
+			if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
+				this.notificationService.error(localize('connectors.actionFailed', "Unable to update {0}: {1}", connector.displayName, getErrorMessage(error)));
+			}
+		} finally {
+			if (this.connectorActionCancellation.value === cancellation) {
+				this.connectorActionCancellation.clear();
+			}
 		}
+	}
+
+	private startConnectorAction(): CancellationTokenSource {
+		this.connectorActionCancellation.value?.cancel();
+		const cancellation = new CancellationTokenSource();
+		this.connectorActionCancellation.value = cancellation;
+		return cancellation;
 	}
 
 	private showConnectorActions(connector: ICopilotConnector, anchor: HTMLElement): void {
@@ -2270,12 +2300,23 @@ export class McpListWidget extends Disposable {
 			undefined,
 			true,
 			async () => {
+				const cancellation = this.startConnectorAction();
 				try {
-					await this.connectorsService.disconnect(connector.name, CancellationToken.None);
-					await this.refreshConnectors();
-					status(localize('connectors.actionComplete', "{0}: {1}", connector.displayName, getConnectorActionLabel('disconnect')));
+					await this.connectorsService.disconnect(connector.name, cancellation.token);
+					if (!cancellation.token.isCancellationRequested) {
+						await this.refreshConnectors();
+						if (!cancellation.token.isCancellationRequested) {
+							status(localize('connectors.actionComplete', "{0}: {1}", connector.displayName, getConnectorActionLabel('disconnect')));
+						}
+					}
 				} catch (error) {
-					this.notificationService.error(localize('connectors.actionFailed', "Unable to update {0}: {1}", connector.displayName, getErrorMessage(error)));
+					if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
+						this.notificationService.error(localize('connectors.actionFailed', "Unable to update {0}: {1}", connector.displayName, getErrorMessage(error)));
+					}
+				} finally {
+					if (this.connectorActionCancellation.value === cancellation) {
+						this.connectorActionCancellation.clear();
+					}
 				}
 			},
 		));

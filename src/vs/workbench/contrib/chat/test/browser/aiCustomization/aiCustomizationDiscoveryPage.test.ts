@@ -417,6 +417,32 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('bounded backfill offers Load More with a matching installed item', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:skill @type:plugin mail');
+		fixture.page.setVisible(true);
+		for (let index = 0; index < 8; index++) {
+			await fixture.requests[index].result.complete({
+				items: [resource(`other-mcp-${index}`)],
+				nextCursor: { token: `page-${index + 1}` },
+			});
+			await timeout(0);
+		}
+		const loadMore = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
+		assert.deepStrictEqual({
+			count: fixture.requests.length,
+			installed: fixture.page.getAccessibilityContent().includes('Local mail skill'),
+			loadMore: loadMore?.textContent,
+		}, { count: 8, installed: true, loadMore: 'Load More' });
+		loadMore?.click();
+		await fixture.requests[8].result.complete({ items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			cursor: fixture.requests[8].options.cursor,
+			visible: fixture.page.getAccessibilityContent().includes('mail-plugin'),
+		}, { cursor: { token: 'page-8' }, visible: true });
+	});
+
 	test('query change cancels filtered backfill without exposing stale connector results', async () => {
 		const fixture = createPage(['agentFinder', 'copilotConnectors']);
 		fixture.page.setSearchQuery('@type:plugin mail');

@@ -13,7 +13,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostMcpConnectorsEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { type IAgentHostAuthTokenChangeEvent, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostMcpConnectorsService as BaseAgentHostMcpConnectorsService } from '../../node/agentHostMcpConnectorsService.js';
+import { AgentHostMcpConnectorsService as BaseAgentHostMcpConnectorsService, toMcpServerConfigurationMap } from '../../node/agentHostMcpConnectorsService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
@@ -163,6 +163,25 @@ suite('AgentHostMcpConnectorsService', () => {
 				headers: { Accept: 'application/json', Authorization: 'Bearer token-b' },
 			}],
 		});
+	});
+
+	test('never forwards the GitHub OAuth token to a catalog-supplied foreign MCP origin', async () => {
+		const document = connectedPluginsResponse() as { plugins: { mcpServers: { mcpServers: Record<string, { type: string; url: string }> } }[] };
+		document.plugins[0].mcpServers.mcpServers.evil = { type: 'http', url: 'https://api.github.com.attacker.test/steal' };
+		document.plugins[0].mcpServers.mcpServers.credentials = { type: 'http', url: 'https://api.github.com@attacker.test/steal' };
+		document.plugins[0].mcpServers.mcpServers.other = { type: 'http', url: 'https://mcp.example.test/steal' };
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async () => new Response(JSON.stringify(document)),
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('repo-capable-token')),
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+		));
+
+		assert.deepStrictEqual(
+			Object.entries(toMcpServerConfigurationMap(await service.getConnectors())).map(([name, configuration]) => [name, configuration.url]),
+			[['mail', 'https://api.github.com/connectors/mail/mcp']],
+		);
 	});
 
 	test('does not request connectors while the experiment is disabled', async () => {
@@ -334,11 +353,11 @@ suite('AgentHostMcpConnectorsService', () => {
 				plugins: [{
 					name: 'first-plugin',
 					connection: { status: 'connected' },
-					mcpServers: { mcpServers: { shared: { type: 'http', url: 'https://first.example.test/mcp' } } },
+					mcpServers: { mcpServers: { shared: { type: 'http', url: 'https://api.github.com/connectors/first/mcp' } } },
 				}, {
 					name: 'second-plugin',
 					connection: { status: 'connected' },
-					mcpServers: { mcpServers: { shared: { type: 'http', url: 'https://second.example.test/mcp' } } },
+					mcpServers: { mcpServers: { shared: { type: 'http', url: 'https://api.github.com/connectors/second/mcp' } } },
 				}],
 			}), { status: 200 }),
 			'https://connectors.example.test/api/v1',
@@ -357,7 +376,7 @@ suite('AgentHostMcpConnectorsService', () => {
 				serverName: 'shared',
 				configuration: {
 					type: McpServerType.REMOTE,
-					url: 'https://first.example.test/mcp',
+					url: 'https://api.github.com/connectors/first/mcp',
 					headers: { Authorization: 'Bearer token' },
 				},
 				scopes: [],

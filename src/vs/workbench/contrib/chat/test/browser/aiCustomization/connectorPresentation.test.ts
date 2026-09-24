@@ -4,9 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { getConnectorRowPresentation } from '../../../browser/aiCustomization/connectorPresentation.js';
-import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnector } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { EmbeddedConnectorDetail } from '../../../browser/aiCustomization/embeddedConnectorDetail.js';
 
 function connector(connectionStatus: CopilotConnectorConnectionStatus, connectionStatusDetail?: CopilotConnectorConnectionStatusDetail): ICopilotConnector {
 	return {
@@ -28,7 +37,7 @@ function connector(connectionStatus: CopilotConnectorConnectionStatus, connectio
 }
 
 suite('Connector presentation', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('maps connection and recovery states to the designed actions', () => {
 		assert.deepStrictEqual([
@@ -48,5 +57,55 @@ suite('Connector presentation', () => {
 			{ statusLabel: 'Connection failed', statusIcon: 'error', action: 'retry', actionLabel: 'Try Again' },
 			{ statusLabel: 'Currently unavailable', statusIcon: 'info' },
 		]);
+	});
+
+	test('detail displays recovery states and does not offer an action when unavailable', () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		const states = ['sign_in_required', 'review_required', 'retryable_error', 'unavailable'] as const;
+		const presentations = states.map(state => {
+			detail.setInput(connector('error', state));
+			return {
+				status: container.querySelector('.connector-detail-facts .embedded-detail-fact-value')?.textContent,
+				action: container.querySelector('.embedded-detail-title-actions .monaco-button')?.textContent,
+			};
+		});
+
+		assert.deepStrictEqual(presentations, [
+			{ status: 'Sign in required', action: 'Sign in' },
+			{ status: 'Review required', action: 'Review' },
+			{ status: 'Connection failed', action: 'Try Again' },
+			{ status: 'Currently unavailable', action: undefined },
+		]);
+	});
+
+	test('disposing detail cancels an in-flight connector consent action', async () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const result = new DeferredPromise<void>();
+		let actionToken: CancellationToken | undefined;
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override async connect(_name: string, token: CancellationToken): Promise<void> {
+				actionToken = token;
+				await result.p;
+			}
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		detail.setInput(connector('not_connected'));
+		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		detail.dispose();
+		result.complete();
+		await result.p;
+
+		assert.deepStrictEqual({ started: actionToken !== undefined, cancelled: actionToken?.isCancellationRequested }, { started: true, cancelled: true });
 	});
 });

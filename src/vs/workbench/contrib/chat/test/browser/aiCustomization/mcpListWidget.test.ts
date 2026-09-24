@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -159,6 +159,7 @@ type McpAccessTestWidget = {
 	policyAccess: McpAccessValue | undefined;
 	configurationService: IConfigurationService;
 	connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
+	connectorActionCancellation: MutableDisposable<CancellationTokenSource>;
 	connectorSignIn: MutableDisposable<Disposable>;
 	connectorsCancelCount: number;
 	connectorsLoading: boolean;
@@ -191,6 +192,7 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	} as unknown as IConfigurationService;
 	widget.connectorsCancelCount = 0;
 	widget.connectorsCancellation = store.add(new MutableDisposable());
+	widget.connectorActionCancellation = store.add(new MutableDisposable());
 	widget.connectorSignIn = store.add(new MutableDisposable());
 	widget.connectorsLoading = false;
 	widget.searchInput = { hideMessage() { } };
@@ -220,6 +222,7 @@ suite('mcpListWidget', () => {
 				cardDisposables: DisposableStore;
 				connectorSignIn: MutableDisposable<Disposable>;
 				connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
+				connectorActionCancellation: MutableDisposable<CancellationTokenSource>;
 				visible: boolean;
 				cardListControllers: WeakMap<HTMLElement, { finalize(): void }>;
 				firstCardFocusElement: HTMLElement | undefined;
@@ -243,6 +246,7 @@ suite('mcpListWidget', () => {
 			widget.cardDisposables = disposables.add(new DisposableStore());
 			widget.connectorSignIn = disposables.add(new MutableDisposable());
 			widget.connectorsCancellation = disposables.add(new MutableDisposable());
+			widget.connectorActionCancellation = disposables.add(new MutableDisposable());
 			widget.visible = true;
 			widget.clearMcpServerCompatibilityScope = () => { };
 			widget.cardListControllers = new WeakMap();
@@ -544,6 +548,51 @@ suite('mcpListWidget', () => {
 			connectorsCancelCount: 1,
 			connectorsLoading: false,
 		});
+	});
+
+	test('hiding MCP servers cancels an in-flight connector action', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.visible = true;
+		widget.connectorActionCancellation.value = new CancellationTokenSource();
+		const token = widget.connectorActionCancellation.value.token;
+		const instance = widget as McpAccessTestWidget & { setVisible(visible: boolean): void; clearMcpServerCompatibilityScope(): void };
+		instance.clearMcpServerCompatibilityScope = () => { };
+		instance.setVisible(false);
+
+		assert.deepStrictEqual({
+			cancelled: token.isCancellationRequested,
+			active: widget.connectorActionCancellation.value,
+		}, { cancelled: true, active: undefined });
+	});
+
+	test('row connection passes the widget-owned token and cancels it when hidden', async () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables) as McpAccessTestWidget & {
+			connectorsService: ICopilotConnectorsService;
+			notificationService: INotificationService;
+			runConnectorRowAction(connector: ICopilotConnector, action: 'connect'): Promise<void>;
+			setVisible(visible: boolean): void;
+			clearMcpServerCompatibilityScope(): void;
+		};
+		const pending = new DeferredPromise<void>();
+		let token: CancellationToken | undefined;
+		widget.visible = true;
+		widget.clearMcpServerCompatibilityScope = () => { };
+		widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override async connect(_name: string, actionToken: CancellationToken): Promise<void> {
+				token = actionToken;
+				await pending.p;
+			}
+		}();
+		widget.notificationService = new class extends mock<INotificationService>() { }();
+		const action = widget.runConnectorRowAction({
+			name: 'mail', displayName: 'Mail', description: '', tags: [], keywords: [], capabilities: [],
+			representativeQueries: [], agents: [], commands: [], skills: [], connectionStatus: 'not_connected', scopes: [], mcpServers: [],
+		}, 'connect');
+		widget.setVisible(false);
+		pending.complete();
+		await action;
+
+		assert.deepStrictEqual({ passed: token !== undefined, cancelled: token?.isCancellationRequested }, { passed: true, cancelled: true });
 	});
 
 	test('refreshes installed servers and connectors when access is restored', () => {
