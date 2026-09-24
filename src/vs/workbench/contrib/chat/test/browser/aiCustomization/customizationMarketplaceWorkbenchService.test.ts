@@ -60,6 +60,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
 		const pages = [
 			await service.query({}, CancellationToken.None),
@@ -120,6 +122,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('enabled public and plugin feeds start together and retain source selection', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 		const publicResult = new DeferredPromise<Awaited<ReturnType<ICustomizationMarketplaceService['query']>>>();

@@ -50,13 +50,13 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		const first = await provider.query({ query: 'plugins', pageSize: 1 }, CancellationToken.None);
 		const second = await provider.query({ query: 'plugins', pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 		assert.deepStrictEqual({
-			first: first.items.map(item => [item.identifier, item.mediaType, item.displayName, item.originLabel, item.score]),
+			first: first.items.map(item => [item.identifier, item.mediaType, item.displayName, item.originLabel, item.score, item.priority]),
 			hasNextPage: first.nextCursor !== undefined,
 			second: second.items.map(item => item.displayName),
 			total: second.total,
 			calls,
 		}, {
-			first: [[getPluginMarketplaceIdentifier(plugin), CustomizationMarketplaceMediaType.ClaudePlugin, 'Review', reference.displayLabel, 0]],
+			first: [[getPluginMarketplaceIdentifier(plugin), CustomizationMarketplaceMediaType.ClaudePlugin, 'Review', reference.displayLabel, 0, 1]],
 			hasNextPage: true,
 			second: ['Different'],
 			total: 2,
@@ -94,19 +94,52 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		const restored = await provider.query({ pageSize: 2 }, CancellationToken.None);
 		await staleCursor;
 		assert.deepStrictEqual({
-			first: first.items.map(item => item.displayName),
-			second: second.items.map(item => item.displayName),
+			first: first.items.map(item => [item.displayName, item.priority]),
+			second: second.items.map(item => [item.displayName, item.priority]),
 			total: first.total,
-			searchWithDefault: searchWithDefault.items.map(item => item.displayName),
+			searchWithDefault: searchWithDefault.items.map(item => [item.displayName, item.priority, item.score]),
 			withPublic: withPublic.items.map(item => item.displayName),
 			publicTotal: withPublic.total,
 			searchWithPublic: searchWithPublic.items,
-			restored: restored.items.map(item => item.displayName),
+			restored: restored.items.map(item => [item.displayName, item.priority]),
 		}, {
-			first: ['Review'], second: ['Built-in'], total: 2,
-			searchWithDefault: ['Built-in'],
+			first: [['Review', 1]], second: [['Built-in', 0]], total: 2,
+			searchWithDefault: [['Built-in', 0, 0]],
 			withPublic: ['Review'], publicTotal: 1, searchWithPublic: [],
-			restored: ['Review', 'Built-in'],
+			restored: [['Review', 1], ['Built-in', 0]],
+		});
+	});
+
+	test('keeps custom entries ahead of the default across browse and search pages', async () => {
+		const builtIn = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
+		const service = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override async fetchMarketplacePlugins() {
+				return [
+					{ ...plugin, name: 'Review Default One', marketplace: builtIn.displayLabel, marketplaceReference: builtIn },
+					{ ...plugin, name: 'Review Custom One' },
+					{ ...plugin, name: 'Review Default Two', marketplace: builtIn.displayLabel, marketplaceReference: builtIn },
+					{ ...plugin, name: 'Review Custom Two' },
+				];
+			}
+		}();
+		const provider = createProvider(service, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false,
+		}));
+		const pages = async (query?: string) => {
+			const results: [string, number | undefined, number | undefined][][] = [];
+			let cursor: string | undefined;
+			do {
+				const page = await provider.query({ query, pageSize: 1, cursor }, CancellationToken.None);
+				results.push(page.items.map(item => [item.displayName, item.priority, item.score]));
+				cursor = page.nextCursor;
+			} while (cursor);
+			return results;
+		};
+		assert.deepStrictEqual({ browse: await pages(), search: await pages('review') }, {
+			browse: [[['Review Custom One', 1, undefined]], [['Review Custom Two', 1, undefined]], [['Review Default One', 0, undefined]], [['Review Default Two', 0, undefined]]],
+			search: [[['Review Custom One', 1, 0]], [['Review Custom Two', 1, 0]], [['Review Default One', 0, 0]], [['Review Default Two', 0, 0]]],
 		});
 	});
 

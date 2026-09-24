@@ -11,7 +11,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE, parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
@@ -29,7 +29,7 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 		readonly query: string;
 		readonly mediaType: string | undefined;
 		readonly pageSize: number;
-		readonly entries: readonly ICustomizationMarketplaceEntry[];
+		readonly entries: readonly ICustomizationMarketplaceSourceEntry[];
 		readonly errors: readonly string[];
 		readonly offset: number;
 		readonly expiresAt: number;
@@ -101,8 +101,9 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 				version: plugin.version,
 				url: plugin.readmeUri,
 				score: query ? 0 : undefined,
-			} satisfies ICustomizationMarketplaceEntry];
-		});
+				priority: plugin.marketplaceReference.canonicalId === defaultMarketplaceId ? 0 : 1,
+			} satisfies ICustomizationMarketplaceSourceEntry];
+		}).sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
 		const offset = continuation?.offset ?? 0;
 		const end = Math.min(offset + pageSize, entries.length);
 		const nextCursor = end < entries.length ? generateUuid() : undefined;

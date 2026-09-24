@@ -19,7 +19,7 @@ import { IConfigurationChangeEvent } from '../../../../../../platform/configurat
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -63,6 +63,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		store.add(toDisposable(() => container.remove()));
 		const configuration = new TestConfigurationService({
 			'workbench.list.smoothScrolling': false,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			...Object.fromEntries(sources.map(source => [source.enablementSetting, enabledSources.includes(source.id)])),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
