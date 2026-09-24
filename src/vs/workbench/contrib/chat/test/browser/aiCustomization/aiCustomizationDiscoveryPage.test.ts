@@ -38,7 +38,13 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const secondSource = CustomizationMarketplaceSources.McpGallery;
+	const otherSourceUrlSetting = 'test.marketplace.other.url';
+	const secondSource = {
+		id: 'other',
+		displayName: 'Other Feed',
+		enablementSetting: 'test.marketplace.other.enabled',
+		configurationDependencies: [otherSourceUrlSetting],
+	};
 	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, secondSource];
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
@@ -49,7 +55,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
-	function createPage(enabledSources: readonly string[] = ['agentFinder', 'mcpGallery'], visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers], setupUrl?: URI) {
+	function createPage(enabledSources: readonly string[] = ['agentFinder', 'other'], visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers], setupUrl?: URI) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -210,10 +216,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.ok(list instanceof WorkbenchList);
 		list.scrollTop = 0;
 		list.scrollTop = list.scrollHeight;
-		await fixture.requests[1].result.complete({ items: [resource('mail-24', { sourceId: 'mcpGallery', mediaType: CustomizationMarketplaceMediaType.ClaudePlugin })] });
+		await fixture.requests[1].result.complete({ items: [resource('mail-24', { sourceId: 'other', mediaType: CustomizationMarketplaceMediaType.ClaudePlugin })] });
 		await timeout(0);
-		await fixture.selectSource('mcpGallery');
-		await fixture.requests[2].result.complete({ items: [resource('other-mail', { sourceId: 'mcpGallery' })] });
+		await fixture.selectSource('other');
+		await fixture.requests[2].result.complete({ items: [resource('other-mail', { sourceId: 'other' })] });
 		await timeout(0);
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options),
@@ -223,10 +229,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: [
 				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
 				{ query: 'mail', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor },
-				{ query: 'mail', mediaType: undefined, sourceIds: ['mcpGallery'], pageSize: 24, cursor: undefined },
+				{ query: 'mail', mediaType: undefined, sourceIds: ['other'], pageSize: 24, cursor: undefined },
 			],
 			visible: ['other-mail'],
-			selected: 'MCP Gallery',
+			selected: 'Other Feed',
 		});
 	});
 
@@ -431,17 +437,27 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { queries: 1, available: false, installed: true });
 	});
 
-	test('queries MCP gallery when it is the only enabled source', async () => {
-		const fixture = createPage(['mcpGallery']);
-		fixture.page.setSearchQuery('@type:mcp');
+	test('source identity changes discard stale pages and surface a retryable transition', async () => {
+		const fixture = createPage(['other']);
 		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({ items: [resource('gallery-server', { sourceId: 'mcpGallery' })] });
+		await fixture.requests[0].result.complete({ items: [resource('old-item', { sourceId: 'other' })] });
+		await fixture.configuration.setUserConfiguration(otherSourceUrlSetting, 'https://new.registry.test');
+		fixture.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === otherSourceUrlSetting; }
+		}());
+		assert.strictEqual(fixture.requests.length, 2);
+		await fixture.requests[1].result.complete({
+			items: [],
+			sourceErrors: [{ sourceId: 'other', message: 'Source is changing. Try again.' }],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
 		assert.deepStrictEqual({
-			request: fixture.requests[0].options,
-			content: fixture.page.getAccessibilityContent().includes('gallery-server'),
+			old: content.includes('old-item'),
+			retry: content.includes('Source is changing. Try again.'),
 		}, {
-			request: { query: undefined, mediaType: CustomizationMarketplaceMediaType.McpServer, sourceIds: undefined, pageSize: 24, cursor: undefined },
-			content: true,
+			old: false,
+			retry: true,
 		});
 	});
 
@@ -452,7 +468,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			const marketplace = new CustomizationMarketplaceService([
 				{ id: 'agentFinder', query: async () => ({ items: [resource('public-mail', { score: 50 })], total: 1 }) },
 				{
-					id: 'mcpGallery', query: async () => {
+					id: 'other', query: async () => {
 						if (failing) {
 							throw new Error('Other Feed unavailable');
 						}
@@ -466,7 +482,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			fixture.page.setVisible(true);
 			const complete = async (index: number) => {
 				const request = fixture.requests[index];
-				await request.result.complete(await marketplace.query({ ...request.options, sourceIds: ['agentFinder', 'mcpGallery'] }, request.token));
+				await request.result.complete(await marketplace.query({ ...request.options, sourceIds: ['agentFinder', 'other'] }, request.token));
 				await timeout(0);
 			};
 			await complete(0);
@@ -486,7 +502,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				visible: fixture.page.getAccessibilityContent().match(/^(?:public|other)-mail$/gm),
 				warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning').length,
 			}, {
-				initial: { healthy: true, warning: 'MCP Gallery: Other Feed unavailableRetry', accessible: true },
+				initial: { healthy: true, warning: 'Other Feed: Other Feed unavailableRetry', accessible: true },
 				cursors: [undefined, undefined],
 				visible: query ? ['other-mail', 'public-mail'] : ['public-mail', 'other-mail'],
 				warnings: 0,

@@ -27,7 +27,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -470,7 +470,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.sourceButton = this._register(new Button(sourceContainer, { ...defaultButtonStyles, secondary: true, small: true }));
 		this.updateSourceButton();
 		this._register(this.sourceButton.onDidClick(() => this.showSourceMenu()));
-		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.sources, () => {
+		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
 			this.browseCatalogCache.clear();
 			if (!this.visible) {
 				this.pendingRecoveryReload = true;
@@ -566,8 +566,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.updateSources();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (affectsCustomizationMarketplaceSources(event, this.marketplaceService.sources)) {
+				const queryConfigurationChanged = this.isCurrentQueryAffectedBySourceConfiguration(event);
 				this.updateSources();
-				this.handleAvailabilityChanged();
+				this.handleAvailabilityChanged(queryConfigurationChanged);
 			}
 		}));
 	}
@@ -819,9 +820,20 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchToolbar.setActions(actions);
 	}
 
-	private handleAvailabilityChanged(): void {
+	private isCurrentQueryAffectedBySourceConfiguration(event: IConfigurationChangeEvent): boolean {
+		return this.getCurrentQuerySources().some(source =>
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
+	}
+
+	private getCurrentQuerySources(): readonly ICustomizationMarketplaceSourceInfo[] {
+		return this.selectedSourceId
+			? this.marketplaceSources.filter(source => source.id === this.selectedSourceId)
+			: this.marketplaceSources;
+	}
+
+	private handleAvailabilityChanged(force = false): void {
 		const enabledSourceIds = this.getEnabledCatalogSourceIds();
-		if (equals(this.enabledSourceIds, enabledSourceIds)) {
+		if (!force && equals(this.enabledSourceIds, enabledSourceIds)) {
 			return;
 		}
 		this.enabledSourceIds = enabledSourceIds;

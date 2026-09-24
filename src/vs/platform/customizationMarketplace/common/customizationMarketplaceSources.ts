@@ -10,6 +10,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
+import { mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
@@ -23,12 +24,14 @@ export const CustomizationMarketplaceSources = {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
+		configurationDependencies: [mcpGalleryServiceUrlConfig],
 	},
 	McpGalleryDefault: {
 		id: 'mcpGalleryDefault',
 		displayName: localize('customizationMarketplace.defaultMcpGallery', "Default MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.McpGalleryEnabled,
 		exclusionSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+		configurationDependencies: [mcpGalleryServiceUrlConfig],
 	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
@@ -52,7 +55,8 @@ export function getVisibleCustomizationMarketplaceSources(configurationService: 
 export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
 	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 		|| sources.some(source => event.affectsConfiguration(source.enablementSetting) ||
-			(source.exclusionSetting !== undefined && event.affectsConfiguration(source.exclusionSetting)));
+			(source.exclusionSetting !== undefined && event.affectsConfiguration(source.exclusionSetting)) ||
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
 }
 
 export async function queryEnabledCustomizationMarketplaceSources(
@@ -71,9 +75,12 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	}
 	const store = new DisposableStore();
 	const cancellation = store.add(new CancellationTokenSource(token));
+	const selectedSources = sources.filter(source => sourceIds.includes(source.id));
 	store.add(configurationService.onDidChangeConfiguration(event => {
-		if (affectsCustomizationMarketplaceSources(event, sources) &&
-			!equals(sourceIds, getSourceIds())) {
+		const queryConfigurationChanged = selectedSources.some(source =>
+			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
+		if (queryConfigurationChanged ||
+			(affectsCustomizationMarketplaceSources(event, sources) && !equals(sourceIds, getSourceIds()))) {
 			cancellation.cancel();
 		}
 	}));

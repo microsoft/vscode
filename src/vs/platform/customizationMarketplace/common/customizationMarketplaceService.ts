@@ -36,7 +36,7 @@ export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceM
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill' | 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default' };
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string };
 
 export interface ICustomizationMarketplaceEntry {
 	readonly identifier: string;
@@ -135,6 +135,8 @@ export interface ICustomizationMarketplaceSourceInfo {
 	readonly exclusionSetting?: string;
 	/** Sources without a legacy management surface are unavailable while Marketplace is hidden. */
 	readonly requiresMarketplaceVisibility?: boolean;
+	/** Configuration settings that change the source's availability or query identity. */
+	readonly configurationDependencies?: readonly string[];
 }
 
 export interface ICustomizationMarketplaceSourceRecoveryAction {
@@ -165,6 +167,8 @@ export const ICustomizationMarketplaceService = createDecorator<ICustomizationMa
 export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
 	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
+	/** Complete source metadata, including sources that are not currently available. */
+	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;

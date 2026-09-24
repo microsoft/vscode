@@ -126,6 +126,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 				return channel;
 			}
 		}());
+		services.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		const service = services.createInstance(NativeCustomizationMarketplaceService);
 		const first = await service.query({ pageSize: 1 }, CancellationToken.None);
 		const second = await service.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
@@ -193,17 +194,22 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const customAndDefault = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		const customAndPublic = await ids();
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		await configuration.setUserConfiguration(mcpGalleryServiceUrlConfig, '');
+		const defaultOnly = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.McpGalleryEnabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		const publicOnly = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		const invisibleAfter = getVisibleCustomizationMarketplaceSources(configuration, service.sources).map(source => source.id);
-		assert.deepStrictEqual({ invisibleBefore, customAndDefault, customAndPublic, publicOnly, invisibleAfter, galleryUrls, publicCalls }, {
+		assert.deepStrictEqual({ invisibleBefore, customAndDefault, customAndPublic, defaultOnly, publicOnly, invisibleAfter, galleryUrls, publicCalls }, {
 			invisibleBefore: [],
 			customAndDefault: ['mcpGallery', 'mcpGalleryDefault'],
 			customAndPublic: ['mcpGallery', 'agentFinder'],
+			defaultOnly: ['mcpGalleryDefault'],
 			publicOnly: ['agentFinder'],
 			invisibleAfter: [],
-			galleryUrls: ['https://registry.test', 'https://api.mcp.github.com', 'https://registry.test'],
+			galleryUrls: ['https://registry.test', 'https://api.mcp.github.com', 'https://registry.test', 'https://api.mcp.github.com'],
 			publicCalls: 2,
 		});
 	});

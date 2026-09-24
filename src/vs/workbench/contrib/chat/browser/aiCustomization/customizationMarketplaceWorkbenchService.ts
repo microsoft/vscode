@@ -10,16 +10,19 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { McpGalleryMarketplaceProvider } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export class CustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly sources = Object.values(CustomizationMarketplaceSources);
+	readonly allSources = Object.values(CustomizationMarketplaceSources);
+	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'custom')),

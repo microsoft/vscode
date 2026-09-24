@@ -11,7 +11,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
-import { McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
+import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
 
 suite('McpGalleryMarketplaceProvider', () => {
@@ -72,13 +72,45 @@ suite('McpGalleryMarketplaceProvider', () => {
 					url: first.items[0].url, externalUrl: server.webUrl,
 					repository: first.items[0].repository,
 					publisher: 'Owner', version: '1.0.0', stars: 42, priority: 1,
-					installation: { kind: 'mcpGallery', name: server.name, registry: 'custom' },
+					installation: { kind: 'mcpGallery', name: server.name, registry: 'custom', registryUrl: customUrl },
 				}],
 				total: 2, nextCursor: 'opaque+/=',
 			},
 			lastCursor: undefined,
 			entryFields: ['identifier', 'displayName', 'description', 'mediaType', 'tags', 'capabilities', 'representativeQueries', 'url', 'externalUrl', 'repository', 'publisher', 'version', 'stars', 'priority', 'installation'],
 		});
+	});
+
+	test('advertises the custom source only for an explicit non-product registry', () => {
+		const cases = [
+			{ configuredUrl: '', sourceIds: ['mcpGalleryDefault', 'agentFinder'] },
+			{ configuredUrl: productUrl, sourceIds: ['mcpGalleryDefault', 'agentFinder'] },
+			{ configuredUrl: customUrl, sourceIds: ['mcpGallery', 'mcpGalleryDefault', 'agentFinder'] },
+		];
+		assert.deepStrictEqual(cases.map(({ configuredUrl }) =>
+			getCustomizationMarketplaceSourceInfos(configuration(configuredUrl), product).map(source => source.id)),
+		cases.map(({ sourceIds }) => sourceIds));
+	});
+
+	test('uses an item page or repository as its review link, never the registry root', async () => {
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage() {
+				return {
+					items: [
+						{ ...server, webUrl: undefined },
+						{ ...server, name: 'io.github.owner/no-link', webUrl: undefined, repositoryUrl: undefined },
+					],
+				};
+			}
+		}();
+		const page = await new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product).query({}, CancellationToken.None);
+		assert.deepStrictEqual(page.items.map(item => ({
+			url: item.url?.toString(),
+			externalUrl: item.externalUrl,
+		})), [
+			{ url: server.repositoryUrl, externalUrl: server.repositoryUrl },
+			{ url: undefined, externalUrl: undefined },
+		]);
 	});
 
 	test('skips the gallery for unrelated types and propagates registry errors', async () => {
@@ -115,11 +147,14 @@ suite('McpGalleryMarketplaceProvider', () => {
 		for (const [configuredUrl, activeUrl] of [
 			['', productUrl],
 			[productUrl, productUrl],
-			[customUrl, productUrl],
 		]) {
 			results.push(await new McpGalleryMarketplaceProvider('custom', gallery, manifest(activeUrl), configuration(configuredUrl), product).query({}, CancellationToken.None));
 		}
-		assert.deepStrictEqual({ results, calls }, { results: [{ items: [] }, { items: [] }, { items: [] }], calls: 0 });
+		await assert.rejects(
+			new McpGalleryMarketplaceProvider('custom', gallery, manifest(productUrl), configuration(customUrl), product).query({}, CancellationToken.None),
+			/configured MCP gallery is changing/,
+		);
+		assert.deepStrictEqual({ results, calls }, { results: [{ items: [] }, { items: [] }], calls: 0 });
 	});
 
 	test('default feed queries the pinned product manifest independently of a configured custom gallery', async () => {
@@ -140,7 +175,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 			id: provider.id, urls, priority: page.items[0].priority, installation: page.items[0].installation,
 		}, {
 			id: 'mcpGalleryDefault', urls: [productUrl], priority: 0,
-			installation: { kind: 'mcpGallery', name: server.name, registry: 'default' },
+			installation: { kind: 'mcpGallery', name: server.name, registry: 'default', registryUrl: productUrl },
 		});
 	});
 });

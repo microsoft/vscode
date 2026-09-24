@@ -11,8 +11,26 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
+
+export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
+	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
+	return normalized || undefined;
+}
+
+function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationService, productService: IProductService): string | undefined {
+	const configuredUrl = normalizeMcpGalleryUrl(configurationService.getValue<string>(mcpGalleryServiceUrlConfig));
+	const productUrl = normalizeMcpGalleryUrl(productService.mcpGallery?.serviceUrl);
+	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
+}
+
+export function getCustomizationMarketplaceSourceInfos(configurationService: IConfigurationService, productService: IProductService): readonly ICustomizationMarketplaceSourceInfo[] {
+	const sources: readonly ICustomizationMarketplaceSourceInfo[] = Object.values(CustomizationMarketplaceSources);
+	return getConfiguredCustomMcpGalleryUrl(configurationService, productService)
+		? sources
+		: sources.filter(source => source.id !== CustomizationMarketplaceSources.McpGallery.id);
+}
 
 function safeWebUri(value: string | undefined): URI | undefined {
 	if (!value) {
@@ -29,10 +47,10 @@ function safeWebUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'default'): ICustomizationMarketplaceSourceEntry {
+function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'default', registryUrl: string): ICustomizationMarketplaceSourceEntry {
 	const webUrl = safeWebUri(server.webUrl);
-	const url = webUrl ?? safeWebUri(server.galleryUrl);
 	const repository = safeWebUri(server.repositoryUrl);
+	const url = webUrl ?? repository;
 	const icon = safeWebUri(server.icon?.light);
 	return {
 		identifier: server.name,
@@ -42,14 +60,14 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 		tags: server.topics ?? [],
 		capabilities: [],
 		representativeQueries: [],
-		...(url ? { url, externalUrl: webUrl ? server.webUrl : server.galleryUrl } : {}),
+		...(url ? { url, externalUrl: webUrl ? server.webUrl : server.repositoryUrl } : {}),
 		...(repository ? { repository } : {}),
 		...(icon ? { icon } : {}),
 		publisher: server.publisherDisplayName ?? server.publisher,
 		version: server.version,
 		stars: server.starsCount,
 		priority: registry === 'custom' ? 1 : 0,
-		installation: { kind: 'mcpGallery', name: server.name, registry },
+		installation: { kind: 'mcpGallery', name: server.name, registry, registryUrl },
 	};
 }
 
@@ -70,12 +88,15 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 		if (options.mediaType && options.mediaType !== CustomizationMarketplaceMediaType.McpServer) {
 			return { items: [] };
 		}
-		const configuredUrl = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig)?.replace(/\/+$/, '');
-		const productUrl = this.productService.mcpGallery?.serviceUrl?.replace(/\/+$/, '');
+		const configuredUrl = getConfiguredCustomMcpGalleryUrl(this.configurationService, this.productService);
 		const manifest = this.registry === 'default'
 			? await this.manifestService.getDefaultMcpGalleryManifest()
-			: configuredUrl && configuredUrl !== productUrl ? await this.manifestService.getMcpGalleryManifest() : null;
-		if (!manifest || (this.registry === 'custom' && manifest.url !== configuredUrl)) {
+			: configuredUrl ? await this.manifestService.getMcpGalleryManifest() : null;
+		const registryUrl = normalizeMcpGalleryUrl(manifest?.url);
+		if (this.registry === 'custom' && configuredUrl && registryUrl !== configuredUrl) {
+			throw new Error(localize('mcpGalleryRegistryChanging', "The configured MCP gallery is changing. Try again."));
+		}
+		if (!manifest || !registryUrl) {
 			return { items: [] };
 		}
 		let cursor = options.cursor;
@@ -87,7 +108,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			}, token, manifest);
 			if (page.items.length || !page.nextCursor) {
 				return {
-					items: page.items.map(server => toMarketplaceEntry(server, this.registry)),
+					items: page.items.map(server => toMarketplaceEntry(server, this.registry, registryUrl)),
 					total: page.total,
 					nextCursor: page.nextCursor,
 				};
