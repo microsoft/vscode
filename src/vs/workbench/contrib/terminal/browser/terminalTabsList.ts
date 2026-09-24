@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { IListAccessibilityProvider, isSelectionSingleChangeEvent } from '../../../../base/browser/ui/list/listWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -56,6 +56,9 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ITerminalTabsWidget } from './terminalTabsWidget.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const $ = DOM.$;
 
@@ -196,9 +199,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> implements
 				return;
 			}
 
-			if (e.browserEvent.altKey && e.element) {
+			const selectionModifier = this.useAltAsMultipleSelectionModifier ? e.browserEvent.altKey : isSelectionSingleChangeEvent(e);
+			if (e.browserEvent.altKey && !this.useAltAsMultipleSelectionModifier && e.element) {
 				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
-			} else if (this._getFocusMode() === 'singleClick') {
+			} else if (this._getFocusMode() === 'singleClick' && !selectionModifier && !e.browserEvent.shiftKey) {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
 				}
@@ -679,6 +683,8 @@ export class TerminalTabsDragAndDrop extends Disposable implements IListDragAndD
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditingService private readonly _terminalEditingService: ITerminalEditingService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -752,68 +758,95 @@ export class TerminalTabsDragAndDrop extends Disposable implements IListDragAndD
 		};
 	}
 
-	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
+	/** Reports a user-initiated drop failure once and returns whether the entire operation succeeded. */
+	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<boolean> {
+		try {
+			await this.performDrop(data, targetInstance, targetIndex, targetSector, originalEvent);
+			return true;
+		} catch (error) {
+			const reportedError = error instanceof Error ? error : new Error(toErrorMessage(error));
+			this._logService.error(reportedError);
+			this._notificationService.error(reportedError);
+			return false;
+		}
+	}
+
+	/** Performs a drop, rejecting with partial-transfer context on failure. */
+	async performDrop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
-		let sourceInstances: ITerminalInstance[] | undefined;
-		const primaryBackend = this._terminalService.getPrimaryBackend();
-		const resources = getTerminalResourcesFromDragEvent(originalEvent);
-		if (resources) {
-			for (const uri of resources) {
-				const instance = this._terminalService.getInstanceFromResource(uri);
-				if (instance) {
-					if (Array.isArray(sourceInstances)) {
-						sourceInstances.push(instance);
-					} else {
-						sourceInstances = [instance];
-					}
-					await this._terminalService.moveToTerminalView(instance);
-				} else if (primaryBackend) {
-					const terminalIdentifier = parseTerminalUri(uri);
-					if (terminalIdentifier.instanceId) {
-						const attachPersistentProcess = await primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
-						if (!attachPersistentProcess) {
-							throw new Error(localize('terminalDropDetachFailed', "Cannot move the terminal because it could not be detached from its original window."));
+		let completedTransfers = 0;
+		try {
+			let sourceInstances: ITerminalInstance[] | undefined;
+			const primaryBackend = this._terminalService.getPrimaryBackend();
+			const resources = getTerminalResourcesFromDragEvent(originalEvent);
+			if (resources) {
+				for (const uri of resources) {
+					const instance = this._terminalService.getInstanceFromResource(uri);
+					if (instance) {
+						const alreadyInView = this._terminalGroupService.instances.includes(instance);
+						await this._terminalService.moveToTerminalView(instance);
+						if (!alreadyInView) {
+							completedTransfers++;
 						}
 						sourceInstances ??= [];
-						sourceInstances.push(await this._terminalService.createTerminal({ config: { attachPersistentProcess } }));
+						sourceInstances.push(instance);
+					} else if (primaryBackend) {
+						const terminalIdentifier = parseTerminalUri(uri);
+						if (terminalIdentifier.instanceId) {
+							const attachPersistentProcess = await primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
+							if (!attachPersistentProcess) {
+								throw new Error(localize('terminalDropDetachFailed', "Cannot move the terminal because it could not be detached from its original window."));
+							}
+							sourceInstances ??= [];
+							sourceInstances.push(await this._terminalService.createTerminal({ config: { attachPersistentProcess } }));
+							completedTransfers++;
+						}
+					} else {
+						throw new Error(localize('terminalDropBackendUnavailable', "Cannot move the terminal because its terminal connection is unavailable."));
 					}
-				} else {
-					throw new Error(localize('terminalDropBackendUnavailable', "Cannot move the terminal because its terminal connection is unavailable."));
 				}
 			}
-		}
 
-		if (sourceInstances === undefined) {
-			if (!(data instanceof ElementsDragAndDropData)) {
-				await this._handleExternalDrop(targetInstance, originalEvent);
+			if (sourceInstances === undefined) {
+				if (!(data instanceof ElementsDragAndDropData)) {
+					await this._handleExternalDrop(targetInstance, originalEvent);
+					return;
+				}
+
+				const draggedElement = data.getData();
+				if (!draggedElement || !Array.isArray(draggedElement)) {
+					return;
+				}
+
+				sourceInstances = [];
+				for (const e of draggedElement) {
+					if (isTerminalInstance(e)) {
+						sourceInstances.push(e as ITerminalInstance);
+					}
+				}
+			}
+
+			if (!targetInstance) {
+				this._terminalGroupService.moveGroupToEnd(sourceInstances);
+				this._terminalService.setActiveInstance(sourceInstances[0]);
+				this._selectInstances(sourceInstances);
 				return;
 			}
 
-			const draggedElement = data.getData();
-			if (!draggedElement || !Array.isArray(draggedElement)) {
-				return;
-			}
-
-			sourceInstances = [];
-			for (const e of draggedElement) {
-				if (isTerminalInstance(e)) {
-					sourceInstances.push(e as ITerminalInstance);
-				}
-			}
-		}
-
-		if (!targetInstance) {
-			this._terminalGroupService.moveGroupToEnd(sourceInstances);
+			this._terminalGroupService.moveGroup(sourceInstances, targetInstance);
 			this._terminalService.setActiveInstance(sourceInstances[0]);
 			this._selectInstances(sourceInstances);
-			return;
+		} catch (error) {
+			if (completedTransfers > 0) {
+				const message = completedTransfers === 1
+					? localize('terminalDropPartialSingle', "The terminal drop failed after moving one terminal. It remains available in this window. {0}", toErrorMessage(error))
+					: localize('terminalDropPartialMultiple', "The terminal drop failed after moving {0} terminals. They remain available in this window. {1}", completedTransfers, toErrorMessage(error));
+				throw new Error(message, { cause: error });
+			}
+			throw error;
 		}
-
-		this._terminalGroupService.moveGroup(sourceInstances, targetInstance);
-		this._terminalService.setActiveInstance(sourceInstances[0]);
-		this._selectInstances(sourceInstances);
 	}
 
 	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {

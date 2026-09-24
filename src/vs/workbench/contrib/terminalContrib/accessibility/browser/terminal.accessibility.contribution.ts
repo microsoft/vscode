@@ -289,6 +289,7 @@ AccessibleViewRegistry.register({
 						: localize('terminalTabsHelp.vertical', "Use Up and Down Arrow to navigate terminals. Hold Shift to select a range."),
 					localize('terminalTabsHelp.rename', "Rename the selected terminal<keybinding:{0}>. While renaming, press Enter to confirm or Escape to cancel.", TerminalCommandId.RenameActiveTab),
 					localize('terminalTabsHelp.actions', "Split the selected terminals<keybinding:{0}> or kill them<keybinding:{1}>. Press Shift+F10 to open the context menu.", TerminalCommandId.SplitActiveTab, TerminalCommandId.KillActiveTab),
+					localize('terminalTabsHelp.selectionModifier', "Configure the mouse multi-selection modifier with `{0}`. When set to Alt, Alt-click selects terminals instead of splitting them.", 'workbench.list.multiSelectModifier'),
 					localize('terminalTabsHelp.location', "Use terminal.integrated.tabs.location to place tabs on the left, right, top, or bottom."),
 				].join('\n');
 			},

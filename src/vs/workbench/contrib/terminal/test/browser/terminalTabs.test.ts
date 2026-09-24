@@ -23,6 +23,8 @@ import { ConfigurationTarget } from '../../../../../platform/configuration/commo
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IShellLaunchConfig, ITerminalBackend, TitleEventSource } from '../../../../../platform/terminal/common/terminal.js';
 import { IProcessDetails } from '../../../../../platform/terminal/common/terminalProcess.js';
@@ -240,9 +242,15 @@ suite('Terminal tabs', () => {
 		});
 	}
 
+	function keyboardEvent(type: 'keydown' | 'keyup', key: string, options: KeyboardEventInit = {}): KeyboardEvent {
+		const keyCodes: Record<string, number> = { a: 65, A: 65, ArrowLeft: 37, ArrowRight: 39, Home: 36, End: 35, Enter: 13, ' ': 32, F2: 113, F10: 121, ContextMenu: 93 };
+		return new KeyboardEvent(type, { key, keyCode: keyCodes[key], code: key === 'ContextMenu' ? 'ContextMenu' : '', bubbles: true, cancelable: true, ...options });
+	}
+
 	function press(bar: TerminalTabsBar, key: string, options: KeyboardEventInit = {}): void {
 		const element = bar.getHTMLElement().querySelector<HTMLElement>(`[data-index="${bar.getFocus()[0]}"]`)!;
-		element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options }));
+		element.dispatchEvent(keyboardEvent('keydown', key, options));
+		element.dispatchEvent(keyboardEvent('keyup', key, options));
 	}
 
 	test('renders individual split terminals with accessible names and group boundaries', () => {
@@ -353,7 +361,7 @@ suite('Terminal tabs', () => {
 
 	test('does not intercept the macOS Enter rename binding', () => {
 		const bar = createBar();
-		const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		const event = keyboardEvent('keydown', 'Enter');
 		bar.getHTMLElement().children[0].dispatchEvent(event);
 		deepStrictEqual({ prevented: event.defaultPrevented, focused: instances[0].focusCount }, { prevented: !isMacintosh, focused: isMacintosh ? 0 : 1 });
 	});
@@ -468,7 +476,7 @@ suite('Terminal tabs', () => {
 			const toggled = bar.getSelection();
 			press(bar, 'Home');
 			press(bar, 'End', { shiftKey: true });
-			const rename = new KeyboardEvent('keydown', { key: os === OperatingSystem.Macintosh ? 'Enter' : 'F2', bubbles: true, cancelable: true });
+			const rename = keyboardEvent('keydown', os === OperatingSystem.Macintosh ? 'Enter' : 'F2');
 			getActiveElement()!.dispatchEvent(rename);
 			deepStrictEqual({ all, toggled, range: bar.getSelection(), focus: bar.getFocus(), renameHandled: rename.defaultPrevented },
 				{ all: [0, 1, 2], toggled: [0, 2], range: [0, 1, 2], focus: [2], renameHandled: false });
@@ -487,12 +495,151 @@ suite('Terminal tabs', () => {
 		test(`${name}: Enter activation and Space focus follow platform conventions`, () => {
 			const bar = createBar(os);
 			bar.domFocus();
-			const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+			const enter = keyboardEvent('keydown', 'Enter');
 			getActiveElement()!.dispatchEvent(enter);
 			const enterFocusCount = instances[0].focusCount;
 			press(bar, ' ');
 			deepStrictEqual({ enterHandled: enter.defaultPrevented, enterFocusCount, totalFocusCount: instances[0].focusCount },
 				{ enterHandled: os !== OperatingSystem.Macintosh, enterFocusCount: os === OperatingSystem.Macintosh ? 0 : 1, totalFocusCount: os === OperatingSystem.Macintosh ? 1 : 2 });
+		});
+
+		test(`${name}: Select All handles Caps Lock and non-Latin keys without intercepting other chords`, () => {
+			const bar = createBar(os);
+			const modifier = os === OperatingSystem.Macintosh ? { metaKey: true } : { ctrlKey: true };
+			bar.domFocus();
+			const selections: number[][] = [];
+			for (const key of ['A', '\u0444']) {
+				bar.setSelection([0]);
+				press(bar, key, { ...modifier, keyCode: 65, code: 'KeyA' });
+				selections.push(bar.getSelection());
+			}
+			bar.setSelection([0]);
+			press(bar, 'A', { ...modifier, shiftKey: true });
+			selections.push(bar.getSelection());
+			press(bar, 'a', { ...modifier, isComposing: true });
+			selections.push(bar.getSelection());
+			deepStrictEqual(selections, [[0, 1, 2], [0, 1, 2], [0], [0]]);
+		});
+
+		test(`${name}: honors Alt multi-selection without splitting terminals`, async () => {
+			await configurationService.setUserConfiguration('workbench.list.multiSelectModifier', 'alt');
+			tabs.focusMode = 'singleClick';
+			const bar = createBar(os);
+			bar.domFocus();
+			bar.getHTMLElement().children[1].dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
+			deepStrictEqual({ selection: bar.getSelection(), created: created.length, focused: instances.map(instance => instance.focusCount) },
+				{ selection: [0, 1], created: 0, focused: [0, 0, 0] });
+			await configurationService.setUserConfiguration('workbench.list.multiSelectModifier', 'ctrlCmd');
+			const create = spy(instantiationService.get(ITerminalService), 'createTerminal');
+			bar.getHTMLElement().children[1].dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
+			await create.firstCall.returnValue;
+			deepStrictEqual(created, [{ location: { parentTerminal: instances[1] } }]);
+		});
+	}
+
+	for (const key of ['ContextMenu', 'F10']) {
+		test(`${key}: opens on keyup and suppresses native context menus during the key press`, () => {
+			const bar = createBar();
+			bar.domFocus();
+			const tab = bar.getHTMLElement().children[0];
+			let menus = 0;
+			store.add(addDisposableListener(bar.getHTMLElement(), 'contextmenu', () => menus++));
+			const down = keyboardEvent('keydown', key, { shiftKey: key === 'F10' });
+			tab.dispatchEvent(down);
+			const afterDown = menus;
+			const nativeMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+			tab.dispatchEvent(nativeMenu);
+			const afterNative = menus;
+			const up = keyboardEvent('keyup', key, { shiftKey: key === 'F10' });
+			tab.dispatchEvent(up);
+			const afterUp = menus;
+			tab.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			deepStrictEqual({
+				menus: [afterDown, afterNative, afterUp, menus],
+				prevented: [down.defaultPrevented, nativeMenu.defaultPrevented, up.defaultPrevented]
+			}, { menus: [0, 0, 1, 2], prevented: [true, true, true] });
+		});
+	}
+
+	test('vertical Alt multi-selection does not also split or focus terminal content', async () => {
+		await configurationService.setUserConfiguration('workbench.list.multiSelectModifier', 'alt');
+		tabs.location = 'right';
+		tabs.focusMode = 'singleClick';
+		const list = store.add(instantiationService.createInstance(TerminalTabList, container));
+		list.layout(300, 120);
+		list.setSelection([0]);
+		list.domFocus();
+		list.getHTMLElement().querySelector('.monaco-list-row[data-index="1"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
+		deepStrictEqual({ selection: list.getSelection(), created: created.length, focused: instances.map(instance => instance.focusCount) },
+			{ selection: [0, 1], created: 0, focused: [0, 0, 0] });
+		await configurationService.setUserConfiguration('workbench.list.multiSelectModifier', 'ctrlCmd');
+		const key = 'workbench.list.multiSelectModifier';
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: configuration => configuration === key,
+			affectedKeys: new Set([key]),
+			change: { keys: [key], overrides: [] },
+			source: ConfigurationTarget.USER
+		});
+		const create = spy(instantiationService.get(ITerminalService), 'createTerminal');
+		list.getHTMLElement().querySelector('.monaco-list-row[data-index="1"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
+		await create.firstCall.returnValue;
+		deepStrictEqual(created, [{ location: { parentTerminal: instances[1] } }]);
+	});
+
+	for (const surface of ['horizontal', 'vertical', 'empty-area'] as const) {
+		test(`${surface}: a failed drop reports one visible error and a failure outcome`, async () => {
+			tabs.location = surface === 'vertical' ? 'right' : 'top';
+			const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+			view.layout(600, 300);
+			const notifications = spy(instantiationService.get(INotificationService), 'error');
+			const logged = spy(instantiationService.get(ILogService), 'error');
+			const drop = spy(TerminalTabsDragAndDrop.prototype, 'drop');
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify([URI.from({ scheme: Schemas.vscodeTerminal, path: '/external/99' }).toString()]));
+			const target = container.querySelector(surface === 'vertical' ? '.monaco-list-row' : surface === 'empty-area' ? '.tabs-container' : '.terminal-tabs-bar-tab')!;
+			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			strictEqual(drop.callCount, 1);
+			const result = await drop.firstCall.returnValue;
+			deepStrictEqual({
+				result, notifications: notifications.callCount, logged: logged.callCount,
+				message: notifications.firstCall.args[0] instanceof Error ? notifications.firstCall.args[0].message : notifications.firstCall.args[0]
+			}, { result: false, notifications: 1, logged: 1, message: 'Cannot move the terminal because its terminal connection is unavailable.' });
+		});
+	}
+
+	for (const completedTransfers of [1, 2]) {
+		test(`failed drop reports ${completedTransfers} completed transfers without reporting batch success`, async () => {
+			backend = new class extends mock<ITerminalBackend>() {
+				override async requestDetachInstance(_workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+					return instanceId < 99 + completedTransfers ? { ...processDetails(), id: instanceId } : undefined;
+				}
+			};
+			const dnd = store.add(instantiationService.createInstance(TerminalTabsDragAndDrop, () => { throw new Error('Failed batch must not select a successful drop'); }));
+			const notifications = spy(instantiationService.get(INotificationService), 'error');
+			const logged = spy(instantiationService.get(ILogService), 'error');
+			const dataTransfer = new DataTransfer();
+			const resources = Array.from({ length: completedTransfers + 1 }, (_, index) => URI.from({ scheme: Schemas.vscodeTerminal, path: `/external/${99 + index}` }).toString());
+			dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(resources));
+			const result = await dnd.drop(new NativeDragAndDropData(), undefined, undefined, undefined, new DragEvent('drop', { dataTransfer }));
+			const error = notifications.firstCall.args[0];
+			ok(error instanceof Error && error.cause instanceof Error);
+			const partialMessage = completedTransfers === 1
+				? 'The terminal drop failed after moving one terminal. It remains available in this window.'
+				: 'The terminal drop failed after moving 2 terminals. They remain available in this window.';
+			deepStrictEqual({
+				result, notifications: notifications.callCount, logged: logged.callCount,
+				message: error.message,
+				cause: error.cause.message,
+				transferred: created.length,
+				visible: groupService.instances.length,
+				moves
+			}, {
+				result: false, notifications: 1, logged: 1,
+				message: `${partialMessage} Cannot move the terminal because it could not be detached from its original window.`,
+				cause: 'Cannot move the terminal because it could not be detached from its original window.',
+				transferred: completedTransfers, visible: 3 + completedTransfers, moves: []
+			});
 		});
 	}
 
@@ -583,7 +730,7 @@ suite('Terminal tabs', () => {
 		const dnd = store.add(instantiationService.createInstance(TerminalTabsDragAndDrop, () => { throw new Error('Failed drop must not change selection'); }));
 		const dataTransfer = new DataTransfer();
 		dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify([URI.from({ scheme: Schemas.vscodeTerminal, path: '/external/99' }).toString()]));
-		await rejects(dnd.drop(new NativeDragAndDropData(), undefined, undefined, undefined, new DragEvent('drop', { dataTransfer })), /detach failed/);
+		await rejects(dnd.performDrop(new NativeDragAndDropData(), undefined, undefined, undefined, new DragEvent('drop', { dataTransfer })), /detach failed/);
 	});
 
 	test('uses a reconnected backend for successful cross-window attachment and preserves the drop target', async () => {
@@ -617,11 +764,11 @@ suite('Terminal tabs', () => {
 		const dataTransfer = new DataTransfer();
 		dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify([URI.from({ scheme: Schemas.vscodeTerminal, path: '/external/99' }).toString()]));
 		const event = new DragEvent('drop', { dataTransfer });
-		await rejects(dnd.drop(new NativeDragAndDropData(), undefined, undefined, undefined, event), /connection is unavailable/);
+		await rejects(dnd.performDrop(new NativeDragAndDropData(), undefined, undefined, undefined, event), /connection is unavailable/);
 		backend = new class extends mock<ITerminalBackend>() {
 			override async requestDetachInstance(): Promise<undefined> { return undefined; }
 		};
-		await rejects(dnd.drop(new NativeDragAndDropData(), undefined, undefined, undefined, event), /could not be detached/);
+		await rejects(dnd.performDrop(new NativeDragAndDropData(), undefined, undefined, undefined, event), /could not be detached/);
 		deepStrictEqual({ created, moves }, { created: [], moves: [] });
 	});
 
@@ -635,7 +782,7 @@ suite('Terminal tabs', () => {
 		const dnd = store.add(instantiationService.createInstance(TerminalTabsDragAndDrop, () => { throw new Error('Failed batch must not report successful selection'); }));
 		const dataTransfer = new DataTransfer();
 		dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify([99, 100].map(id => URI.from({ scheme: Schemas.vscodeTerminal, path: `/external/${id}` }).toString())));
-		await rejects(dnd.drop(new NativeDragAndDropData(), undefined, undefined, undefined, new DragEvent('drop', { dataTransfer })), /could not be detached/);
+		await rejects(dnd.performDrop(new NativeDragAndDropData(), undefined, undefined, undefined, new DragEvent('drop', { dataTransfer })), /failed after moving one terminal.*could not be detached/);
 		deepStrictEqual({
 			created, moves,
 			visibleInstances: groupService.instances.map(instance => instance.instanceId)
@@ -653,7 +800,7 @@ suite('Terminal tabs', () => {
 		await dnd.drop(new NativeDragAndDropData(), instances[1], 1, undefined, new DragEvent('drop', { dataTransfer }));
 		deepStrictEqual({ paths: instances[1].paths.map(path => path.toString()), active: groupService.activeInstance?.instanceId, moves }, { paths: [resource.toString()], active: 2, moves: [] });
 		instances[1].pathError = new Error('terminal disconnected');
-		await rejects(dnd.drop(new NativeDragAndDropData(), instances[1], 1, undefined, new DragEvent('drop', { dataTransfer })), /terminal disconnected/);
+		await rejects(dnd.performDrop(new NativeDragAndDropData(), instances[1], 1, undefined, new DragEvent('drop', { dataTransfer })), /terminal disconnected/);
 	});
 
 	for (const location of ['top', 'bottom'] as const) {

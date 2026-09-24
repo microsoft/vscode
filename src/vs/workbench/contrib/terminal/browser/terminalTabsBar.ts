@@ -5,6 +5,7 @@
 
 import './media/terminalTabsBar.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { ElementsDragAndDropData, NativeDragAndDropData } from '../../../../base/browser/ui/list/listView.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -13,6 +14,7 @@ import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '.
 import { Event } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
@@ -58,6 +60,7 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 	private _focused: ITerminalInstance | undefined;
 	private _anchor: ITerminalInstance | undefined;
 	private _activating = false;
+	private _contextMenuKeyDown = false;
 
 	constructor(
 		container: HTMLElement,
@@ -136,6 +139,11 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 			}
 		}));
 		this._register(dom.addDisposableListener(this._element, dom.EventType.CONTEXT_MENU, e => {
+			if (this._contextMenuKeyDown) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return;
+			}
 			const instance = this._getEntry(e.target);
 			if (instance) {
 				this.setFocus([this._instances.indexOf(instance)]);
@@ -158,6 +166,11 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 		this._register(dom.addDisposableListener(this._element, dom.EventType.FOCUS, () => {
 			if (this._instances.length) {
 				this.domFocus();
+			}
+		}));
+		this._register(dom.addDisposableListener(this._element, dom.EventType.FOCUS_OUT, e => {
+			if (!dom.isHTMLElement(e.relatedTarget) || !this._element.contains(e.relatedTarget)) {
+				this._contextMenuKeyDown = false;
 			}
 		}));
 		const active = this._terminalGroupService.activeInstance;
@@ -296,6 +309,7 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 			}
 		}));
 		disposables.add(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, e => this._onKeyDown(instance, e)));
+		disposables.add(dom.addDisposableListener(element, dom.EventType.KEY_UP, e => this._onKeyUp(instance, e)));
 		disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS, () => {
 			this._focused = instance;
 			this._terminalGroupService.lastAccessedMenu = 'tab-list';
@@ -330,13 +344,15 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 
 	private async _onClick(instance: ITerminalInstance, event: MouseEvent): Promise<void> {
 		this._terminalGroupService.lastAccessedMenu = 'tab-list';
-		if (event.altKey) {
+		const useAltForSelection = this._configurationService.getValue('workbench.list.multiSelectModifier') === 'alt';
+		if (event.altKey && !useAltForSelection) {
 			await this._terminalService.createTerminal({ location: { parentTerminal: instance } });
 			return;
 		}
-		this._select(instance, event.shiftKey, this._os === OperatingSystem.Macintosh ? event.metaKey : event.ctrlKey);
+		const selectionModifier = useAltForSelection ? event.altKey : this._os === OperatingSystem.Macintosh ? event.metaKey : event.ctrlKey;
+		this._select(instance, event.shiftKey, selectionModifier);
 		this.domFocus();
-		if (!event.shiftKey && !(this._os === OperatingSystem.Macintosh ? event.metaKey : event.ctrlKey)) {
+		if (!event.shiftKey && !selectionModifier) {
 			this._activate(instance);
 			if (this._configurationService.getValue(TerminalSettingId.TabsFocusMode) === 'singleClick') {
 				instance.focus(true);
@@ -363,22 +379,29 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 		if (event.target !== this._entries.get(instance.instanceId)?.element) {
 			return;
 		}
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		this._contextMenuKeyDown = this._isContextMenuKey(keyboardEvent);
+		if (this._contextMenuKeyDown) {
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
 		const modifier = this._os === OperatingSystem.Macintosh ? event.metaKey : event.ctrlKey;
 		let index = this._instances.indexOf(instance);
-		switch (event.key) {
-			case 'ArrowLeft': index--; break;
-			case 'ArrowRight': index++; break;
-			case 'Home': index = 0; break;
-			case 'End': index = this._instances.length - 1; break;
-			case 'a':
-				if (!modifier) {
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.LeftArrow: index--; break;
+			case KeyCode.RightArrow: index++; break;
+			case KeyCode.Home: index = 0; break;
+			case KeyCode.End: index = this._instances.length - 1; break;
+			case KeyCode.KeyA:
+				if (!modifier || event.shiftKey || event.altKey || (this._os === OperatingSystem.Macintosh ? event.ctrlKey : event.metaKey)) {
 					return;
 				}
 				this.setSelection(this._instances.map((_, i) => i));
 				event.preventDefault();
 				event.stopPropagation();
 				return;
-			case 'Enter':
+			case KeyCode.Enter:
 				if (this._os === OperatingSystem.Macintosh) {
 					return;
 				}
@@ -387,7 +410,7 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 				event.preventDefault();
 				event.stopPropagation();
 				return;
-			case ' ':
+			case KeyCode.Space:
 				if (modifier) {
 					this._select(instance, false, true);
 				} else {
@@ -397,18 +420,6 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 				event.preventDefault();
 				event.stopPropagation();
 				return;
-			case 'ContextMenu':
-			case 'F10': {
-				if (event.key === 'F10' && !event.shiftKey) {
-					return;
-				}
-				const element = this._entries.get(instance.instanceId)!.element;
-				const bounds = element.getBoundingClientRect();
-				element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: bounds.left, clientY: bounds.bottom }));
-				event.preventDefault();
-				event.stopPropagation();
-				return;
-			}
 			default: return;
 		}
 		event.preventDefault();
@@ -423,6 +434,23 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 			}
 		}
 		this.domFocus();
+	}
+
+	private _isContextMenuKey(event: StandardKeyboardEvent): boolean {
+		return event.keyCode !== KeyCode.KEY_IN_COMPOSITION &&
+			(event.keyCode === KeyCode.ContextMenu || event.code === 'ContextMenu' || (event.shiftKey && event.keyCode === KeyCode.F10));
+	}
+
+	private _onKeyUp(instance: ITerminalInstance, event: KeyboardEvent): void {
+		this._contextMenuKeyDown = false;
+		const element = this._entries.get(instance.instanceId)?.element;
+		if (!element || event.target !== element || !this._isContextMenuKey(new StandardKeyboardEvent(event))) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		const bounds = element.getBoundingClientRect();
+		element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: bounds.left, clientY: bounds.bottom }));
 	}
 
 	private _activate(instance: ITerminalInstance): void {
