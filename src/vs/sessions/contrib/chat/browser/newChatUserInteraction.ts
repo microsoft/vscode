@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -12,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult } from '../../../../workbench/contrib/chat/browser/chatUserInteractionTelemetry.js';
+import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../../../workbench/contrib/chat/common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -64,7 +64,6 @@ export class NewChatUserInteraction extends Disposable {
 				this.cancel('hidden');
 			}
 		}));
-		this._register(disposableTimeout(() => this.cancel('timedOut'), 120_000));
 	}
 
 	/** Called only after the composer has accepted a foreground send, before preparation can replace it. */
@@ -126,7 +125,11 @@ export class NewChatUserInteraction extends Disposable {
 	}
 
 	/** This callback is carried with this exact send, never inferred from prompt text or focus. */
-	readonly onDidCreateResponse = (response: IChatResponseModel | undefined): void => {
+	readonly onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = (response, kind) => {
+		if (kind === 'queued') {
+			this.cancel('queued');
+			return;
+		}
 		if (!this.timer.isActive || this._response) {
 			return;
 		}

@@ -122,6 +122,23 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 	}
 
 	for (const newSession of [true, false]) {
+		test(`${newSession ? 'new-session' : 'peer-chat'} queued responses are excluded even when they later make progress`, async () => {
+			const h = createHarness(newSession);
+			let sentOptions: ISendRequestOptions | undefined;
+			const { input } = createInput(h, createSend(h, newSession, async options => {
+				sentOptions = options;
+				options.onDidCreateResponse?.(undefined, 'queued');
+			}));
+			assert.strictEqual(await input.submit(), true);
+			const response = h.createResponse();
+			sentOptions?.onDidCreateResponse?.(response.response, 'sent');
+			h.addWidget(response.response);
+			response.progress();
+			h.frame(2);
+			assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.firstProgressKind], [undefined, undefined]);
+			h.assertFinished('queued');
+		});
+
 		test(`${newSession ? 'new session' : 'peer chat'} preserves the gesture through preparation and exact-response handoff`, async () => {
 			const h = createHarness(newSession);
 			const handler = new DeferredPromise<boolean>();
@@ -378,28 +395,28 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				const service: ChatService = Object.assign(Object.create(ChatService.prototype), {
 					sendRequestInternal: async (_resource: URI, _request: string, options: IChatSendRequestOptions | undefined) => { requestOptions = options; return result; },
 				});
-				const observed: (IChatResponseModel | undefined)[] = [];
+				const observed: [IChatResponseModel | undefined, ChatSendResult['kind'] | undefined][] = [];
 				const errors: unknown[] = [];
 				const failure = new Error('observer failure');
 				const previousHandler = errorHandler.getUnexpectedErrorHandler();
 				errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
 				try {
 					const options: IChatSendRequestOptions = {
-						onDidCreateResponse: response => {
-							observed.push(response);
+						onDidCreateResponse: (response, dispatchKind) => {
+							observed.push([response, dispatchKind]);
 							if (throws) {
 								throw failure;
 							}
 						},
 					};
 					assert.strictEqual(await service.sendRequest(h.chat.resource, 'test request', options), result);
-					assert.deepStrictEqual(observed, kind === 'sent' ? [] : [undefined]);
+					assert.deepStrictEqual(observed, kind === 'sent' ? [] : [[undefined, kind]]);
 					const response = h.createResponse();
 					await queued.complete(sent);
 					await created.complete(response.response);
 					await Promise.resolve();
 					assert.deepStrictEqual({ observed, errors, callback: requestOptions?.onDidCreateResponse, persisted: Object.hasOwn(serializeSendOptions(options), 'onDidCreateResponse'), completed: completed.isSettled }, {
-						observed: [kind === 'sent' ? response.response : undefined], errors: throws ? [failure] : [], callback: undefined, persisted: false, completed: false,
+						observed: [[kind === 'sent' ? response.response : undefined, kind]], errors: throws ? [failure] : [], callback: undefined, persisted: false, completed: false,
 					});
 					await completed.complete();
 				} finally {

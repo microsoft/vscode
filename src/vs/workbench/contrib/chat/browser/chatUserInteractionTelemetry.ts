@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -14,7 +15,10 @@ import { getChatSessionTelemetryContext } from '../common/chatService/chatServic
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { IChatProgressResponseContent, IChatResponseModel } from '../common/model/chatModel.js';
 
-export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'navigated' | 'hidden' | 'timedOut' | 'disposed';
+export const CHAT_USER_INTERACTION_TIMEOUT_MS = 120_000;
+export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'queued' | 'navigated' | 'hidden' | 'timedOut' | 'disposed';
+type ChatFirstProgressKind = 'text' | 'reasoning' | 'tool';
+type ChatRequestPhase = 'first' | 'followup' | 'unknown';
 
 export interface IChatUserInteractionTelemetryContext {
 	readonly requestId?: string;
@@ -37,12 +41,18 @@ export interface IChatUserInteractionOptions {
 }
 
 export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressResponseContent): boolean {
+	return getFirstProgressKind(part) !== undefined;
+}
+
+function getFirstProgressKind(part: IChatProgress | IChatProgressResponseContent): ChatFirstProgressKind | undefined {
 	if (part.kind === 'thinking') {
 		const values = Array.isArray(part.value) ? part.value : [part.value];
-		return values.some(value => typeof value === 'string' && value.trim().length > 0);
+		return values.some(value => typeof value === 'string' && value.trim().length > 0) ? 'reasoning' : undefined;
 	}
-	return part.kind === 'markdownContent' ? part.content.value.trim().length > 0
-		: (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && !IChatToolInvocation.isEffectivelyHidden(part);
+	if (part.kind === 'markdownContent') {
+		return part.content.value.trim().length > 0 ? 'text' : undefined;
+	}
+	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && !IChatToolInvocation.isEffectivelyHidden(part) ? 'tool' : undefined;
 }
 
 /** One submission owns its clock, response observation, render acknowledgement and reporting. */
@@ -57,6 +67,7 @@ export class ChatUserInteraction extends Disposable {
 	private _active = true;
 	private _context: IChatUserInteractionTelemetryContext;
 	private _response: IChatResponseModel | undefined;
+	private _requestPhase: ChatRequestPhase = 'unknown';
 	private _getWidget: (() => IChatWidget | undefined) | undefined;
 	private _renderWidget: IChatWidget | undefined;
 
@@ -69,6 +80,7 @@ export class ChatUserInteraction extends Disposable {
 		this._now = _options.now ?? (() => globalThis.performance.now());
 		this.startedAt = this._now();
 		this._context = _options.context ?? {};
+		this._register(disposableTimeout(() => this.cancel('timedOut'), CHAT_USER_INTERACTION_TIMEOUT_MS));
 		this._register(addDisposableListener(_options.window, 'pagehide', () => this.cancel('disposed')));
 		this._register(addDisposableListener(_options.window.document, 'visibilitychange', () => {
 			if (_options.window.document.visibilityState !== 'visible') {
@@ -105,6 +117,8 @@ export class ChatUserInteraction extends Disposable {
 			return;
 		}
 		this._response = response;
+		const requestIndex = response.session.getRequests().findIndex(request => request.id === response.requestId);
+		this._requestPhase = requestIndex === 0 ? 'first' : requestIndex > 0 ? 'followup' : 'unknown';
 		this._getWidget = getWidget;
 		this._register(response.onDidChange(() => this.checkResponse()));
 		this._register(response.session.onDidDispose(() => this.cancel('disposed')));
@@ -126,8 +140,9 @@ export class ChatUserInteraction extends Disposable {
 			this.cancel(response.isCanceled ? 'cancelled' : 'error');
 			return;
 		}
-		const hasProgress = response.response.value.some(isChatFirstVisibleProgress);
-		if (!hasProgress && response.isComplete) {
+		const firstProgress = response.response.value.find(isChatFirstVisibleProgress);
+		const firstProgressKind = firstProgress && getFirstProgressKind(firstProgress);
+		if (!firstProgressKind && response.isComplete) {
 			this.cancel('completedWithoutProgress');
 			return;
 		}
@@ -142,7 +157,7 @@ export class ChatUserInteraction extends Disposable {
 			this.cancel('navigated');
 		} else if (!widget.visible || getWindow(widget.domNode).document.visibilityState !== 'visible') {
 			this.cancel('hidden');
-		} else if (hasProgress && !widget.isTranscriptProgressActive && !this._renderWidget) {
+		} else if (firstProgressKind && !widget.isTranscriptProgressActive && !this._renderWidget) {
 			this._renderWidget = widget;
 			const window = getWindow(widget.domNode);
 			let frame: number | undefined;
@@ -160,13 +175,14 @@ export class ChatUserInteraction extends Disposable {
 				if (!this._active) {
 					return;
 				}
+				const currentProgress = response.response.value.find(isChatFirstVisibleProgress);
 				if (this._getWidget?.() !== widget || !widget.visible || widget.viewModel?.model !== response.session
 					|| window.document.visibilityState !== 'visible' || widget.isTranscriptProgressActive
-					|| response.isCanceled || response.result?.errorDetails || !response.response.value.some(isChatFirstVisibleProgress)) {
+					|| response.isCanceled || response.result?.errorDetails || !currentProgress || getFirstProgressKind(currentProgress) !== firstProgressKind) {
 					this.resetRender();
 					this.checkResponse();
 				} else if (complete) {
-					this._finish('success');
+					this._finish('success', firstProgressKind);
 				} else {
 					frame = window.requestAnimationFrame(() => nextFrame(true));
 				}
@@ -179,12 +195,15 @@ export class ChatUserInteraction extends Disposable {
 		this._finish(result);
 	}
 
-	private _finish(result: ChatUserInteractionTimingResult): void {
+	private _finish(result: ChatUserInteractionTimingResult, firstProgressKind?: ChatFirstProgressKind): void {
 		if (!this._active) {
 			return;
 		}
 		this._active = false;
 		const elapsedMs = this._now() - this.startedAt;
+		if (result === 'success' && elapsedMs >= CHAT_USER_INTERACTION_TIMEOUT_MS) {
+			result = 'timedOut';
+		}
 		const response = this._response;
 		if (response) {
 			// Participant detection and session adoption can update attribution after response creation.
@@ -206,6 +225,8 @@ export class ChatUserInteraction extends Disposable {
 			timeToFirstProgress: result === 'success' ? elapsedMs : undefined,
 			timeToTermination: result === 'success' ? undefined : elapsedMs,
 			result,
+			requestPhase: this._requestPhase,
+			...(result === 'success' ? { firstProgressKind } : {}),
 			interactionKind: 'turn',
 			windowVisible: this._options.window.document.visibilityState === 'visible',
 			windowFocused: this._options.window.document.hasFocus(),
@@ -226,6 +247,8 @@ type ChatUserPerceivedTimeToFirstProgressEvent = IChatUserInteractionTelemetryCo
 	timeToFirstProgress: number | undefined;
 	timeToTermination: number | undefined;
 	result: ChatUserInteractionTimingResult;
+	requestPhase: ChatRequestPhase;
+	firstProgressKind?: ChatFirstProgressKind;
 	interactionKind: 'turn';
 	windowVisible: boolean;
 	windowFocused: boolean;
@@ -235,6 +258,8 @@ type ChatUserPerceivedTimeToFirstProgressClassification = {
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission through two animation frames after meaningful progress is observed while the chat remains continuously visible. This is a render-boundary approximation, not a physical paint timestamp.' };
 	timeToTermination: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from UI submission until the interaction ended without rendering meaningful progress. Undefined on success.' };
 	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether first progress rendered or why the interaction ended before rendering progress.' };
+	requestPhase: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is the first request in the chat history or a followup; unknown if no response was created or its request cannot be located. Does not imply a cold or warm provider process.' };
+	firstProgressKind?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Kind of meaningful progress that triggered the successful render acknowledgement: text, reasoning, or tool. Absent on unsuccessful observations.' };
 	interactionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat interaction kind. This event measures turn submissions, not fork navigation.' };
 	requestId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat request identifier, when created. For Agent Host turns, this matches agentHost.turnCompleted turnId.' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The non-content chat session identifier. Remote Agent Host connection authorities are excluded.' };

@@ -1276,7 +1276,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (onDidCreateResponse) {
 			const response = result.kind === 'sent' ? result.data.responseCreatedPromise : Promise.resolve(undefined);
 			// An observer must neither delay dispatch nor propagate failures into the request.
-			void response.then(onDidCreateResponse).catch(onUnexpectedError);
+			void response.then(response => onDidCreateResponse(response, result.kind)).catch(onUnexpectedError);
 		}
 		return result;
 	}

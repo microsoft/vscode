@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
+import { CHAT_USER_INTERACTION_TIMEOUT_MS, ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
 import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
@@ -74,6 +75,7 @@ suite('ChatUserInteractionTelemetry', () => {
 		timer.observeResponse(response.response, () => view.widget);
 		const data = {
 			timeToFirstProgress: 250, timeToTermination: undefined, result: 'success', interactionKind: 'turn',
+			requestPhase: 'first', firstProgressKind: 'text',
 			requestId: 'request-id', chatSessionId: 'agent-host-copilotcli:/session',
 			agent: 'agent-id', agentExtensionId: 'publisher.extension', location: ChatAgentLocation.Chat,
 			model: 'model-id', permissionLevel: ChatPermissionLevel.AutoApprove, chatMode: 'agent',
@@ -88,6 +90,88 @@ suite('ChatUserInteractionTelemetry', () => {
 			finished: 1, observing: false,
 		});
 		h.assertFinished('success');
+	});
+
+	for (const [part, kind] of [
+		[{ kind: 'thinking', value: 'Reasoning' }, 'reasoning'],
+		[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' }), 'tool'],
+		[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized' }), 'tool'],
+	] satisfies [IChatProgressResponseContent, string][]) {
+		test(`records ${kind} from ${part.kind} even when text arrives during rendering`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			const response = h.createResponse();
+			const view = h.createWidget(response.response);
+			h.createInteraction().observeResponse(response.response, () => view.widget);
+			response.progress([part]);
+			h.frame();
+			response.progress([part, { kind: 'markdownContent', content: new MarkdownString('Answer') }]);
+			h.frame();
+			assert.strictEqual(h.events[0].data.firstProgressKind, kind);
+			h.assertFinished('success');
+		});
+	}
+
+	for (const [ids, phase] of [[['current'], 'first'], [['previous', 'current'], 'followup'], [[], 'unknown']] as const) {
+		test(`records the ${phase} request phase from the exact request's history position`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			const response = h.createResponse(undefined, { requestId: 'current' });
+			Object.defineProperty(response.response.session, 'getRequests', { value: () => ids.map(id => upcastPartial<IChatRequestModel>({ id })) });
+			const view = h.createWidget(response.response);
+			h.createInteraction().observeResponse(response.response, () => view.widget);
+			response.progress();
+			h.frame(2);
+			assert.strictEqual(h.events[0].data.requestPhase, phase);
+			h.assertFinished('success');
+		});
+	}
+
+	test('does not report a progress kind that disappeared before the render acknowledgement', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		h.createInteraction().observeResponse(response.response, () => view.widget);
+		response.progress([{ kind: 'thinking', value: 'Reasoning' }]);
+		h.frame();
+		response.progress();
+		h.frame();
+		assert.strictEqual(h.events.length, 0);
+		h.frame(2);
+		assert.strictEqual(h.events[0].data.firstProgressKind, 'text');
+		h.assertFinished('success');
+	});
+
+	test('the shared timeout ends only the measurement while awaiting progress', async () => {
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		const h = createChatUserInteractionTestHarness(disposables);
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		const timer = h.createInteraction();
+		try {
+			timer.observeResponse(response.response, () => view.widget);
+			await clock.tickAsync(CHAT_USER_INTERACTION_TIMEOUT_MS - 1);
+			assert.strictEqual(h.events.length, 0);
+			h.setTime(100 + CHAT_USER_INTERACTION_TIMEOUT_MS);
+			await clock.tickAsync(1);
+			response.progress();
+			h.frame(2);
+			assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.timeToTermination, h.events[0].data.firstProgressKind, response.response.isComplete], [undefined, CHAT_USER_INTERACTION_TIMEOUT_MS, undefined, false]);
+			h.assertFinished('timedOut');
+		} finally {
+			timer.dispose();
+			clock.restore();
+		}
+	});
+
+	test('a delayed timeout callback cannot allow an over-budget success', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		h.createInteraction().observeResponse(response.response, () => view.widget);
+		response.progress();
+		h.setTime(100 + CHAT_USER_INTERACTION_TIMEOUT_MS);
+		h.frame(2);
+		assert.deepStrictEqual([h.events[0].data.timeToFirstProgress, h.events[0].data.timeToTermination, h.events[0].data.firstProgressKind], [undefined, CHAT_USER_INTERACTION_TIMEOUT_MS, undefined]);
+		h.assertFinished('timedOut');
 	});
 
 	test('counts a tool-only serialized response without waiting for markdown', () => {
@@ -132,7 +216,7 @@ suite('ChatUserInteractionTelemetry', () => {
 		]);
 	});
 
-	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'navigated', 'hidden', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
+	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'queued', 'navigated', 'hidden', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
 		test(`reports ${result} with only a termination duration`, () => {
 			const h = createChatUserInteractionTestHarness(disposables);
 			const timer = h.createInteraction();
@@ -142,7 +226,7 @@ suite('ChatUserInteractionTelemetry', () => {
 			timer.dispose();
 			assert.deepStrictEqual(h.events, [{
 				name: 'chat.userPerceivedTimeToFirstProgress',
-				data: { result, interactionKind: 'turn', timeToFirstProgress: undefined, timeToTermination: 75, windowVisible: true, windowFocused: false },
+				data: { result, requestPhase: 'unknown', interactionKind: 'turn', timeToFirstProgress: undefined, timeToTermination: 75, windowVisible: true, windowFocused: false },
 			}]);
 			h.assertFinished(result);
 		});

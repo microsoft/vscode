@@ -3161,7 +3161,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.viewModel) {
 				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
 			}
-			const response = await this._acceptInput(query ? { query } : undefined, options, validateSession);
+			const response = await this._acceptInput(query ? { query } : undefined, options, validateSession, (_response, kind) => {
+				if (kind === 'queued') {
+					interaction.cancel('queued');
+				}
+			});
 			if (!response) {
 				interaction.cancel('notDispatched');
 				return undefined;
@@ -3332,7 +3336,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive) {
 			return undefined;
 		}
@@ -3588,6 +3592,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		let result: ChatSendResult;
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
+				onDidCreateResponse,
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),

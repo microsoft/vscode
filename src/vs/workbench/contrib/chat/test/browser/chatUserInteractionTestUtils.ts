@@ -15,7 +15,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidget, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../browser/chatUserInteractionTelemetry.js';
-import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 
 export function createChatUserInteractionTestHarness(disposables: Pick<DisposableStore, 'add'>) {
@@ -68,14 +68,18 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 		: createInstance(ctor, ...args));
 
 	function createResponse(resource = URI.parse('agent-host-copilotcli:/session'), properties: Partial<IChatResponseModel> = {}) {
+		const requestId = properties.requestId ?? `request-${resource.path}`;
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const disposed = disposables.add(new Emitter<void>());
 		let parts: IChatProgressResponseContent[] = [];
 		let complete = false;
 		let result: 'cancelled' | 'error' | undefined;
 		const response = upcastPartial<IChatResponseModel>({
-			session: upcastPartial<IChatModel>({ sessionResource: resource, onDidDispose: disposed.event }),
-			requestId: `request-${resource.path}`,
+			session: upcastPartial<IChatModel>({
+				sessionResource: resource, onDidDispose: disposed.event,
+				getRequests: () => [upcastPartial<IChatRequestModel>({ id: requestId })],
+			}),
+			requestId,
 			onDidChange: changed.event,
 			response: upcastPartial<IResponse>({ get value() { return parts; } }),
 			get isComplete() { return complete; },

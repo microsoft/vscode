@@ -38,7 +38,7 @@ import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewM
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
-import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -954,7 +954,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		return { model, viewModel, hasActiveRequest, requestInProgress, isReadOnly, pendingRequests };
 	}
 
-	function createSubmissionWidget() {
+	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction) {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
 		const other = createSession(URI.parse('agent-host-copilot:/existing-b'));
 		let viewModel: ChatViewModel | undefined = original.viewModel;
@@ -1019,7 +1019,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		});
 		const instantiationService = mockObject<IInstantiationService>()();
 		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser, options?: IChatUserInteractionOptions) =>
-			ctor === ChatUserInteraction ? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService()) : parser);
+			ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService())) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
 		const rebind = (newViewModel: ChatViewModel | undefined) => {
 			const previousSessionResource = viewModel?.sessionResource;
@@ -1261,6 +1261,27 @@ suite('ChatWidget - guarded acceptInput', () => {
 			response: fixture.response,
 		});
 	});
+
+	for (const explicit of [false, true]) {
+		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {
+			const h = createChatUserInteractionTestHarness(store);
+			const fixture = createSubmissionWidget(options => h.createInteraction(options));
+			const queued = new DeferredPromise<ChatSendResult>();
+			const entered = new DeferredPromise<void>();
+			fixture.chatService.sendRequest.callsFake(async (_resource: URI, _message: string, options: IChatSendRequestOptions) => {
+				options.onDidCreateResponse?.(undefined, 'queued');
+				entered.complete();
+				return { kind: 'queued', deferred: queued.p };
+			});
+			const sending = fixture.widget.acceptInput('Test request', { ...fixture.options, queue: explicit ? ChatRequestQueueKind.Queued : undefined });
+			await entered.p;
+			h.assertFinished('queued');
+			assert.deepStrictEqual([queued.isSettled, h.events[0].data.timeToFirstProgress, h.events[0].data.firstProgressKind], [false, undefined, undefined]);
+			await queued.complete(fixture.sent);
+			assert.strictEqual(await sending, fixture.response);
+			h.assertFinished('queued');
+		});
+	}
 
 	test('unguarded user input still submits normally', async () => {
 		const fixture = createSubmissionWidget();
