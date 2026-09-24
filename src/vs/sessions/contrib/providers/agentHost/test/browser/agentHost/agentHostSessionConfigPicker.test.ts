@@ -45,7 +45,7 @@ import { ISessionChangesService } from '../../../../../../contrib/changes/browse
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
@@ -419,7 +419,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('contributes worktree before branch for a composed draft outside the visible session list', async () => {
+	test('contributes worktree before branch in the new session composer layout', async () => {
 		const services = setupServices(store);
 		await services.configurationService.setUserConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
 		await services.configurationService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
@@ -431,10 +431,7 @@ suite('Agent Host Session Config Picker', () => {
 			override readonly mainContainer = document.createElement('div');
 		}());
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([]);
-		}());
-		services.instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override readonly newSession = constObservable(services.activeSession);
+			override readonly visibleSessions = constObservable([services.activeSession]);
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 

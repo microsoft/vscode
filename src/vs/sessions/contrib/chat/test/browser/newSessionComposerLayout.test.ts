@@ -32,7 +32,7 @@ suite('New session composer layout', () => {
 				chatTips: areSessionChatTipsEnabled(configurationService),
 			}, {
 				experimentalLayout: testCase.expected,
-				chatTips: !testCase.expected,
+				chatTips: true,
 			});
 		});
 	}

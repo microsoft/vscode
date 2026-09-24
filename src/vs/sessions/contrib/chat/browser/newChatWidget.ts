@@ -78,8 +78,7 @@ export function isExperimentalSessionComposerLayoutEnabled(configurationService:
 }
 
 export function areSessionChatTipsEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>('chat.tips.enabled') !== false
-		&& !isExperimentalSessionComposerLayoutEnabled(configurationService);
+	return configurationService.getValue<boolean>('chat.tips.enabled') !== false;
 }
 
 export class NewChatWidget extends Disposable {
@@ -405,9 +404,7 @@ export class NewChatWidget extends Disposable {
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration('chat.tips.enabled')
-				&& !e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				&& !e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+			if (!e.affectsConfiguration('chat.tips.enabled')) {
 				return;
 			}
 			if (areSessionChatTipsEnabled(this.configurationService)) {
