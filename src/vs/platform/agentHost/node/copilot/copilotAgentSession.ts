@@ -1252,6 +1252,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _fusionPhaseLabels = new Map<string, string>();
 	/** Phase tool call ids whose child chat is open; kept until the workflow ends because commit replays arrive after the phase. */
 	private readonly _fusionPhaseChats = new Set<string>();
+	/** The latest pending close per phase chat; a close whose drain finishes after a reopen or a newer close must not fire. */
+	private readonly _pendingFusionPhaseChatCloses = new Map<string, number>();
+	private _fusionPhaseChatCloseGeneration = 0;
 
 	/**
 	 * Last SDK-reported MCP status logged per server, suppressing duplicate
@@ -7183,6 +7186,8 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._fusionPhaseChats.add(toolCallId);
+		// Reopening supersedes a close still waiting on its drain.
+		this._pendingFusionPhaseChatCloses.delete(toolCallId);
 		// Usually opened after the phase tile completed, so the host's Subagent discovery block is rejected; clients follow the chat catalog, and restore links it.
 		this._onDidSessionProgress.fire({
 			kind: 'subagent_started',
@@ -7198,6 +7203,7 @@ export class CopilotAgentSession extends Disposable {
 	private _forgetFusionPhaseChats(): void {
 		this._fusionPhaseLabels.clear();
 		this._fusionPhaseChats.clear();
+		this._pendingFusionPhaseChatCloses.clear();
 	}
 
 	private _completeFusionPhaseChats(): void {
@@ -7206,8 +7212,20 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const toolCallIds = [...this._fusionPhaseChats];
 		this._fusionPhaseChats.clear();
+		const generation = ++this._fusionPhaseChatCloseGeneration;
+		for (const toolCallId of toolCallIds) {
+			this._pendingFusionPhaseChatCloses.set(toolCallId, generation);
+		}
 		const complete = () => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			for (const toolCallId of toolCallIds) {
+				// Only the latest close for a chat may fire; a reopen or a newer close has taken over.
+				if (this._pendingFusionPhaseChatCloses.get(toolCallId) !== generation) {
+					continue;
+				}
+				this._pendingFusionPhaseChatCloses.delete(toolCallId);
 				this._onDidSessionProgress.fire({ kind: 'subagent_completed', chat: this._chatChannelUri, toolCallId });
 			}
 		};

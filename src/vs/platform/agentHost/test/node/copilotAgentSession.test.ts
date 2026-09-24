@@ -11474,6 +11474,32 @@ Use the attached image as context.
 			});
 		});
 
+		test('a phase chat reopened while its close still drains an edit stays open', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'critique', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-create', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-create', success: true, result: { content: 'created' }, fusion });
+			// The error closes the chat, but the close waits on the edit; the phase reopens before it lands.
+			mockSession.fire('session.error', { errorType: 'rate_limit', message: 'Rate limited' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion });
+			const lifecycle = () => signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [signal.kind] : []);
+			const beforeEdit = lifecycle();
+			edit.complete(undefined);
+			await timeout(0);
+			const afterEdit = lifecycle();
+			mockSession.fire('session.idle', {});
+			assert.deepStrictEqual({ beforeEdit, afterEdit, afterIdle: lifecycle() }, {
+				beforeEdit: ['subagent_started', 'subagent_started'],
+				afterEdit: ['subagent_started', 'subagent_started'],
+				afterIdle: ['subagent_started', 'subagent_started', 'subagent_completed'],
+			});
+		});
+
 		test('Fusion tools stay at the root when their phase has no child chat', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
