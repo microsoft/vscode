@@ -597,6 +597,46 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		assert.deepStrictEqual({ existingDraft, running, waiting: h.notification }, { existingDraft: undefined, running: true, waiting: undefined });
 	});
 
+	test('shows Copilot harness education outside the parallel-work experiment', () => {
+		const h = createHarness({ banner: false, running: false, copilotHarnessSessionCount: 5 });
+		h.showBanner();
+		const atFive = {
+			id: h.notification?.id,
+			title: h.notification?.message,
+			action: h.notification?.actions[0]?.label,
+		};
+		h.copilotHarnessSessionCount = 6;
+
+		assert.deepStrictEqual({
+			atFive,
+			atSix: h.notification,
+			parallelWorkEnabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
+		}, {
+			atFive: {
+				id: 'chat.agentsParallelWork',
+				title: 'You\'re using the Copilot harness',
+				action: 'Learn More',
+			},
+			atSix: undefined,
+			parallelWorkEnabled: false,
+		});
+	});
+
+	test('prioritizes the parallel-work invitation over education when its experiment is active', () => {
+		const h = createHarness({ copilotHarnessSessionCount: 4 });
+		h.showBanner();
+
+		assert.deepStrictEqual({
+			title: h.notification?.message,
+			description: h.notification?.description,
+			actions: h.notification?.actions.map(action => action.label),
+		}, {
+			title: 'Run agents side by side',
+			description: 'Run multiple tasks in the Agents Window, in one workspace or across projects.',
+			actions: ['Open Agents Window', 'Ignore'],
+		});
+	});
+
 	test('uses the existing invitation notification for Copilot harness education through five sessions', async () => {
 		const h = createHarness({ running: false, copilotHarnessSessionCount: 5 });
 		h.showBanner();
@@ -691,8 +731,8 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('Learn More opens Copilot harness documentation without disabling the experiment', async () => {
-		const h = createHarness({ running: false, copilotHarnessSessionCount: 5 });
+	test('Learn More opens Copilot harness documentation without changing the parallel-work experiment', async () => {
+		const h = createHarness({ banner: false, running: false, copilotHarnessSessionCount: 5 });
 		h.showBanner();
 		await h.click(0);
 		const afterOpen = h.notification;
@@ -705,7 +745,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			nextTitle: h.notification?.message,
 		}, {
 			opened: ['https://code.visualstudio.com/docs/agents/run/agent-harnesses?referrer=in-product#_use-the-copilot-harness'],
-			enabled: true,
+			enabled: false,
 			afterOpen: undefined,
 			nextTitle: 'You\'re using the Copilot harness',
 		});

@@ -891,7 +891,6 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		const widget = this._chatWidgetService.getWidgetByInputUri(inputUri);
 		if (!isAgentHostDraftWidget(widget) || this._posted?.widget !== widget || this._posted.kind !== kind
 			|| !isEqual(this._posted.resource, resource) || !isEqual(widget.viewModel?.sessionResource, resource)
-			|| this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) !== true
 			|| !widget.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled))
 			|| this._getNotificationKind(widget) !== kind) {
 			return undefined;
@@ -948,26 +947,27 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			return undefined;
 		}
 
-		if (this._isCopilotHarnessSessionType(getChatSessionType(resource))) {
-			const sessionCount = this._getCopilotHarnessSessionCount();
-			const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
-			if (sessionCount <= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT) {
-				const localCopilotNeedsSetup = getChatSessionType(resource) === SessionType.AgentHostCopilot
-					&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-				if (!introductionIgnored && !localCopilotNeedsSetup) {
-					return AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction;
-				}
-				const canTransitionToParallelWork = (introductionIgnored && sessionCount === AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT)
-					|| (!introductionIgnored && localCopilotNeedsSetup);
-				if (!canTransitionToParallelWork) {
-					return undefined;
-				}
-			}
+		const parallelWorkEligible = this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) === true
+			&& this._eligible.has(resource)
+			&& hasRunningAgentHostSession(this._agentSessionsService);
+		if (!this._isCopilotHarnessSessionType(getChatSessionType(resource))) {
+			return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 		}
 
-		return this._eligible.has(resource) && hasRunningAgentHostSession(this._agentSessionsService)
-			? AgentsParallelWorkNotificationKind.ParallelWork
-			: undefined;
+		const sessionCount = this._getCopilotHarnessSessionCount();
+		const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
+		const localCopilotNeedsSetup = getChatSessionType(resource) === SessionType.AgentHostCopilot
+			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		if (localCopilotNeedsSetup) {
+			return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
+		}
+		if (parallelWorkEligible && (!introductionIgnored || sessionCount >= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT)) {
+			return AgentsParallelWorkNotificationKind.ParallelWork;
+		}
+		if (!introductionIgnored && sessionCount <= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT) {
+			return AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction;
+		}
+		return undefined;
 	}
 
 	private _getOwner(): { readonly widget: IChatWidget; readonly kind: AgentsParallelWorkNotificationKind } | undefined {
@@ -1002,7 +1002,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	}
 
 	private _updateOwner(): void {
-		const owner = this._configurationService.getValue<boolean>(ChatConfiguration.AgentsParallelWorkBannerEnabled) === true ? this._getOwner() : undefined;
+		const owner = this._getOwner();
 		const widget = owner?.widget;
 		const kind = owner?.kind;
 		const resource = widget?.viewModel?.sessionResource;
