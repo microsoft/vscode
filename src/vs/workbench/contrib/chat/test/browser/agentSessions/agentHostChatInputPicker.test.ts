@@ -272,8 +272,11 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			{ value: 'main', label: 'main' },
 			...Array.from({ length: 35 }, (_, index) => ({ value: `feature/${index}`, label: `feature/${index}` })),
 		);
+		const viewModel = widget.viewModel!;
+		widget.viewModel = undefined;
 		const branchPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Branch));
-		branchPicker['_initialResolved'] = { sessionResource: widget.viewModel!.sessionResource, result: config };
+		widget.viewModel = viewModel;
+		branchPicker['_initialResolved'] = { sessionResource: viewModel.sessionResource, result: config };
 		const container = dom.$('div');
 		branchPicker.render(container);
 		const trigger = container.querySelector<HTMLElement>('.action-label')!;

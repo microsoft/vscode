@@ -369,6 +369,15 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 	return { picker, container };
 }
 
+function otherActiveSession(activeSession: IActiveSession): IActiveSession {
+	return new class extends mock<IActiveSession>() {
+		override readonly providerId = activeSession.providerId;
+		override readonly sessionId = 'local-agent-host:other';
+		override readonly workspace = constObservable(makeWorkspace(undefined));
+		override readonly activeChat = activeSession.activeChat;
+	}();
+}
+
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1196,11 +1205,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
-		services.sessionObs.set({
-			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-			sessionId: 'local-agent-host:other',
-			workspace: constObservable(makeWorkspace(undefined)),
-		} as IActiveSession, undefined);
+		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
 		barrier.complete();
 		await new Promise(resolve => setTimeout(resolve));
 
@@ -1222,11 +1227,7 @@ suite('Agent Host Session Config Picker', () => {
 		await new Promise(resolve => setTimeout(resolve));
 		const oldDelegate = services.actionWidget.delegate;
 
-		services.sessionObs.set({
-			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-			sessionId: 'local-agent-host:other',
-			workspace: constObservable(makeWorkspace(undefined)),
-		} as IActiveSession, undefined);
+		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
 		oldDelegate?.onSelect({ value: 'main', label: 'main' });
 
 		assert.deepStrictEqual({
