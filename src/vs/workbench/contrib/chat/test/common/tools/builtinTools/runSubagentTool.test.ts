@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -20,10 +21,11 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
-import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
+import { IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel, IChatRequestModeInstructions } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 
@@ -34,6 +36,13 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 		if (eventName) {
 			this.events.push({ name: eventName, data });
 		}
+	}
+}
+
+/** Resolves each tool name of an agent's `tools` to an enabled tool with that id. */
+class EnablementMapToolsService extends MockLanguageModelToolsService {
+	override toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): ToolAndToolSetEnablementMap {
+		return ToolAndToolSetEnablementMap.fromEntries(toolOrToolSetNames.map(id => [{ id } as IToolData, true]));
 	}
 }
 
@@ -1303,8 +1312,11 @@ suite('RunSubagentTool', () => {
 			customAgents: ICustomAgent[];
 			currentModeInstructions: IChatRequestModeInstructions;
 			capturedRequests?: IChatAgentRequest[];
+			/** Runs while the requested subagent is running, e.g. to simulate it calling the tool itself. */
+			onInvokeAgent?: (request: IChatAgentRequest) => Promise<void>;
+			languageModelsService?: ILanguageModelsService;
 		}) {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const mockToolsService = testDisposables.add(new EnablementMapToolsService());
 			const promptsService = new MockPromptsService();
 			promptsService.setCustomModes(opts.customAgents);
 
@@ -1314,6 +1326,7 @@ suite('RunSubagentTool', () => {
 				},
 				async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
 					opts.capturedRequests?.push(request);
+					await opts.onInvokeAgent?.(request);
 					return {};
 				},
 			};
@@ -1346,9 +1359,9 @@ suite('RunSubagentTool', () => {
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				createLanguageModelsServiceMock(),
+				opts.languageModelsService ?? createLanguageModelsServiceMock(),
 				new NullLogService(),
-				new TestConfigurationService(),
+				new TestConfigurationService({ [ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: true }),
 				promptsService,
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
@@ -1356,18 +1369,59 @@ suite('RunSubagentTool', () => {
 			));
 		}
 
-		function createInvocation(agentName: string): IToolInvocation {
+		const sessionResource = URI.parse('test://session/allowlist');
+
+		/** Creates a call made in the top-level request, or in the request of the subagent that `callingRequest` started. */
+		function createInvocation(agentName: string | undefined, callingRequest?: IChatAgentRequest): IToolInvocation {
 			return {
 				callId: `allowlist-call-${++callIdCounter}`,
 				toolId: 'runSubagent',
 				parameters: { prompt: 'do something', description: 'test', agentName },
-				context: { sessionResource: URI.parse('test://session/allowlist') },
+				context: { sessionResource, requestId: callingRequest?.requestId ?? 'req-1' },
+				subAgentInvocationId: callingRequest?.subAgentInvocationId,
 				userSelectedTools: { runSubagent: true },
 			} as IToolInvocation;
 		}
 
+		function prepareInvocation(tool: RunSubagentTool, invocation: IToolInvocation) {
+			return tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				chatSessionResource: sessionResource,
+				invocationRequestId: invocation.context?.requestId,
+				modelId: invocation.modelId,
+			}, CancellationToken.None);
+		}
+
 		const countTokens = async () => 0;
 		const noProgress: ToolProgress = { report() { } };
+		const notAllowed = (agentName: string) => `Requested agent '${agentName}' is not allowed by the current agent.`;
+		const completed = 'Agent completed with no output';
+
+		function getResultText(result: IToolResult): string | undefined {
+			return result.content[0].kind === 'text' ? result.content[0].value : undefined;
+		}
+
+		interface INestedCallOutcome {
+			readonly caller: string | undefined;
+			readonly agentName: string | undefined;
+			/** `ok`, or the error that `prepareToolInvocation` threw. */
+			readonly prepare: string;
+			readonly invoke: string | undefined;
+		}
+
+		/** Makes the call that the subagent started by `parent` makes when it runs the tool. */
+		async function callFromSubagent(tool: RunSubagentTool, parent: IChatAgentRequest, agentName: string | undefined): Promise<INestedCallOutcome> {
+			const invocation = createInvocation(agentName, parent);
+			let prepare = 'ok';
+			try {
+				await prepareInvocation(tool, invocation);
+			} catch (error) {
+				prepare = error instanceof Error ? error.message : String(error);
+			}
+			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			return { caller: parent.subAgentName, agentName, prepare, invoke: getResultText(result) };
+		}
 
 		test('prepareToolInvocation rejects a requested agent outside the current allowlist', async () => {
 			const tool = createAllowlistTool({
@@ -1425,6 +1479,176 @@ suite('RunSubagentTool', () => {
 				requestCount: 1,
 				subAgentName: 'Allowed',
 				allowedSubagents: ['Nested'],
+			});
+		});
+
+		test('validates nested calls against the allowlist of the calling subagent', async () => {
+			// A (the current request's agent) -> B -> C -> D, where each agent only allows the next one.
+			const capturedRequests: IChatAgentRequest[] = [];
+			const outcomes: INestedCallOutcome[] = [];
+			const nextAgent: Record<string, string> = { B: 'C', C: 'D' };
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['C']), createAgent('C', ['D']), createAgent('D')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B'] },
+				capturedRequests,
+				onInvokeAgent: async request => {
+					const agentName = nextAgent[request.subAgentName!];
+					if (agentName) {
+						outcomes.push(await callFromSubagent(tool, request, agentName));
+					}
+				},
+			});
+
+			const result = await tool.invoke(createInvocation('B'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result: getResultText(result),
+				invokedAgents: capturedRequests.map(request => request.subAgentName),
+				outcomes,
+			}, {
+				result: completed,
+				invokedAgents: ['B', 'C', 'D'],
+				outcomes: [
+					{ caller: 'C', agentName: 'D', prepare: 'ok', invoke: completed },
+					{ caller: 'B', agentName: 'C', prepare: 'ok', invoke: completed },
+				],
+			});
+		});
+
+		test('rejects nested calls to agents that only the current request\'s agent allows', async () => {
+			const outcomes: INestedCallOutcome[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['C']), createAgent('C'), createAgent('D')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B', 'D'] },
+				onInvokeAgent: async request => {
+					if (request.subAgentName === 'B') {
+						outcomes.push(await callFromSubagent(tool, request, 'D'));
+						outcomes.push(await callFromSubagent(tool, request, 'C'));
+					}
+				},
+			});
+
+			await tool.invoke(createInvocation('B'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual(outcomes, [
+				{ caller: 'B', agentName: 'D', prepare: notAllowed('D'), invoke: `Error invoking subagent: ${notAllowed('D')}` },
+				{ caller: 'B', agentName: 'C', prepare: 'ok', invoke: completed },
+			]);
+		});
+
+		test('resolves the calling subagent per request when subagents run in parallel with the same tool call id', async () => {
+			// A runs B and C at the same time, through tool calls that reuse the same id. Only C allows D,
+			// so the same call is rejected for B and allowed for C.
+			const outcomes: INestedCallOutcome[] = [];
+			const bothRunning = new DeferredPromise<void>();
+			let runningCount = 0;
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['X']), createAgent('C', ['D']), createAgent('D')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B', 'C'] },
+				onInvokeAgent: async request => {
+					if (request.subAgentName === 'B' || request.subAgentName === 'C') {
+						if (++runningCount === 2) {
+							bothRunning.complete();
+						}
+						await bothRunning.p;
+						outcomes.push(await callFromSubagent(tool, request, 'D'));
+					}
+				},
+			});
+
+			await Promise.all(['B', 'C'].map(agentName => tool.invoke({ ...createInvocation(agentName), chatStreamToolCallId: 'reused-tool-call-id' }, countTokens, noProgress, CancellationToken.None)));
+
+			assert.deepStrictEqual(outcomes.sort((a, b) => a.caller!.localeCompare(b.caller!)), [
+				{ caller: 'B', agentName: 'D', prepare: notAllowed('D'), invoke: `Error invoking subagent: ${notAllowed('D')}` },
+				{ caller: 'C', agentName: 'D', prepare: 'ok', invoke: completed },
+			]);
+		});
+
+		test('copies the calling subagent when a nested call omits agentName', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			let preparedAgentName: string | undefined;
+			const modelName = 'Claude Sonnet (TestVendor)';
+			const modelMetadata = createMetadata('Claude Sonnet', 1);
+			// The tools service gives every call, nested ones too, the model and tools of the top-level request.
+			const inTopLevelRequest = (invocation: IToolInvocation): IToolInvocation => ({ ...invocation, modelId: 'main-model-id', userSelectedTools: { runSubagent: true, topLevelTool: true } });
+			const tool = createAllowlistTool({
+				customAgents: [
+					{
+						...createAgent('B', ['C']),
+						model: [modelName],
+						tools: ['readTool'],
+						hooks: { [HookType.PreToolUse]: [{ command: 'guard-read' }], [HookType.Stop]: [{ command: 'on-stop' }] },
+					},
+					createAgent('C'),
+				],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B'] },
+				capturedRequests,
+				languageModelsService: createLanguageModelsServiceMock(
+					new Map([['main-model-id', createMetadata('GPT', 1)], ['b-model-id', modelMetadata]]),
+					{ qualifiedNameMap: new Map([[modelName, { metadata: modelMetadata, identifier: 'b-model-id' }]]) },
+				),
+				onInvokeAgent: async request => {
+					if (capturedRequests.length === 1) {
+						const invocation = inTopLevelRequest(createInvocation(undefined, request));
+						const prepared = await prepareInvocation(tool, invocation);
+						preparedAgentName = prepared?.toolSpecificData?.kind === 'subagent' ? prepared.toolSpecificData.agentName : undefined;
+						await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+					}
+				},
+			});
+
+			await tool.invoke(inTopLevelRequest(createInvocation('B')), countTokens, noProgress, CancellationToken.None);
+
+			const bTools = { readTool: true, runSubagent: true, manage_todo_list: false, copilot_askQuestions: false };
+			const bHooks = { [HookType.PreToolUse]: [{ command: 'guard-read' }], [HookType.Stop]: undefined, [HookType.SubagentStop]: [{ command: 'on-stop' }] };
+			assert.deepStrictEqual({
+				preparedAgentName,
+				invokedAgents: capturedRequests.map(request => ({
+					subAgentName: request.subAgentName,
+					instructions: request.modeInstructions?.content,
+					allowedSubagents: request.modeInstructions?.allowedSubagents,
+					model: request.userSelectedModelId,
+					tools: request.userSelectedTools,
+					hooks: request.hooks,
+				})),
+			}, {
+				preparedAgentName: 'B',
+				invokedAgents: [
+					{ subAgentName: 'B', instructions: 'B instructions', allowedSubagents: ['C'], model: 'b-model-id', tools: bTools, hooks: bHooks },
+					{ subAgentName: 'B', instructions: 'B instructions', allowedSubagents: ['C'], model: 'b-model-id', tools: bTools, hooks: bHooks },
+				],
+			});
+		});
+
+		test('stops treating a subagent as the caller once it has finished', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const whileRunning: (string | undefined)[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['C']), createAgent('Failing', ['C']), createAgent('C')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B', 'Failing'] },
+				capturedRequests,
+				onInvokeAgent: async request => {
+					if (request.subAgentName === 'C') {
+						return;
+					}
+					whileRunning.push((await callFromSubagent(tool, request, 'C')).invoke);
+					if (request.subAgentName === 'Failing') {
+						throw new Error('subagent failed');
+					}
+				},
+			});
+
+			const afterFinished: (string | undefined)[] = [];
+			for (const agentName of ['B', 'Failing']) {
+				await tool.invoke(createInvocation(agentName), countTokens, noProgress, CancellationToken.None);
+				const finishedSubagent = capturedRequests.find(request => request.subAgentName === agentName)!;
+				const result = await tool.invoke(createInvocation('C', finishedSubagent), countTokens, noProgress, CancellationToken.None);
+				afterFinished.push(getResultText(result));
+			}
+
+			assert.deepStrictEqual({ whileRunning, afterFinished }, {
+				whileRunning: [completed, completed],
+				afterFinished: [`Error invoking subagent: ${notAllowed('C')}`, `Error invoking subagent: ${notAllowed('C')}`],
 			});
 		});
 	});
