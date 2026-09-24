@@ -1061,6 +1061,27 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 	});
+
+	test('resolves a revision-fenced canvas source', async () => {
+		const { client, transport } = createClient();
+		const chat = URI.parse('ahp-chat:/test/main');
+		const resultPromise = client.resolveCanvasSource(chat, 'preview-1', 3);
+
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'resolveCanvasSource',
+			params: {
+				channel: chat.toString(),
+				instanceId: 'preview-1',
+				revision: 3,
+			},
+		});
+
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { url: 'https://example.test/preview' } });
+		assert.deepStrictEqual(await resultPromise, { url: 'https://example.test/preview' });
+	});
+
 	test('preserves JSON-RPC error code and data', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.resourceRead(URI.file('/missing'));

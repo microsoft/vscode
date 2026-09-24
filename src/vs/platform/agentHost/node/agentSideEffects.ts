@@ -1830,6 +1830,16 @@ export class AgentSideEffects extends Disposable {
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.backgroundMcpServerStartup?.(URI.parse(sessionChannel), action.id).catch(err => {
 					this._logService.warn(`[AgentSideEffects] backgroundMcpServerStartup failed for ${sessionChannel}`, err);
+					const server = getCustomizationEnablementCandidates(this._stateManager.getSessionState(sessionChannel)?.customizations)
+						.find(candidate => candidate.customization.id === action.id)?.customization;
+					if (server?.type === CustomizationType.McpServer && server.state.kind === McpServerStatus.Starting && server.state.blocking === false) {
+						this._stateManager.dispatchServerAction(sessionChannel, {
+							type: ActionType.SessionMcpServerStateChanged,
+							id: action.id,
+							state: { ...server.state, blocking: true },
+							channel: server.channel,
+						});
+					}
 				});
 				break;
 			}

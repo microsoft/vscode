@@ -32,6 +32,8 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
+import { getAppNodeModulesUri } from '../appNodeModules.js';
+import { resolveCopilotRuntimePaths } from './copilotRuntimePaths.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
@@ -843,6 +845,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
+		const extensionSdkPath = plan.isEphemeral ? undefined : (await resolveCopilotRuntimePaths(getAppNodeModulesUri())).extensionSdkPath;
+		const canvasesEnabled = extensionSdkPath !== undefined;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
@@ -990,7 +994,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			enableSkills: true,
-			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
+			requestExtensions: canvasesEnabled,
+			requestCanvasRenderer: canvasesEnabled,
+			...(extensionSdkPath !== undefined ? { extensionSdkPath } : {}),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

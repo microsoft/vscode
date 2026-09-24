@@ -1089,7 +1089,7 @@ suite('AgentSideEffects', () => {
 			return server?.type === CustomizationType.McpServer ? server.state : undefined;
 		}
 
-		test('forwards background requests without changing provider-owned state', async () => {
+		test('optimistically backgrounds startup while forwarding the request', async () => {
 			const calls: Array<{ session: URI; id: string }> = [];
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async (session: URI, id: string) => {
@@ -1105,7 +1105,7 @@ suite('AgentSideEffects', () => {
 				state: serverState(),
 			}, {
 				calls: [{ session: sessionUri.toString(), id: 'server' }],
-				state: { kind: McpServerStatus.Starting, blocking: true },
+				state: { kind: McpServerStatus.Starting, blocking: false },
 			});
 		});
 
@@ -1143,6 +1143,25 @@ suite('AgentSideEffects', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+		});
+
+		test('does not restore blocking after provider state advances', async () => {
+			const background = new DeferredPromise<void>();
+			Object.assign(agent, {
+				backgroundMcpServerStartup: async () => background.p,
+			});
+
+			requestBackground();
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'server',
+				state: { kind: McpServerStatus.Ready },
+				channel: 'mcp://server',
+			});
+			background.error(new Error('late rejection'));
+			await timeout(0);
+
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Ready });
 		});
 	});
 

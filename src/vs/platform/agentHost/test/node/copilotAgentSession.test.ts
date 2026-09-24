@@ -109,6 +109,10 @@ const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTrans
  */
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
+	readonly openCanvases: CopilotSession['openCanvases'] = [];
+	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
+	extensionListGate: Promise<void> | undefined;
+	onExtensionList: (() => void) | undefined;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
@@ -376,6 +380,16 @@ class MockCopilotSession {
 					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
 					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
 			},
+		},
+		extensions: {
+			list: async () => {
+				this.onExtensionList?.();
+				await this.extensionListGate;
+				return { extensions: this.extensions };
+			},
+		},
+		canvas: {
+			list: async () => ({ canvases: [] }),
 		},
 		metadata: {
 			setWorkingDirectory: async (params: Parameters<CopilotSession['rpc']['metadata']['setWorkingDirectory']>[0]) => {
@@ -1894,6 +1908,146 @@ suite('CopilotAgentSession', () => {
 			included: false,
 			callCount: 1,
 		});
+	});
+
+	test('projects only live canvas events after resume and fences source revisions', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			resume: true,
+			configureMockSession: mock => {
+				mock.openCanvases.push({
+					instanceId: 'preview',
+					extensionId: 'project:preview',
+					canvasId: 'preview',
+					url: 'https://example.test/restored',
+				});
+			},
+		});
+
+		mockSession.fire('session.canvas.opened', {
+			instanceId: 'preview',
+			extensionId: 'project:preview',
+			canvasId: 'preview',
+			url: 'https://example.test/restored',
+		});
+		mockSession.fire('user.message', { content: 'Open the canvas again', messageId: 'message-1' } as SessionEventPayload<'user.message'>['data']);
+		mockSession.fire('session.canvas.opened', {
+			instanceId: 'preview',
+			extensionId: 'project:preview',
+			extensionName: 'Preview',
+			canvasId: 'preview',
+			title: 'Preview',
+			status: 'ready',
+			url: 'https://example.test/live',
+		});
+		mockSession.fire('session.canvas.opened', {
+			instanceId: 'preview',
+			extensionId: 'project:preview',
+			extensionName: 'Preview',
+			canvasId: 'preview',
+			title: 'Preview',
+			status: 'ready',
+			url: 'https://example.test/live',
+		});
+		const source = session.resolveCanvasSource('preview', 1);
+		mockSession.fire('session.canvas.unavailable', {
+			instanceId: 'preview',
+			extensionId: 'project:preview',
+			canvasId: 'preview',
+		});
+		assert.throws(() => session.resolveCanvasSource('preview', 1), /not available/);
+		session.dispose();
+
+		assert.deepStrictEqual({
+			source,
+			actions: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
+		}, {
+			source: 'https://example.test/live',
+			actions: [
+				{
+					type: ActionType.ChatCanvasesChanged,
+					canvases: [{
+						instanceId: 'preview',
+						extensionId: 'project:preview',
+						extensionName: 'Preview',
+						canvasId: 'preview',
+						title: 'Preview',
+						status: 'ready',
+						revision: 1,
+						availability: 'ready',
+					}],
+				},
+				{
+					type: ActionType.ChatCanvasesChanged,
+					canvases: [{
+						instanceId: 'preview',
+						extensionId: 'project:preview',
+						extensionName: 'Preview',
+						canvasId: 'preview',
+						title: 'Preview',
+						status: 'ready',
+						revision: 2,
+						availability: 'unavailable',
+					}],
+				},
+				{ type: ActionType.ChatCanvasesChanged, canvases: undefined },
+			],
+		});
+	});
+
+	test('bounds the live canvas projection and evicts the oldest instance', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		for (let index = 0; index < 9; index++) {
+			mockSession.fire('session.canvas.opened', {
+				instanceId: `canvas-${index}`,
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				url: `https://example.test/canvas-${index}`,
+			});
+		}
+
+		const actions = getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged);
+		const finalCanvases = actions.at(-1)?.canvases;
+		assert.throws(() => session.resolveCanvasSource('canvas-0', 1), /not available/);
+		assert.deepStrictEqual({
+			instanceIds: finalCanvases?.map(canvas => canvas.instanceId),
+			newestSource: session.resolveCanvasSource('canvas-8', 9),
+		}, {
+			instanceIds: ['canvas-1', 'canvas-2', 'canvas-3', 'canvas-4', 'canvas-5', 'canvas-6', 'canvas-7', 'canvas-8'],
+			newestSource: 'https://example.test/canvas-8',
+		});
+		session.dispose();
+	});
+
+	test('observes extension readiness events that race with the status snapshot', async () => {
+		const listStarted = new DeferredPromise<void>();
+		const releaseList = new DeferredPromise<void>();
+		let mockSession: MockCopilotSession | undefined;
+		const creation = createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mockSession = mock;
+				mock.extensions.push({
+					id: 'project:preview',
+					name: 'preview',
+					source: 'project',
+					status: 'starting',
+				});
+				mock.onExtensionList = () => listStarted.complete();
+				mock.extensionListGate = releaseList.p;
+			},
+		});
+		await listStarted.p;
+		mockSession?.fire('session.extensions_loaded', {
+			extensions: [{
+				id: 'project:preview',
+				name: 'preview',
+				source: 'project',
+				status: 'running',
+			}],
+		});
+		releaseList.complete();
+
+		const { session } = await creation;
+		session.dispose();
 	});
 
 	suite('CopilotSessionWrapper', () => {
@@ -8326,6 +8480,95 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
+		});
+	});
+
+	// ---- provider-initiated turns ----
+
+	suite('provider-initiated turns', () => {
+		test('projects a correlated SDK root request into the owning chat', async () => {
+			const telemetryService = new CapturingRestrictedTelemetryService();
+			const sessionDatabase = new TestSessionDatabase();
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				sessionDatabase,
+				telemetryService,
+				restrictedTelemetryContext: {
+					restrictedTelemetryEnabled: true,
+					trackingId: 'tracking-id',
+					telemetryEndpoint: 'https://telemetry.example',
+				},
+			});
+
+			mockSession.fire('user.message', {
+				content: 'Play one move in the open Chess canvas.',
+				messageId: 'provider-message',
+				turnId: 'provider-sdk-turn',
+			} as SessionEventPayload<'user.message'>['data'], {
+				id: 'provider-user-event',
+				timestamp: '2026-09-25T10:00:00.000Z',
+			});
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Nf6. White to move.',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			const actions = getActions(signals);
+			const started = actions.find(action => action.type === ActionType.ChatTurnStarted);
+			const response = actions.find(action => action.type === ActionType.ChatResponsePart);
+			const completed = actions.find(action => action.type === ActionType.ChatTurnComplete);
+			assert.deepStrictEqual({
+				started: started && {
+					startedAt: started.startedAt,
+					message: started.message,
+				},
+				response: response && {
+					sameTurn: response.turnId === started?.turnId,
+					kind: response.part.kind,
+					content: response.part.kind === ResponsePartKind.Markdown ? response.part.content : undefined,
+				},
+				completedSameTurn: completed?.turnId === started?.turnId,
+				setTurnEventIdCalls: sessionDatabase.setTurnEventIdCalls.map(call => ({
+					sameTurn: call.turnId === started?.turnId,
+					eventId: call.eventId,
+				})),
+				userMessageTelemetry: telemetryService.events.filter(event => event.eventName === 'conversation.messageText'),
+			}, {
+				started: {
+					startedAt: '2026-09-25T10:00:00.000Z',
+					message: {
+						text: 'Play one move in the open Chess canvas.',
+						origin: { kind: MessageKind.User },
+					},
+				},
+				response: {
+					sameTurn: true,
+					kind: ResponsePartKind.Markdown,
+					content: 'Nf6. White to move.',
+				},
+				completedSameTurn: true,
+				setTurnEventIdCalls: [{
+					sameTurn: true,
+					eventId: 'provider-user-event',
+				}],
+				userMessageTelemetry: [],
+			});
+		});
+
+		test('does not project injected or uncorrelated SDK user messages', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+
+			mockSession.fire('user.message', {
+				content: 'Injected skill context',
+				messageId: 'injected-message',
+				turnId: 'injected-turn',
+				source: 'skill',
+			} as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('user.message', {
+				content: 'Missing public correlation',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			assert.strictEqual(getActions(signals).find(action => action.type === ActionType.ChatTurnStarted), undefined);
 		});
 	});
 

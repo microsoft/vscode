@@ -10,6 +10,30 @@ import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
 import type { Message, SideChatSelection } from './state.js';
 
+// ─── resolveCanvasSource ────────────────────────────────────────────────────
+
+/**
+ * Resolves the current source URL for a live canvas instance.
+ *
+ * @category Commands
+ * @method resolveCanvasSource
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ */
+export interface ResolveCanvasSourceParams extends BaseParams {
+	/** Canvas instance identifier from the subscribed chat state. */
+	instanceId: string;
+	/** Expected canvas revision. */
+	revision: number;
+}
+
+/** Current source for a live canvas instance. */
+export interface ResolveCanvasSourceResult {
+	/** HTTP(S) URL supplied by the live canvas provider. */
+	url: string;
+}
+
 // ─── createChat ──────────────────────────────────────────────────────────────
 
 /**

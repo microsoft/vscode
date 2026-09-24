@@ -30,7 +30,7 @@ import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsU
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveCanvasSourceParams, ResolveCanvasSourceResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -1432,6 +1432,20 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._changesetOperationService.invokeChangesetOperation(params);
+	}
+
+	async resolveCanvasSource(params: ResolveCanvasSourceParams): Promise<ResolveCanvasSourceResult> {
+		const chat = URI.parse(params.channel);
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`Cannot resolve a canvas source for invalid chat URI '${params.channel}'`);
+		}
+		const session = URI.parse(parsed.session);
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider?.chats.resolveCanvasSource) {
+			throw new Error(`Agent provider does not support canvas source resolution for '${params.channel}'`);
+		}
+		return provider.chats.resolveCanvasSource(chat, params.instanceId, params.revision, this._chatContext(session, chat));
 	}
 
 	// ---- MCP `mcp://` channel routing --------------------------------------

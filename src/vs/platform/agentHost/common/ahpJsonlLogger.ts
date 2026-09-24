@@ -56,6 +56,17 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // When trimming an oversized entry, individual string values are capped to this
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
+const RESOLVE_CANVAS_SOURCE_METHOD = 'resolveCanvasSource';
+const REDACTED_CANVAS_SOURCE = '<redacted canvas source>';
+const MAX_TRACKED_CANVAS_SOURCE_REQUESTS = 1024;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isJsonRpcId(value: unknown): value is string | number {
+	return typeof value === 'string' || typeof value === 'number';
+}
 
 
 export class AhpJsonlLogger extends Disposable {
@@ -71,6 +82,8 @@ export class AhpJsonlLogger extends Disposable {
 	private _pending: VSBuffer[] = [];
 	private _drainScheduled = false;
 	private _folderCreated: Promise<IFileStatWithMetadata> | undefined;
+	private readonly _canvasSourceRequestIds = new Set<string | number>();
+	private _redactAllUrlResponses = false;
 
 	constructor(
 		private readonly _options: IAhpJsonlLoggerOptions,
@@ -99,7 +112,7 @@ export class AhpJsonlLogger extends Disposable {
 			transport: this._options.transport,
 			...(typeof byteLength === 'number' ? { byteLength } : {}),
 		};
-		const entry = { ...message, _ahpLog: meta };
+		const entry = { ...this._redactCanvasSource(message, dir), _ahpLog: meta };
 		// Fast path: serialize once. The vast majority of messages are small, so
 		// we only pay a single stringify and use its length to decide whether the
 		// rare oversized-message path below is needed.
@@ -114,6 +127,35 @@ export class AhpJsonlLogger extends Disposable {
 		const line = `${body}\n`;
 		this._pending.push(VSBuffer.fromString(line));
 		this._scheduleDrain();
+	}
+
+	private _redactCanvasSource(message: object, dir: AhpLogDirection): object {
+		if (!isRecord(message)) {
+			return message;
+		}
+		if (dir === 'c2s' && message.method === RESOLVE_CANVAS_SOURCE_METHOD && isJsonRpcId(message.id)) {
+			if (!this._canvasSourceRequestIds.has(message.id) && this._canvasSourceRequestIds.size >= MAX_TRACKED_CANVAS_SOURCE_REQUESTS) {
+				this._redactAllUrlResponses = true;
+			} else {
+				this._canvasSourceRequestIds.add(message.id);
+			}
+			return message;
+		}
+		if (dir !== 's2c') {
+			return message;
+		}
+		const trackedCanvasSourceResponse = isJsonRpcId(message.id) && this._canvasSourceRequestIds.delete(message.id);
+		const result = message.result;
+		if ((!trackedCanvasSourceResponse && !this._redactAllUrlResponses) || !isRecord(result) || typeof result.url !== 'string') {
+			return message;
+		}
+		return {
+			...message,
+			result: {
+				...result,
+				url: REDACTED_CANVAS_SOURCE,
+			},
+		};
 	}
 
 	async flush(): Promise<void> {

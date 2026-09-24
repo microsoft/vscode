@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveCanvasSourceResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
@@ -80,6 +80,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { notSupported(); }
 	async disposeChat(_chat: URI): Promise<void> { }
+	async resolveCanvasSource(_chat: URI, _instanceId: string, _revision: number): Promise<ResolveCanvasSourceResult> { return notSupported(); }
 	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }
 	async invokeChangesetOperation(_params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> { return notSupported(); }
