@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -27,7 +27,6 @@ import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 /**
  * The sessions-core model picker. Unlike the previous per-provider pickers,
@@ -42,7 +41,6 @@ export class ModelPicker extends Disposable {
 
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
-	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _container: HTMLElement | undefined;
 
 	constructor(
@@ -98,6 +96,7 @@ export class ModelPicker extends Disposable {
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));
 		this._register(this._newChatModelPickerService.registerModelPicker({
+			getDomNode: () => this._container,
 			open: () => this._modelPicker.openModelPicker(),
 			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
 		}));
@@ -128,12 +127,8 @@ export class ModelPicker extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
-		this._renderDisposables.clear();
 		this._container = container;
 		this._modelPicker.render(container);
-		this._renderDisposables.add(markOnboardingTarget(container, 'sessions.newSession.modelPicker', {
-			open: () => this._modelPicker.openModelPicker(),
-		}));
 		this._updatePickerState();
 	}
 

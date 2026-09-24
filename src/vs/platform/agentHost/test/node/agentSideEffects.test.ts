@@ -6149,15 +6149,17 @@ suite('AgentSideEffects', () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
-		async function waitForMetadata(key: string): Promise<string> {
+		async function waitForMetadata(key: string, expectedValue?: string): Promise<string> {
 			for (let attempt = 0; attempt < 100; attempt++) {
 				const value = await sessionDb.getMetadata(key);
-				if (value !== undefined) {
+				if (value !== undefined && (expectedValue === undefined || value === expectedValue)) {
 					return value;
 				}
 				await timeout(10);
 			}
-			throw new Error(`Session metadata '${key}' was not persisted`);
+			throw new Error(expectedValue === undefined
+				? `Session metadata '${key}' was not persisted`
+				: `Session metadata '${key}' did not reach '${expectedValue}'`);
 		}
 
 		teardown(async () => {
@@ -6322,10 +6324,10 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual({
-				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
-				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
-				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
-				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat), 'Newer'),
+				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat), 'user'),
+				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY, 'Newer'),
+				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user'),
 			}, {
 				chatTitle: 'Newer',
 				chatSource: 'user',

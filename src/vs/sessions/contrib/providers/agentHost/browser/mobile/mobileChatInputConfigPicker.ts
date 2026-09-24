@@ -88,6 +88,7 @@ class MobileChatInputConfigPicker extends Disposable {
 	) {
 		super();
 		this._register(this._newChatModelPickerService.registerModelPicker({
+			getDomNode: () => this._triggerElement,
 			open: () => { void this._showSheet(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
 		}));
