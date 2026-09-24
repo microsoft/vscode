@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -166,8 +167,7 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<void> = Promise.resolve();
 	whenCompleted: Promise<void> = Promise.resolve();
 	runStatus: IAutomationRun['status'] = 'running';
-	/** When set, dispatch reports this outcome instead of starting a session. */
-	notStarted: (IAutomationRunDispatch & { kind: 'notStarted' }) | undefined;
+	dispatchResult: IAutomationRunDispatch | undefined;
 
 	constructor(private readonly automationService: FakeAutomationService) {
 		super();
@@ -185,8 +185,8 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 			if (activeRun) {
 				return { kind: 'alreadyRunning', activeRun };
 			}
-			if (this.notStarted) {
-				return this.notStarted;
+			if (this.dispatchResult !== undefined) {
+				return this.dispatchResult;
 			}
 			const sessionResource = SESSION_RESOURCE;
 			const run: IAutomationRun = {
@@ -415,9 +415,39 @@ suite('AutomationTools', () => {
 				updatedAt: NOW,
 				lastRunAt: null,
 				nextRunAt: '2026-01-02T09:00:00.000Z',
+				runs: [],
 			}],
 		});
 	});
+
+	for (const runStatus of ['pending', 'running', 'completed', 'failed'] as const) {
+		test(`listAutomations exposes the authoritative ${runStatus} run snapshot`, async () => {
+			const automation = createAutomation();
+			const service = new FakeAutomationService([automation]);
+			const sessionResource = runStatus === 'running' || runStatus === 'completed' ? SESSION_RESOURCE : undefined;
+			const completedAt = runStatus === 'completed' || runStatus === 'failed' ? '2026-01-01T00:01:00.000Z' : undefined;
+			const errorMessage = runStatus === 'failed' ? 'Unavailable model' : undefined;
+			service.addRun({
+				id: 'run-1', automationId: automation.id, status: runStatus, trigger: 'manual',
+				startedAt: NOW, sessionResource, completedAt, errorMessage,
+			});
+			service.addRun({
+				id: 'other-run', automationId: 'another-automation', status: 'running', trigger: 'manual', startedAt: NOW,
+			});
+
+			const result = await invoke(new ListAutomationsTool(service, createConfigurationService()), {});
+			assert.deepStrictEqual(JSON.parse(getText(result)).automations[0].runs, [{
+				id: 'run-1',
+				automationId: automation.id,
+				status: runStatus,
+				trigger: 'manual',
+				startedAt: NOW,
+				sessionResource: sessionResource?.toString() ?? null,
+				...(completedAt !== undefined ? { completedAt } : {}),
+				...(errorMessage !== undefined ? { errorMessage } : {}),
+			}]);
+		});
+	}
 
 	test('listAutomations describes when its catalogue is complete', () => {
 		const description = new ListAutomationsTool(new FakeAutomationService(), createConfigurationService()).getToolData().modelDescription ?? '';
@@ -427,6 +457,20 @@ suite('AutomationTools', () => {
 			definesComplete: description.includes('only "ready" means the list is complete'),
 			warnsAboutFalseEmpty: description.includes('never interpret an empty non-ready result as no configured automations'),
 		}, { reportsState: true, definesComplete: true, warnsAboutFalseEmpty: true });
+	});
+
+	test('manual-run status guidance identifies available snapshots without treating missing runs as failed', () => {
+		const service = new FakeAutomationService();
+		const configuration = createConfigurationService();
+		const listDescription = new ListAutomationsTool(service, configuration).getToolData().modelDescription ?? '';
+		const runDescription = new RunAutomationTool(service, new RecordingAutomationRunner(service), configuration).getToolData().modelDescription ?? '';
+
+		assert.deepStrictEqual({
+			listsRunDetails: listDescription.includes('runs with IDs, status, session resources, and errors'),
+			matchesRunId: listDescription.includes('runs[].id') && runDescription.includes('listAutomations runs[].id'),
+			warnsAboutMissingRun: listDescription.includes('absence of an accepted run does not mean it failed'),
+			acknowledgesPendingSession: runDescription.includes('an accepted run may wait for credentials before a session exists'),
+		}, { listsRunDetails: true, matchesRunId: true, warnsAboutMissingRun: true, acknowledgesPendingSession: true });
 	});
 
 	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {
@@ -569,7 +613,7 @@ suite('AutomationTools', () => {
 		const automation = createAutomation();
 		const automationService = new FakeAutomationService([automation]);
 		const runner = new RecordingAutomationRunner(automationService);
-		runner.notStarted = { kind: 'notStarted', reason: 'targetUnavailable' };
+		runner.dispatchResult = { kind: 'notStarted', reason: 'targetUnavailable' };
 		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
 
 		const result = await invoke(tool, { automationId: automation.id });
@@ -580,6 +624,46 @@ suite('AutomationTools', () => {
 		}, {
 			error: 'Automation "automation-1" did not start. Its configured agent is unavailable.',
 			calls: 1,
+		});
+	});
+
+	test('runAutomation returns acceptance before a run snapshot or completion is available', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		const completion = new DeferredPromise<void>();
+		const runner = new RecordingAutomationRunner(service);
+		runner.dispatchResult = { kind: 'accepted', runId: 'admitted-run' };
+		runner.whenCompleted = completion.p;
+		const configuration = createConfigurationService();
+		const tool = new RunAutomationTool(service, runner, configuration);
+		const listTool = new ListAutomationsTool(service, configuration);
+		const parameters = { automationId: automation.id };
+		const prepared = await tool.prepareToolInvocation({
+			parameters, toolCallId: 'call-1', chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+
+		const accepted = await invoke(tool, parameters);
+		const beforePublication = await invoke(listTool, {});
+		service.addRun({ id: 'admitted-run', automationId: automation.id, status: 'pending', trigger: 'manual', startedAt: NOW });
+		const afterPublication = await invoke(listTool, {});
+		await completion.complete();
+
+		assert.deepStrictEqual({
+			preparedMessage: prepared.pastTenseMessage,
+			accepted: JSON.parse(getText(accepted)),
+			acceptedMessage: accepted.toolResultMessage,
+			error: accepted.toolResultError,
+			beforePublication: JSON.parse(getText(beforePublication)).automations[0].runs,
+			afterPublication: JSON.parse(getText(afterPublication)).automations[0].runs,
+		}, {
+			preparedMessage: 'Requested automation Daily review',
+			accepted: { status: 'accepted', automation: { id: automation.id, name: automation.name }, run: { id: 'admitted-run' } },
+			acceptedMessage: 'Accepted automation Daily review; waiting for a session',
+			error: undefined,
+			beforePublication: [],
+			afterPublication: [{
+				id: 'admitted-run', automationId: automation.id, status: 'pending', trigger: 'manual', startedAt: NOW, sessionResource: null,
+			}],
 		});
 	});
 

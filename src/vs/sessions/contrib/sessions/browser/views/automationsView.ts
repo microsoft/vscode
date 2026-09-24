@@ -13,7 +13,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -583,7 +583,7 @@ class AutomationCardsSection extends Disposable {
 				runBtn.setAriaLabel(runNowLabel);
 				runBtn.setTitle(runNowLabel);
 			}, 10_000, disposables);
-			void this.runNow(currentAutomation);
+			void this.runNow(currentAutomation, disposables);
 		}));
 
 		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActions', "More Actions..."), false);
@@ -698,16 +698,32 @@ class AutomationCardsSection extends Disposable {
 		return button;
 	}
 
-	private async runNow(automation: IAutomationDescriptor): Promise<void> {
-		if (!await this.ensureEnabled()) {
+	private async runNow(automation: IAutomationDescriptor, disposables: DisposableStore): Promise<void> {
+		if (!await this.ensureEnabled() || disposables.isDisposed) {
 			return;
 		}
+		const runDisposables = disposables.add(new DisposableStore());
 		try {
 			const operation = this.automationRunner.runOnce(automation, CancellationToken.None);
 			const dispatch = await operation.whenDispatched;
+			if (runDisposables.isDisposed) {
+				await operation.whenCompleted;
+				return;
+			}
 			switch (dispatch.kind) {
 				case 'started':
 					status(localize('automationStartedStatus', "Started automation {0}", automation.name));
+					break;
+				case 'accepted':
+					status(localize('automationAcceptedStatus', "Automation {0} accepted; waiting for a session", automation.name));
+					registerAutorunSelfDisposable(runDisposables, reader => {
+						const run = this.automationService.runs.read(reader).find(run => run.id === dispatch.runId);
+						if (run?.sessionResource === undefined) {
+							return;
+						}
+						reader.dispose();
+						status(localize('automationStartedStatus', "Started automation {0}", automation.name));
+					});
 					break;
 				case 'alreadyRunning':
 					status(localize('automationAlreadyRunningStatus', "Automation {0} is already running", automation.name));
@@ -723,6 +739,8 @@ class AutomationCardsSection extends Disposable {
 				localize('automationRunActionFailed', "Failed to run automation."),
 				getErrorMessage(error),
 			);
+		} finally {
+			disposables.delete(runDisposables);
 		}
 	}
 

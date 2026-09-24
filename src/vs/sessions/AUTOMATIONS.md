@@ -114,7 +114,9 @@ Definitions and run mutations are persisted before corresponding AHP state is pu
 
 At most one non-terminal run occupies an Automation's active-run slot. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
 
-Run Now submits a manual request to this authority and observes dispatch and completion. An existing active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
+Run Now submits a manual request to this authority and acknowledges admission separately from session creation and completion. An accepted run can remain pending while credentials or another execution prerequisite become available; the client reports acceptance rather than failure and continues observing without a client-side execution deadline. An existing active run is reported without creating another session.
+
+Pre-admission cancellation prevents the request; supported in-flight cancellation is forwarded while observing the accepted run. Observation failure or window closure cannot undo admission, synthesize a terminal run, or move execution elsewhere. If updates stop after admission, the client preserves the accepted outcome and explains that the host may still execute the run.
 
 Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
 

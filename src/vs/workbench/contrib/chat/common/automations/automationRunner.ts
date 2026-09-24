@@ -25,6 +25,8 @@ export type AutomationDispatchFailure =
 export type IAutomationRunDispatch =
 	/** The host accepted the request and created a session for it. */
 	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: URI }
+	/** The host accepted the run, but its session has not yet been observed. */
+	| { readonly kind: 'accepted'; readonly runId: string }
 	/** Another run already held the automation's run slot, so nothing was dispatched. */
 	| { readonly kind: 'alreadyRunning'; readonly activeRun: IAutomationRun }
 	/** Dispatch ended without a session. `run` is set when a run row was recorded first. */
@@ -32,7 +34,7 @@ export type IAutomationRunDispatch =
 
 /** Separate completion handles for manual dispatch feedback and subsequent host-lifecycle observation. */
 export interface IAutomationRunOperation {
-	/** Resolves once the host's dispatch settles. */
+	/** Resolves on host admission, even when session creation is still pending. */
 	readonly whenDispatched: Promise<IAutomationRunDispatch>;
 
 	/** Resolves when lifecycle observation ends, including when observing the host fails. */

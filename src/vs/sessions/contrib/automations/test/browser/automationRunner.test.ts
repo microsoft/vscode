@@ -70,17 +70,58 @@ suite('AutomationRunner', () => {
 	}
 
 	test('dispatches through the host and observes completion without local lifecycle writes', async () => {
-		const completion = new DeferredPromise<void>();
-		const { runner, calls, errors } = setup(async () => ({ kind: 'dispatched', run, whenCompleted: completion.p }));
+		const completion = new DeferredPromise<IAutomationRun>();
+		const { runner, calls, errors } = setup(async () => ({ kind: 'dispatched', runId: run.id, run, whenCompleted: completion.p }));
 		const operation = runner.runOnce(automation);
 		const dispatch = await operation.whenDispatched;
 		let completed = false;
 		void operation.whenCompleted.then(() => completed = true);
 		assert.deepStrictEqual({ dispatch, completed, calls }, { dispatch: { kind: 'started', run, sessionResource: run.sessionResource }, completed: false, calls: ['automation'] });
-		await completion.complete();
+		await completion.complete({ ...run, status: 'completed' });
 		await operation.whenCompleted;
 		assert.deepStrictEqual(errors, []);
 	});
+
+	for (const hasInitialSnapshot of [false, true]) {
+		test(`acknowledges a pending run ${hasInitialSnapshot ? 'with' : 'without'} an initial catalogue snapshot`, async () => {
+			const completion = new DeferredPromise<IAutomationRun>();
+			const initialRun: IAutomationRun | undefined = hasInitialSnapshot ? { ...run, status: 'pending', sessionResource: undefined } : undefined;
+			const { runner, calls, errors } = setup(async () => ({ kind: 'dispatched', runId: run.id, run: initialRun, whenCompleted: completion.p }));
+			const operation = runner.runOnce(automation);
+			let completed = false;
+			void operation.whenCompleted.then(() => completed = true);
+
+			const dispatch = await operation.whenDispatched;
+			assert.deepStrictEqual({ dispatch, completed, calls, errors }, {
+				dispatch: { kind: 'accepted', runId: run.id }, completed: false, calls: [automation.id], errors: [],
+			});
+
+			await completion.complete({ ...run, status: 'completed' });
+			await operation.whenCompleted;
+			assert.deepStrictEqual({ dispatch: await operation.whenDispatched, completed, errors }, {
+				dispatch: { kind: 'accepted', runId: run.id }, completed: true, errors: [],
+			});
+		});
+	}
+
+	for (const hasSession of [false, true]) {
+		test(`preserves ${hasSession ? 'started' : 'accepted'} feedback when host observation fails`, async () => {
+			const completion = new DeferredPromise<IAutomationRun>();
+			const { runner, errors } = setup(async () => ({
+				kind: 'dispatched', runId: run.id, run: hasSession ? run : undefined, whenCompleted: completion.p,
+			}));
+			const operation = runner.runOnce(automation);
+			const dispatch = await operation.whenDispatched;
+			await completion.error(new Error('Catalogue connection lost'));
+			await operation.whenCompleted;
+
+			assert.deepStrictEqual({ dispatch, settledDispatch: await operation.whenDispatched, errors }, {
+				dispatch: hasSession ? { kind: 'started', run, sessionResource: run.sessionResource } : { kind: 'accepted', runId: run.id },
+				settledDispatch: dispatch,
+				errors: ['Could not observe automation \'Review\': Catalogue connection lost. The Agent Host may still run it. Reconnect to check its status.'],
+			});
+		});
+	}
 
 	test('returns the authoritative active run without creating another session', async () => {
 		const { runner, calls } = setup(async () => ({ kind: 'alreadyRunning', run }));
@@ -166,14 +207,14 @@ suite('AutomationRunner', () => {
 	test('forwards cancellation to the host exactly once, including cancellation during dispatch', async () => {
 		const token = disposables.add(new CancellationTokenSource());
 		const requested = new DeferredPromise<IAutomationRunRequestResult>();
-		const completed = new DeferredPromise<void>();
+		const completed = new DeferredPromise<IAutomationRun>();
 		let cancellations = 0;
 		const { runner } = setup(() => requested.p);
 		const operation = runner.runOnce(automation, token.token);
 		token.cancel();
-		await requested.complete({ kind: 'dispatched', run, whenCompleted: completed.p, cancel: () => cancellations++ });
+		await requested.complete({ kind: 'dispatched', runId: run.id, run, whenCompleted: completed.p, cancel: () => cancellations++ });
 		await operation.whenDispatched;
-		await completed.complete();
+		await completed.complete({ ...run, status: 'failed', errorMessage: 'Cancelled' });
 		await operation.whenCompleted;
 		assert.strictEqual(cancellations, 1);
 	});
@@ -187,11 +228,26 @@ suite('AutomationRunner', () => {
 	});
 
 	test('reports authoritative failures that never create a session', async () => {
-		const failed = { ...run, status: 'failed', sessionResource: undefined, errorMessage: 'Unavailable model' } as const;
-		const { runner, errors } = setup(async () => ({ kind: 'dispatched', run: failed, whenCompleted: Promise.resolve() }));
+		const failed: IAutomationRun = { ...run, status: 'failed', sessionResource: undefined, errorMessage: 'Unavailable model' };
+		const { runner, errors } = setup(async () => ({ kind: 'dispatched', runId: failed.id, run: failed, whenCompleted: Promise.resolve(failed) }));
 		const operation = runner.runOnce(automation);
 		assert.deepStrictEqual(await operation.whenDispatched, { kind: 'notStarted', reason: 'error', run: failed });
 		await operation.whenCompleted;
 		assert.match(errors[0], /Unavailable model/);
+	});
+
+	test('keeps admission feedback when the host later fails before creating a session', async () => {
+		const completion = new DeferredPromise<IAutomationRun>();
+		const { runner, errors } = setup(async () => ({ kind: 'dispatched', runId: run.id, run: undefined, whenCompleted: completion.p }));
+		const operation = runner.runOnce(automation);
+		const dispatch = await operation.whenDispatched;
+		await completion.complete({ ...run, status: 'failed', sessionResource: undefined, errorMessage: 'Unavailable model' });
+		await operation.whenCompleted;
+
+		assert.deepStrictEqual({ dispatch, settledDispatch: await operation.whenDispatched, errors }, {
+			dispatch: { kind: 'accepted', runId: run.id },
+			settledDispatch: dispatch,
+			errors: ['Automation \'Review\' did not start a session: Unavailable model'],
+		});
 	});
 });
