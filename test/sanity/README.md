@@ -19,12 +19,10 @@ Use -g or -f command-line options to filter tests to match the host platform.
 Desktop tests also check the launchers supplied by the distribution:
 
 - **Linux DEB/RPM:** Require the canonical reverse-DNS application and URL-handler desktop
-  entries and the legacy `<applicationName>.desktop` and `<applicationName>-url-handler.desktop`
-  IDs. All must point to the installed executable, with matching canonical/legacy `Exec`,
-  `StartupWMClass`, and MIME types. Compatibility entries must use `NoDisplay=true`, never
-  `Hidden=true`, leaving exactly one visible application entry. Both application entries'
-  `Exec` commands are exercised without a shell; this does not require GTK/GIO or a full
-  desktop shell in the container.
+  entries, both targeting the installed executable. Validate the application window identity,
+  URL-handler arguments and MIME type, and that only the application entry is visible.
+  Exercise the application entry's `Exec` command without a shell; this does not require
+  GTK/GIO or a full desktop shell in the container.
 - **Windows user/system installers:** Explicitly enable the Desktop shortcut task and
   require both Desktop and Start Menu shortcuts in the appropriate user/common shell folders.
   Verify their targets, then open files through the actual `.lnk` files using ShellExecute.

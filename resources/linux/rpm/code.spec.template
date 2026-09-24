@@ -31,6 +31,7 @@ mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/%{name}
 mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/appdata
+mkdir -p %{buildroot}%{_datadir}/doc/%{name}
 mkdir -p %{buildroot}%{_datadir}/mime/packages
 mkdir -p %{buildroot}%{_datadir}/pixmaps
 mkdir -p %{buildroot}%{_datadir}/bash-completion/completions
@@ -41,9 +42,8 @@ ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}
 # Support files
 cp -r usr/share/applications/@@DESKTOP_NAME@@.desktop %{buildroot}%{_datadir}/applications
 cp -r usr/share/applications/@@DESKTOP_NAME@@.UrlHandler.desktop %{buildroot}%{_datadir}/applications
-cp -r usr/share/applications/%{name}.desktop %{buildroot}%{_datadir}/applications
-cp -r usr/share/applications/%{name}-url-handler.desktop %{buildroot}%{_datadir}/applications
 cp -r usr/share/appdata/@@DESKTOP_NAME@@.appdata.xml %{buildroot}%{_datadir}/appdata
+cp usr/share/doc/%{name}/NEWS %{buildroot}%{_datadir}/doc/%{name}/NEWS
 cp -r usr/share/mime/packages/%{name}-workspace.xml %{buildroot}%{_datadir}/mime/packages/%{name}-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}%{_datadir}/pixmaps
 # Shell completions
@@ -87,9 +87,8 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 %{_datadir}/%{name}/
 %{_datadir}/applications/@@DESKTOP_NAME@@.desktop
 %{_datadir}/applications/@@DESKTOP_NAME@@.UrlHandler.desktop
-%{_datadir}/applications/%{name}.desktop
-%{_datadir}/applications/%{name}-url-handler.desktop
 %{_datadir}/appdata/@@DESKTOP_NAME@@.appdata.xml
+%doc %{_datadir}/doc/%{name}/
 %{_datadir}/mime/packages/%{name}-workspace.xml
 %{_datadir}/pixmaps/@@ICON@@.png
 %{_datadir}/bash-completion/completions/%{name}

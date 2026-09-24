@@ -17,7 +17,7 @@ export interface DesktopLauncher {
 /**
  * Read only the main group: desktop actions can have their own Exec and Name keys.
  */
-export function parseDesktopEntry(contents: string): Record<string, string> {
+function parseDesktopEntry(contents: string): Record<string, string> {
 	const entry: Record<string, string> = {};
 	let mainGroup = false;
 	for (const line of contents.split(/\r?\n/)) {
@@ -37,7 +37,7 @@ export function parseDesktopEntry(contents: string): Record<string, string> {
  * These launchers contain an executable, switches and one file/URL field code.
  * Reject other forms rather than interpreting desktop Exec as a shell command.
  */
-export function desktopCommand(entry: Record<string, string>): { executable: string; args: string[] } {
+function desktopCommand(entry: Record<string, string>): { executable: string; args: string[] } {
 	const match = /^(?:"(?<quotedExecutable>[^"]+)"|(?<executable>\S+))(?<arguments>(?:\s+(?:--[\w-]+|%[FU]))*)$/.exec(entry.Exec ?? '');
 	assert.ok(match?.groups, `Unsupported desktop Exec: ${entry.Exec}`);
 	const args = match.groups.arguments.trim().split(/\s+/).filter(Boolean);
@@ -46,29 +46,22 @@ export function desktopCommand(entry: Record<string, string>): { executable: str
 }
 
 /**
- * Compatibility entries must remain launchable, but must not duplicate the app menu.
+ * Only the application entry should be visible in the app menu.
  */
-export function validateDesktopEntries(entries: readonly Record<string, string>[]) {
-	assert.strictEqual(entries.length, 4);
+function validateDesktopEntries(entries: readonly Record<string, string>[]) {
+	assert.strictEqual(entries.length, 2);
 	for (const [index, entry] of entries.entries()) {
 		assert.strictEqual(entry.Type, 'Application');
-		assert.notStrictEqual(entry.Hidden, 'true', 'Hidden=true disables saved launchers');
+		assert.notStrictEqual(entry.Hidden, 'true', 'Hidden=true disables launchers');
 		assert.strictEqual(entry.NoDisplay === 'true', index !== 0, 'Only the canonical application entry should be visible');
-		if (index < 2) {
+		if (index === 0) {
 			assert.ok(entry.StartupWMClass, 'Missing StartupWMClass');
 		}
 		const command = desktopCommand(entry);
-		if (index >= 2) {
+		if (index === 1) {
 			assert.ok(entry.MimeType?.includes('x-scheme-handler/'), 'Missing URL handler MIME type');
 			assert.ok(command.args.includes('--open-url'), 'URL handler must pass --open-url');
 		}
-	}
-	for (const [canonical, legacy] of [[entries[0], entries[1]], [entries[2], entries[3]]]) {
-		assert.deepStrictEqual(
-			[legacy.Exec, legacy.StartupWMClass, legacy.MimeType],
-			[canonical.Exec, canonical.StartupWMClass, canonical.MimeType],
-			'Legacy launcher must have the same target and window identity as the canonical launcher',
-		);
 	}
 }
 
@@ -83,14 +76,13 @@ function runLauncher(context: TestContext, command: string, args: string[]) {
 }
 
 /**
- * Validate both current and saved launcher IDs from an installed DEB/RPM.
+ * Validate the application and URL-handler desktop entries from an installed DEB/RPM.
  */
 export function linuxLaunchers(context: TestContext, entryPoint: string): DesktopLauncher[] {
-	const applicationName = path.basename(entryPoint);
 	const product: { linuxDesktopName: string } = JSON.parse(fs.readFileSync(path.join(path.dirname(entryPoint), 'resources', 'app', 'product.json'), 'utf8'));
 	const canonicalId = product.linuxDesktopName;
 	assert.ok(canonicalId, 'Missing Linux desktop identity in product.json');
-	const names = [`${canonicalId}.desktop`, `${applicationName}.desktop`, `${canonicalId}.UrlHandler.desktop`, `${applicationName}-url-handler.desktop`];
+	const names = [`${canonicalId}.desktop`, `${canonicalId}.UrlHandler.desktop`];
 	const entries = names.map(name => parseDesktopEntry(fs.readFileSync(path.join('/usr/share/applications', name), 'utf8')));
 	validateDesktopEntries(entries);
 	for (const entry of entries) {
@@ -98,13 +90,13 @@ export function linuxLaunchers(context: TestContext, entryPoint: string): Deskto
 		fs.accessSync(executable, fs.constants.X_OK);
 		assert.strictEqual(fs.realpathSync(executable), fs.realpathSync(entryPoint), 'Desktop entry targets the wrong installation');
 	}
-	return entries.slice(0, 2).map((entry, index) => ({
-		name: names[index],
+	return [{
+		name: names[0],
 		launch: args => {
-			const command = desktopCommand(entry);
+			const command = desktopCommand(entries[0]);
 			runLauncher(context, command.executable, [...command.args, ...(context.isRootUser ? ['--no-sandbox'] : []), ...args]);
 		},
-	}));
+	}];
 }
 
 function powershellString(value: string): string {
