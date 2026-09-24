@@ -492,7 +492,7 @@ suite('MCP configuration entry points', () => {
 						writes: [{ servers: [{ ...(http ? { name: installable.name, config: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } } : installable), inputs: undefined }], resource, format: McpResourceFormat.CopilotGlobal }],
 						opened: [resource],
 						installs: [], started: [],
-						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'VS Code Global']],
+						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'User Configuration (deprecated)']],
 						globalDescriptions: [resource.toString(true), URI.file('/user/mcp.json').toString(true)],
 						globalDetails: [undefined, undefined],
 						questions: ['pick', 'input', 'input', 'pick', 'pick'],
@@ -502,7 +502,7 @@ suite('MCP configuration entry points', () => {
 			}
 		}
 
-		for (const choice of ['VS Code Global', undefined]) {
+		for (const choice of ['User Configuration (deprecated)', undefined]) {
 			test(`global choice ${choice ?? 'cancellation'} preserves legacy behavior`, async () => {
 				const fixture = setupGlobal();
 				fixture.quickInput.selections.push('Command (stdio)', 'Global', choice);
