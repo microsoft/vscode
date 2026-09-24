@@ -74,10 +74,10 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		relationship: {
 			type: 'string',
 			enum: [...createSessionRelationshipValues],
-			description: 'Use `independent` only for work that is unrelated to the current session\'s plan or deliverable. Otherwise omit it; defaults to `currentSession`. Work in the current session can also be in a different workspace, except from quick chats.',
+			description: 'Use `independent` only for work that is unrelated to the current session\'s plan or deliverable. Otherwise omit it; defaults to `currentSession`. Work in the current session can also be in a different workspace.',
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new chat or session.' },
-		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace, and do not set it from a quick chat.' },
+		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
 		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
@@ -175,7 +175,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create delegated work and start it with an initial prompt. Use `currentSession` for related work in the same session; do not request a workspace with `currentSession` from a quick chat.',
+		description: 'Create delegated work and start it with an initial prompt.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
