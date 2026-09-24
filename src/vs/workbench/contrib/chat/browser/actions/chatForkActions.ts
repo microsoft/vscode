@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import * as DOM from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,12 +15,14 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
+import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { chatUserInteractionTimingTracker, IChatUserInteractionTimer } from '../chatUserInteractionTelemetry.js';
 
 export const ForkConversationActionId = 'workbench.action.chat.forkConversation';
 
@@ -57,6 +60,19 @@ export class ForkConversationAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const window = DOM.getActiveWindow();
+		const interaction = chatUserInteractionTimingTracker.start('fork', window);
+		try {
+			const result = await this._run(accessor, interaction, ...args);
+			chatUserInteractionTimingTracker.completeAfterRender(interaction, window);
+			return result;
+		} catch (error) {
+			chatUserInteractionTimingTracker.cancel(interaction, 'error');
+			throw error;
+		}
+	}
+
+	private async _run(accessor: ServicesAccessor, interaction: IChatUserInteractionTimer, ...args: unknown[]) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const chatService = accessor.get(IChatService);
@@ -67,6 +83,7 @@ export class ForkConversationAction extends Action2 {
 		// Fork at the last request in that session.
 		if (URI.isUri(args[0])) {
 			const sourceSessionResource = args[0];
+			chatUserInteractionTimingTracker.setContext(interaction, getChatSessionTelemetryContext(sourceSessionResource));
 
 			// Check if this is a contributed session that supports forking
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
@@ -110,13 +127,18 @@ export class ForkConversationAction extends Action2 {
 
 			// Defer navigation until after the slash command flow completes.
 			const newSessionResource = modelRef.object.sessionResource;
-			setTimeout(async () => {
-				try {
-					await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource);
-				} finally {
-					modelRef.dispose();
-				}
-			}, 0);
+			await new Promise<void>((resolve, reject) => {
+				setTimeout(async () => {
+					try {
+						await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource);
+						resolve();
+					} catch (error) {
+						reject(error);
+					} finally {
+						modelRef.dispose();
+					}
+				}, 0);
+			});
 			return;
 		}
 
@@ -151,6 +173,10 @@ export class ForkConversationAction extends Action2 {
 		if (!targetRequestId) {
 			return;
 		}
+		chatUserInteractionTimingTracker.setContext(interaction, {
+			...getChatSessionTelemetryContext(sessionResource),
+			requestId: targetRequestId,
+		});
 
 		// Check if this is a contributed session that supports forking
 		const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();

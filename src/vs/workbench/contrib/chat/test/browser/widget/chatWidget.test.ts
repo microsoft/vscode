@@ -956,7 +956,11 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const editorService = mockObject<IEditorService>()();
 		editorService.saveAll.resolves({ success: true, editors: [] });
 		const chatService = mockObject<IChatService>()();
-		const response = upcastPartial<IChatResponseModel>({});
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: 'submitted-request',
+			response: upcastPartial<IChatResponseModel['response']>({ value: [] }),
+			isComplete: true,
+		});
 		const sent: ChatSendResultSent = {
 			kind: 'sent',
 			data: upcastPartial<IChatSendRequestData>({

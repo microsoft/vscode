@@ -444,6 +444,26 @@ export class ChatRequestTelemetry {
 	}
 }
 
+interface IChatSessionTelemetryContext {
+	readonly chatSessionId: string;
+	readonly sessionType: string;
+	readonly harness: string | undefined;
+}
+
+/** Returns telemetry-safe session context, excluding remote Agent Host connection authorities. */
+export function getChatSessionTelemetryContext(sessionResource: URI): IChatSessionTelemetryContext {
+	return {
+		chatSessionId: getChatSessionIdForTelemetry(sessionResource),
+		sessionType: getChatSessionTypeForTelemetry(sessionResource),
+		harness: getHarnessForTelemetry(sessionResource),
+	};
+}
+
+function getChatSessionIdForTelemetry(sessionResource: URI): string {
+	const sessionType = getChatSessionType(sessionResource);
+	return isRemoteAgentHostSessionType(sessionType) ? sessionResource.path.slice(1) : chatSessionResourceToId(sessionResource);
+}
+
 function getChatSessionTypeForTelemetry(sessionResource: URI): string {
 	const sessionType = getChatSessionType(sessionResource);
 	// Collapse the high-cardinality, host-specific authority into a single

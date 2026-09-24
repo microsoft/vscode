@@ -69,6 +69,7 @@ import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
+import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
@@ -111,6 +112,7 @@ import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
+import { chatUserInteractionTimingTracker, IChatUserInteractionTimer, isChatFirstVisibleProgress } from '../chatUserInteractionTelemetry.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 
 const $ = dom.$;
@@ -3123,19 +3125,89 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
-
-		if (!options?.preserveInput) {
-			// preserveInput submissions (e.g. /compact or programmatic maintenance
-			// requests) leave the input draft untouched, so they must not stop an
-			// unrelated dictation and flush its final transcript into that draft.
-			await stopDictationForEditor(this.inputEditor);
-			validateSession?.();
+		const interaction = chatUserInteractionTimingTracker.start('turn', dom.getWindow(this.container));
+		const sessionResource = this.viewModel?.sessionResource;
+		const modeInfo = this.input.currentModeInfo;
+		if (sessionResource) {
+			chatUserInteractionTimingTracker.setContext(interaction, {
+				...getChatSessionTelemetryContext(sessionResource),
+				location: this.location,
+				permissionLevel: modeInfo.kind === ChatModeKind.Ask ? undefined : modeInfo.permissionLevel,
+				chatMode: modeInfo.telemetryModeName ?? modeInfo.telemetryModeId,
+			});
 		}
 
-		if (this.viewModel) {
-			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+		try {
+			if (!options?.preserveInput) {
+				// preserveInput submissions (e.g. /compact or programmatic maintenance
+				// requests) leave the input draft untouched, so they must not stop an
+				// unrelated dictation and flush its final transcript into that draft.
+				await stopDictationForEditor(this.inputEditor);
+				validateSession?.();
+			}
+
+			if (this.viewModel) {
+				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+			}
+			const response = await this._acceptInput(query ? { query } : undefined, options, validateSession);
+			if (!response) {
+				chatUserInteractionTimingTracker.cancel(interaction, 'notDispatched');
+				return undefined;
+			}
+			chatUserInteractionTimingTracker.setContext(interaction, {
+				requestId: response.requestId,
+				agent: response.agent?.id,
+				agentExtensionId: response.agent?.extensionId.value,
+				model: response.request?.modelId,
+				permissionLevel: response.request?.modeInfo?.kind === ChatModeKind.Ask ? undefined : response.request?.modeInfo?.permissionLevel,
+				chatMode: response.request?.modeInfo?.telemetryModeName ?? response.request?.modeInfo?.telemetryModeId,
+			});
+			this._trackFirstVisibleProgress(response, interaction, dom.getWindow(this.container));
+			return response;
+		} catch (error) {
+			chatUserInteractionTimingTracker.cancel(interaction, 'error');
+			throw error;
 		}
-		return this._acceptInput(query ? { query } : undefined, options, validateSession);
+	}
+
+	private _trackFirstVisibleProgress(response: IChatResponseModel, interaction: IChatUserInteractionTimer, window: Window): void {
+		const sessionResource = this.viewModel?.sessionResource;
+		const completeIfVisible = (): boolean => {
+			if (response.response.value.some(isChatFirstVisibleProgress)) {
+				if (!this.visible || !isEqual(this.viewModel?.sessionResource, sessionResource)) {
+					return false;
+				}
+				chatUserInteractionTimingTracker.completeAfterRender(interaction, window);
+				return true;
+			}
+			if (response.isComplete) {
+				chatUserInteractionTimingTracker.cancel(
+					interaction,
+					response.isCanceled ? 'cancelled' : response.result?.errorDetails ? 'error' : 'completedWithoutProgress'
+				);
+				return true;
+			}
+			return false;
+		};
+		if (completeIfVisible()) {
+			return;
+		}
+		const listeners = new DisposableStore();
+		const complete = () => {
+			if (completeIfVisible()) {
+				listeners.dispose();
+			}
+		};
+		listeners.add(response.onDidChange(complete));
+		listeners.add(this.onDidShow(complete));
+		listeners.add(this.onDidChangeViewModel(() => {
+			if (!isEqual(this.viewModel?.sessionResource, sessionResource)) {
+				chatUserInteractionTimingTracker.cancel(interaction, 'navigated');
+				listeners.dispose();
+			}
+		}));
+		this._store.add(listeners);
+		this._store.add({ dispose: () => chatUserInteractionTimingTracker.cancel(interaction, 'disposed') });
 	}
 
 	async rerunLastRequest(): Promise<void> {
