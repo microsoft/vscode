@@ -566,7 +566,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const session = sessionState.read(reader);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
