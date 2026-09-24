@@ -31,6 +31,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -1131,8 +1132,8 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session replaces a quick-chat draft only for a primary open when the unified workspace picker is disabled', async () => {
-		const run = async (unifiedWorkspacePicker: boolean, toSide?: boolean) => {
+	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
+		const run = async (unifiedWorkspacePicker: boolean, toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
@@ -1140,49 +1141,64 @@ suite('Sessions - Actions', () => {
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 			}));
 			const { session } = createTestSession('quick-chat-draft');
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = observableValue('activeSession', upcastPartial<IActiveSession>({
 				...session,
 				isCreated: constObservable(false),
 				isQuickChat: constObservable(true),
-			});
-			let unsetNewSessionCalls = 0;
+			}));
+			const events: string[] = [];
 			const requests: (IOpenNewSessionOptions | undefined)[] = [];
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
+				override readonly activeSession = activeSession;
 				override unsetNewSession(): void {
-					unsetNewSessionCalls++;
+					events.push('unset');
+					activeSession.set(undefined, undefined);
 				}
 				override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+					events.push('open');
 					requests.push(options);
 					return { session: undefined, trustDeclined: false };
 				}
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+			instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
+				isNoWorkspaceChecked: () => noWorkspaceChecked,
+				clearCheckedWorkspace: () => { events.push('clearNoWorkspace'); },
+			}));
+			instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+				getSessionView: sessionId => {
+					events.push(`view:${sessionId ?? 'empty'}`);
+					return upcastPartial<SessionView>({
+						focusWorkspacePicker: () => { events.push('focusPicker'); },
+					});
+				},
+			}));
 
 			const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 			assert.ok(command);
 			await command.handler(instantiationService, toSide ? { toSide } : undefined);
-			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, requests };
+			return { navigationVersion: composerService.userNavigationVersion.get(), events, requests };
 		};
 
+		const primary = {
+			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'view:empty', 'focusPicker'], requests: [] },
+			unchecked: { navigationVersion: 1, events: ['unset', 'view:empty', 'focusPicker'], requests: [] },
+		};
+		const toSide = { navigationVersion: 1, events: ['open'], requests: [{ folderUri: undefined, toSide: true }] };
 		assert.deepStrictEqual({
 			disabled: {
-				primary: await run(false),
-				toSide: await run(false, true),
+				primaryChecked: await run(false, undefined, true),
+				primaryUnchecked: await run(false, undefined, false),
+				toSide: await run(false, true, true),
 			},
 			enabled: {
-				primary: await run(true),
-				toSide: await run(true, true),
+				primaryChecked: await run(true, undefined, true),
+				primaryUnchecked: await run(true, undefined, false),
+				toSide: await run(true, true, true),
 			},
 		}, {
-			disabled: {
-				primary: { navigationVersion: 1, unsetNewSessionCalls: 1, requests: [] },
-				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
-			},
-			enabled: {
-				primary: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: undefined }] },
-				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
-			},
+			disabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
+			enabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
 		});
 	});
 
