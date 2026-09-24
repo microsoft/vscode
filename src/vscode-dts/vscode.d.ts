@@ -14986,9 +14986,10 @@ declare module 'vscode' {
 		/**
 		 * Register a document highlight provider.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and groups sequentially asked for document highlights.
-		 * The process stops when a provider returns a `non-falsy` or `non-failure` result.
+		 * By default, providers are sorted by their {@link languages.match score} and asked sequentially
+		 * until one returns highlights or an empty array.
+		 * When `editor.occurrencesHighlightFromAllProviders` is enabled, matching providers are asked in parallel
+		 * and their results are merged, preserving the highest-priority provider's kind for duplicate ranges.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document highlight provider.
