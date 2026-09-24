@@ -175,6 +175,13 @@ export class RemoteAuthorityResolverError extends Error {
 	}
 }
 
+export function validateResolvedAuthorityPort(result: { port: unknown }, remoteAuthorityChain: string): RemoteAuthorityResolverError | undefined {
+	if (!isValidAuthorityPort(result.port)) {
+		return new RemoteAuthorityResolverError(`Resolver for ${remoteAuthorityChain} returned invalid port ${String(result.port)}. Port must be an integer between 1 and 65535.`, RemoteAuthorityResolverErrorCode.InvalidAuthority);
+	}
+	return undefined;
+}
+
 export enum EnvironmentVariableMutatorType {
 	Replace = 1,
 	Append = 2,

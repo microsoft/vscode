@@ -11,6 +11,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RemoteAuthorityResolverErrorCode } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import * as types from '../../common/extHostTypes.js';
 
 function assertToJSON(a: any, expected: any) {
@@ -804,6 +805,16 @@ suite('ExtHostTypes', function () {
 
 		assert.strictEqual(new types.ResolvedAuthority('localhost', 1).port, 1);
 		assert.strictEqual(new types.ResolvedAuthority('localhost', 65535).port, 65535);
+	});
+
+	test('validateResolvedAuthorityPort', () => {
+		for (const port of [-1, 65536, NaN]) {
+			const err = types.validateResolvedAuthorityPort({ host: 'localhost', port }, 'test+authority');
+			assert.ok(err instanceof types.RemoteAuthorityResolverError);
+			assert.strictEqual(err._code, RemoteAuthorityResolverErrorCode.InvalidAuthority);
+			assert.ok(err._message?.includes(String(port)));
+		}
+		assert.strictEqual(types.validateResolvedAuthorityPort({ host: 'localhost', port: 8080 }, 'test+authority'), undefined);
 	});
 
 	test('ResolvedAuthority.isResolvedAuthority port validation', () => {
