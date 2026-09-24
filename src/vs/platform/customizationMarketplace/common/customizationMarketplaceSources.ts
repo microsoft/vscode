@@ -23,14 +23,7 @@ export const CustomizationMarketplaceSources = {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
-		configurationDependencies: [mcpGalleryServiceUrlConfig],
-	},
-	McpGalleryDefault: {
-		id: 'mcpGalleryDefault',
-		displayName: localize('customizationMarketplace.defaultMcpGallery', "Default MCP Gallery"),
-		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
-		exclusionSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
-		configurationDependencies: [mcpGalleryServiceUrlConfig],
+		configurationDependencies: [mcpGalleryServiceUrlConfig, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
 	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
@@ -42,7 +35,6 @@ export const CustomizationMarketplaceSources = {
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
-		(!source.exclusionSetting || configurationService.getValue<boolean>(source.exclusionSetting) !== true) &&
 		(!source.requiresMarketplaceVisibility || configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true));
 }
 
@@ -54,7 +46,6 @@ export function getVisibleCustomizationMarketplaceSources(configurationService: 
 export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
 	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 		|| sources.some(source => event.affectsConfiguration(source.enablementSetting) ||
-			(source.exclusionSetting !== undefined && event.affectsConfiguration(source.exclusionSetting)) ||
 			source.configurationDependencies?.some(setting => event.affectsConfiguration(setting)));
 }
 

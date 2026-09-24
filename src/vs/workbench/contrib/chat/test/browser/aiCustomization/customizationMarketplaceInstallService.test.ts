@@ -60,7 +60,6 @@ const sources = [
 	{ id: 'anotherSource', enablementSetting: 'test.anotherSource.enabled' },
 	{ id: 'otherSource', enablementSetting: 'test.otherSource.enabled' },
 	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
-	{ ...CustomizationMarketplaceSources.McpGalleryDefault, enablementSetting: mcpGalleryTestSetting },
 ];
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
@@ -1035,7 +1034,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		test('installs default gallery entries from their pinned registry only while public feed is off', async () => {
 			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
 			const candidate = {
-				...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGalleryDefault.id,
+				...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGallery.id,
 				installation: { kind: 'mcpGallery' as const, name: 'io.example/demo', registry: 'default' as const, registryUrl: 'https://api.mcp.github.com' }
 			};
 			fixture.mcpService.galleryServer = mcpServer('io.example/demo', McpServerInstallState.Uninstalled, 'io.example/demo', 'https://api.mcp.github.com');
@@ -1122,7 +1121,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
 			fixture.mcpService.local = [mcpServer('io.example/demo', McpServerInstallState.Installed, 'io.example/demo', 'https://configured.registry.test')];
 			const candidate = {
-				...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGalleryDefault.id,
+				...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGallery.id,
 				installation: { kind: 'mcpGallery' as const, name: 'io.example/demo', registry: 'default' as const, registryUrl: 'https://api.mcp.github.com' }
 			};
 			const state = fixture.service.getInstallState(candidate);

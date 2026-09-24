@@ -121,8 +121,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isMcpGallerySourceCurrent(source: McpGalleryInstallation): boolean {
-		return source.registry === 'default' ||
-			normalizeMcpGalleryUrl(this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig)) === normalizeMcpGalleryUrl(source.registryUrl);
+		return source.registry === 'default'
+			? this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true
+			: normalizeMcpGalleryUrl(this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig)) === normalizeMcpGalleryUrl(source.registryUrl);
 	}
 
 	private updateEnablement(): void {

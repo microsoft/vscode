@@ -45,26 +45,6 @@ suite('CustomizationMarketplaceSources', () => {
 		}, { disabled: [], legacyFeeds: ['first'], legacyPage: { items: [], total: 1 }, pendingPage: { items: [] }, cancelledListeners: false, enabledFeeds: [true, false] });
 	});
 
-	test('exclusion setting removes the default source and cancels its in-flight request', async () => {
-		const filteredSources = [{ id: 'default', enablementSetting: 'test.default.enabled', exclusionSetting: 'test.public.enabled' }];
-		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			'test.default.enabled': true,
-			'test.public.enabled': false,
-		});
-		store.add(configuration.onDidChangeConfigurationEmitter);
-		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
-		const pending = queryEnabledCustomizationMarketplaceSources(configuration, filteredSources, {}, CancellationToken.None, () => deferred.p);
-		const cancelled = assert.rejects(pending, isCancellationError);
-		await setEnabled(configuration, 'test.public.enabled', true);
-		await cancelled;
-		await deferred.complete({ items: [] });
-		assert.deepStrictEqual({
-			enabled: getEnabledCustomizationMarketplaceSources(configuration, filteredSources),
-			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
-		}, { enabled: [], listening: false });
-	});
-
 	test('changing source query configuration cancels an in-flight request without disabling the source', async () => {
 		const source = {
 			id: 'mcpGallery',
@@ -146,7 +126,7 @@ suite('CustomizationMarketplaceSources', () => {
 	test('MCP sources follow Marketplace visibility and exclude default when public feed is enabled', () => {
 		const cases = [
 			{ marketplace: false, publicFeed: false, visible: [] },
-			{ marketplace: true, publicFeed: false, visible: ['mcpGallery', 'mcpGalleryDefault'] },
+			{ marketplace: true, publicFeed: false, visible: ['mcpGallery'] },
 			{ marketplace: true, publicFeed: true, visible: ['mcpGallery', 'agentFinder'] },
 		];
 		assert.deepStrictEqual(cases.map(({ marketplace, publicFeed }) => {

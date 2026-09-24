@@ -11,6 +11,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
 import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
 
@@ -37,7 +38,10 @@ suite('McpGalleryMarketplaceProvider', () => {
 	const manifest = (url: string) => new class extends mock<IMcpGalleryManifestService>() {
 		override async getMcpGalleryManifest() { return { url, version: 'v0.1', resources: [] }; }
 	}();
-	const configuration = (url = customUrl) => new TestConfigurationService({ [mcpGalleryServiceUrlConfig]: url });
+	const configuration = (url = customUrl, publicFeed = false) => new TestConfigurationService({
+		[mcpGalleryServiceUrlConfig]: url,
+		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
+	});
 
 	test('maps metadata, never executable configuration, and continues with the native cursor', async () => {
 		const requests: IMcpGalleryQueryPageOptions[] = [];
@@ -66,7 +70,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 			registryUrls: [customUrl, customUrl],
 			first: {
 				items: [{
-					identifier: server.name, displayName: server.displayName, description: server.description,
+					identifier: `custom:${server.name}`, displayName: server.displayName, description: server.description,
 					mediaType: CustomizationMarketplaceMediaType.McpServer,
 					tags: ['database'], capabilities: [], representativeQueries: [],
 					url: first.items[0].url, externalUrl: server.webUrl,
@@ -81,14 +85,15 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
-	test('advertises the custom source only for an explicit non-product registry', () => {
+	test('advertises one MCP source when either registry contributes content', () => {
 		const cases = [
-			{ configuredUrl: '', sourceIds: ['mcpGalleryDefault', 'agentFinder'] },
-			{ configuredUrl: productUrl, sourceIds: ['mcpGalleryDefault', 'agentFinder'] },
-			{ configuredUrl: customUrl, sourceIds: ['mcpGallery', 'mcpGalleryDefault', 'agentFinder'] },
+			{ configuredUrl: '', publicFeed: false, sourceIds: ['mcpGallery', 'agentFinder'] },
+			{ configuredUrl: '', publicFeed: true, sourceIds: ['agentFinder'] },
+			{ configuredUrl: productUrl, publicFeed: false, sourceIds: ['mcpGallery', 'agentFinder'] },
+			{ configuredUrl: customUrl, publicFeed: true, sourceIds: ['mcpGallery', 'agentFinder'] },
 		];
-		assert.deepStrictEqual(cases.map(({ configuredUrl }) =>
-			getCustomizationMarketplaceSourceInfos(configuration(configuredUrl), product).map(source => source.id)),
+		assert.deepStrictEqual(cases.map(({ configuredUrl, publicFeed }) =>
+			getCustomizationMarketplaceSourceInfos(configuration(configuredUrl, publicFeed), product).map(source => source.id)),
 		cases.map(({ sourceIds }) => sourceIds));
 	});
 
@@ -134,7 +139,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 		}();
 		const result = await new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product).query({ pageSize: 2 }, CancellationToken.None);
 		assert.deepStrictEqual({ cursors, items: result.items.map(item => item.identifier), nextCursor: result.nextCursor }, {
-			cursors: [undefined, 'next'], items: ['io.github.owner/server'], nextCursor: undefined,
+			cursors: [undefined, 'next'], items: ['custom:io.github.owner/server'], nextCursor: undefined,
 		});
 	});
 
@@ -154,7 +159,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 			new McpGalleryMarketplaceProvider('custom', gallery, manifest(productUrl), configuration(customUrl), product).query({}, CancellationToken.None),
 			/configured MCP gallery is changing/,
 		);
-		assert.deepStrictEqual({ results, calls }, { results: [{ items: [] }, { items: [] }], calls: 0 });
+		assert.deepStrictEqual({ results, calls }, { results: [{ items: [], total: 0 }, { items: [], total: 0 }], calls: 0 });
 	});
 
 	test('default feed queries the pinned product manifest independently of a configured custom gallery', async () => {
@@ -171,11 +176,14 @@ suite('McpGalleryMarketplaceProvider', () => {
 		}();
 		const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(), product);
 		const page = await provider.query({}, CancellationToken.None);
+		const excluded = await new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(customUrl, true), product).query({}, CancellationToken.None);
 		assert.deepStrictEqual({
-			id: provider.id, urls, priority: page.items[0].priority, installation: page.items[0].installation,
+			id: provider.id, sourceId: provider.sourceId, urls, identifier: page.items[0].identifier,
+			priority: page.items[0].priority, installation: page.items[0].installation, excluded,
 		}, {
-			id: 'mcpGalleryDefault', urls: [productUrl], priority: 0,
+			id: 'mcpGallery.default', sourceId: 'mcpGallery', urls: [productUrl], identifier: `default:${server.name}`, priority: 0,
 			installation: { kind: 'mcpGallery', name: server.name, registry: 'default', registryUrl: productUrl },
+			excluded: { items: [], total: 0 },
 		});
 	});
 });

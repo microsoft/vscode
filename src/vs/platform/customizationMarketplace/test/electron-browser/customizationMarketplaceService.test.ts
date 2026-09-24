@@ -80,7 +80,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 			ipcRequests,
 			galleryRequests,
 		}, {
-			ids: [[['agentFinder', 'public']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']], [['mcpGallery', 'io.github.owner/server']]],
+			ids: [[['agentFinder', 'public']], [['mcpGallery', 'custom:io.github.owner/server']], [['mcpGallery', 'custom:io.github.owner/server']], [['mcpGallery', 'custom:io.github.owner/server']], [['mcpGallery', 'custom:io.github.owner/server']]],
 			ipcRequests: [
 				{ query: 'server', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] },
 				{ query: '', mediaType: undefined, pageSize: 1, cursor: undefined, sourceIds: ['agentFinder'] },
@@ -200,9 +200,9 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const invisibleAfter = getVisibleCustomizationMarketplaceSources(configuration, service.sources).map(source => source.id);
 		assert.deepStrictEqual({ invisibleBefore, customAndDefault, customAndPublic, defaultOnly, publicOnly, invisibleAfter, galleryUrls, publicCalls }, {
 			invisibleBefore: [],
-			customAndDefault: ['mcpGallery', 'mcpGalleryDefault'],
+			customAndDefault: ['mcpGallery', 'mcpGallery'],
 			customAndPublic: ['mcpGallery', 'agentFinder'],
-			defaultOnly: ['mcpGalleryDefault'],
+			defaultOnly: ['mcpGallery'],
 			publicOnly: ['agentFinder'],
 			invisibleAfter: [],
 			galleryUrls: ['https://registry.test', 'https://api.mcp.github.com', 'https://registry.test', 'https://api.mcp.github.com'],

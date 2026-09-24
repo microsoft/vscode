@@ -8,11 +8,12 @@ import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
 	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
@@ -27,9 +28,22 @@ function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationSe
 
 export function getCustomizationMarketplaceSourceInfos(configurationService: IConfigurationService, productService: IProductService): readonly ICustomizationMarketplaceSourceInfo[] {
 	const sources: readonly ICustomizationMarketplaceSourceInfo[] = Object.values(CustomizationMarketplaceSources);
-	return getConfiguredCustomMcpGalleryUrl(configurationService, productService)
+	const hasCustomGallery = getConfiguredCustomMcpGalleryUrl(configurationService, productService) !== undefined;
+	const usesDefaultGallery = configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true;
+	return hasCustomGallery || usesDefaultGallery
 		? sources
 		: sources.filter(source => source.id !== CustomizationMarketplaceSources.McpGallery.id);
+}
+
+export function createMcpGalleryMarketplaceProviders(instantiationService: IInstantiationService): readonly ICustomizationMarketplaceProvider[] {
+	return (['custom', 'default'] as const).map(registry => {
+		const id = `${CustomizationMarketplaceSources.McpGallery.id}.${registry}`;
+		return createLazyCustomizationMarketplaceProvider(
+			id,
+			() => instantiationService.createInstance(McpGalleryMarketplaceProvider, registry),
+			CustomizationMarketplaceSources.McpGallery.id,
+		);
+	});
 }
 
 function safeWebUri(value: string | undefined): URI | undefined {
@@ -53,7 +67,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 	const url = webUrl ?? repository;
 	const icon = safeWebUri(server.icon?.light);
 	return {
-		identifier: server.name,
+		identifier: `${registry}:${server.name}`,
 		displayName: server.displayName || server.name,
 		description: server.description,
 		mediaType: CustomizationMarketplaceMediaType.McpServer,
@@ -73,6 +87,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 
 export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceProvider {
 	readonly id: string;
+	readonly sourceId = CustomizationMarketplaceSources.McpGallery.id;
 
 	constructor(
 		private readonly registry: 'custom' | 'default',
@@ -81,7 +96,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 	) {
-		this.id = registry === 'custom' ? CustomizationMarketplaceSources.McpGallery.id : CustomizationMarketplaceSources.McpGalleryDefault.id;
+		this.id = `${this.sourceId}.${registry}`;
 	}
 
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
@@ -89,6 +104,10 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			return { items: [] };
 		}
 		const configuredUrl = getConfiguredCustomMcpGalleryUrl(this.configurationService, this.productService);
+		if (this.registry === 'default' &&
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) === true) {
+			return { items: [], total: 0 };
+		}
 		const manifest = this.registry === 'default'
 			? await this.manifestService.getDefaultMcpGalleryManifest()
 			: configuredUrl ? await this.manifestService.getMcpGalleryManifest() : null;
@@ -97,7 +116,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			throw new Error(localize('mcpGalleryRegistryChanging', "The configured MCP gallery is changing. Try again."));
 		}
 		if (!manifest || !registryUrl) {
-			return { items: [] };
+			return { items: [], total: 0 };
 		}
 		let cursor = options.cursor;
 		for (let attempt = 0; attempt < 5; attempt++) {

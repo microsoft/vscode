@@ -49,6 +49,33 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('groups multiple providers behind one contributed source', async () => {
+		const calls: string[] = [];
+		const providers: ICustomizationMarketplaceProvider[] = ['custom', 'default'].map(kind => ({
+			id: `gallery.${kind}`,
+			sourceId: 'gallery',
+			query: async () => {
+				calls.push(kind);
+				return { items: [{ ...entry, identifier: `${kind}:${entry.identifier}` }], total: 1 };
+			},
+		}));
+		const service = new CustomizationMarketplaceService(providers);
+		const page = await service.query({ sourceIds: ['gallery'], pageSize: 2 }, CancellationToken.None);
+		await assert.rejects(service.query({ sourceIds: ['gallery.custom'] }, CancellationToken.None), /invalid/);
+		assert.deepStrictEqual({
+			calls,
+			items: page.items.map(item => ({ identifier: item.identifier, sourceId: item.sourceId })),
+			total: page.total,
+		}, {
+			calls: ['custom', 'default'],
+			items: [
+				{ identifier: `custom:${entry.identifier}`, sourceId: 'gallery' },
+				{ identifier: `default:${entry.identifier}`, sourceId: 'gallery' },
+			],
+			total: 2,
+		});
+	});
+
 	test('continues each source with its own opaque cursor and retains exhausted source totals', async () => {
 		const calls: { source: string; cursor: string | undefined }[] = [];
 		const source = (id: string, hasMore: boolean): ICustomizationMarketplaceProvider => ({

@@ -14,7 +14,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME } from '../common/customizationMarketplaceIpc.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
-import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../common/mcpGalleryMarketplaceProvider.js';
+import { createMcpGalleryMarketplaceProviders, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
 
 export class NativeCustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
@@ -29,8 +29,7 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 		@IProductService private readonly productService: IProductService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGallery.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'custom')),
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.McpGalleryDefault.id, () => instantiationService.createInstance(McpGalleryMarketplaceProvider, 'default')),
+			...createMcpGalleryMarketplaceProviders(instantiationService),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => {
 				const channel = sharedProcessService.getChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME);
 				return {

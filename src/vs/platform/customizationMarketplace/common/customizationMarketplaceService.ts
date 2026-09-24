@@ -124,6 +124,8 @@ export interface ICustomizationMarketplaceSourcePage {
 /** A feed with a stable ID that owns transport, response validation, and installation provenance. */
 export interface ICustomizationMarketplaceProvider {
 	readonly id: string;
+	/** User-visible source that owns this provider. Defaults to `id`. */
+	readonly sourceId?: string;
 	query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 }
 
@@ -131,8 +133,6 @@ export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
 	readonly displayName?: string;
 	readonly enablementSetting: string;
-	/** A source omitted when this other feed's setting is enabled. */
-	readonly exclusionSetting?: string;
 	/** Sources without a legacy management surface are unavailable while Marketplace is hidden. */
 	readonly requiresMarketplaceVisibility?: boolean;
 	/** Configuration settings that change the source's availability or query identity. */
@@ -145,10 +145,11 @@ export interface ICustomizationMarketplaceSourceRecoveryAction {
 	run(token: CancellationToken): Promise<void>;
 }
 
-export function createLazyCustomizationMarketplaceProvider(id: string, createProvider: () => ICustomizationMarketplaceProvider): ICustomizationMarketplaceProvider {
+export function createLazyCustomizationMarketplaceProvider(id: string, createProvider: () => ICustomizationMarketplaceProvider, sourceId = id): ICustomizationMarketplaceProvider {
 	const provider = new Lazy(createProvider);
 	return {
 		id,
+		sourceId,
 		query: async (options, token) => {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -212,10 +213,14 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		if (token.isCancellationRequested || options.sourceIds.length === 0) {
 			throw new CancellationError();
 		}
-		const sources = this.sources.filter(source => options.sourceIds.includes(source.id));
+		const requestedSourceIds = new Set(options.sourceIds);
+		const sources = this.sources.filter(source => requestedSourceIds.has(source.sourceId ?? source.id));
+		const selectedSourceIds = new Set(sources.map(source => source.sourceId ?? source.id));
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? defaultPageSize;
-		if (sources.length !== options.sourceIds.length || query.length > maxQueryLength || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
+		if (requestedSourceIds.size !== options.sourceIds.length || selectedSourceIds.size !== requestedSourceIds.size ||
+			[...requestedSourceIds].some(sourceId => !selectedSourceIds.has(sourceId)) ||
+			query.length > maxQueryLength || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
 			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new Error(localize('customizationMarketplace.invalidQuery', "The marketplace query is invalid."));
 		}
@@ -299,7 +304,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					break;
 				}
 				const { priority: _priority, ...item } = states[selected].items.shift()!;
-				items.push({ ...item, sourceId: sources[selected].id });
+				items.push({ ...item, sourceId: sources[selected].sourceId ?? sources[selected].id });
 				nextSourceIndex = (selected + 1) % states.length;
 			}
 			let nextCursor: ICustomizationMarketplaceCursor | undefined;
@@ -310,7 +315,15 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					states, nextSourceIndex, expiresAt: Date.now() + continuationLifetimeMs,
 				});
 			}
-			const sourceErrors = states.flatMap((state, index) => state.error === undefined ? [] : [{ sourceId: sources[index].id, message: state.error }]);
+			const sourceErrorsById = new Map<string, ICustomizationMarketplaceSourceError>();
+			for (let index = 0; index < states.length; index++) {
+				const error = states[index].error;
+				if (error !== undefined) {
+					const sourceId = sources[index].sourceId ?? sources[index].id;
+					sourceErrorsById.set(sourceId, { sourceId, message: error });
+				}
+			}
+			const sourceErrors = [...sourceErrorsById.values()];
 			return {
 				items,
 				total: !sourceErrors.length && states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,
