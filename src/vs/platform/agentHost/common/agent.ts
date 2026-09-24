@@ -1410,6 +1410,9 @@ export interface IAgent {
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
+	/** Releases turns waiting for MCP startup while the provider continues connecting servers. */
+	backgroundMcpServerStartup?(session: URI, id: string): Promise<void>;
+
 	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
 	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 

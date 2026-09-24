@@ -1063,6 +1063,84 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	suite('MCP server startup backgrounding', () => {
+		function requestBackground(state: { readonly kind: McpServerStatus.Starting; readonly blocking?: boolean } = { kind: McpServerStatus.Starting, blocking: true }): void {
+			setupSession();
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin',
+					children: [{ type: CustomizationType.McpServer, id: 'server', uri: 'file:///plugin/.mcp.json', name: 'server', state }],
+				}],
+			});
+			const action = { type: ActionType.SessionMcpServerBackgroundRequested, id: 'server' } as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), action);
+		}
+
+		function serverState() {
+			const plugin = stateManager.getSessionState(sessionUri.toString())?.customizations?.[0];
+			const server = plugin?.type === CustomizationType.Plugin ? plugin.children?.[0] : undefined;
+			return server?.type === CustomizationType.McpServer ? server.state : undefined;
+		}
+
+		test('forwards background requests without changing provider-owned state', async () => {
+			const calls: Array<{ session: URI; id: string }> = [];
+			Object.assign(agent, {
+				backgroundMcpServerStartup: async (session: URI, id: string) => {
+					calls.push({ session, id });
+				},
+			});
+
+			requestBackground();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				calls: calls.map(call => ({ session: call.session.toString(), id: call.id })),
+				state: serverState(),
+			}, {
+				calls: [{ session: sessionUri.toString(), id: 'server' }],
+				state: { kind: McpServerStatus.Starting, blocking: true },
+			});
+		});
+
+		test('forwards repeated non-blocking startup requests', async () => {
+			let calls = 0;
+			Object.assign(agent, {
+				backgroundMcpServerStartup: async () => { calls++; },
+			});
+
+			requestBackground({ kind: McpServerStatus.Starting });
+			sideEffects.handleAction(sessionUri.toString(), { type: ActionType.SessionMcpServerBackgroundRequested, id: 'server' });
+			await timeout(0);
+
+			assert.strictEqual(calls, 2);
+		});
+
+		test('forwards requests even when the customization is absent', async () => {
+			const ids: string[] = [];
+			Object.assign(agent, {
+				backgroundMcpServerStartup: async (_session: URI, id: string) => { ids.push(id); },
+			});
+			setupSession();
+			sideEffects.handleAction(sessionUri.toString(), { type: ActionType.SessionMcpServerBackgroundRequested, id: 'missing' });
+			await timeout(0);
+
+			assert.deepStrictEqual(ids, ['missing']);
+		});
+
+		test('retains blocking state when the provider rejects', async () => {
+			Object.assign(agent, {
+				backgroundMcpServerStartup: async () => { throw new Error('SDK rejected'); },
+			});
+
+			requestBackground();
+			await timeout(0);
+
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+		});
+	});
+
 	suite('customization enablement refresh', () => {
 		const plugin: PluginCustomization = {
 			type: CustomizationType.Plugin,
