@@ -204,11 +204,11 @@
 	height: var(--vscode-spacing-size280, 28px);
 }
 
-.session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
+.monaco-workbench:not(.modern-ui-connected-editor-tabs) .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
 	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 }
 
-:is(.hc-black, .hc-light) .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
+.monaco-workbench:not(.modern-ui-connected-editor-tabs):is(.hc-black, .hc-light) .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
 	border-bottom-color: var(--vscode-contrastBorder);
 }
 
@@ -567,4 +567,77 @@
 	border-block: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	box-sizing: border-box;
+}
+
+.session-chat-tabs-bar .tab-connected-edge,
+.session-chat-tabs-bar .tab-connected-overflow-edge {
+	display: none;
+}
+
+.modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view {
+	--modern-ui-connected-tab-surface: var(--session-view-background);
+}
+
+.modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .chat-composite-bar.session-chat-tabs-bar {
+	padding: 0;
+	max-width: none;
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tabs-row {
+	position: relative;
+	height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+	border-bottom: 0;
+	--modern-ui-editor-tab-active-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-unfocused-active-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-active-hover-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-unfocused-active-hover-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-action-active-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-action-unfocused-active-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-action-active-hover-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-editor-tab-action-unfocused-active-hover-background: var(--modern-ui-connected-tab-surface);
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tabs-row::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	inset-inline: 0;
+	height: var(--vscode-strokeThickness);
+	background-color: var(--modern-ui-connected-tab-border);
+	pointer-events: none;
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tabs {
+	box-sizing: border-box;
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab {
+	scroll-margin-inline: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness));
+}
+
+/* Native scrolling rounds fractional bounds; reserve a stroke beyond the terminal shoulder. */
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab:last-child {
+	margin-right: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness));
+}
+
+.modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions {
+	position: relative;
+	inset: auto;
+	flex-shrink: 0;
+	margin: 0 0 0 var(--vscode-spacing-size20);
+	border: 0;
+	border-radius: 0;
+}
+
+.modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions::before {
+	display: none;
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions {
+	pointer-events: auto;
+	background-color: var(--modern-ui-connected-tab-surface);
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions .action-label {
+	opacity: 1;
 }
