@@ -103,7 +103,7 @@
 	align-items: flex-start;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > .editor-actions {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > :is(.editor-actions, .editor-layout-actions) {
 	align-self: stretch;
 	height: auto;
 	margin-bottom: var(--vscode-strokeThickness);

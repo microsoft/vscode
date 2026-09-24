@@ -133,6 +133,49 @@ suite('Sessions - Editor Contribution', () => {
 		assert.strictEqual(css.includes('--modern-ui-editor-tab-active-background: #123456;'), true);
 	});
 
+	test('centers both side-panel action bars within the tab row at either height', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+		store.add({ dispose: () => workbench.remove() });
+		workbench.style.cssText = 'width: 600px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-strokeThickness: 1px;';
+		const editor = appendElement(workbench, 'part editor');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
+		appendElement(tabs, 'tab');
+		const buttons = ['editor-actions', 'editor-layout-actions'].map(className => {
+			const container = appendElement(row, className);
+			container.style.display = 'block';
+			const toolbar = appendElement(container, 'monaco-toolbar');
+			const actions = appendElement(appendElement(toolbar, 'monaco-action-bar'), 'actions-container');
+			return appendElement(appendElement(actions, 'action-item'), 'action-label codicon codicon-screen-full');
+		});
+
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			for (const connected of [true, false]) {
+				workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const compact of [true, false]) {
+					title.classList.toggle('compact-height', compact);
+					const rowBounds = row.getBoundingClientRect();
+					const contentHeight = compact ? 28 : 32;
+					const expectedCenter = rowBounds.top + contentHeight / 2;
+					assert.deepStrictEqual({
+						rowHeight: rowBounds.height,
+						buttonOffsets: buttons.map(button => {
+							const bounds = button.getBoundingClientRect();
+							return bounds.top + bounds.height / 2 - expectedCenter;
+						}),
+					}, {
+						rowHeight: contentHeight + (connected ? 1 : 0),
+						buttonOffsets: [0, 0],
+					}, `${theme}, connected: ${connected}, compact: ${compact}`);
+				}
+			}
+			workbench.classList.remove(theme);
+		}
+	});
+
 	test('uses one HC group frame with or without docked details', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench dock-detail-panel');
 		workbench.style.setProperty('--vscode-agentsPanel-border', '#888888');
