@@ -7089,6 +7089,12 @@ suite('AgentSideEffects', () => {
 				});
 			};
 			requestPermission('before-resume');
+			agent.respondToPermissionRequest = (requestId, approved) => {
+				agent.respondToPermissionCalls.push({ requestId, approved });
+				if (requestId === 'before-resume') {
+					requestPermission('during-denial');
+				}
+			};
 			agent.fireProgress({ kind: 'subagent_resumed', chat, toolCallId: 'missing' });
 			requestPermission('after-resume');
 
@@ -7096,10 +7102,67 @@ suite('AgentSideEffects', () => {
 				responses: agent.respondToPermissionCalls,
 				notifications: stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.SystemNotification).map(part => part.content),
 			}, {
-				responses: [{ requestId: 'before-resume', approved: false }, { requestId: 'after-resume', approved: false }],
+				responses: [{ requestId: 'before-resume', approved: false }, { requestId: 'during-denial', approved: false }, { requestId: 'after-resume', approved: false }],
 				notifications: ['A subagent could not be started or resumed. Its pending approval requests were cancelled. Start a new subagent to continue.'],
 			});
 		});
+
+		test('bounds retained failed routes while suppressing recent orphan signals', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const chat = URI.parse(defaultChatUri);
+			for (let index = 0; index <= 1000; index++) {
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat, parentToolCallId: `orphan-${index}`,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: `permission-${index}`, toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+				});
+			}
+			startTurn('turn-1');
+			for (const parentToolCallId of ['orphan-0', 'orphan-1', 'orphan-1000']) {
+				agent.fireProgress({
+					kind: 'action', resource: chat, parentToolCallId,
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: `${parentToolCallId}-tool`, toolName: 'read_file', displayName: 'Read File' },
+				});
+				agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: parentToolCallId, agentName: 'helper', agentDisplayName: 'Helper' });
+			}
+			assert.deepStrictEqual({
+				denied: agent.respondToPermissionCalls.length,
+				approvals: agent.respondToPermissionCalls.filter(call => call.approved),
+				children: ['orphan-0', 'orphan-1', 'orphan-1000'].map(toolCallId =>
+					stateManager.getChatState(buildSubagentChatUri(sessionUri.toString(), toolCallId))?.activeTurn?.responseParts
+						.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [part.toolCall.toolCallId] : [])),
+			}, {
+				denied: 1001,
+				approvals: [],
+				children: [['orphan-0-tool'], [], []],
+			});
+		});
+
+		for (const cleanup of ['completion', 'cancellation', 'disposal'] as const) {
+			test(`clears failed routing suppression on ${cleanup} without affecting another parent`, () => {
+				setupSession();
+				const peerChat = buildChatUri(sessionUri.toString(), 'peer');
+				stateManager.addChat(sessionUri.toString(), peerChat);
+				disposables.add(sideEffects.registerProgressListener(agent));
+				for (const parentChat of [defaultChatUri, peerChat]) {
+					startTurn('turn-1', parentChat);
+					agent.fireProgress({ kind: 'subagent_resumed', chat: URI.parse(parentChat), toolCallId: 'missing' });
+				}
+				if (cleanup === 'completion') {
+					sideEffects.completeSubagentSession(defaultChatUri, 'missing');
+				} else if (cleanup === 'cancellation') {
+					sideEffects.cancelSubagentSessions(defaultChatUri);
+				} else {
+					sideEffects.removeSubagentSessions(sessionUri.toString());
+				}
+				for (const parentChat of [defaultChatUri, peerChat]) {
+					agent.fireProgress({ kind: 'subagent_resumed', chat: URI.parse(parentChat), toolCallId: 'missing' });
+				}
+				assert.deepStrictEqual([defaultChatUri, peerChat].map(parentChat =>
+					stateManager.getChatState(parentChat)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.SystemNotification).length),
+					[2, cleanup === 'disposal' ? 2 : 1]);
+			});
+		}
 
 		for (const limit of ['timeout', 'count'] as const) {
 			test(`bounds pending subagent signals by ${limit} and settles approvals`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

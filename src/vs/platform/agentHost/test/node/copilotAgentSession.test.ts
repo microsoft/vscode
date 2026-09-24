@@ -5791,6 +5791,66 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 300_000_000 });
 	});
 
+	for (const lateCompletion of [false, true]) {
+		test(`cancelled subagent reuse does not inherit usage or Auto routing (late completion=${lateCompletion})`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const child = { agentId: 'agent-1' };
+			session.resetTurnState('turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], child);
+			mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, child);
+			const firstUsage = {
+				model: 'gpt-5.5', inputTokens: 5, outputTokens: 7,
+				copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+			};
+			mockSession.fire('assistant.usage', firstUsage, child);
+			await session.abort();
+			if (lateCompletion) {
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: child.agentId, toolCallId: 'tc-subagent', description: 'Explore tests', status: 'cancelled',
+					agentType: 'explore', prompt: 'Explore tests', startedAt: new Date(0).toISOString(),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+			}
+
+			await session.send('Reuse the child', undefined, 'turn-2');
+			mockSession.fire('user.message', { content: 'Reuse the child' });
+			const followUpStart = signals.length;
+			mockSession.fire('user.message', { content: 'Follow up' }, child);
+			const replayedUsage = signals.slice(followUpStart).flatMap(signal =>
+				signal.kind === 'action' && signal.parentToolCallId === 'tc-subagent' && signal.action.type === ActionType.ChatUsage
+					? [signal.action.usage] : []);
+			const nextUsage = {
+				model: 'gpt-6-astra', inputTokens: 6, outputTokens: 8,
+				copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+			};
+			mockSession.fire('assistant.usage', nextUsage, child);
+			const usage = signals.flatMap(signal =>
+				signal.kind === 'action' && signal.parentToolCallId === 'tc-subagent' && signal.action.type === ActionType.ChatUsage
+					? [signal.action.usage] : []).at(-1);
+			const meta = readUsageInfoMeta(usage);
+			assert.deepStrictEqual({
+				replayedUsage,
+				model: usage?.model,
+				directTokens: meta.directTurnTokenTotals,
+				directCredits: meta.directCopilotUsage,
+				credits: meta.copilotUsage?.totalNanoAiu,
+				autoModeResolved: meta.autoModeResolved,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').length,
+			}, {
+				replayedUsage: [],
+				model: 'gpt-6-astra',
+				directTokens: [{ model: 'gpt-6-astra', inputTokens: 6, cachedTokens: 0, outputTokens: 8 }],
+				directCredits: { totalNanoAiu: 300_000_000 },
+				credits: 300_000_000,
+				autoModeResolved: undefined,
+				completed: 0,
+			});
+		});
+	}
+
 	test('observed child usage excludes root and resumed child usage and deduplicates replayed records', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		session.resetTurnState('root');

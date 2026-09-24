@@ -8,7 +8,7 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { NKeyMap } from '../../../base/common/map.js';
+import { LRUCache, NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -126,6 +126,7 @@ interface IPendingSubagentSignal {
 }
 
 const MAX_PENDING_SUBAGENT_SIGNALS = 1000;
+const MAX_FAILED_SUBAGENT_ROUTES = 1000;
 const SUBAGENT_START_TIMEOUT = 30_000;
 
 class PendingSubagentSignals extends Disposable {
@@ -256,6 +257,7 @@ export class AgentSideEffects extends Disposable {
 	 *
 	 */
 	private readonly _pendingSubagentSignals = this._register(new DisposableMap<string, PendingSubagentSignals>());
+	private readonly _failedSubagentRoutes = new LRUCache<string, ProtocolURI>(MAX_FAILED_SUBAGENT_ROUTES);
 	private readonly _inputRequestTracker: AgentHostInputRequestTracker;
 	/**
 	 * Fires with the provider id whenever a turn starts. Surfaced so
@@ -697,6 +699,12 @@ export class AgentSideEffects extends Disposable {
 			}
 
 			const key = `${sessionKey}\0${parentToolCallId}`;
+			if (this._failedSubagentRoutes.get(key) !== undefined) {
+				if (signal.kind === 'pending_confirmation') {
+					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				}
+				return;
+			}
 			const hadPendingSignals = this._pendingSubagentSignals.has(key);
 			const buffer = this._getPendingSubagentSignals(sessionKey, parentToolCallId);
 			if (buffer.failed) {
@@ -1063,18 +1071,20 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _failPendingSubagentSignals(parentChatURI: ProtocolURI, toolCallId: string, reason: string): void {
+		const key = `${parentChatURI}\0${toolCallId}`;
 		if (!this._stateManager.getChatState(parentChatURI)) {
 			this._logService.warn(`[AgentSideEffects] ${reason} for disposed parent chat ${parentChatURI}/${toolCallId}`);
-			this._pendingSubagentSignals.deleteAndDispose(`${parentChatURI}\0${toolCallId}`);
+			this._failedSubagentRoutes.delete(key);
+			this._pendingSubagentSignals.deleteAndDispose(key);
 			return;
 		}
-		const buffer = this._getPendingSubagentSignals(parentChatURI, toolCallId);
-		if (buffer.failed) {
+		if (this._failedSubagentRoutes.get(key) !== undefined || this._pendingSubagentSignals.get(key)?.failed) {
 			return;
 		}
 		this._logService.error(`[AgentSideEffects] ${reason}: ${parentChatURI}/${toolCallId}`);
-		// Retain a failed marker until a real start or teardown, rather than buffering later events again.
-		buffer.dispose();
+		// Suppress recent failed routes before denying their permissions, which can emit more signals.
+		this._failedSubagentRoutes.set(key, parentChatURI);
+		this._pendingSubagentSignals.deleteAndDispose(key);
 		const turnId = this._stateManager.getActiveTurnId(parentChatURI);
 		if (turnId) {
 			this._stateManager.dispatchServerAction(parentChatURI, {
@@ -1095,6 +1105,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _drainPendingSubagentSignals(parentChatURI: ProtocolURI, parentToolCallId: string): void {
 		const key = `${parentChatURI}\0${parentToolCallId}`;
+		this._failedSubagentRoutes.delete(key);
 		const buffer = this._pendingSubagentSignals.get(key);
 		if (!buffer) {
 			return;
@@ -1288,6 +1299,11 @@ export class AgentSideEffects extends Disposable {
 				this._pendingSubagentSignals.deleteAndDispose(key);
 			}
 		}
+		for (const [key, parent] of [...this._failedSubagentRoutes]) {
+			if (parent === parentChatURI) {
+				this._failedSubagentRoutes.delete(key);
+			}
+		}
 	}
 
 	/**
@@ -1295,7 +1311,9 @@ export class AgentSideEffects extends Disposable {
 	 * call. The chat remains registered so a later steered turn can resume it.
 	 */
 	completeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string): void {
-		this._pendingSubagentSignals.deleteAndDispose(`${parentChatURI}\0${toolCallId}`);
+		const key = `${parentChatURI}\0${toolCallId}`;
+		this._failedSubagentRoutes.delete(key);
+		this._pendingSubagentSignals.deleteAndDispose(key);
 
 		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
 		if (!subagent) {
@@ -1339,6 +1357,11 @@ export class AgentSideEffects extends Disposable {
 		for (const [key, buffer] of this._pendingSubagentSignals) {
 			if (parseRequiredSessionUriFromChatUri(buffer.parentChatUri) === parentSession) {
 				this._pendingSubagentSignals.deleteAndDispose(key);
+			}
+		}
+		for (const [key, parent] of [...this._failedSubagentRoutes]) {
+			if (parseRequiredSessionUriFromChatUri(parent) === parentSession) {
+				this._failedSubagentRoutes.delete(key);
 			}
 		}
 	}

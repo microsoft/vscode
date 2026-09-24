@@ -3772,7 +3772,9 @@ export class CopilotAgentSession extends Disposable {
 		if (abortingTurn || this._activeSubagentAgentIds.size > 0) {
 			this._dropLateRootTurnEvents = true;
 			// Aborted children are not guaranteed to emit a terminal event before reuse.
-			this._activeSubagentAgentIds.clear();
+			for (const agentId of this._activeSubagentAgentIds) {
+				this._completeSubagentTurn(agentId);
+			}
 			this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
 			this._subagentActivityRevisions.clear();
 			this._subagentTaskStatusRevision++;
