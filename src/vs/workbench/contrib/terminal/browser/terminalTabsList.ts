@@ -97,7 +97,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> implements
 	) {
 		const labels = instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 		const dnd = instantiationService.createInstance(TerminalTabsDragAndDrop, instances => {
-			this.setSelection(instances.map(instance => this._terminalGroupService.instances.indexOf(instance)).filter(index => index >= 0));
+			const indexes = instances.map(instance => this._terminalGroupService.instances.indexOf(instance)).filter(index => index >= 0);
+			this.setSelection(indexes);
+			this.setFocus(indexes.slice(0, 1));
 		});
 		super('TerminalTabsList', container,
 			{

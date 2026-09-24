@@ -33,7 +33,7 @@ import { TerminalTabbedView } from '../../browser/terminalTabbedView.js';
 import { InstanceContext } from '../../browser/terminalContextMenu.js';
 import { TerminalTabsBar } from '../../browser/terminalTabsBar.js';
 import { TerminalStatusList } from '../../browser/terminalStatusList.js';
-import { TerminalTabsDragAndDrop, TerminalTabsRenderer } from '../../browser/terminalTabsList.js';
+import { TerminalTabList, TerminalTabsDragAndDrop, TerminalTabsRenderer } from '../../browser/terminalTabsList.js';
 import { getSelectedTerminalTabInstances } from '../../browser/terminalTabsWidget.js';
 import { ITerminalConfiguration } from '../../common/terminal.js';
 import { TerminalStorageKeys } from '../../common/terminalStorageKeys.js';
@@ -544,6 +544,38 @@ suite('Terminal tabs', () => {
 		deepStrictEqual({ moves, selected: selected.map(instance => instance.instanceId) }, { moves: [{ sources: [2] }], selected: [2] });
 	});
 
+	for (const source of ['local', 'cross-window'] as const) {
+		test(`vertical ${source} drops align selection, focus and command targets`, async () => {
+			tabs.location = 'right';
+			backend = new class extends mock<ITerminalBackend>() {
+				override async requestDetachInstance(): Promise<IProcessDetails> { return processDetails(); }
+			};
+			const list = store.add(instantiationService.createInstance(TerminalTabList, container));
+			list.layout(300, 120);
+			list.setSelection([0]);
+			list.setFocus([0]);
+			list.domFocus();
+			const drop = spy(TerminalTabsDragAndDrop.prototype, 'drop');
+			const dataTransfer = new DataTransfer();
+			const resources = source === 'local'
+				? [instances[1].resource, instances[2].resource]
+				: [URI.from({ scheme: Schemas.vscodeTerminal, path: '/external/99' })];
+			dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(resources.map(resource => resource.toString())));
+			const target = list.getHTMLElement().querySelector<HTMLElement>('.monaco-list-row[data-index="0"]')!;
+			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			strictEqual(drop.callCount, 1);
+			await drop.firstCall.returnValue;
+			const expected = source === 'local' ? [2, 3] : [4];
+			deepStrictEqual({
+				selected: list.getSelectedElements().map(instance => instance.instanceId),
+				focused: list.getFocusedElements().map(instance => instance.instanceId),
+				targets: getSelectedTerminalTabInstances(list).map(instance => instance.instanceId),
+				active: groupService.activeInstance?.instanceId
+			}, { selected: expected, focused: expected.slice(0, 1), targets: expected, active: expected[0] });
+		});
+	}
+
 	test('propagates cross-window detach failures', async () => {
 		backend = new class extends mock<ITerminalBackend>() {
 			override async requestDetachInstance(): Promise<never> { throw new Error('detach failed'); }
@@ -662,6 +694,52 @@ suite('Terminal tabs', () => {
 		changeConfiguration({ location: 'right' });
 		changeConfiguration({ enabled: true, location: 'top' });
 		deepStrictEqual({ disabled, enabled: groups[0].size }, { disabled: { width: 600, height: 300 }, enabled: { width: 600, height: 272 } });
+	});
+
+	for (const location of ['left', 'right', 'top', 'bottom'] as const) {
+		test(`${location}: restores terminal focus when a location change also disables tabs`, () => {
+			tabs.location = location;
+			const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+			view.layout(600, 300);
+			const terminalInput = $('textarea');
+			terminalContainer!.appendChild(terminalInput);
+			stub(instances[0], 'focus').callsFake(() => terminalInput.focus());
+			view.focusTabs();
+			ok(container.querySelector('.tabs-container')!.contains(getActiveElement()));
+			changeConfiguration({ location: location === 'top' ? 'bottom' : 'top', enabled: false });
+			deepStrictEqual({
+				tabsRemoved: container.querySelector('.tabs-container') === null,
+				terminalFocused: getActiveElement() === terminalInput
+			}, { tabsRemoved: true, terminalFocused: true });
+		});
+	}
+
+	test('restores terminal focus when a location change also hides the single group', () => {
+		groupService.groups = [new TabGroup(instances)];
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		const terminalInput = $('textarea');
+		terminalContainer!.appendChild(terminalInput);
+		stub(instances[0], 'focus').callsFake(() => terminalInput.focus());
+		view.focusTabs();
+		changeConfiguration({ location: 'left', hideCondition: 'singleGroup' });
+		deepStrictEqual({
+			tabsRemoved: container.querySelector('.tabs-container') === null,
+			terminalFocused: getActiveElement() === terminalInput
+		}, { tabsRemoved: true, terminalFocused: true });
+	});
+
+	test('combined location and visibility changes do not steal focus from another control', () => {
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		const otherInput = $('input');
+		container.parentElement!.appendChild(otherInput);
+		otherInput.focus();
+		changeConfiguration({ location: 'right', enabled: false });
+		deepStrictEqual({
+			otherControlFocused: getActiveElement() === otherInput,
+			terminalFocusCalls: instances[0].focusCount
+		}, { otherControlFocused: true, terminalFocusCalls: 0 });
 	});
 
 	test('updates side-list text visibility from the current allocated width', () => {

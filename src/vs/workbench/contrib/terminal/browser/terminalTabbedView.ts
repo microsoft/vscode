@@ -163,8 +163,12 @@ export class TerminalTabbedView extends Disposable {
 				this._splitView = this._createSplitView(parentElement);
 				this._setupSplitView(terminalOuterContainer);
 				this.layout(this._width ?? 0, this._height ?? 0);
-				if (hadTabsFocus && this._shouldShowTabs()) {
-					this.focusTabs();
+				if (hadTabsFocus) {
+					if (this._shouldShowTabs()) {
+						this.focusTabs();
+					} else {
+						this.focus();
+					}
 				} else if (dom.isHTMLElement(activeElement) && this._terminalContainer.contains(activeElement)) {
 					activeElement.focus();
 				}
