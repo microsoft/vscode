@@ -10,6 +10,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -996,9 +997,6 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private showItemContextMenu(item: IAICustomizationListItem, anchor: IListContextMenuEvent<IListEntry>['anchor']): void {
-		this.cardMenuOpen = true;
-		this.lastCardFocusItemId = item.id;
-
 		// Create context for the menu actions
 		const context: Record<string, unknown> = {
 			uri: item.uri.toString(),
@@ -1035,7 +1033,8 @@ export class AICustomizationListWidget extends Disposable {
 		const copyActions = item.isBuiltin || !hasReadableCustomizationContent(item.uri) ? [] : [
 			new Separator(),
 			new Action('copyFullPath', localize('copyFullPath', "Copy Full Path"), undefined, true, async () => {
-				await this.clipboardService.writeText(item.uri.fsPath);
+				const path = item.uri.scheme === Schemas.file ? item.uri.fsPath : item.uri.toString(true);
+				await this.clipboardService.writeText(path);
 			}),
 			new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
 				const basePath = this.workspaceService.getActiveProjectRoot();
@@ -1049,10 +1048,18 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			}),
 		];
+		const contextMenuActions = [...secondary, ...copyActions];
+		if (contextMenuActions.length === 0) {
+			this.cardMenuOpen = false;
+			return;
+		}
+
+		this.cardMenuOpen = true;
+		this.lastCardFocusItemId = item.id;
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...secondary, ...copyActions],
+			getActions: () => contextMenuActions,
 			onHide: () => {
 				this.cardMenuOpen = false;
 				if (this.usesCardLayout() && !this.focusCardSectionItem(item.id)) {
