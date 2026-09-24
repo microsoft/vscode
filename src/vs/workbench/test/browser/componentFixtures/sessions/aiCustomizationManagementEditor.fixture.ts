@@ -938,6 +938,7 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
+	readonly marketplaceEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly togglePublicFeed?: boolean;
@@ -985,7 +986,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = agentFinderPublicFeedEnabled || options.copilotConnectorsEnabled === true || options.otherSourceEnabled === true;
+	const marketplaceEnabled = (options.marketplaceEnabled ?? true) &&
+		(agentFinderPublicFeedEnabled || options.copilotConnectorsEnabled === true || options.otherSourceEnabled === true);
 	const marketplaceResources = [
 		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
@@ -1082,6 +1084,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: options.marketplaceEnabled ?? true,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
@@ -3029,6 +3032,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
+		}),
+	}),
+
+	OverviewWithConnectorsEnabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Overview remains visible when Copilot connectors are enabled but Marketplace is off.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceEnabled: false,
+			agentFinderPublicFeedEnabled: false,
+			copilotConnectorsEnabled: true,
 		}),
 	}),
 

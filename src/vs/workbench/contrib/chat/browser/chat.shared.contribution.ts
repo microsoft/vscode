@@ -2549,10 +2549,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
 			default: 'switch',
 		},
+		[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, configured sources remain available in their management sections."),
+			default: false,
+		},
 		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in the customization marketplace. When disabled, this source is not initialized or queried. The original Overview appears when no marketplace sources are enabled."),
+			description: nls.localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins in Discover. When disabled, this source is not initialized or queried."),
 			default: false,
 			experiment: { mode: 'auto' },
 		},
