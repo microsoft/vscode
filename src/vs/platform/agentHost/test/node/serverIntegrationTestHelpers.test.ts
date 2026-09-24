@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import { once } from 'events';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -18,7 +18,7 @@ import { collectServerDescendants, killServer, stopServer } from './serverIntegr
 suite('Agent Host test server cleanup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[]): Promise<{ error: Error | undefined; calls: string[] }> {
+	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[], killFails = true): Promise<{ error: Error | undefined; calls: string[] }> {
 		const descendant = { pid: 123, name: 'node.exe', commandLine: 'node child.js' };
 		const server = spawn(process.execPath, ['-e', `
 			process.stdin.resume();
@@ -41,7 +41,9 @@ suite('Agent Host test server cleanup', () => {
 				},
 				killProcess: pid => {
 					calls.push(`kill:${pid}`);
-					throw killError;
+					if (killFails) {
+						throw killError;
+					}
 				},
 				isSameProcessRunning: async process => {
 					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
@@ -145,6 +147,22 @@ suite('Agent Host test server cleanup', () => {
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'kill:123',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
+	test('waits for a descendant to exit after a successful kill', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true, true, false], false);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123',
+				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
@@ -271,24 +289,37 @@ suite('Agent Host test server cleanup', () => {
 
 			assert.strictEqual(server.exitCode, 0);
 			assert.throws(() => process.kill(message, 0), { code: 'ESRCH' });
-			await rm(directory, { recursive: true });
+			await rm(directory, { recursive: true, maxRetries: 10, retryDelay: 100 });
 		} finally {
 			await Promises.settled([
 				killServer({ process: server, port: 0 }),
 				(async () => {
-					if (descendantPid === undefined) {
+					const pid = descendantPid;
+					if (pid === undefined) {
 						return;
 					}
 					try {
-						process.kill(descendantPid);
+						process.kill(pid);
 					} catch (error) {
 						if (getErrorCode(error) !== 'ESRCH') {
 							throw error;
 						}
+						return;
 					}
+					await retry(async () => {
+						try {
+							process.kill(pid, 0);
+						} catch (error) {
+							if (getErrorCode(error) === 'ESRCH') {
+								return;
+							}
+							throw error;
+						}
+						throw new Error(`Agent Host test server descendant ${pid} did not exit after termination`);
+					}, 50, 100);
 				})(),
 			]);
-			await rm(directory, { recursive: true, force: true });
+			await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 		}
 	});
 });

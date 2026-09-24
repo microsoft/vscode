@@ -800,7 +800,13 @@ export async function stopServer(
 					throw error;
 				}
 			}, 50, 5);
+			return;
 		}
+		await retry(async () => {
+			if (await processOperations.isSameProcessRunning(descendant)) {
+				throw new Error(`Agent Host test server descendant ${descendant.pid} did not exit after termination`);
+			}
+		}, 50, 100);
 	}));
 }
 
