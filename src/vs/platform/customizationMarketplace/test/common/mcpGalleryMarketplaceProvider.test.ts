@@ -71,13 +71,13 @@ suite('McpGalleryMarketplaceProvider', () => {
 					tags: ['database'], capabilities: [], representativeQueries: [],
 					url: first.items[0].url, externalUrl: server.webUrl,
 					repository: first.items[0].repository,
-					publisher: 'Owner', version: '1.0.0', stars: 42,
+					publisher: 'Owner', version: '1.0.0', stars: 42, priority: 1,
 					installation: { kind: 'mcpGallery', name: server.name, registry: 'custom' },
 				}],
 				total: 2, nextCursor: 'opaque+/=',
 			},
 			lastCursor: undefined,
-			entryFields: ['identifier', 'displayName', 'description', 'mediaType', 'tags', 'capabilities', 'representativeQueries', 'url', 'externalUrl', 'repository', 'publisher', 'version', 'stars', 'installation'],
+			entryFields: ['identifier', 'displayName', 'description', 'mediaType', 'tags', 'capabilities', 'representativeQueries', 'url', 'externalUrl', 'repository', 'publisher', 'version', 'stars', 'priority', 'installation'],
 		});
 	});
 
@@ -137,9 +137,9 @@ suite('McpGalleryMarketplaceProvider', () => {
 		const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(), product);
 		const page = await provider.query({}, CancellationToken.None);
 		assert.deepStrictEqual({
-			id: provider.id, urls, installation: page.items[0].installation,
+			id: provider.id, urls, priority: page.items[0].priority, installation: page.items[0].installation,
 		}, {
-			id: 'mcpGalleryDefault', urls: [productUrl],
+			id: 'mcpGalleryDefault', urls: [productUrl], priority: 0,
 			installation: { kind: 'mcpGallery', name: server.name, registry: 'default' },
 		});
 	});

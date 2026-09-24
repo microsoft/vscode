@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 function safeWebUri(value: string | undefined): URI | undefined {
@@ -29,7 +29,7 @@ function safeWebUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'default'): ICustomizationMarketplaceEntry {
+function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'default'): ICustomizationMarketplaceSourceEntry {
 	const webUrl = safeWebUri(server.webUrl);
 	const url = webUrl ?? safeWebUri(server.galleryUrl);
 	const repository = safeWebUri(server.repositoryUrl);
@@ -48,6 +48,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 		publisher: server.publisherDisplayName ?? server.publisher,
 		version: server.version,
 		stars: server.starsCount,
+		priority: registry === 'custom' ? 1 : 0,
 		installation: { kind: 'mcpGallery', name: server.name, registry },
 	};
 }

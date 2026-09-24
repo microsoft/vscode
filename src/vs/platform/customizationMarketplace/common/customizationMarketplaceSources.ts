@@ -34,12 +34,14 @@ export const CustomizationMarketplaceSources = {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+		requiresMarketplaceVisibility: true,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
-		(!source.exclusionSetting || configurationService.getValue<boolean>(source.exclusionSetting) !== true));
+		(!source.exclusionSetting || configurationService.getValue<boolean>(source.exclusionSetting) !== true) &&
+		(!source.requiresMarketplaceVisibility || configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true));
 }
 
 export function getVisibleCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
