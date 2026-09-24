@@ -40,11 +40,13 @@ import { registerChatFixtureServices } from './chatFixtureUtils.js';
 interface ITerminalFullOutputFixtureOptions {
 	readonly width: number;
 	readonly preview: string;
-	readonly hasFullOutput: boolean;
+	readonly truncated: boolean;
 	readonly expanded: boolean;
 	readonly collapsible?: boolean;
 	readonly intention?: string;
 }
+
+const truncatedFileListPreview = Array.from({ length: 16 }, (_, index) => `src/example-${index + 1}.ts`).join('\n');
 
 async function renderTerminalFullOutput(context: ComponentFixtureContext, options: ITerminalFullOutputFixtureOptions): Promise<void> {
 	const terminalFont: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 8, charHeight: 16 };
@@ -111,7 +113,7 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			registration.defineInstance(IChatTerminalOutputTextModelService, new class extends mock<IChatTerminalOutputTextModelService>() {
 				override async canResolve(): Promise<boolean> {
-					return options.hasFullOutput;
+					return options.truncated;
 				}
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
@@ -157,12 +159,12 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 		language: 'shellscript',
 		intention: options.intention,
 		isPty: false,
-		terminalCommandUri: options.hasFullOutput ? URI.parse('agenthost-terminal://shell/fixture/terminal-full-output') : undefined,
+		terminalCommandUri: options.truncated ? URI.parse('agenthost-terminal://shell/fixture/terminal-full-output') : undefined,
 		terminalCommandState: { exitCode: 0 },
 		terminalCommandOutput: {
-			text: options.hasFullOutput ? 'Saved to: /artifact/terminal-output.txt' : options.preview.replace(/\r?\n/g, '\r\n'),
-			truncated: options.hasFullOutput,
-			...(options.hasFullOutput ? { fullOutputPreview: options.preview.replace(/\r?\n/g, '\r\n') } : {}),
+			text: options.truncated ? 'Saved to: /artifact/terminal-output.txt' : options.preview.replace(/\r?\n/g, '\r\n'),
+			truncated: options.truncated,
+			...(options.truncated ? { fullOutputPreview: options.preview.replace(/\r?\n/g, '\r\n') } : {}),
 		},
 	};
 	const invocation: IChatToolInvocationSerialized = {
@@ -241,35 +243,35 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	'Expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The nested executed-command block contains the preview followed by the quiet sentence “Output truncated. Click the output preview to view the full output.” Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only); the guidance itself is not presented as a link.'],
-		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true }),
+		expectedVisualDescriptions: ['The nested executed-command block contains a long file-list preview followed by the quiet sentence “Output truncated. Click the output preview to view the full output.” Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only); the guidance itself is not presented as a link.'],
+		render: context => renderTerminalFullOutput(context, { width: 560, preview: truncatedFileListPreview, truncated: true, expanded: true }),
 	}),
 	'Expanded no full output': defineComponentFixture({
-		expectedVisualDescriptions: ['A completed terminal command shows its expanded terminal preview without full-output guidance.'],
-		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts', hasFullOutput: false, expanded: true }),
+		expectedVisualDescriptions: ['A completed terminal command shows its short, complete terminal output without truncation guidance or a full-output action.'],
+		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts', truncated: false, expanded: true }),
 	}),
 	'Expanded empty preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['With no preview text, the nested executed-command block shows “A preview is not available.” followed by the quiet sentence “Output truncated. Click the output preview to view the full output.” Its header shows the local-terminal open-in-product icon for Open Full Output (Read-Only); no text button or link appears.'],
-		render: context => renderTerminalFullOutput(context, { width: 560, preview: '', hasFullOutput: true, expanded: true }),
+		render: context => renderTerminalFullOutput(context, { width: 560, preview: '', truncated: true, expanded: true }),
 	}),
 	'Narrow expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['In a narrow terminal card, the preview and quiet full-output guidance wrap within the output surface without exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
-		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true, intention: 'List source files' }),
+		expectedVisualDescriptions: ['In a narrow terminal card, the long file-list preview and quiet full-output guidance stay within the output surface without exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
+		render: context => renderTerminalFullOutput(context, { width: 280, preview: truncatedFileListPreview, truncated: true, expanded: true, collapsible: true, intention: 'List source files' }),
 	}),
 	'Collapsed full output': defineComponentFixture({
 		expectedVisualDescriptions: ['The command output is collapsed while the bordered executed-command block remains visible. The same square open-in-product icon used by local terminal cards stays in that block’s command header.'],
-		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: false }),
+		render: context => renderTerminalFullOutput(context, { width: 560, preview: truncatedFileListPreview, truncated: true, expanded: false }),
 	}),
 	'Expanded collapsible full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains the preview and quiet full-output guidance without a link.'],
-		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true }),
+		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains a long file-list preview and quiet full-output guidance without a link.'],
+		render: context => renderTerminalFullOutput(context, { width: 560, preview: truncatedFileListPreview, truncated: true, expanded: true, collapsible: true }),
 	}),
 	'Long truncated preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by quiet full-output guidance. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
-		render: context => renderTerminalFullOutput(context, { width: 800, preview: `FULL_OUTPUT_BEGIN\n${'x'.repeat(501)}`, hasFullOutput: true, expanded: true, collapsible: true, intention: 'Generate large stdout for display test' }),
+		render: context => renderTerminalFullOutput(context, { width: 800, preview: `FULL_OUTPUT_BEGIN\n${'x'.repeat(501)}`, truncated: true, expanded: true, collapsible: true, intention: 'Generate large stdout for display test' }),
 	}),
 });

@@ -565,6 +565,29 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		});
 	}
 
+	test('does not show full-output guidance for complete output', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({
+			mode: 'plain',
+			fallback: 'short output',
+			hasPreview: false,
+			truncated: false,
+		});
+		await harness.expand(part, 'plain');
+
+		assert.deepStrictEqual({
+			action: part.fullOutputAction,
+			clickable: part.domNode.querySelector('.chat-terminal-output-container')?.classList.contains('chat-terminal-output-clickable'),
+			guidance: part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent,
+			output: snapshotText(harness.raw(part)),
+		}, {
+			action: undefined,
+			clickable: false,
+			guidance: '',
+			output: 'short output',
+		});
+	});
+
 	test('preserves selection, drag, and scrolling', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
 		const { part } = harness.createPart({ mode: 'plain' });
