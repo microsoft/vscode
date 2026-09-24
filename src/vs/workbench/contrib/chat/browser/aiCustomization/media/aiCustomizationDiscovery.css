@@ -19,10 +19,15 @@
 	min-height: 0;
 }
 
-.customization-discovery-header {
+.customization-discovery-header,
+.customization-discovery-browse,
+.customization-discovery-results {
 	box-sizing: border-box;
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin: 0 auto;
+}
+
+.customization-discovery-header {
 	padding-bottom: var(--vscode-spacing-size160);
 }
 
@@ -126,9 +131,6 @@
 .customization-discovery-browse {
 	position: absolute;
 	inset: 0;
-	box-sizing: border-box;
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
-	margin: 0 auto;
 	padding-bottom: var(--vscode-spacing-size320);
 }
 
@@ -318,10 +320,8 @@
 	display: flex;
 	flex: 1;
 	flex-direction: column;
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 960px);
 	min-width: 0;
 	min-height: 0;
-	margin: 0 auto;
 }
 
 .customization-discovery-results[hidden],
@@ -444,8 +444,7 @@
 
 .customization-discovery.narrow .customization-discovery-header,
 .customization-discovery.narrow .customization-discovery-browse,
-.customization-discovery.narrow .customization-discovery-results,
-.customization-discovery.narrow .customization-discovery-state {
+.customization-discovery.narrow .customization-discovery-results {
 	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
 }
 

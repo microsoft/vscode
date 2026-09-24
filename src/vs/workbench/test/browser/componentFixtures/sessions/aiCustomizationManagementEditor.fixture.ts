@@ -1526,6 +1526,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
+		const browseStatus = browse?.querySelector<HTMLElement>('.customization-discovery-state');
+		assert(
+			!header || !searchRow || !browse || !browseStatus
+			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - browse.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - browse.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - browseStatus.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - browseStatus.getBoundingClientRect().right) <= 1,
+			'Discover browse content and state must align with the header and search control.',
+		);
 	}
 
 	if (options.togglePublicFeed) {
@@ -1556,6 +1570,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const resultDetail = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-detail');
 		const resultDescription = resultRow?.querySelector<HTMLElement>('.customization-discovery-result-description');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
+		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+		const resultStatus = resultList?.querySelector<HTMLElement>('.customization-discovery-state');
 		assert(resultList !== null && !resultList.hidden, 'A Discover query must show the virtualized results list.');
 		assert(resultRow === null || resultIdentity === null || resultIdentity.offsetHeight <= resultRow.offsetHeight, 'Discover result text must fit within its virtualized row.');
 		assert(
@@ -1564,7 +1580,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& resultDescription.getBoundingClientRect().top > resultName.getBoundingClientRect().top,
 			'Discover results must place source metadata beside the name and the description on the next line.',
 		);
-		assert(header === null || resultRow === null || Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1, 'Discover result selection bounds must align with the page header.');
+		assert(
+			header === null || searchRow === null || resultRow === null || resultStatus === null
+			|| Math.abs(header.getBoundingClientRect().left - searchRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - searchRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - resultRow.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - resultRow.getBoundingClientRect().right) <= 1
+			&& Math.abs(header.getBoundingClientRect().left - resultStatus.getBoundingClientRect().left) <= 1
+			&& Math.abs(header.getBoundingClientRect().right - resultStatus.getBoundingClientRect().right) <= 1,
+			'Discover results, selection bounds, and state must align with the page header and search control.',
+		);
 		assert(ctx.container.querySelector('.customization-discovery-group-label') === null, 'Discover results must render as one flat list.');
 		assert(ctx.container.querySelector('.customization-discovery-footer') === null, 'Discover must page through list scrolling instead of rendering a Load More footer.');
 		const availableRows = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
@@ -2420,8 +2445,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
+		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 1200 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
@@ -2946,9 +2971,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
+		expectedVisualDescriptions: ['Wide Discover search uses the same centered content measure as the management pages. The title, search control, result selection bounds, and state messages share horizontal edges; rows retain compact icons, two-line text hierarchy, ratings, and centered actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			width: 1200,
+			discoveryQuery: 'review',
+		}),
+	}),
+
+	DiscoverSearchResultsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Narrow Discover search keeps the title, search control, result selection bounds, and state messages on the same compact horizontal edges without clipping descriptions or actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			width: 550,
+			height: 500,
 			discoveryQuery: 'review',
 		}),
 	}),
