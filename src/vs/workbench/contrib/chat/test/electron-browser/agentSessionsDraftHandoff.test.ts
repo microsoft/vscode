@@ -73,6 +73,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		const focused = disposables.add(new Emitter<void>());
 		const sessionsChanged = disposables.add(new Emitter<void>());
 		const contextChanged = disposables.add(new Emitter<IContextKeyChangeEvent>());
+		const workbenchStateChanged = disposables.add(new Emitter<WorkbenchState>());
 		const dismissed = disposables.add(new Emitter<string>());
 		const assignmentsRefetched = disposables.add(new Emitter<void>());
 		const requestsChanged = disposables.add(new Emitter<IChatChangeEvent>());
@@ -203,7 +204,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		instantiation.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => ({ id: 'source', folders: [new WorkspaceFolder({ uri: URI.file('/source'), name: 'source', index: 0 })] }),
 			getWorkbenchState: () => workbenchState,
-			onDidChangeWorkbenchState: Event.None,
+			onDidChangeWorkbenchState: workbenchStateChanged.event,
 		}));
 		instantiation.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
 		instantiation.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async value => { calls.push(value ?? {}); await openReady; } }));
@@ -266,7 +267,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			get notification() { return [...notifications.values()].at(-1); },
 			get posts() { return posts; },
 			set openReady(value: Promise<void>) { openReady = value; },
-			set workbenchState(value: WorkbenchState) { workbenchState = value; },
+			set workbenchState(value: WorkbenchState) {
+				workbenchState = value;
+				workbenchStateChanged.fire(value);
+			},
 			showBanner: () => disposables.add(instantiation.createInstance(AgentsParallelWorkContribution)),
 			showGenericTip: () => disposables.add(instantiation.createInstance(AgentsHandoffInputTipContribution)),
 			dismiss: () => {
@@ -652,8 +656,9 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('recognizes remote Copilot harness drafts for the educational invitation', () => {
+	test('recognizes remote Copilot harness drafts for education in an empty workspace', () => {
 		const h = createHarness({ running: false, copilotHarnessSessionCount: 5 });
+		h.workbenchState = WorkbenchState.EMPTY;
 		h.resource = URI.from({ scheme: 'remote-test-copilotcli', path: '/untitled-draft' });
 		h.showBanner();
 
@@ -663,6 +668,26 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}, {
 			title: 'You\'re using the Copilot harness',
 			action: 'Learn More',
+		});
+	});
+
+	test('updates local Copilot education when the workbench state changes', () => {
+		const h = createHarness({ running: false, copilotHarnessSessionCount: 5 });
+		h.workbenchState = WorkbenchState.EMPTY;
+		h.showBanner();
+		const emptyWorkspace = h.notification;
+		h.workbenchState = WorkbenchState.FOLDER;
+		const folderTitle = h.notification?.message;
+		h.workbenchState = WorkbenchState.EMPTY;
+
+		assert.deepStrictEqual({
+			emptyWorkspace,
+			folderTitle,
+			emptyAgain: h.notification,
+		}, {
+			emptyWorkspace: undefined,
+			folderTitle: 'You\'re using the Copilot harness',
+			emptyAgain: undefined,
 		});
 	});
 

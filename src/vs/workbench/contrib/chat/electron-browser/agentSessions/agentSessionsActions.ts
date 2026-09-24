@@ -865,6 +865,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		}));
 		this._register(this._agentSessionsService.model.onDidChangeSessions(() => this._update()));
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
+		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, this._store)(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.AgentsParallelWorkBannerEnabled)) {
@@ -951,12 +952,13 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			const sessionCount = this._getCopilotHarnessSessionCount();
 			const introductionIgnored = this._storageService.getBoolean(AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION, false);
 			if (sessionCount <= AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT) {
-				const isEmptyWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-				if (!introductionIgnored && !isEmptyWorkspace) {
+				const localCopilotNeedsSetup = getChatSessionType(resource) === SessionType.AgentHostCopilot
+					&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+				if (!introductionIgnored && !localCopilotNeedsSetup) {
 					return AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction;
 				}
 				const canTransitionToParallelWork = (introductionIgnored && sessionCount === AgentsParallelWorkContribution.COPILOT_HARNESS_INTRODUCTION_MAX_SESSION_COUNT)
-					|| (!introductionIgnored && isEmptyWorkspace);
+					|| (!introductionIgnored && localCopilotNeedsSetup);
 				if (!canTransitionToParallelWork) {
 					return undefined;
 				}
