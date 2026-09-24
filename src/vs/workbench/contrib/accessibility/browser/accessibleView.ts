@@ -10,7 +10,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -91,6 +91,13 @@ export class AccessibleView extends Disposable {
 	private _title: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
 	private readonly _toolbarMenu = this._register(new MutableDisposable<IMenu>());
+	/** Listeners tied to the provider of the current {@link show} call. */
+	private readonly _showDisposables = this._register(new MutableDisposable<DisposableStore>());
+	/** Listeners tied to the most recent {@link _render} call. */
+	private readonly _renderDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _lastProviderListener = this._register(new MutableDisposable());
+	private readonly _codeBlockContextProviderRegistration = this._register(new MutableDisposable());
+	private readonly _configureKeybindingsDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
 	private _currentContent: string | undefined;
@@ -301,6 +308,8 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		provider.onOpen?.();
+		const showDisposables = new DisposableStore();
+		this._showDisposables.value = showDisposables;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
@@ -309,6 +318,7 @@ export class AccessibleView extends Disposable {
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
+				showDisposables.dispose();
 				this._toolbarMenu.clear();
 				if (!showAccessibleViewHelp) {
 					this._updateLastProvider();
@@ -338,29 +348,36 @@ export class AccessibleView extends Disposable {
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
-		if (provider instanceof AccessibleContentProvider && provider.onDidRequestClearLastProvider) {
-			this._register(provider.onDidRequestClearLastProvider((id: string) => {
-				if (this._lastProvider?.options.id === id) {
-					this._lastProvider = undefined;
-				}
-				this._lastProviderPosition.delete(id);
-			}));
-		}
 		if (provider.options.id) {
 			// only cache a provider with an ID so that it will eventually be cleared.
-			this._lastProvider = provider;
+			this._setLastProvider(provider);
 		}
 		if (provider.id === AccessibleViewProviderId.PanelChat || provider.id === AccessibleViewProviderId.QuickChat) {
-			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+			if (!this._codeBlockContextProviderRegistration.value) {
+				this._codeBlockContextProviderRegistration.value = this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView');
+			}
 		}
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
-		if (provider.onDidChangeContent) {
-			this._register(provider.onDidChangeContent(() => {
+		// `showSymbol` above can re-enter `show`, which releases the listeners of this call
+		if (provider.onDidChangeContent && !showDisposables.isDisposed) {
+			showDisposables.add(provider.onDidChangeContent(() => {
 				if (this._viewContainer) { this._render(provider, this._viewContainer, showAccessibleViewHelp); }
 			}));
 		}
+	}
+
+	private _setLastProvider(provider: AccesibleViewContentProvider | undefined): void {
+		this._lastProvider = provider;
+		this._lastProviderListener.value = provider instanceof AccessibleContentProvider && provider.onDidRequestClearLastProvider
+			? provider.onDidRequestClearLastProvider((id: string) => {
+				if (this._lastProvider?.options.id === id) {
+					this._setLastProvider(undefined);
+				}
+				this._lastProviderPosition.delete(id);
+			})
+			: undefined;
 	}
 
 	previous(): void {
@@ -461,7 +478,8 @@ export class AccessibleView extends Disposable {
 		if (!items) {
 			return;
 		}
-		const disposables = this._register(new DisposableStore());
+		const disposables = new DisposableStore();
+		this._configureKeybindingsDisposables.value = disposables;
 		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
@@ -714,12 +732,13 @@ export class AccessibleView extends Disposable {
 			if (currentPosition) {
 				this._lastProviderPosition.set(provider.id, currentPosition);
 			}
-			this._lastProvider = undefined;
+			this._setLastProvider(undefined);
 			this._currentContent = undefined;
 			this._currentProvider?.dispose();
 			this._currentProvider = undefined;
 		};
 		const disposableStore = new DisposableStore();
+		this._renderDisposables.value = disposableStore;
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter) {
 				this._commandService.executeCommand('editor.action.openLink');
@@ -749,7 +768,9 @@ export class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
-		return disposableStore;
+		// `_render` is also called to refresh the content of an already visible view,
+		// so always release the listeners of the latest render when the view hides.
+		return toDisposable(() => this._renderDisposables.clear());
 	}
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {

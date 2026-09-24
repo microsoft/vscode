@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -86,5 +87,57 @@ suite('AccessibleView', () => {
 
 		accessibleView.dispose();
 		assert.strictEqual(disposeCount, 1);
+	});
+
+	test('releases provider listeners when the context view hides', () => {
+		let delegate: IContextViewDelegate | undefined;
+		const contextViewService = new class extends mock<IContextViewService>() {
+			override showContextView(contextViewDelegate: IContextViewDelegate): IOpenContextView {
+				delegate?.onHide?.();
+				delegate = contextViewDelegate;
+				return { close: () => this.hideContextView() };
+			}
+
+			override hideContextView(): void {
+				delegate?.onHide?.();
+				delegate = undefined;
+			}
+		};
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+
+		let listenerCount = 0;
+		const onDidChangeContent = disposables.add(new Emitter<void>());
+		const countingEvent: Event<void> = listener => {
+			listenerCount++;
+			const listenerDisposable = onDidChangeContent.event(listener);
+			return toDisposable(() => {
+				listenerCount--;
+				listenerDisposable.dispose();
+			});
+		};
+		const provider = disposables.add(new AccessibleContentProvider(
+			AccessibleViewProviderId.Editor,
+			{ type: AccessibleViewType.View },
+			() => 'content',
+			() => { },
+			'test.verbosity',
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			countingEvent
+		));
+
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		const counts: number[] = [];
+		accessibleView.show(provider, undefined, true);
+		counts.push(listenerCount);
+		accessibleView.show(provider, undefined, true);
+		counts.push(listenerCount);
+		contextViewService.hideContextView();
+		counts.push(listenerCount);
+
+		assert.deepStrictEqual(counts, [1, 1, 0]);
 	});
 });
