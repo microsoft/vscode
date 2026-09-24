@@ -1826,11 +1826,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, connection, {
 			openSession: true,
-			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
 				if (options) {
 					sendOptions.push(options);
 				}
-				connection.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
+				connection.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});

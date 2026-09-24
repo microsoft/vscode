@@ -722,11 +722,13 @@ async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promi
 
 interface IServerProcessOperations {
 	killTree(pid: number, forceful: boolean): Promise<void>;
+	killProcess(pid: number): void;
 	isSameProcessRunning(descendant: IServerDescendant): Promise<boolean>;
 }
 
 const defaultServerProcessOperations: IServerProcessOperations = {
 	killTree,
+	killProcess: pid => { process.kill(pid); },
 	isSameProcessRunning: isSameWindowsProcessRunning,
 };
 
@@ -786,26 +788,35 @@ export async function stopServer(
 		throw snapshotError;
 	}
 
-	const failedKills = await Promises.settled(descendants.map(async descendant => {
+	const killResults = await Promises.settled(descendants.map(async descendant => {
 		if (!await processOperations.isSameProcessRunning(descendant)) {
-			return;
+			return undefined;
 		}
 		try {
-			await processOperations.killTree(descendant.pid, true);
+			processOperations.killProcess(descendant.pid);
 		} catch (error) {
-			return { descendant, error };
+			return { descendant, succeeded: false as const, error };
 		}
-		return undefined;
+		return { descendant, succeeded: true as const };
 	}));
 	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
-	await Promises.settled(failedKills.map(async failure => {
-		if (failure) {
+	await Promises.settled(killResults.map(async result => {
+		if (!result) {
+			return;
+		}
+		if (!result.succeeded) {
 			await retry(async () => {
-				if (await processOperations.isSameProcessRunning(failure.descendant)) {
-					throw failure.error;
+				if (await processOperations.isSameProcessRunning(result.descendant)) {
+					throw result.error;
 				}
 			}, 50, 5);
+			return;
 		}
+		await retry(async () => {
+			if (await processOperations.isSameProcessRunning(result.descendant)) {
+				throw new Error(`Agent Host test server descendant ${result.descendant.pid} did not exit after termination`);
+			}
+		}, 50, 100);
 	}));
 }
 

@@ -32,7 +32,6 @@ import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/c
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
-import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
@@ -71,7 +70,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABI
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -80,7 +79,6 @@ import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
-import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
@@ -3201,14 +3199,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly supportsModelConfigurationForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
 
-	getPermissionOptionsForCreation(sessionTypeId: string): readonly ISessionPermissionOption[] {
-		return getAgentHostSessionPermissionOptions(
-			sessionTypeId,
-			isAutoApprovePolicyRestricted(this._baseConfigurationService),
-			true,
-		);
-	}
-
 	get order(): number { return 0; }
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
@@ -3301,27 +3291,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * {@link _onDidReplaceSession}.
 	 */
 	protected _pendingSession: ISession | undefined;
-
-	/**
-	 * Raw ids of backend sessions that an in-flight {@link _waitForNewSession}
-	 * has already matched to its send, so a *concurrent* new-session send of
-	 * the same scheme does not resolve to the same committed session. Each
-	 * matched id is released by the owning send in its `finally`.
-	 */
-	private readonly _committingSessionRawIds = new Set<string>();
-
-	/**
-	 * Own raw ids ({@link chatResource} path) of currently in-flight
-	 * new-session sends. A send's committed backend session keeps the eager
-	 * id it was created with, so {@link _waitForNewSession} matches a send to
-	 * its OWN id first. The novelty fallback (for flows where the backend
-	 * assigns a different id) must then never latch onto *another* in-flight
-	 * send's own session — otherwise two concurrent same-scheme sends racing
-	 * in a shared download/materialize window would swap sessions (each
-	 * graduating onto the other's committed session). Populated at send start,
-	 * cleared in the send's `finally`.
-	 */
-	private readonly _inFlightNewSessionOwnIds = new Set<string>();
 
 	/**
 	 * In-flight new sessions — sessions being composed in the new-chat view
@@ -4081,17 +4050,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			workspace,
 			false,
-			options?.createdBySession
-				? withSessionCreationReference(options.metadata, {
-					session: options.createdBySession.session.toString(),
-					chat: options.createdBySession.chat?.toString(),
-					turnId: options.createdBySession.turnId,
-				})
-				: options?.metadata,
+			options?.metadata,
 			options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
-			options?.permissionId,
 		);
 	}
 
@@ -4119,17 +4081,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			undefined,
 			true,
-			options?.createdBySession
-				? withSessionCreationReference(options.metadata, {
-					session: options.createdBySession.session.toString(),
-					chat: options.createdBySession.chat?.toString(),
-					turnId: options.createdBySession.turnId,
-				})
-				: options?.metadata,
+			options?.metadata,
 			options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
-			options?.permissionId,
 		);
 	}
 
@@ -4146,7 +4101,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		initialAutomationConfiguration?: IAutomationSessionConfiguration,
 		initialModelId?: string,
 		initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
-		initialPermissionId?: string,
 	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
@@ -4157,26 +4111,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
-		const baseInitialConfigValues = initialAutomationConfiguration
+		const initialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
 				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
 			}
 			: this._initialNewSessionConfig(workspace);
-		const permissionConfig = initialPermissionId
-			? getAgentHostSessionPermissionConfig(
-				sessionType.id,
-				initialPermissionId,
-				isAutoApprovePolicyRestricted(this._baseConfigurationService),
-				true,
-			)
-			: undefined;
-		if (initialPermissionId && !permissionConfig) {
-			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
-		}
-		const initialConfigValues = permissionConfig
-			? { ...baseInitialConfigValues, ...permissionConfig }
-			: baseInitialConfigValues;
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
@@ -5342,11 +5282,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	getSessionContextReference(chatResource: URI): string | undefined {
-		const backendResource = this.getBackendChatResource(chatResource);
-		return backendResource ? buildOpenSessionLinkForChatResource(backendResource) : undefined;
-	}
-
 	getWorkingDirectories(sessionId: string): readonly string[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.workingDirectories ?? [];
@@ -6003,19 +5938,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			modelRef.dispose();
 		}
 
-		// Capture existing session keys before sending so we can detect the new
-		// backend session. Must be captured before sendRequest because the
-		// backend session may be created during the send and arrive via
-		// notification before sendRequest resolves.
-		this._ensureSessionCache();
-		const existingKeys = new Set(this._sessionCache.keys());
-		// The eagerly-created session may already be cached before first send.
-		// Treat that raw id as the session we are waiting for, not old state.
 		const newSessionRawId = chatResource.path.replace(/^\//, '');
-		existingKeys.delete(newSessionRawId);
-		// Publish this send's own id so concurrent same-scheme sends don't
-		// latch onto it via their novelty fallback (which would swap sessions).
-		this._inFlightNewSessionOwnIds.add(newSessionRawId);
 
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
@@ -6037,12 +5960,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
-		// Raw id claimed by _waitForNewSession for this send (released in finally).
-		let committedRawId: string | undefined;
 		try {
-			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme, newSessionRawId, newSession.cancellationToken);
+			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken);
 			if (committedSession) {
-				committedRawId = committedSession.resource.path.substring(1);
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
@@ -6074,13 +5994,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			// Connection lost or timeout — fall through to the failure cleanup.
 		} finally {
-			// Release the claim so unrelated future sends can match this
-			// session if needed; concurrent in-flight sends already captured
-			// their `existingKeys` and won't retroactively match it.
-			if (committedRawId !== undefined) {
-				this._committingSessionRawIds.delete(committedRawId);
-			}
-			this._inFlightNewSessionOwnIds.delete(newSessionRawId);
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
 			this._pendingSession = undefined;
@@ -6925,52 +6838,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 
 	/**
-	 * Resolve the freshly-committed backend session for an in-flight send.
-	 *
-	 * The local agent host runs a single provider whose session cache holds
-	 * **every** agent-host session type (codex, claude, copilot, …). A send
-	 * therefore has to identify *its own* new session by both novelty (a raw id
-	 * not present before the send) **and** type: `expectedScheme` is the
-	 * `chatResource` scheme (e.g. `agent-host-codex`), so a session of another
-	 * type that happens to appear mid-send — a slow codex send racing against a
-	 * restored claude session, say — is never mistaken for this send's commit.
+	 * Resolves the freshly committed backend session for an in-flight send.
+	 * A committed session preserves the draft URI, preventing unrelated sessions from replacing it.
 	 */
-	private async _waitForNewSession(existingKeys: Set<string>, expectedScheme: string, ownRawId: string, token: CancellationToken): Promise<ISession | undefined> {
-		// A candidate backend session commits THIS send when it is unclaimed,
-		// of the expected type, and either (a) carries this send's own id — the
-		// eager/committed id is preserved, so this is the exact match — or
-		// (b) is a novel session that is not another in-flight send's own
-		// session (the novelty fallback covers backends that assign a fresh
-		// id, without letting two concurrent same-scheme sends swap sessions).
-		const matches = (rawId: string, scheme: string): boolean => {
-			if (scheme !== expectedScheme || this._committingSessionRawIds.has(rawId)) {
-				return false;
-			}
-			if (rawId === ownRawId) {
-				return true;
-			}
-			return !existingKeys.has(rawId) && !this._inFlightNewSessionOwnIds.has(rawId);
-		};
+	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken): Promise<ISession | undefined> {
+		const matches = (session: ISession): boolean => session.resource.scheme === expectedScheme && session.resource.path.substring(1) === ownRawId;
 
 		await this._refreshSessions();
-		// Prefer this send's own id; fall back to any acceptable novel session.
-		const scan = (): ISession | undefined => {
-			let fallback: ISession | undefined;
-			for (const cached of this._sessionCache.values()) {
-				const rawId = cached.resource.path.substring(1);
-				if (!matches(rawId, cached.resource.scheme)) {
-					continue;
-				}
-				if (rawId === ownRawId) {
-					return cached;
-				}
-				fallback ??= cached;
-			}
-			return fallback;
-		};
-		const immediate = scan();
-		if (immediate) {
-			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
+		const immediate = this._sessionCache.get(ownRawId);
+		if (immediate && matches(immediate)) {
 			return immediate;
 		}
 
@@ -6978,12 +6854,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			const sessionPromise = new Promise<ISession | undefined>((resolve) => {
 				waitDisposables.add(this._onDidChangeSessionsImmediately(e => {
-					// Prefer this send's own id within the batch before falling
-					// back to an acceptable novel session.
-					const exact = e.added.find(s => s.resource.path.substring(1) === ownRawId && matches(ownRawId, s.resource.scheme));
-					const newSession = exact ?? e.added.find(s => matches(s.resource.path.substring(1), s.resource.scheme));
+					const newSession = e.added.find(matches);
 					if (newSession) {
-						this._committingSessionRawIds.add(newSession.resource.path.substring(1));
 						resolve(newSession);
 					}
 				}));
