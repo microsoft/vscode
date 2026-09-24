@@ -66,6 +66,8 @@ import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import type { IOSProxyConfig } from '../../platform/native/common/native.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { ONBOARDING_TRYOUT_CHANNEL } from '../../platform/onboarding/common/onboardingTryoutHandoff.js';
+import { OnboardingTryoutHandoff } from '../../platform/onboarding/electron-main/onboardingTryoutHandoff.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
@@ -1327,7 +1329,10 @@ export class CodeApplication extends Disposable {
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
 		// MCP
-		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService, [
+			process.env,
+			() => this.resolveShellEnvironment(this.environmentMainService.args, process.env, false),
+		]));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 		// Dev Only: CSS service (for ESM)
@@ -1427,6 +1432,9 @@ export class CodeApplication extends Disposable {
 		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
+
+		const tryoutHandoff = disposables.add(accessor.get(IInstantiationService).createInstance(OnboardingTryoutHandoff));
+		mainProcessElectronServer.registerChannel(ONBOARDING_TRYOUT_CHANNEL, ProxyChannel.fromService(tryoutHandoff, disposables));
 
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);

@@ -544,8 +544,8 @@ suite('SessionChatInputToolbar', () => {
 				branches: ['main', 'feature/rich-hover'],
 				branchArrowAriaHidden: 'true',
 				branchControls: [
-					{ tagName: 'BUTTON', ariaLabel: 'Copy base branch main' },
-					{ tagName: 'BUTTON', ariaLabel: 'Copy head branch feature/rich-hover' },
+					{ tagName: 'BUTTON', ariaLabel: 'Copy Base Branch main' },
+					{ tagName: 'BUTTON', ariaLabel: 'Copy Head Branch feature/rich-hover' },
 				],
 				unresolvedLabel: 'Recorded pull request title',
 				unresolvedBadge: '#332982',

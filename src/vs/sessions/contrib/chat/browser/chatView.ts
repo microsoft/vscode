@@ -117,7 +117,7 @@ export class NewChatView extends AbstractChatView {
 
 		this.element.classList.add('chat-view-new');
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
-		const widgetOptions = { ...options, petHostPreferred: this._isVisibleObs };
+		const widgetOptions = { ...options, inputVisible: this._isVisibleObs, petHostPreferred: this._isVisibleObs };
 		this._widget = this._register(isNewChatInSession
 			? instantiationService.createInstance(NewChatInSessionWidget, widgetOptions)
 			: instantiationService.createInstance(NewChatWidget, widgetOptions));

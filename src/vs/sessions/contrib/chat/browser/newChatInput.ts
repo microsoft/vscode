@@ -10,9 +10,11 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -130,7 +132,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
-import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
@@ -368,6 +370,7 @@ export interface INewChatInputSendRequest {
 	readonly query: string;
 	readonly attachments?: IChatRequestVariableEntry[];
 	readonly background?: boolean;
+	readonly userInteraction?: NewChatUserInteraction;
 }
 
 /**
@@ -441,6 +444,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
 
+	get modelPicker(): INewSessionComposerPicker | undefined {
+		return this._newChatModelPickerService.activePicker;
+	}
+
 	get workspacePreselectionSource(): NewSessionWorkspacePreselectionSource | undefined {
 		return this.options.getWorkspacePreselectionSource?.();
 	}
@@ -505,6 +512,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _sendButtonContainer: HTMLElement | undefined;
 	private _sendButton: Button | undefined;
 	private _sending = false;
+	private readonly _userInteractionSource = this._register(new MutableDisposable());
 
 	// Loading state
 	private _initializationLoadingSpinner: HTMLElement | undefined;
@@ -549,6 +557,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			onDidChangeWorkspaceSelection?: Event<void>;
 			canApplyWorkspaceDefault?: () => boolean;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+			inputVisible?: IObservable<boolean>;
+			hostVisible?: IObservable<boolean>;
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
@@ -1663,33 +1673,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return false;
 		}
 
-		// Measure any pending dictation accuracy against the text being sent,
-		// before the editor is cleared below.
-		notifyDictationSubmitted(this._editor);
-
-		const session = this.options.session.get();
-		if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
-			sessionResource: session.resource,
-			providerId: session.providerId,
-			sessionId: session.sessionId,
-			input: query,
-		})) {
-			this._editor.getModel()?.setValue('');
-			return true;
-		}
-
-		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
-		const attachedContext = attachments.length > 0
-			? attachments
-			: undefined;
-		const request = query;
-		const notificationContext = this._getNotificationContext();
-
-		if (this._draftState) {
-			this._history.append(this._toHistoryEntry(this._draftState));
-		}
-		this._clearDraftState();
-
+		const userInteraction = background ? undefined : this.instantiationService.createInstance(NewChatUserInteraction, {
+			window: dom.getWindow(this._editorContainer),
+			visible: this.options.inputVisible ?? constObservable(true),
+			hostVisible: this.options.hostVisible,
+		});
+		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending = true;
 		this._editor.updateOptions({ readOnly: true });
 		this._updateSendButtonState();
@@ -1697,17 +1686,43 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		let sent = false;
 		try {
-			sent = await this.options.sendRequest({ query: request, attachments: attachedContext, background });
+			// Measure any pending dictation accuracy before the editor is cleared.
+			notifyDictationSubmitted(this._editor);
+
+			const session = this.options.session.get();
+			if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
+				sessionResource: session.resource,
+				providerId: session.providerId,
+				sessionId: session.sessionId,
+				input: query,
+			})) {
+				userInteraction?.cancel('notDispatched');
+				this._editor.getModel()?.setValue('');
+				return true;
+			}
+
+			const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
+			const attachedContext = attachments.length > 0 ? attachments : undefined;
+			const notificationContext = this._getNotificationContext();
+			if (this._draftState) {
+				this._history.append(this._toHistoryEntry(this._draftState));
+			}
+			this._clearDraftState();
+
+			sent = await this.options.sendRequest({ query, attachments: attachedContext, background, userInteraction });
 			if (!sent) {
+				userInteraction?.cancel('notDispatched');
 				return false;
 			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
+			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
 			this.logService.error('Failed to send request:', e);
 			return false;
 		} finally {
+			this._userInteractionSource.clear();
 			this._sending = false;
 			this._editor.updateOptions({ readOnly: false });
 			this._updateDraftState();

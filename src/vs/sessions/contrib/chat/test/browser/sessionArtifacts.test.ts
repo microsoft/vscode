@@ -369,11 +369,11 @@ suite('Session Artifacts', () => {
 			copied,
 		}, {
 			entries: [
-				['PR #12', ['Copy pull request link']],
-				['Issue #34', ['Copy issue link']],
-				['Commit', ['Copy commit URL']],
-				['Docs', ['Copy website URL']],
-				['index.ts', ['Copy path']],
+				['PR #12', ['Copy Pull Request Link']],
+				['Issue #34', ['Copy Issue Link']],
+				['Commit', ['Copy Commit URL']],
+				['Docs', ['Copy Website URL']],
+				['index.ts', ['Copy Path']],
 				['Chat settings', ['Copy URI']],
 			],
 			copied: [
@@ -419,8 +419,8 @@ suite('Session Artifacts', () => {
 			copied,
 		}, {
 			label: 'Authoritative subject',
-			actionLabels: ['Copy commit URL'],
-			hoverActionLabels: ['Copy commit hash'],
+			actionLabels: ['Copy Commit URL'],
+			hoverActionLabels: ['Copy Commit Hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			copied: ['abc123', link.toString(true)],
@@ -453,8 +453,8 @@ suite('Session Artifacts', () => {
 			hoverText: hover?.textContent,
 		}, {
 			label: 'Resolved commit subject',
-			rowActions: ['Copy commit URL'],
-			hoverActions: ['Copy commit hash'],
+			rowActions: ['Copy Commit URL'],
+			hoverActions: ['Copy Commit Hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
 		});
