@@ -143,6 +143,7 @@ export interface IInboxNotificationsService {
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: IObservable<InboxNotificationsSortMode>;
+	readonly isLoading: IObservable<boolean>;
 
 	/**
 	 * Map from {@link IInboxNotificationItem.previewSignature} to a short, model-generated

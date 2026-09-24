@@ -124,6 +124,7 @@ suite('InboxNotificationsService', () => {
 		chatService?: TestChatService,
 		agentHostProvider?: TestAgentHostProvider,
 		withAgentHostProvider = true,
+		additionalProviders: readonly ISessionsProvider[] = [],
 	): {
 		readonly service: InboxNotificationsService;
 		readonly storageService: InMemoryStorageService;
@@ -149,12 +150,21 @@ suite('InboxNotificationsService', () => {
 		const provider = upcastPartial<IAgentHostSessionsProvider>({
 			id: effectiveAgentHostProvider.id,
 			getAgentMergeClientStateObservable: (sessionId: string) => effectiveAgentHostProvider.getAgentMergeClientStateObservable(sessionId),
+			getAgentMergeSessionState: (sessionId: string) => effectiveAgentHostProvider.getAgentMergeSessionState(sessionId),
+			setAgentMergeEnabled: async (sessionId: string, enabled: boolean) => effectiveAgentHostProvider.setAgentMergeEnabled(sessionId, enabled),
+			setAgentMergeOverrides: async (sessionId: string, overrides) => effectiveAgentHostProvider.setAgentMergeOverrides(sessionId, overrides),
 		});
-		const providerMap = new Map<string, ISessionsProvider>(withAgentHostProvider ? [[provider.id, provider]] : []);
+		const providerMap = new Map<string, ISessionsProvider>(additionalProviders.map(provider => [provider.id, provider]));
+		if (withAgentHostProvider) {
+			providerMap.set(provider.id, provider);
+		}
 		const sessionsProvidersService = upcastPartial<ISessionsProvidersService>({
 			onDidChangeProviders: providerChangeEmitter.event,
 			getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 				return providerMap.get(providerId) as T | undefined;
+			},
+			getProviders(): ISessionsProvider[] {
+				return [...providerMap.values()];
 			},
 		});
 		const service = store.add(new InboxNotificationsService(
@@ -488,6 +498,35 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('tracks loading while acquiring a missing chat model', async () => {
+		const chatResource = URI.parse('test:///chat/loading-chat-model');
+		const chatService = new TestChatService();
+		let resolveAcquire: (() => void) | undefined;
+		chatService.setAcquireOrLoadHandler(() => new Promise(resolve => {
+			resolveAcquire = () => {
+				chatService.setPendingConfirmation(chatResource, {
+					requestId: 'request-loading-chat-model',
+					title: 'Confirm update',
+					message: 'Proceed?',
+					data: { confirm: true },
+					buttons: ['Approve'],
+				});
+				resolve({ object: chatService.getSession(chatResource)!, dispose: () => { } });
+			};
+		}));
+		const fixture = createFixture([
+			createSession({ id: 'loading-chat-model', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+
+		assert.strictEqual(fixture.service.isLoading.get(), true);
+		assert.ok(resolveAcquire);
+		resolveAcquire();
+		for (let attempt = 0; attempt < 5 && fixture.service.isLoading.get(); attempt++) {
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+		}
+		assert.strictEqual(fixture.service.isLoading.get(), false);
+	});
+
 	test('prefers pending confirmation when a pending question carousel has no questions', () => {
 		const chatResource = URI.parse('test:///chat/pending-empty-question-carousel');
 		const chatService = new TestChatService();
@@ -799,7 +838,7 @@ suite('InboxNotificationsService', () => {
 		]]);
 	});
 
-	test('shows merge action for non-agent-host sessions', () => {
+	test('shows merge action for non-agent-host sessions when inline agent merge support is available', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
 			id: 'non-agent-host',
@@ -813,6 +852,70 @@ suite('InboxNotificationsService', () => {
 		gitHubService.setPullRequest('owner', 'repo', 45, openPullRequest(45, 'sha45'));
 		gitHubService.setCIStatus('owner', 'repo', 45, 'sha45', GitHubCIOverallStatus.Success, [{
 			id: 2,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Success,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
+			InboxNotificationActionKind.OpenSession,
+			InboxNotificationActionKind.AgentMergeMergePullRequest,
+			InboxNotificationActionKind.MarkDone,
+		]]);
+	});
+
+	test('does not show merge action when no inline agent merge provider is available', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'non-agent-host-no-inline',
+			providerId: 'copilot-chat-sessions',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 48 },
+		})], undefined, gitHubService, undefined, undefined, false);
+
+		gitHubService.setPullRequest('owner', 'repo', 48, openPullRequest(48, 'sha48'));
+		gitHubService.setCIStatus('owner', 'repo', 48, 'sha48', GitHubCIOverallStatus.Success, [{
+			id: 6,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Success,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
+			InboxNotificationActionKind.OpenSession,
+			InboxNotificationActionKind.MarkDone,
+		]]);
+	});
+
+	test('shows merge action for providers that support inline agent merge actions', () => {
+		const gitHubService = new TestGitHubService();
+		const inlineAgentMergeProvider = upcastPartial<IAgentHostSessionsProvider>({
+			id: 'preserve-provider',
+			getAgentMergeClientStateObservable: () => observableValue<IAgentMergeClientState | undefined>('test.inlineAgentMergeClientState', { enabled: false }),
+			getAgentMergeSessionState: () => ({ enabled: false }),
+			setAgentMergeEnabled: async () => { },
+			setAgentMergeOverrides: async () => { },
+		});
+		const fixture = createFixture([createSession({
+			id: 'inline-agent-merge-provider',
+			providerId: inlineAgentMergeProvider.id,
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 47 },
+		})], undefined, gitHubService, undefined, undefined, false, [inlineAgentMergeProvider]);
+
+		gitHubService.setPullRequest('owner', 'repo', 47, openPullRequest(47, 'sha47'));
+		gitHubService.setCIStatus('owner', 'repo', 47, 'sha47', GitHubCIOverallStatus.Success, [{
+			id: 5,
 			name: 'CI',
 			status: GitHubCheckStatus.Completed,
 			conclusion: GitHubCheckConclusion.Success,
@@ -842,6 +945,17 @@ suite('InboxNotificationsService', () => {
 
 		second.service.clearDismissedNotifications();
 		assert.deepStrictEqual(second.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
+	});
+
+	test('keeps dismissed notifications visible when source notifications disappear', () => {
+		const fixture = createFixture([
+			createSession({ id: 'completed-disappear', status: SessionStatus.Completed, updatedAt: 100, isRead: false }),
+		]);
+		const dismissedId = fixture.service.notifications.get()[0].id;
+		fixture.service.dismissNotification(dismissedId);
+
+		fixture.setSessions([]);
+		assert.deepStrictEqual(fixture.service.dismissedNotifications.get().map(item => item.id), [dismissedId]);
 	});
 
 	test('updates external notifications by id', () => {
@@ -1031,6 +1145,24 @@ class TestAgentHostProvider {
 		return this._stateForSession(sessionId);
 	}
 
+	getAgentMergeSessionState(sessionId: string): { enabled: boolean; overrides?: IAgentMergeClientState['overrides'] } | undefined {
+		const state = this._stateForSession(sessionId).get();
+		if (!state) {
+			return undefined;
+		}
+		return { enabled: state.enabled, overrides: state.overrides };
+	}
+
+	async setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void> {
+		const current = this._stateForSession(sessionId).get();
+		this._stateForSession(sessionId).set({ enabled, overrides: current?.overrides }, undefined);
+	}
+
+	async setAgentMergeOverrides(sessionId: string, overrides: IAgentMergeClientState['overrides'] | undefined): Promise<void> {
+		const current = this._stateForSession(sessionId).get();
+		this._stateForSession(sessionId).set({ enabled: current?.enabled ?? false, overrides }, undefined);
+	}
+
 	private _stateForSession(sessionId: string) {
 		let state = this._agentMergeStates.get(sessionId);
 		if (!state) {
@@ -1044,6 +1176,7 @@ class TestAgentHostProvider {
 class TestChatService {
 	private readonly _chatModels = new Map<string, IChatModel>();
 	private readonly _chatModelsObservable = observableValue<readonly IChatModel[]>('test.chatModels', []);
+	private _acquireOrLoadHandler: ((chatResource: URI) => Promise<{ object: IChatModel; dispose(): void } | undefined>) | undefined;
 	readonly chatModels = this._chatModelsObservable;
 
 	getSession(chatResource: URI): IChatModel | undefined {
@@ -1051,8 +1184,15 @@ class TestChatService {
 	}
 
 	async acquireOrLoadSession(chatResource: URI): Promise<{ object: IChatModel; dispose(): void } | undefined> {
+		if (this._acquireOrLoadHandler) {
+			return this._acquireOrLoadHandler(chatResource);
+		}
 		const model = this.getSession(chatResource);
 		return model ? { object: model, dispose: () => { } } : undefined;
+	}
+
+	setAcquireOrLoadHandler(handler: ((chatResource: URI) => Promise<{ object: IChatModel; dispose(): void } | undefined>) | undefined): void {
+		this._acquireOrLoadHandler = handler;
 	}
 
 	setPendingQuestionCarousel(chatResource: URI, options: {

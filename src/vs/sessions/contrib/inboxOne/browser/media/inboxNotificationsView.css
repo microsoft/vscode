@@ -266,7 +266,7 @@
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	justify-content: space-between;
+	justify-content: flex-start;
 	gap: var(--vscode-spacing-size100);
 }
 
@@ -290,11 +290,41 @@
 	gap: var(--vscode-spacing-size80);
 	flex: 0 1 auto;
 	min-width: 0;
+	margin-left: auto;
 }
 
 .inbox-notifications-toolbar-actions .monaco-button {
 	width: auto;
 	flex: 0 0 auto;
+}
+
+.inbox-notifications-toolbar-spinner {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-toolbar-spinner.hidden {
+	display: none;
+}
+
+.inbox-notifications-feedback-button {
+	font-weight: 600;
+	border: 1px solid var(--vscode-button-border, var(--vscode-widget-border));
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.inbox-notifications-feedback-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.inbox-notifications-feedback-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
 
 .inbox-notifications-deferred-updates {
@@ -321,9 +351,15 @@
 	flex: 0 0 auto;
 }
 
-.inbox-notifications-sort-buttons .monaco-button.active {
+.inbox-notifications-sort-buttons .monaco-button.active,
+.inbox-notifications-sort-buttons .monaco-button.checked {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.inbox-notifications-sort-buttons .monaco-button.disabled {
+	opacity: 0.55;
 }
 
 .inbox-notifications-scrollable {

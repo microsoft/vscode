@@ -257,6 +257,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 		override readonly notifications = constObservable([]);
+		override readonly isLoading = constObservable(false);
 		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
 		override setSortMode(): void { }
 	});

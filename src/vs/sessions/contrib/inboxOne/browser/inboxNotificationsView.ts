@@ -14,7 +14,7 @@ import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/brows
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { clamp } from '../../../../base/common/numbers.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -28,6 +28,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { UnmanagedProgress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -38,13 +39,14 @@ import { IChatContentPartRenderContext } from '../../../../workbench/contrib/cha
 import { SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { AgentMergeSessionOverrides } from '../../../../platform/agentHost/common/agentMerge.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { type ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
@@ -67,6 +69,7 @@ import {
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 import { InboxAgentMergeActionKind, InboxAgentMergeAlwaysOptInService, isInboxAgentMergeActionKind } from './inboxAgentMergeAlwaysOptInService.js';
+import { INBOX_NOTIFICATIONS_VIEW_ID } from './inboxNotificationsConstants.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 import { pickFunWorkingMessage } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatThinkingContentPart.js';
 
@@ -80,11 +83,21 @@ function isInboxMergedSessionCleanupActionKind(actionKind: InboxNotificationActi
 	return actionKind === InboxNotificationActionKind.ArchiveSession || actionKind === InboxNotificationActionKind.DeleteSession;
 }
 
+function supportsInlineAgentMergeActions(provider: ISessionsProvider | undefined): provider is IAgentHostSessionsProvider {
+	if (!provider) {
+		return false;
+	}
+	const candidate = provider as Partial<IAgentHostSessionsProvider>;
+	return typeof candidate.getAgentMergeSessionState === 'function'
+		&& typeof candidate.setAgentMergeEnabled === 'function'
+		&& typeof candidate.setAgentMergeOverrides === 'function';
+}
+
 const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSections';
 const COMPLETED_SECTION_KEY = 'completed';
 const LIST_PANE_WIDTH_STORAGE_KEY = 'sessions.inboxNotifications.listPaneWidth';
 const DEFAULT_LIST_PANE_WIDTH = 400;
-const DEFAULT_LIST_PANE_WIDTH_FRACTION = 0.56;
+const DEFAULT_LIST_PANE_WIDTH_FRACTION = 0.62;
 const MIN_LIST_PANE_WIDTH = 280;
 const MIN_DETAIL_PANE_WIDTH = 320;
 /** Below this the two panes can't both honor their minimums, so they stack vertically instead. */
@@ -215,11 +228,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private selectionTelemetryState: ISelectionTelemetryState | undefined;
 	private detailSash: Sash | undefined;
 	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
-	private hasStoredListPaneWidth = false;
-	private hasInitializedDefaultListPaneWidth = false;
+	private hasCustomListPaneWidth = false;
 	private layoutWidth = 0;
 	private hasSplit = false;
 	private lastDetailSignature: string | undefined;
+	private readonly loadingProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 
 	static getActiveInstance(): InboxNotificationsView | undefined {
 		return InboxNotificationsView.activeInstance;
@@ -351,45 +364,81 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.logInboxInteraction('sort.recent', 'toolbar');
 		}));
 
+		const filterCompletedButton = this._register(new Button(sortButtons, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			ariaLabel: localize('inboxNotifications.filter.completedAria', "Toggle Completed Notifications"),
+		}));
+		filterCompletedButton.label = localize('inboxNotifications.filter.completed', "Completed");
+		this._register(filterCompletedButton.onDidClick(() => {
+			const nextShowing = !this.showCompleted.get();
+			this.showCompleted.set(nextShowing, undefined);
+			this.logInboxInteraction(nextShowing ? 'filter.completed.on' : 'filter.completed.off', 'toolbar');
+		}));
+
 		this._register(autorun(reader => {
 			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
+			const showingCompleted = this.showCompleted.read(reader);
 			const prioritySelected = sortMode === InboxNotificationsSortMode.Priority;
-			sortByPriorityButton.element.classList.toggle('active', prioritySelected);
-			sortByPriorityButton.element.setAttribute('aria-pressed', String(prioritySelected));
-			sortByRecencyButton.element.classList.toggle('active', !prioritySelected);
-			sortByRecencyButton.element.setAttribute('aria-pressed', String(!prioritySelected));
+			const recencySelected = !prioritySelected;
+			const showSortSelection = !showingCompleted;
+			sortByPriorityButton.enabled = !showingCompleted;
+			sortByRecencyButton.enabled = !showingCompleted;
+			sortByPriorityButton.checked = showSortSelection && prioritySelected;
+			sortByRecencyButton.checked = showSortSelection && recencySelected;
+			sortByPriorityButton.element.classList.toggle('active', showSortSelection && prioritySelected);
+			sortByRecencyButton.element.classList.toggle('active', showSortSelection && recencySelected);
+			sortByPriorityButton.element.setAttribute('aria-pressed', String(showSortSelection && prioritySelected));
+			sortByRecencyButton.element.setAttribute('aria-pressed', String(showSortSelection && recencySelected));
+			if (showingCompleted) {
+				const disabledDescription = localize('inboxNotifications.sort.disabledDescription', "Disabled while Completed filter is active");
+				sortByPriorityButton.element.setAttribute('aria-description', disabledDescription);
+				sortByRecencyButton.element.setAttribute('aria-description', disabledDescription);
+			} else {
+				sortByPriorityButton.element.removeAttribute('aria-description');
+				sortByRecencyButton.element.removeAttribute('aria-description');
+			}
+			filterCompletedButton.checked = showingCompleted;
+			filterCompletedButton.element.classList.toggle('active', showingCompleted);
+			filterCompletedButton.element.setAttribute('aria-pressed', String(showingCompleted));
+		}));
+
+		this._register(autorun(reader => {
+			const isLoading = this.inboxNotificationsService.isLoading.read(reader);
+			if (isLoading) {
+				if (!this.loadingProgress.value) {
+					this.loadingProgress.value = this.instantiationService.createInstance(UnmanagedProgress, {
+						location: INBOX_NOTIFICATIONS_VIEW_ID,
+						type: 'loading',
+						title: localize('inboxNotifications.loading.progressTitle', "Updating"),
+					});
+				}
+			} else {
+				this.loadingProgress.clear();
+			}
 		}));
 
 		const toolbarActions = toolbar.appendChild($('.inbox-notifications-toolbar-actions'));
-		const toggleCompletedButton = this._register(new Button(toolbarActions, {
-			...defaultButtonStyles,
-			secondary: true,
-		}));
-		this._register(toggleCompletedButton.onDidClick(() => {
-			const nextShowing = !this.showCompleted.get();
-			this.showCompleted.set(nextShowing, undefined);
-			this.logInboxInteraction(nextShowing ? 'showCompleted' : 'hideCompleted', 'toolbar');
-		}));
+		const toolbarLoadingSpinner = toolbarActions.appendChild($('.inbox-notifications-toolbar-spinner.hidden'));
+		toolbarLoadingSpinner.setAttribute('role', 'status');
+		toolbarLoadingSpinner.setAttribute('aria-live', 'polite');
+		toolbarLoadingSpinner.setAttribute('aria-label', localize('inboxNotifications.loading.ariaLabel', "Inbox is updating"));
+		const toolbarLoadingSpinnerIcon = toolbarLoadingSpinner.appendChild($('span.codicon.codicon-loading.codicon-modifier-spin'));
+		toolbarLoadingSpinnerIcon.setAttribute('aria-hidden', 'true');
 		this._register(autorun(reader => {
-			const showing = this.showCompleted.read(reader);
-			toggleCompletedButton.label = showing
-				? localize('inboxNotifications.hideCompleted', "Hide Completed")
-				: localize('inboxNotifications.showCompleted', "Show Completed");
-			toggleCompletedButton.element.setAttribute('aria-label', showing
-				? localize('inboxNotifications.hideCompletedAria', "Hide completed notifications")
-				: localize('inboxNotifications.showCompletedAria', "Show completed notifications"));
-			toggleCompletedButton.element.setAttribute('aria-pressed', String(showing));
-			toggleCompletedButton.element.classList.toggle('active', showing);
+			const isLoading = this.inboxNotificationsService.isLoading.read(reader);
+			toolbarLoadingSpinner.classList.toggle('hidden', !isLoading);
 		}));
 
 		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
 			...defaultButtonStyles,
 			secondary: true,
 			small: true,
-			supportIcons: true,
 			ariaLabel: localize('inboxNotifications.feedback.usefulAria', "Give Positive Inbox Feedback"),
 		}));
-		usefulFeedbackButton.label = localize('inboxNotifications.feedback.useful', "{0} Inbox Was Useful", '$(thumbsup)');
+		usefulFeedbackButton.label = localize('inboxNotifications.feedback.useful', "Inbox Was Useful");
+		usefulFeedbackButton.element.classList.add('inbox-notifications-feedback-button');
 		this._register(usefulFeedbackButton.onDidClick(() => {
 			this.logInboxInteraction('feedback.useful', 'toolbar');
 			this.maybeTriggerConfetti(usefulFeedbackButton.element);
@@ -554,18 +603,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.renderedCards = [];
 		this.agentMergeDropdownButtons.clear();
 
-		const completedItems = this.showCompleted.get() ? this.inboxNotificationsService.dismissedNotifications.get() : [];
-		this.updateSplit(items.length > 0 || completedItems.length > 0);
-		if (items.length === 0 && completedItems.length === 0) {
+		const showingCompletedOnly = this.showCompleted.get();
+		const activeItems = showingCompletedOnly ? [] : items;
+		const completedItems = showingCompletedOnly ? this.inboxNotificationsService.dismissedNotifications.get() : [];
+		const visibleItems = showingCompletedOnly ? completedItems : activeItems;
+		this.updateSplit(visibleItems.length > 0);
+		if (visibleItems.length === 0) {
 			this.pendingRevealId = undefined;
-			list.appendChild($('.inbox-notifications-empty', undefined, localize('inboxNotifications.empty', "You're all caught up.")));
+			list.appendChild($('.inbox-notifications-empty', undefined, showingCompletedOnly
+				? localize('inboxNotifications.empty.completed', "No completed notifications.")
+				: localize('inboxNotifications.empty', "You're all caught up.")));
 			this.scrollableElement.scanDomNode();
 			return;
 		}
 
 		if (this.inboxNotificationsService.sortMode.get() === InboxNotificationsSortMode.Priority) {
 			for (const tier of TIER_SECTIONS) {
-				const tierItems = items.filter(item => item.priority === tier.priority);
+				const tierItems = visibleItems.filter(item => item.priority === tier.priority);
 				if (tierItems.length === 0) {
 					continue;
 				}
@@ -574,14 +628,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 		} else {
 			const cards = list.appendChild($('.inbox-notifications-section-cards'));
 			cards.setAttribute('role', 'list');
-			cards.setAttribute('aria-label', localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
-			for (const item of items) {
+			cards.setAttribute('aria-label', showingCompletedOnly
+				? localize('inboxNotifications.listAriaLabel.completed', "Completed notifications")
+				: localize('inboxNotifications.listAriaLabel', "Prioritized notifications"));
+			for (const item of visibleItems) {
 				this.appendCard(cards, item);
 			}
-		}
-
-		if (completedItems.length) {
-			this.renderSection(list, COMPLETED_SECTION_KEY, localize('inboxNotifications.section.completed', "Completed"), completedItems, undefined);
 		}
 
 		const selectedId = this.selectedItemId.get();
@@ -1568,20 +1620,49 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (!session) {
 			return 'skipped';
 		}
-
-		const provider = this.sessionsProvidersService.getProvider(session.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
-			await this.sessionsService.openSession(item.sessionResource);
-			return 'success';
+		const providers = this.getInlineAgentMergeProvidersForSession(session.providerId);
+		if (providers.length === 0) {
+			throw new Error(`Agent Merge provider unavailable for inline action: ${session.providerId}`);
 		}
+		let lastError: unknown;
+		for (const provider of providers) {
+			const candidateSessionIds = [
+				session.sessionId,
+				session.resource.toString(),
+				`${provider.id}:${session.resource.toString()}`,
+			].filter((value, index, all) => all.indexOf(value) === index);
+			for (const candidateSessionId of candidateSessionIds) {
+				try {
+					await provider.setAgentMergeEnabled(candidateSessionId, true);
+					const currentOverrides = provider.getAgentMergeSessionState(candidateSessionId)?.overrides;
+					await provider.setAgentMergeOverrides(candidateSessionId, {
+						...currentOverrides,
+						...overrides,
+					});
+					return 'success';
+				} catch (error) {
+					lastError = error;
+				}
+			}
+		}
+		throw lastError instanceof Error
+			? lastError
+			: new Error(`Unable to run Agent Merge action inline for session provider: ${session.providerId}`);
+	}
 
-		await provider.setAgentMergeEnabled(session.sessionId, true);
-		const currentOverrides = provider.getAgentMergeSessionState(session.sessionId)?.overrides;
-		await provider.setAgentMergeOverrides(session.sessionId, {
-			...currentOverrides,
-			...overrides,
-		});
-		return 'success';
+	private getInlineAgentMergeProvidersForSession(sessionProviderId: string): readonly IAgentHostSessionsProvider[] {
+		const providers: IAgentHostSessionsProvider[] = [];
+		const sessionProvider = this.sessionsProvidersService.getProvider(sessionProviderId);
+		if (supportsInlineAgentMergeActions(sessionProvider)) {
+			providers.push(sessionProvider);
+		}
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!supportsInlineAgentMergeActions(provider) || providers.includes(provider)) {
+				continue;
+			}
+			providers.push(provider);
+		}
+		return providers;
 	}
 
 	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
@@ -1614,15 +1695,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 		let startWidth = this.listPaneWidth;
 		this._register(sash.onDidStart(() => { startWidth = this.listPaneWidth; }));
 		this._register(sash.onDidChange((event: ISashEvent) => {
+			this.hasCustomListPaneWidth = true;
 			this.listPaneWidth = this.clampListPaneWidth(startWidth + (event.currentX - event.startX));
 			this.layoutPanes();
 		}));
 		this._register(sash.onDidEnd(() => this.persistListPaneWidth()));
 		this._register(sash.onDidReset(() => {
+			this.hasCustomListPaneWidth = false;
 			this.listPaneWidth = this.getDefaultListPaneWidth();
-			this.hasInitializedDefaultListPaneWidth = true;
 			this.layoutPanes();
-			this.persistListPaneWidth();
+			this.storageService.remove(LIST_PANE_WIDTH_STORAGE_KEY, StorageScope.APPLICATION);
 		}));
 	}
 
@@ -1661,8 +1743,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const stored = this.storageService.getNumber(LIST_PANE_WIDTH_STORAGE_KEY, StorageScope.APPLICATION);
 		if (typeof stored === 'number' && stored > 0) {
 			this.listPaneWidth = stored;
-			this.hasStoredListPaneWidth = true;
-			this.hasInitializedDefaultListPaneWidth = true;
+			this.hasCustomListPaneWidth = true;
 		}
 	}
 
@@ -1674,6 +1755,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private persistListPaneWidth(): void {
+		if (!this.hasCustomListPaneWidth) {
+			return;
+		}
 		this.storageService.store(LIST_PANE_WIDTH_STORAGE_KEY, Math.round(this.listPaneWidth), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
@@ -2050,11 +2134,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	layout(width: number, _height: number): void {
 		this.layoutWidth = width;
-		if (!this.hasStoredListPaneWidth && !this.hasInitializedDefaultListPaneWidth) {
+		if (!this.hasCustomListPaneWidth) {
 			this.listPaneWidth = this.getDefaultListPaneWidth();
-			this.hasInitializedDefaultListPaneWidth = true;
 		}
-		this.listPaneWidth = this.clampListPaneWidth(this.listPaneWidth);
 		this.layoutPanes();
 	}
 }
