@@ -94,8 +94,8 @@ export interface IChatPillAction extends IAction {
 }
 
 export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
-export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy hash");
-export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove reference");
+export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy Hash");
+export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove Reference");
 
 export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
 	return Object.assign(action, { hoverLabel });
