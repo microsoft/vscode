@@ -413,7 +413,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 				if (!this.loadingProgress.value) {
 					this.loadingProgress.value = this.instantiationService.createInstance(UnmanagedProgress, {
 						location: INBOX_NOTIFICATIONS_VIEW_ID,
-						type: 'loading',
 						title: localize('inboxNotifications.loading.progressTitle', "Updating"),
 					});
 				}
