@@ -1,0 +1,36 @@
+{
+  "Angular Modern Control Flow @if": {
+    "prefix": "ng-if",
+    "body": [
+      "@if (${1:condition}) {",
+      "  $0",
+      "} @else {",
+      "  ",
+      "}"
+    ],
+    "description": "Bloco de controle @if do Angular moderno"
+  },
+  "Angular Modern Control Flow @for": {
+    "prefix": "ng-for",
+    "body": [
+      "@for (${1:item} of ${2:items()}; track ${1:item}.${3:id}) {",
+      "  <div>{{ ${1:item} }}</div>",
+      "}"
+    ],
+    "description": "Bloco de controle @for do Angular moderno com track"
+  },
+  "Angular Modern Control Flow @switch": {
+    "prefix": "ng-switch",
+    "body": [
+      "@switch (${1:condition}) {",
+      "  @case (${2:val1}) {",
+      "    $0",
+      "  }",
+      "  @default {",
+      "    ",
+      "  }",
+      "}"
+    ],
+    "description": "Bloco de controle @switch do Angular moderno"
+  }
+}

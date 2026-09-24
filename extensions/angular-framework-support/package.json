@@ -1,0 +1,27 @@
+{
+  "name": "angular-framework-support",
+  "displayName": "Angular Support",
+  "description": "Suporte nativo e snippets para Angular moderno (Standalone Components e Signals).",
+  "version": "1.0.0",
+  "publisher": "js-studio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Snippets",
+    "Programming Languages"
+  ],
+  "contributes": {
+    "snippets": [
+      {
+        "language": "typescript",
+        "path": "./snippets/angular.json"
+      },
+      {
+        "language": "html",
+        "path": "./snippets/angular-html.json"
+      }
+    ]
+  }
+}

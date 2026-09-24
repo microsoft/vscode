@@ -1,0 +1,62 @@
+{
+  "Angular Standalone Component": {
+    "prefix": "ng-component",
+    "body": [
+      "import { Component, signal } from '@angular/core';",
+      "import { CommonModule } from '@angular/common';",
+      "",
+      "@Component({",
+      "  selector: 'app-${1:example}',",
+      "  standalone: true,",
+      "  imports: [CommonModule],",
+      "  template: `",
+      "    <div class=\"${1:example}-container\">",
+      "      <h2>{{ title() }}</h2>",
+      "      $0",
+      "    </div>",
+      "  `,",
+      "  styles: [\`",
+      "    .${1:example}-container {",
+      "      padding: 1rem;",
+      "    }",
+      "  \`]",
+      "})",
+      "export class ${2:Example}Component {",
+      "  title = signal('${2:Example}');",
+      "}"
+    ],
+    "description": "Cria um Componente Angular Standalone moderno"
+  },
+  "Angular Injectable Service": {
+    "prefix": "ng-service",
+    "body": [
+      "import { Injectable, signal } from '@angular/core';",
+      "",
+      "@Injectable({",
+      "  providedIn: 'root'",
+      "})",
+      "export class ${1:Example}Service {",
+      "  private data = signal<any[]>([]);",
+      "",
+      "  getData() {",
+      "    return this.data.asReadonly();",
+      "  }",
+      "}"
+    ],
+    "description": "Cria um Serviço Angular moderno com Signals"
+  },
+  "Angular Signal": {
+    "prefix": "ng-signal",
+    "body": [
+      "${1:count} = signal<${2:number}>(${3:0});"
+    ],
+    "description": "Declara um Signal do Angular"
+  },
+  "Angular Computed Signal": {
+    "prefix": "ng-computed",
+    "body": [
+      "${1:doubleCount} = computed(() => this.${2:count}() * 2);"
+    ],
+    "description": "Declara um Signal Computado do Angular"
+  }
+}

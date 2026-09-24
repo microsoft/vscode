@@ -1,0 +1,77 @@
+{
+  "React Native Component (TypeScript)": {
+    "prefix": "rnfc",
+    "body": [
+      "import React from 'react';",
+      "import { StyleSheet, Text, View } from 'react-native';",
+      "",
+      "interface ${1:${TM_FILENAME_BASE}}Props {",
+      "  $2",
+      "}",
+      "",
+      "export const ${1:${TM_FILENAME_BASE}}: React.FC<${1:${TM_FILENAME_BASE}}Props> = ({ $3 }) => {",
+      "  return (",
+      "    <View style={styles.container}>",
+      "      <Text style={styles.title}>${1:${TM_FILENAME_BASE}}</Text>",
+      "      $0",
+      "    </View>",
+      "  );",
+      "};",
+      "",
+      "const styles = StyleSheet.create({",
+      "  container: {",
+      "    flex: 1,",
+      "    justifyContent: 'center',",
+      "    alignItems: 'center',",
+      "  },",
+      "  title: {",
+      "    fontSize: 18,",
+      "    fontWeight: 'bold',",
+      "  },",
+      "});",
+      "",
+      "export default ${1:${TM_FILENAME_BASE}};"
+    ],
+    "description": "Cria um Componente React Native com StyleSheet e TypeScript"
+  },
+  "React Native StyleSheet.create": {
+    "prefix": "rnstyle",
+    "body": [
+      "const styles = StyleSheet.create({",
+      "  ${1:container}: {",
+      "    ${2:flex: 1},",
+      "  },",
+      "});"
+    ],
+    "description": "Cria uma folha de estilos StyleSheet do React Native"
+  },
+  "React Native FlatList": {
+    "prefix": "rnflatlist",
+    "body": [
+      "<FlatList",
+      "  data={${1:data}}",
+      "  keyExtractor={(item) => item.${2:id}}",
+      "  renderItem={({ item }) => (",
+      "    <View style={styles.${3:itemContainer}}>",
+      "      <Text>{item.${4:title}}</Text>",
+      "    </View>",
+      "  )}",
+      "/>"
+    ],
+    "description": "Cria um componente FlatList otimizado para React Native"
+  },
+  "React Native Pressable": {
+    "prefix": "rnpressable",
+    "body": [
+      "<Pressable",
+      "  onPress={${1:handlePress}}",
+      "  style={({ pressed }) => [",
+      "    styles.${2:button},",
+      "    pressed && styles.${3:buttonPressed}",
+      "  ]}>",
+      "  <Text style={styles.${4:buttonText}}>${5:Pressione Aqui}</Text>",
+      "</Pressable>"
+    ],
+    "description": "Cria um componente Pressable com feedback de toque no React Native"
+  }
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JS/TS Scratchpad (RunJS OSS Preview)</title>
+  <link rel="stylesheet" href="./scratchpad.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header & Tabs Bar -->
+    <header class="top-header">
+      <div class="branding">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">RunJS <span class="badge-free">OSS</span></span>
+      </div>
+
+      <!-- Tabs Bar -->
+      <div class="tabs-container" id="tabsContainer"></div>
+      <button class="btn-new-tab" id="btnNewTab" title="Nova Aba (Ctrl+T)">+</button>
+
+      <div class="header-actions">
+        <!-- Environment Selector -->
+        <div class="env-selector">
+          <label for="envMode">Modo:</label>
+          <select id="envMode" class="select-env">
+            <option value="typescript">TypeScript</option>
+            <option value="javascript">JavaScript / Node</option>
+          </select>
+        </div>
+
+        <!-- Auto-Run Toggle -->
+        <label class="toggle-container" title="Executar automaticamente ao digitar">
+          <input type="checkbox" id="toggleAutoRun" checked>
+          <span class="slider"></span>
+          <span class="toggle-label">Auto-Run</span>
+        </label>
+
+        <!-- Run Button -->
+        <button class="btn-action btn-run" id="btnRun" title="Executar código (Ctrl+Enter)">
+          <span class="icon">▶</span> Executar
+        </button>
+
+        <!-- Templates Dropdown -->
+        <div class="dropdown">
+          <button class="btn-action dropdown-btn" id="btnTemplates">
+            <span>📄 Exemplos</span> ▾
+          </button>
+          <div class="dropdown-content" id="templatesMenu">
+            <a href="#" data-template="runjs-welcome">🌟 Bem-vindo ao RunJS (Demo)</a>
+            <a href="#" data-template="typescript-types">📘 TypeScript & Interfaces</a>
+            <a href="#" data-template="node-system">⚙️ Node.js (fs, crypto, os)</a>
+            <a href="#" data-template="react-preview">⚛️ React Components & Hooks</a>
+            <a href="#" data-template="vue-reactivity">🟢 Vue 3 Reatividade (ref/computed)</a>
+            <a href="#" data-template="async-fetch">🌐 Async / Await & Fetch API</a>
+          </div>
+        </div>
+
+        <!-- NPM Packages Button -->
+        <button class="btn-action" id="btnPackages" title="Ver pacotes NPM instalados no projeto">
+          📦 Pacotes NPM
+        </button>
+
+        <!-- Clear Button -->
+        <button class="btn-action btn-icon" id="btnClear" title="Limpar código e saídas">
+          🧹
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Split Pane -->
+    <main class="workspace-split" id="workspaceSplit">
+      <!-- Left: Editor Pane -->
+      <section class="pane pane-editor">
+        <div class="editor-wrapper" id="editorWrapper">
+          <div class="line-numbers" id="lineNumbers"></div>
+          <div class="editor-area-container">
+            <textarea id="codeEditor" spellcheck="false" placeholder="// Escreva seu código JavaScript ou TypeScript aqui..."></textarea>
+            <pre class="highlight-overlay" id="highlightOverlay" aria-hidden="true"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Draggable Splitter -->
+      <div class="split-gutter" id="splitGutter"></div>
+
+      <!-- Right: Real-time Evaluation Results Pane -->
+      <section class="pane pane-results">
+        <div class="results-header">
+          <span class="pane-title">Resultados em Tempo Real</span>
+          <div class="results-meta">
+            <span class="time-badge" id="execTimeBadge">⚡ 0ms</span>
+          </div>
+        </div>
+        <div class="results-scroll" id="resultsScroll">
+          <div class="results-container" id="resultsContainer"></div>
+        </div>
+
+        <!-- Bottom Console Logs Panel -->
+        <div class="console-drawer" id="consoleDrawer">
+          <div class="console-header" id="consoleToggle">
+            <span class="console-title">Console Output (<span id="consoleCount">0</span>)</span>
+            <span class="console-clear" id="consoleClear">Limpar</span>
+          </div>
+          <div class="console-content" id="consoleContent"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Status Bar -->
+    <footer class="app-status-bar">
+      <div class="status-left">
+        <span class="status-item" id="statusNodeVersion">Node.js v24.15.0</span>
+        <span class="status-item" id="statusLineCol">Linha 1, Col 1</span>
+        <span class="status-item" id="statusCharCount">0 caracteres</span>
+      </div>
+      <div class="status-right">
+        <span class="status-tag tag-success">✓ 100% Gratuito & Ilimitado</span>
+        <span class="status-item">Sem IA • Sem Licenças • Sem Bloat</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal for NPM Packages -->
+  <div class="modal-backdrop" id="packagesModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>📦 Pacotes NPM do Projeto</h3>
+        <button class="modal-close" id="closePackagesModal">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Você pode importar qualquer pacote instalado no projeto diretamente no Scratchpad usando <code>require('pacote')</code>:</p>
+        <ul class="package-list" id="packageList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="./scratchpad.js"></script>
+</body>
+</html>

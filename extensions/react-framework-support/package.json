@@ -1,0 +1,43 @@
+{
+  "name": "react-framework-support",
+  "displayName": "React & React Native Support",
+  "description": "Suporte nativo, snippets avançados e ferramentas para React e React Native.",
+  "version": "1.0.0",
+  "publisher": "js-studio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Snippets",
+    "Programming Languages"
+  ],
+  "contributes": {
+    "snippets": [
+      {
+        "language": "javascript",
+        "path": "./snippets/react.json"
+      },
+      {
+        "language": "javascriptreact",
+        "path": "./snippets/react.json"
+      },
+      {
+        "language": "typescript",
+        "path": "./snippets/react.json"
+      },
+      {
+        "language": "typescriptreact",
+        "path": "./snippets/react.json"
+      },
+      {
+        "language": "javascriptreact",
+        "path": "./snippets/react-native.json"
+      },
+      {
+        "language": "typescriptreact",
+        "path": "./snippets/react-native.json"
+      }
+    ]
+  }
+}

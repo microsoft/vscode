@@ -1,0 +1,44 @@
+{
+  "name": "vue-framework-support",
+  "displayName": "Vue 3 Support",
+  "description": "Suporte nativo e snippets para Vue 3 Single File Components (SFC) e Composition API.",
+  "version": "1.0.0",
+  "publisher": "js-studio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Snippets",
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "vue",
+        "aliases": [
+          "Vue",
+          "vue"
+        ],
+        "extensions": [
+          ".vue"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "vue",
+        "path": "./snippets/vue.json"
+      },
+      {
+        "language": "javascript",
+        "path": "./snippets/vue.json"
+      },
+      {
+        "language": "typescript",
+        "path": "./snippets/vue.json"
+      }
+    ]
+  }
+}

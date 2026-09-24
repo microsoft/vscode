@@ -1,0 +1,68 @@
+{
+  "Vue 3 Single File Component (Script Setup TS)": {
+    "prefix": "vbase",
+    "body": [
+      "<script setup lang=\"ts\">",
+      "import { ref, computed } from 'vue';",
+      "",
+      "interface Props {",
+      "  $1",
+      "}",
+      "",
+      "const props = defineProps<Props>();",
+      "",
+      "const count = ref(0);",
+      "</script>",
+      "",
+      "<template>",
+      "  <div class=\"${TM_FILENAME_BASE}\">",
+      "    <h1>{{ props.title }}</h1>",
+      "    <button @click=\"count++\">Contador: {{ count }}</button>",
+      "    $0",
+      "  </div>",
+      "</template>",
+      "",
+      "<style scoped>",
+      ".${TM_FILENAME_BASE} {",
+      "  display: flex;",
+      "  flex-direction: column;",
+      "}",
+      "</style>"
+    ],
+    "description": "Cria um componente Vue 3 SFC com <script setup lang=\"ts\">"
+  },
+  "Vue 3 ref": {
+    "prefix": "vref",
+    "body": [
+      "const ${1:name} = ref<${2:any}>(${3:initialValue});"
+    ],
+    "description": "Cria uma referência reativa ref() do Vue 3"
+  },
+  "Vue 3 reactive": {
+    "prefix": "vreactive",
+    "body": [
+      "const ${1:state} = reactive({",
+      "  $2",
+      "});"
+    ],
+    "description": "Cria um objeto reativo reactive() do Vue 3"
+  },
+  "Vue 3 computed": {
+    "prefix": "vcomputed",
+    "body": [
+      "const ${1:computedValue} = computed(() => {",
+      "  return $2;",
+      "});"
+    ],
+    "description": "Cria uma propriedade computada computed() do Vue 3"
+  },
+  "Vue 3 onMounted": {
+    "prefix": "vonMounted",
+    "body": [
+      "onMounted(() => {",
+      "  $1",
+      "});"
+    ],
+    "description": "Hook de ciclo de vida onMounted() do Vue 3"
+  }
+}

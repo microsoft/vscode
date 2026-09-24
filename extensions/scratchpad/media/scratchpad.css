@@ -1,0 +1,721 @@
+/* ==========================================================================
+   RunJS OSS / JS Studio Scratchpad Theme
+   ========================================================================== */
+
+:root {
+  --bg-primary: #181825;
+  --bg-secondary: #1e1e2e;
+  --bg-tertiary: #252538;
+  --bg-hover: #2e2e44;
+  --border-color: #313244;
+  --border-subtle: #27283d;
+
+  --text-main: #cdd6f4;
+  --text-muted: #838ba7;
+  --text-dim: #6c7086;
+
+  --accent-cyan: #89dceb;
+  --accent-green: #a6e3a1;
+  --accent-blue: #89b4fa;
+  --accent-yellow: #f9e2af;
+  --accent-purple: #cba6f7;
+  --accent-orange: #fab387;
+  --accent-red: #f38ba8;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, Monaco, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --line-height: 22px;
+  --font-size: 13.5px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  user-select: none;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-primary);
+}
+
+/* ==========================================================================
+   Top Header & Tabs
+   ========================================================================== */
+
+.top-header {
+  height: 42px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.branding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border-color);
+}
+
+.logo-icon {
+  font-size: 18px;
+}
+
+.logo-text {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: var(--text-main);
+}
+
+.badge-free {
+  font-size: 10px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 4px;
+}
+
+.tabs-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  max-width: 45%;
+  height: 100%;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.tab-item:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.tab-item.active {
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  border-color: var(--border-color);
+  font-weight: 500;
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tab-close:hover {
+  background-color: rgba(243, 139, 168, 0.2);
+  color: var(--accent-red);
+}
+
+.btn-new-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-new-tab:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.env-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.select-env {
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.toggle-container input {
+  display: none;
+}
+
+.slider {
+  width: 28px;
+  height: 16px;
+  background-color: var(--border-color);
+  border-radius: 10px;
+  position: relative;
+  transition: 0.2s;
+}
+
+.slider::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: #fff;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: 0.2s;
+}
+
+.toggle-container input:checked + .slider {
+  background-color: var(--accent-green);
+}
+
+.toggle-container input:checked + .slider::after {
+  transform: translateX(12px);
+}
+
+.btn-action {
+  background-color: var(--bg-tertiary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-action:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--text-dim);
+}
+
+.btn-run {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.btn-run:hover {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+}
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background-color: var(--bg-secondary);
+  min-width: 220px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dropdown-content.show {
+  display: block;
+}
+
+.dropdown-content a {
+  color: var(--text-main);
+  padding: 8px 12px;
+  text-decoration: none;
+  display: block;
+  font-size: 12.5px;
+  transition: background-color 0.1s;
+}
+
+.dropdown-content a:hover {
+  background-color: var(--bg-hover);
+  color: var(--accent-cyan);
+}
+
+/* ==========================================================================
+   Workspace Split Layout
+   ========================================================================== */
+
+.workspace-split {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 42px - 26px);
+  position: relative;
+  overflow: hidden;
+}
+
+.pane {
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.pane-editor {
+  flex: 1;
+  min-width: 200px;
+  background-color: var(--bg-primary);
+}
+
+.split-gutter {
+  width: 5px;
+  background-color: var(--border-subtle);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background-color 0.15s;
+}
+
+.split-gutter:hover, .split-gutter.dragging {
+  background-color: var(--accent-blue);
+}
+
+.pane-results {
+  flex: 1;
+  min-width: 200px;
+  background-color: #161622;
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Editor Area
+   ========================================================================== */
+
+.editor-wrapper {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  position: relative;
+}
+
+.line-numbers {
+  width: 48px;
+  padding: 12px 10px 12px 0;
+  text-align: right;
+  color: var(--text-dim);
+  font-size: 12px;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-subtle);
+  user-select: none;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.editor-area-container {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+#codeEditor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--text-main);
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+  user-select: text;
+  caret-color: var(--accent-blue);
+  z-index: 2;
+}
+
+/* ==========================================================================
+   Results Evaluation Pane (RunJS Style)
+   ========================================================================== */
+
+.results-header {
+  height: 32px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(22, 22, 34, 0.8);
+  flex-shrink: 0;
+}
+
+.pane-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+.time-badge {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--accent-yellow);
+}
+
+.results-scroll {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+.results-container {
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+}
+
+.result-line-row {
+  height: var(--line-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: 4px;
+  animation: fadeIn 0.1s ease-in;
+}
+
+.result-line-row:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.result-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+}
+
+.result-value.type-string {
+  color: var(--accent-green);
+}
+
+.result-value.type-number {
+  color: var(--accent-yellow);
+}
+
+.result-value.type-boolean {
+  color: var(--accent-purple);
+}
+
+.result-value.type-array {
+  color: var(--accent-cyan);
+}
+
+.result-value.type-object {
+  color: var(--accent-blue);
+}
+
+.result-value.type-function {
+  color: #7aa2f7;
+  font-style: italic;
+}
+
+.result-value.type-undefined, .result-value.type-null {
+  color: var(--text-dim);
+}
+
+.result-line-tag {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 12px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.error-banner {
+  margin: 12px 16px;
+  padding: 10px 14px;
+  background-color: rgba(243, 139, 168, 0.1);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.error-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   Console Drawer
+   ========================================================================== */
+
+.console-drawer {
+  height: 140px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.console-header {
+  height: 28px;
+  padding: 0 12px;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.console-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.console-clear {
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.console-clear:hover {
+  color: var(--text-main);
+}
+
+.console-content {
+  flex: 1;
+  padding: 8px 12px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  user-select: text;
+}
+
+.console-entry {
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.console-entry.log { color: var(--text-main); }
+.console-entry.info { color: var(--accent-cyan); }
+.console-entry.warn { color: var(--accent-yellow); }
+.console-entry.error { color: var(--accent-red); }
+
+/* ==========================================================================
+   App Status Bar
+   ========================================================================== */
+
+.app-status-bar {
+  height: 26px;
+  background-color: #11111b;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.status-left, .status-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tag-success {
+  background-color: rgba(166, 227, 161, 0.15);
+  color: var(--accent-green);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Modal for NPM Packages
+   ========================================================================== */
+
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-backdrop.show {
+  display: flex;
+}
+
+.modal-dialog {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 480px;
+  max-width: 90%;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 16px 18px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.modal-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.modal-desc code {
+  background-color: var(--bg-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent-cyan);
+}
+
+.package-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.package-item {
+  padding: 8px 12px;
+  background-color: var(--bg-primary);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.package-btn-copy {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}

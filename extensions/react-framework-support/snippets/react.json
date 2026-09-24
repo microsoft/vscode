@@ -1,0 +1,75 @@
+{
+  "React Functional Component (TypeScript)": {
+    "prefix": "rfc",
+    "body": [
+      "import React from 'react';",
+      "",
+      "interface ${1:${TM_FILENAME_BASE}}Props {",
+      "  $2",
+      "}",
+      "",
+      "export const ${1:${TM_FILENAME_BASE}}: React.FC<${1:${TM_FILENAME_BASE}}Props> = ({ $3 }) => {",
+      "  return (",
+      "    <div className=\"$4\">",
+      "      $0",
+      "    </div>",
+      "  );",
+      "};",
+      "",
+      "export default ${1:${TM_FILENAME_BASE}};"
+    ],
+    "description": "Cria um Componente Funcional React com TypeScript"
+  },
+  "React Hook useState": {
+    "prefix": "ush",
+    "body": [
+      "const [${1:state}, set${1/(.*)/${1:/capitalize}/}] = useState<${2:any}>(${3:initialState});"
+    ],
+    "description": "Declaração de Hook useState"
+  },
+  "React Hook useEffect": {
+    "prefix": "ueh",
+    "body": [
+      "useEffect(() => {",
+      "  $1",
+      "",
+      "  return () => {",
+      "    $2",
+      "  };",
+      "}, [${3:deps}]);"
+    ],
+    "description": "Declaração de Hook useEffect com cleanup"
+  },
+  "React Hook useMemo": {
+    "prefix": "um",
+    "body": [
+      "const ${1:memoizedValue} = useMemo(() => {",
+      "  return ${2:computeValue()};",
+      "}, [${3:deps}]);"
+    ],
+    "description": "Declaração de Hook useMemo"
+  },
+  "React Hook useCallback": {
+    "prefix": "ucb",
+    "body": [
+      "const ${1:handleCallback} = useCallback((${2:params}) => {",
+      "  $3",
+      "}, [${4:deps}]);"
+    ],
+    "description": "Declaração de Hook useCallback"
+  },
+  "React Hook useRef": {
+    "prefix": "urf",
+    "body": [
+      "const ${1:refName} = useRef<${2:HTMLDivElement}>(null);"
+    ],
+    "description": "Declaração de Hook useRef"
+  },
+  "React Hook useContext": {
+    "prefix": "uctx",
+    "body": [
+      "const ${1:value} = useContext(${2:MyContext});"
+    ],
+    "description": "Declaração de Hook useContext"
+  }
+}
