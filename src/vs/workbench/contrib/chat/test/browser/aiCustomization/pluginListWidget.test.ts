@@ -138,15 +138,21 @@ suite('pluginListWidget', () => {
 		], [false, true, false, false]);
 	});
 
-	test('legacy Available remains until both marketplace visibility and Plugin feed are enabled', () => {
-		assert.deepStrictEqual(
-			[undefined, false, true].flatMap(marketplaceEnabled => [undefined, false, true].map(pluginEnabled =>
-				shouldShowLegacyPluginMarketplace(new TestConfigurationService({
-					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceEnabled,
-					[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: pluginEnabled,
-				})))),
-			[true, true, true, true, true, true, true, true, false],
-		);
+	test('legacy Available retains its marketplaces unless visibility and Plugin feed are both enabled', () => {
+		const cases = [
+			{ marketplace: false, plugin: true, publicFeed: false, available: true },
+			{ marketplace: false, plugin: true, publicFeed: true, available: true },
+			{ marketplace: true, plugin: true, publicFeed: false, available: false },
+			{ marketplace: true, plugin: true, publicFeed: true, available: false },
+			{ marketplace: true, plugin: false, publicFeed: false, available: true },
+			{ marketplace: true, plugin: false, publicFeed: true, available: true },
+		];
+		assert.deepStrictEqual(cases.map(({ marketplace, plugin, publicFeed }) =>
+			shouldShowLegacyPluginMarketplace(new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
+				[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: plugin,
+				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
+			}))), cases.map(({ available }) => available));
 	});
 
 	test('accepts marketplace results only for the initiating search', () => {

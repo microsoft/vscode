@@ -18,9 +18,11 @@ suite('AICustomizationWelcomePage', () => {
 			{ marketplace: false, plugin: false, publicFeed: false, discover: false },
 			{ marketplace: false, plugin: true, publicFeed: false, discover: false },
 			{ marketplace: false, plugin: false, publicFeed: true, discover: false },
+			{ marketplace: false, plugin: true, publicFeed: true, discover: false },
 			{ marketplace: true, plugin: false, publicFeed: false, discover: false },
 			{ marketplace: true, plugin: true, publicFeed: false, discover: true },
 			{ marketplace: true, plugin: false, publicFeed: true, discover: true },
+			{ marketplace: true, plugin: true, publicFeed: true, discover: true },
 		];
 		assert.deepStrictEqual(cases.map(({ marketplace, plugin, publicFeed }) =>
 			shouldShowCustomizationDiscover(new TestConfigurationService({

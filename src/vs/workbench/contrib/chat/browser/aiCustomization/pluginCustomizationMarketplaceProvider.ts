@@ -37,13 +37,14 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 
 	constructor(
 		@IPluginMarketplaceService private readonly marketplaceService: IPluginMarketplaceService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(marketplaceService.onDidChangeMarketplaces(() => this.invalidate()));
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-				event.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled)) {
+				event.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) ||
+				event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)) {
 				this.invalidate();
 			}
 		}));
@@ -76,9 +77,13 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 		if (token.isCancellationRequested || generation !== this.generation) {
 			throw new CancellationError();
 		}
-		const entries = continuation?.entries ?? plugins.flatMap(plugin => {
+		const customPlugins = plugins.filter(plugin => plugin.marketplaceReference.canonicalId !== defaultMarketplaceId);
+		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true) {
+			customPlugins.push(...plugins.filter(plugin => plugin.marketplaceReference.canonicalId === defaultMarketplaceId));
+		}
+		const entries = continuation?.entries ?? customPlugins.flatMap(plugin => {
 			const mediaType = getPluginMediaType(plugin);
-			if (plugin.marketplaceReference.canonicalId === defaultMarketplaceId || !mediaType ||
+			if (!mediaType ||
 				(this.marketplaceService.isStrictMarketplacePolicyActive() && !this.marketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) ||
 				(options.mediaType && mediaType !== options.mediaType) ||
 				(query && ![plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(query)))) {

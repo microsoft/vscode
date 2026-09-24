@@ -11,6 +11,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { getPluginMarketplaceIdentifier, PluginCustomizationMarketplaceProvider } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
@@ -29,8 +31,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		marketplaceReference: reference,
 		marketplaceType: MarketplaceType.Claude,
 	};
-	function createProvider(service: IPluginMarketplaceService): PluginCustomizationMarketplaceProvider {
-		const configuration = new TestConfigurationService();
+	function createProvider(service: IPluginMarketplaceService, configuration = new TestConfigurationService()): PluginCustomizationMarketplaceProvider {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return store.add(new PluginCustomizationMarketplaceProvider(service, configuration));
 	}
@@ -63,8 +64,9 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
-	test('omits the built-in Awesome Copilot marketplace but keeps configured marketplace entries', async () => {
+	test('retains the default marketplace after custom entries only while the public feed is off', async () => {
 		const builtIn = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
+		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false });
 		const service = new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
 			override isStrictMarketplacePolicyActive() { return false; }
@@ -75,16 +77,37 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				];
 			}
 		}();
-		const provider = createProvider(service);
-		const browse = await provider.query({ pageSize: 1 }, CancellationToken.None);
-		const search = await provider.query({ query: 'built-in' }, CancellationToken.None);
+		const provider = createProvider(service, configuration);
+		const first = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		const second = await provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		const searchWithDefault = await provider.query({ query: 'built-in' }, CancellationToken.None);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled;
+			}
+		}());
+		const staleCursor = assert.rejects(provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None), /plugin marketplace page is invalid/);
+		const withPublic = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		const searchWithPublic = await provider.query({ query: 'built-in' }, CancellationToken.None);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		const restored = await provider.query({ pageSize: 2 }, CancellationToken.None);
+		await staleCursor;
 		assert.deepStrictEqual({
-			items: browse.items.map(item => item.displayName),
-			total: browse.total,
-			nextCursor: browse.nextCursor,
-			searchItems: search.items,
-			searchTotal: search.total,
-		}, { items: ['Review'], total: 1, nextCursor: undefined, searchItems: [], searchTotal: 0 });
+			first: first.items.map(item => item.displayName),
+			second: second.items.map(item => item.displayName),
+			total: first.total,
+			searchWithDefault: searchWithDefault.items.map(item => item.displayName),
+			withPublic: withPublic.items.map(item => item.displayName),
+			publicTotal: withPublic.total,
+			searchWithPublic: searchWithPublic.items,
+			restored: restored.items.map(item => item.displayName),
+		}, {
+			first: ['Review'], second: ['Built-in'], total: 2,
+			searchWithDefault: ['Built-in'],
+			withPublic: ['Review'], publicTotal: 1, searchWithPublic: [],
+			restored: ['Review', 'Built-in'],
+		});
 	});
 
 	test('omits unsupported Cursor-format entries before pagination and totals', async () => {

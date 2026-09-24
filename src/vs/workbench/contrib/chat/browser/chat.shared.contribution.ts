@@ -2566,8 +2566,8 @@ configurationRegistry.registerConfiguration({
 		[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.marketplace.sources.pluginMarketplaces.enabled', "Shows plugins from additional configured marketplaces in Discover, excluding the built-in Awesome Copilot marketplace. Only marketplaces permitted by plugin policy are queried. When disabled, plugin discovery remains in the Plugins section."),
-			default: false,
+			description: nls.localize('chat.customizations.marketplace.sources.pluginMarketplaces.enabled', "Shows plugins from configured marketplaces in Discover when marketplace visibility is enabled. The built-in Awesome Copilot marketplace is omitted only when the public GitHub Feed is enabled. Only marketplaces permitted by plugin policy are queried. When disabled, plugin discovery remains in the Plugins section."),
+			default: true,
 		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',

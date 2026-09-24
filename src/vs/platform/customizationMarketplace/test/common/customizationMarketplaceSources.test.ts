@@ -21,7 +21,7 @@ suite('CustomizationMarketplaceSources', () => {
 		{ id: 'second', enablementSetting: 'test.second.enabled' },
 	];
 
-	test('configured plugin marketplaces have an independent disabled-by-default source setting', () => {
+	test('configured plugin marketplaces have an independent source setting', () => {
 		const configuration = createConfiguration([]);
 		assert.deepStrictEqual({
 			setting: CustomizationMarketplaceSources.PluginMarketplaces.enablementSetting,
