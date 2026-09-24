@@ -456,9 +456,9 @@ suite('InboxNotificationsService', () => {
 		});
 
 		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
-		const recentLine = input.split('\n').find(line => line.startsWith('Most recent exchange:')) ?? '';
-		const earlierLine = input.split('\n').find(line => line.startsWith('Earlier context:')) ?? '';
-		// The newest answered exchange gets its own prominent line so the model leads with it...
+		const recentLine = input.split('\n').find(line => line.startsWith('Recent progress:')) ?? '';
+		const earlierLine = input.split('\n').find(line => line.startsWith('Context so far:')) ?? '';
+		// The newest answered exchange gets its own prominent line so the model foregrounds it...
 		assert.ok(recentLine.includes('Which specific blue?') && recentLine.includes('Sky Blue'), `expected the newest exchange on the recent line, got: ${input}`);
 		// ...while older answers are relegated to supporting context.
 		assert.ok(earlierLine.includes('Favorite food?') && earlierLine.includes('Favorite color family?'), `expected earlier answers in the earlier context, got: ${input}`);

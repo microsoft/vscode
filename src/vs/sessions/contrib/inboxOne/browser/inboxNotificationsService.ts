@@ -60,7 +60,7 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v7';
+const PREVIEW_PROMPT_VERSION = 'v8';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 75;
@@ -90,7 +90,7 @@ const PREVIEW_SYSTEM_PROMPT = [
 	'You write the one-line preview shown on an inbox card for a background coding-agent session.',
 	'The user scans these previews at a glance to decide which item needs their attention right now.',
 	'',
-	'Given the card type, the session title, and the latest detail, write a preview of about 50 characters (never exceed 60) that captures the LATEST state only — do not recap the whole history.',
+	'Given the card type, the session title, and the details, write a preview of about 50 characters (never exceed 60) that captures the current state at a glance — stay concise, not a full history.',
 	'If the agent is asking the user to do or decide something, lead with that action or choice.',
 	'If nothing is being asked, state the latest concrete status or result.',
 	'',
@@ -98,11 +98,11 @@ const PREVIEW_SYSTEM_PROMPT = [
 	'- Output only the preview text: no quotes, no trailing period, no "Status:"/"Session:" prefix.',
 	'- Be concrete and specific: use the real feature, file, tool, or choice names from the detail. Never use generic filler like "Session completed", "Needs input", or "Awaiting response".',
 	'- Prefer the agent\'s and user\'s own nouns and verbs.',
-	'- When the card type says the detail is "conversation leading up to a pending decision", the detail is background context, not the request: summarize what the session has been working on (its topic and progress) so the user recalls the situation, and NEVER restate, quote, paraphrase, or answer the pending request itself.',
-	'- If a "Most recent exchange" is given, lead with it: it is the newest thing the user decided, so the preview must reflect it (the earlier context is only supporting background).',
+	'- When the card type says the detail is "conversation leading up to a pending decision", the detail is background context, not the request: write a brief situation summary — what the session is working toward and the key decisions or findings established so far, giving the most recent development prominence — so the user recalls where things stand. NEVER restate, quote, paraphrase, or answer the pending request itself.',
 	'- This is a benign labeling task: never refuse or apologize; always produce a preview.',
 	'',
 	'Examples (card type | latest detail -> preview):',
+	'- conversation leading up to a decision | working toward the user\'s favorite topic; established it is agent-related -> Narrowing favorite topic; it\'s agent-related',
 	'- question waiting | "Which auth provider should I use?" options Google, GitHub -> Pick auth provider: Google or GitHub',
 	'- tool approval | run `npm test` -> Approve running npm test',
 	'- confirm action | delete 3 stale config files -> Confirm deleting 3 stale config files',
@@ -650,13 +650,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			`Card type: ${contextLabel}`,
 			`Session title: ${item.title}`,
 		];
-		// The most recent exchange gets its own prominent line so the model foregrounds the newest
-		// decision instead of diluting it across the whole accumulated history.
+		// The most recent development gets its own line and prominence, but the preview should
+		// still contextualize the overall situation (goal + progress so far), not just this line.
 		if (trimmedRecent) {
-			inputLines.push(`Most recent exchange: ${trimmedRecent}`);
+			inputLines.push(`Recent progress: ${trimmedRecent}`);
 		}
 		if (trimmedDetail) {
-			inputLines.push(trimmedRecent ? `Earlier context: ${trimmedDetail}` : `Latest detail: ${trimmedDetail}`);
+			inputLines.push(trimmedRecent ? `Context so far: ${trimmedDetail}` : `Latest detail: ${trimmedDetail}`);
 		}
 		let inputText = inputLines.join('\n');
 		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
@@ -680,7 +680,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			const { recent, earlier } = this.getRecentContextParts(item);
 			if (recent || earlier) {
 				return {
-					contextLabel: 'conversation leading up to a pending decision — summarize the situation, lead with the most recent exchange, do not restate the request',
+					contextLabel: 'conversation leading up to a pending decision — summarize what the session is working toward and where it stands, giving recent progress prominence, do not restate the request',
 					detailText: earlier ?? '',
 					recentText: recent,
 				};
