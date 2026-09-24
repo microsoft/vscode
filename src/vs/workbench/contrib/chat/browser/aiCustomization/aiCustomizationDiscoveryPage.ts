@@ -644,8 +644,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private createAddButton(parent: HTMLElement): void {
 		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true }));
-		addButton.label = localize('customizationDiscovery.import', "Import");
-		addButton.setAriaLabel(localize('customizationDiscovery.importLabel', "Import a customization"));
+		addButton.label = localize('customizationDiscovery.createOrAdd', "Create or Add");
+		addButton.setAriaLabel(localize('customizationDiscovery.createOrAddLabel', "Create or add a customization"));
 		this._register(addButton.onDidClick(() => {
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
