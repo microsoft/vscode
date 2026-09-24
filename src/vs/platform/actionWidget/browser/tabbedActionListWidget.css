@@ -83,3 +83,45 @@
 .action-widget .tabbed-action-list-empty {
 	flex: 0 0 auto;
 }
+
+.action-widget.showing-details {
+	position: relative;
+}
+
+.action-widget.showing-details > .tabbed-action-list-main {
+	position: absolute;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.tabbed-action-list-details-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40);
+}
+
+.tabbed-action-list-details-header .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.tabbed-action-list-details-header > .monaco-action-bar {
+	flex: 0 0 auto;
+}
+
+.tabbed-action-list-details-viewport {
+	overflow: hidden;
+}
+
+.action-widget.showing-details .tabbed-action-list-details:focus {
+	outline: none;
+}
+
+.action-widget.showing-details.keyboard-navigation .tabbed-action-list-details:focus {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
