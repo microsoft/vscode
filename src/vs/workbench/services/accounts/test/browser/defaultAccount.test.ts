@@ -1127,79 +1127,31 @@ suite('DefaultAccountProvider', () => {
 			{ name: '401', response: () => jsonResponse({}, 401) },
 			{ name: '403', response: () => jsonResponse({}, 403) },
 		];
-		const lastSuccessAt = Date.now() - 7 * 24 * 60 * 60 * 1000; // long past the one-hour cache boundary
+		const freshlyCached = createCachedPolicy(false);
+		const staleFetchedAt = Date.now() - 7 * 24 * 60 * 60 * 1000; // long past the one-hour cache boundary
 		const outcomes = [];
 
 		for (const failure of failures) {
 			const provider = await createProvider(new TestRequestService(async () => failure.response()));
-			const cachedPolicy = { ...createCachedPolicy(false), managedSettingsFetchedAt: lastSuccessAt };
-			const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
-			outcomes.push({ name: failure.name, data: result.data, fetchedAt: result.fetchedAt });
+			const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
+			const onceStale = await provider['getManagedSettings'](
+				sessions,
+				{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
+				{ forceRefresh: true }
+			);
+			outcomes.push({
+				name: failure.name,
+				whileFresh: { data: whileFresh.data, fetchedAt: whileFresh.fetchedAt },
+				onceStale: { data: onceStale.data, fetchedAt: onceStale.fetchedAt },
+			});
 		}
 
-		// Only a service answer withdraws policy, and a failure never renews the cached timestamp.
+		// Only an affirmative service answer withdraws policy, and a failure never renews the cached timestamp.
 		assert.deepStrictEqual(outcomes, failures.map(failure => ({
 			name: failure.name,
-			data: createCachedPolicy(false).policyData,
-			fetchedAt: lastSuccessAt,
+			whileFresh: { data: freshlyCached.policyData, fetchedAt: freshlyCached.managedSettingsFetchedAt },
+			onceStale: { data: freshlyCached.policyData, fetchedAt: staleFetchedAt },
 		})));
-	});
-
-	test('an entitlements outage keeps the managed settings timestamp so later failures can retain them', async () => {
-		const requestService = new TestRequestService(async () => {
-			throw new Error('network unavailable');
-		});
-		const provider = await createProvider(requestService);
-		const cachedPolicy = { ...createCachedPolicy(false), managedSettingsFetchedAt: Date.now() - 2 * 60 * 60 * 1000 };
-		provider['_policyData'] = cachedPolicy;
-
-		const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
-			{ id: 'github', name: 'GitHub', enterprise: false },
-			sessions,
-		);
-
-		assert.deepStrictEqual({
-			managedSettings: account?.policyData?.policyData.managedSettings,
-			managedSettingsFetchedAt: account?.policyData?.managedSettingsFetchedAt,
-		}, {
-			managedSettings: cachedPolicy.policyData.managedSettings,
-			managedSettingsFetchedAt: cachedPolicy.managedSettingsFetchedAt,
-		});
-	});
-
-	test('presence of unprojected server settings is retained and cleared with the managed settings', async () => {
-		const outage = () => { throw new Error('managed settings unavailable'); };
-		const scenarios: { name: string; fetchedAgoMs: number; response: () => IRequestContext }[] = [
-			{ name: 'outage', fetchedAgoMs: 25 * 60 * 60 * 1000, response: outage },
-			{ name: '404', fetchedAgoMs: 2 * 60 * 60 * 1000, response: () => jsonResponse({}, 404) },
-			{ name: 'empty response', fetchedAgoMs: 2 * 60 * 60 * 1000, response: () => jsonResponse({}) },
-		];
-		const outcomes = [];
-
-		for (const scenario of scenarios) {
-			const provider = await createProvider(new TestRequestService(async options => {
-				if (options.url?.endsWith('/copilot_internal/user')) {
-					return jsonResponse({ chat_enabled: true });
-				}
-				return scenario.response();
-			}));
-			provider['_policyData'] = {
-				accountId,
-				policyData: { managedSettings: {}, managedSettingsActive: true },
-				managedSettingsFetchedAt: Date.now() - scenario.fetchedAgoMs,
-			};
-			const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
-				{ id: 'github', name: 'GitHub', enterprise: false },
-				sessions,
-			);
-			outcomes.push({ name: scenario.name, managedSettingsActive: account?.policyData?.policyData.managedSettingsActive });
-		}
-
-		assert.deepStrictEqual(outcomes, [
-			{ name: 'outage', managedSettingsActive: true },
-			{ name: '404', managedSettingsActive: undefined },
-			{ name: 'empty response', managedSettingsActive: undefined },
-		]);
 	});
 
 	test('transient failure does not clear an update-required state', async () => {

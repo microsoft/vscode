@@ -70,17 +70,6 @@ const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 
-/**
- * The server-delivered managed settings slice of cached policy data, including whether the server
- * delivered settings that have no VS Code projection, so both are retained or cleared together.
- */
-function managedSettingsPayload(policyData: IPolicyData | undefined): Partial<IPolicyData> {
-	return {
-		managedSettings: policyData?.managedSettings,
-		...(policyData?.managedSettingsActive === true ? { managedSettingsActive: true } : {}),
-	};
-}
-
 interface ITokenEntitlementsResponse {
 	token: string;
 }
@@ -864,7 +853,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			]);
 
 			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
-			const managedSettingsFetchedAt: number | undefined = managedSettingsResult ? managedSettingsResult.fetchedAt : accountPolicyData?.managedSettingsFetchedAt;
+			const managedSettingsFetchedAt: number | undefined = managedSettingsResult?.fetchedAt;
 			const managedSettingsScope = managedSettingsResult?.scope ?? accountPolicyData?.managedSettingsScope;
 			const managedSettingsCompatibilityError = managedSettingsResult
 				? managedSettingsResult.compatibilityError
@@ -893,10 +882,6 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			}
 			if (managedSettingsResult?.data) {
 				policyData = { ...(policyData ?? {}), ...managedSettingsResult.data };
-				// Presence of unprojected server settings belongs to the payload, so it is replaced along with it.
-				if (managedSettingsResult.data.managedSettingsActive !== true) {
-					delete policyData.managedSettingsActive;
-				}
 			}
 
 			const defaultAccount: IDefaultAccount = {
@@ -1132,7 +1117,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		);
 		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)
 			? {
-				data: managedSettingsPayload(accountPolicyData.policyData),
+				data: {
+					managedSettings: accountPolicyData.policyData.managedSettings,
+				},
 				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
 			}
 			: undefined;
@@ -1148,7 +1135,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				});
 			}
 			const retained = requirement.effective
-				? { data: managedSettingsPayload(accountPolicyData?.policyData), fetchedAt: accountPolicyData?.managedSettingsFetchedAt }
+				? { data: { managedSettings: accountPolicyData?.policyData.managedSettings }, fetchedAt: accountPolicyData?.managedSettingsFetchedAt }
 				: cachedManagedSettings;
 			return {
 				data: retained?.data,
@@ -1163,7 +1150,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		// Only reuse a cache captured for the current provider and endpoint (a legacy cache with no recorded
 		// scope is trusted), so a previous GitHub Enterprise host's policy is not applied after a scope switch.
 		const cacheScopeMatches = !cachedScope || this.getManagedSettingsScopeKey(cachedScope) === this.getManagedSettingsScopeKey(scope);
-		const scopedManagedSettings = managedSettingsPayload(cacheScopeMatches ? accountPolicyData?.policyData : undefined);
+		const scopedManagedSettings = cacheScopeMatches ? accountPolicyData?.policyData.managedSettings : undefined;
 		const scopedManagedSettingsFetchedAt = cacheScopeMatches ? accountPolicyData?.managedSettingsFetchedAt : undefined;
 		const scopedCachedManagedSettings = cacheScopeMatches ? cachedManagedSettings : undefined;
 		if (requirement.effective && !this.canRequestManagedSettings(options, scope)) {
@@ -1173,7 +1160,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({ ...failedFreshness, source: requirement.source });
 			}
 			return {
-				data: scopedManagedSettings,
+				data: { managedSettings: scopedManagedSettings },
 				fetchedAt: scopedManagedSettingsFetchedAt,
 				scope,
 				compatibilityError: this._managedSettingsCompatibilityError,
@@ -1223,7 +1210,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					});
 				}
 				return {
-					data: requirement.effective ? scopedManagedSettings : { managedSettings: undefined },
+					data: requirement.effective ? { managedSettings: scopedManagedSettings } : { managedSettings: undefined },
 					fetchedAt: requirement.effective ? scopedManagedSettingsFetchedAt : Date.now(),
 					scope,
 					compatibilityError: result.error,
@@ -1235,19 +1222,21 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				if (requirement.effective) {
 					this.setManagedSettingsFreshness(this.toBlockedManagedSettingsFreshness(requirement.source, result, lastAttemptAt, scope));
 					return {
-						data: scopedManagedSettings,
+						data: { managedSettings: scopedManagedSettings },
 						fetchedAt: scopedManagedSettingsFetchedAt,
 						scope,
 						compatibilityError: this._managedSettingsCompatibilityError,
 					};
 				}
-				// A failed fetch, including a 401/403 that a token refresh or SSO sign-in may resolve, is not
-				// evidence that policy was withdrawn. Keep the last successful response until the service answers,
-				// with its original timestamp so the failure neither renews it nor stops it being refetched.
-				const retain = !this._managedSettingsCompatibilityError;
+				// A failed fetch (including a 401/403, which may be transient) is not evidence that policy was withdrawn:
+				// keep the last successful response even once stale, with its original timestamp so the failure does not
+				// count as a refresh and it is still refetched.
+				const retained = this._managedSettingsCompatibilityError
+					? undefined
+					: { data: { managedSettings: scopedManagedSettings }, fetchedAt: scopedManagedSettingsFetchedAt };
 				return {
-					data: retain ? scopedManagedSettings : { managedSettings: undefined },
-					fetchedAt: retain ? scopedManagedSettingsFetchedAt : undefined,
+					data: { managedSettings: retained?.data.managedSettings },
+					fetchedAt: retained?.fetchedAt,
 					scope,
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
