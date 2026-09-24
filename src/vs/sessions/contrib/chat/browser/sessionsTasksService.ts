@@ -15,8 +15,8 @@ import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
-import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
-import { ISessionTaskRunnerRegistry } from './sessionTaskRunner.js';
+import { CommandString, type ITaskIdentifier } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
+import { ISessionTaskRunnerRegistry, ISessionTaskRunOptions } from './sessionTaskRunner.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
 type TaskRunOnOption = 'default' | 'folderOpen' | 'worktreeCreated';
@@ -40,9 +40,28 @@ export interface ITaskEntry {
 	readonly windows?: { command?: string; args?: CommandString[] };
 	readonly osx?: { command?: string; args?: CommandString[] };
 	readonly linux?: { command?: string; args?: CommandString[] };
-	readonly dependsOn?: string | readonly string[];
+	readonly dependsOn?: string | ITaskIdentifier | readonly (string | ITaskIdentifier)[];
 	readonly dependsOrder?: 'sequence' | 'parallel';
 	readonly [key: string]: unknown;
+}
+
+export function getTaskDependencyLabels(task: ITaskEntry): readonly string[] | undefined {
+	const dependsOn = task.dependsOn;
+	if (dependsOn === undefined || dependsOn === '') {
+		return [];
+	}
+	if (typeof dependsOn === 'string') {
+		return [dependsOn];
+	}
+	if (!Array.isArray(dependsOn)) {
+		return undefined;
+	}
+	return dependsOn.every(dependency => typeof dependency === 'string') ? dependsOn : undefined;
+}
+
+export function hasTaskDependencies(task: ITaskEntry): boolean {
+	const dependencyLabels = getTaskDependencyLabels(task);
+	return dependencyLabels === undefined || dependencyLabels.length > 0;
 }
 
 export interface INonSessionTaskEntry {
@@ -150,7 +169,7 @@ export interface ISessionsTasksService {
 	 * May resolve to an {@link IDisposable} that stops the launched task; see
 	 * {@link ISessionTaskRunner.runTask}.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined>;
+	runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined>;
 
 	/**
 	 * Observable label of the pinned task for the given repository.
@@ -388,12 +407,12 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		}
 	}
 
-	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
+	async runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
 		const runner = this._taskRunnerRegistry.getRunner(session);
 		if (!runner) {
 			return undefined;
 		}
-		const handle = await runner.runTask(task, session);
+		const handle = await runner.runTask(task, session, options);
 		this._onDidRunTask.fire({ task, session });
 		return handle;
 	}
