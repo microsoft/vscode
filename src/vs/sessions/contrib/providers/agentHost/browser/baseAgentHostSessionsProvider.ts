@@ -736,6 +736,11 @@ export interface IAgentHostAdapterOptions {
 	 * Returns the agent connection for the session, if it exists.
 	 */
 	readonly getConnection: () => IAgentConnection | undefined;
+	/**
+	 * Maps a client chat resource of this provider to its backend chat channel URI,
+	 * for operations that name a chat to the host.
+	 */
+	readonly getBackendChatResource?: (chat: URI) => URI | undefined;
 	/** Agent capability lookup shared by every adapter owned by this provider. */
 	readonly agentCapabilities: IObservable<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>;
 	/**
@@ -3600,6 +3605,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
+			getBackendChatResource: chat => this.getBackendChatResource(chat),
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
 			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
@@ -4148,6 +4154,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				gitHubService: this._gitHubService,
 				instantiationService: this._instantiationService,
 				getConnection: () => this.connection,
+				getBackendChatResource: chat => this.getBackendChatResource(chat),
 				agentCapabilities: this._agentCapabilities,
 				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 				connectionStatus: this.remoteConnectionStatus,
@@ -5779,6 +5786,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,
 		};
 
@@ -5911,6 +5919,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
 			hideFromTranscript: options.hideFromTranscript,
+			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,
 		};
 

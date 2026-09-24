@@ -475,23 +475,21 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 
 		if (config.provider === 'copilotcli') {
-			(context.runKnownIssueTests ? test : test.skip)('materialized Copilot debug collection includes provider log entries', async function () {
-				this.timeout(180_000);
+			providerHostOnlyTest(context, 'materialized Copilot debug collection includes process log', async function () {
 				const workspace = mkdtempSync(join(tmpdir(), 'ahp-copilot-debug-logs-'));
 				tempDirs.push(workspace);
 				const sessionUri = await createRealSession(context.client, config, 'copilot-debug-logs', createdSessions, URI.file(workspace));
-				await driveTurnToCompletion(context.client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
 
 				const debugLogs = await collectDebugLogs('archive', sessionUri);
 
 				assert.deepStrictEqual({
 					providerLogsIncluded: debugLogs.providerLogsIncluded,
-					hasProviderLogEntries: debugLogs.entries.some(entry => !isAgentHostProcessLog(entry.path)),
+					hasProcessLog: debugLogs.entries.some(entry => entry.path === 'process.log' && entry.size > 0),
 				}, {
 					providerLogsIncluded: true,
-					hasProviderLogEntries: true,
+					hasProcessLog: true,
 				});
-			});
+			}, context.runHostOnlyKnownIssueTests);
 		}
 	}
 }

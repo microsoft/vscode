@@ -13,7 +13,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IOnboardingPresentation, IOnboardingRunContext } from '../../common/onboardingPresentation.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult } from '../../common/onboardingSequence.js';
-import { findOnboardingTarget, hasOnboardingTargetSelection, onDidSelectOnboardingTarget, openOnboardingTarget } from './onboardingTarget.js';
+import { IOnboardingTarget, hasOnboardingTargetSelection, onDidSelectOnboardingTarget, resolveOnboardingTarget } from './onboardingTarget.js';
 import { ISpotlightContent, SpotlightOverlay } from './spotlightOverlay.js';
 import { ISpotlightPayload, ISpotlightStep, SpotlightMissingTargetBehavior, SPOTLIGHT_PRESENTATION_KIND } from './spotlightTypes.js';
 
@@ -72,13 +72,13 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			return { action: 'abort', shown: false };
 		}
 
-		const target = await this._resolveTarget(context.targetWindow, step.targetId, context.cancellationToken, step.missingTarget);
+		const target = await this._resolveTarget(context.targetWindow, step.targetId, context.targetScope, context.cancellationToken, step.missingTarget);
 		if (!target) {
 			return context.cancellationToken.isCancellationRequested || shouldAbortOnMissingTarget(step.missingTarget)
 				? { action: 'abort', shown: false }
 				: { action: 'skipStep', shown: false };
 		}
-		await this._waitForTargetReady(context.targetWindow, target);
+		await this._waitForTargetReady(context.targetWindow, target.element);
 		if (context.cancellationToken.isCancellationRequested) {
 			return { action: 'abort', shown: false };
 		}
@@ -178,7 +178,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 					break;
 				}
 
-				const target = await this._resolveTarget(context.targetWindow, step.targetId, targetResolutionCancellation.token, step.missingTarget);
+				const target = await this._resolveTarget(context.targetWindow, step.targetId, context.targetScope, targetResolutionCancellation.token, step.missingTarget);
 				if (aborted) {
 					break;
 				}
@@ -193,7 +193,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				}
 				skippedStepIndexes.delete(index);
 
-				await this._waitForTargetReady(context.targetWindow, target);
+				await this._waitForTargetReady(context.targetWindow, target.element);
 				if (aborted) {
 					break;
 				}
@@ -236,17 +236,17 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		}
 	}
 
-	private async _resolveTarget(targetWindow: Window, targetId: string, cancellationToken: CancellationToken, behavior?: SpotlightMissingTargetBehavior): Promise<HTMLElement | undefined> {
+	private async _resolveTarget(targetWindow: Window, targetId: string, targetScope: string | undefined, cancellationToken: CancellationToken, behavior?: SpotlightMissingTargetBehavior): Promise<IOnboardingTarget | undefined> {
 		if (cancellationToken.isCancellationRequested) {
 			return undefined;
 		}
-		let element = findOnboardingTarget(targetWindow, targetId);
-		if (element || behavior?.kind === 'skip' || behavior?.kind === 'abort') {
-			return element;
+		let target = resolveOnboardingTarget(targetWindow, targetId, targetScope);
+		if (target || behavior?.kind === 'skip' || behavior?.kind === 'abort') {
+			return target;
 		}
 		const timeoutMs = behavior?.kind === 'wait' ? Math.max(0, behavior.timeoutMs) : TARGET_RESOLVE_TIMEOUT;
 		const deadline = Date.now() + timeoutMs;
-		while (!element && Date.now() < deadline && !cancellationToken.isCancellationRequested) {
+		while (!target && Date.now() < deadline && !cancellationToken.isCancellationRequested) {
 			try {
 				await timeout(TARGET_POLL_INTERVAL, cancellationToken);
 			} catch (error) {
@@ -255,9 +255,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				}
 				throw error;
 			}
-			element = findOnboardingTarget(targetWindow, targetId);
+			target = resolveOnboardingTarget(targetWindow, targetId, targetScope);
 		}
-		return element;
+		return target;
 	}
 
 	private async _waitForTargetReady(targetWindow: Window, target: HTMLElement): Promise<void> {
@@ -283,7 +283,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		return animations;
 	}
 
-	private async _runStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: HTMLElement, index: number, stepCount: number, canGoBack: boolean = index > 0, isLastStep: boolean = index === stepCount - 1): Promise<StepEnd> {
+	private async _runStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: IOnboardingTarget, index: number, stepCount: number, canGoBack: boolean = index > 0, isLastStep: boolean = index === stepCount - 1): Promise<StepEnd> {
 		const stepStore = new DisposableStore();
 		let ended = false;
 		let resolveStep: (end: StepEnd) => void;
@@ -312,9 +312,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			isLastStep,
 		};
 
-		const openTarget = step.openTarget === 'ifUnselected' ? !hasOnboardingTargetSelection(target) : step.openTarget;
+		const openTarget = step.openTarget === 'ifUnselected' ? !hasOnboardingTargetSelection(target.element) : step.openTarget;
 		if (step.advanceOnTargetSelection) {
-			stepStore.add(onDidSelectOnboardingTarget(target)(async accepted => {
+			stepStore.add(onDidSelectOnboardingTarget(target.element)(async accepted => {
 				try {
 					if (await accepted) {
 						done({ action: 'next', via: 'condition' });
@@ -326,7 +326,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}));
 		}
 
-		overlay.show(target, content, {
+		overlay.show(target.element, content, {
 			placement: step.placement,
 			allowTargetInteraction: step.allowTargetInteraction,
 			advanceOnTargetClick: step.advanceOnTargetClick,
@@ -353,7 +353,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		if (openTarget && !ended) {
 			try {
-				await openOnboardingTarget(target);
+				await target.open?.();
 			} catch (error) {
 				onUnexpectedError(error);
 			}

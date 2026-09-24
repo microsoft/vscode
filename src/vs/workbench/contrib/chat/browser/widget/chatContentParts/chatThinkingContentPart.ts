@@ -47,7 +47,7 @@ import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResour
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { isMcpToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
+import { hasToolInvocationError, isMcpToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -1288,7 +1288,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				return;
 			}
 
-			collapseButton.element.classList.add('chat-thinking-title-with-diff');
+			container.classList.add('chat-thinking-title-with-diff');
 			const button = this.diffButtonStore.add(this.instantiationService.createInstance(ChatEditStatsButton, container, localize('chat.thinking.changes.title', "Section File Changes"), 'chat-thinking-title-diff'));
 			this.diffButton = button;
 
@@ -1304,8 +1304,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.diffButtonStore.clear();
 		this.diffButton = undefined;
 		const collapseButton = this._collapseButton;
-		collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
 		const container = collapseButton?.element.parentElement;
+		container?.classList.remove('chat-thinking-title-with-diff');
 		if (collapseButton && container && this._hoverChevron) {
 			if (this.titleDetailContainer?.parentElement === container) {
 				container.appendChild(this._hoverChevron);
@@ -2507,8 +2507,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const completedMessage = toolInvocationOrMarkdown.pastTenseMessage ?? toolInvocationOrMarkdown.invocationMessage;
 							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
 							const iconElement = this.toolIconsByCallId.get(toolCallId);
-							if (iconElement && !isMcpToolInvocation(toolInvocationOrMarkdown) && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
-								setThinkingIcon(iconElement, Codicon.search);
+							if (iconElement) {
+								if (hasToolInvocationError(toolInvocationOrMarkdown)) {
+									setThinkingIcon(iconElement, Codicon.error);
+								} else if (!isMcpToolInvocation(toolInvocationOrMarkdown) && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
+									setThinkingIcon(iconElement, Codicon.search);
+								}
 							}
 						}
 
@@ -2647,9 +2651,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
+		const toolError = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && hasToolInvocationError(toolInvocationOrMarkdown);
 
 		let icon: ThemeIcon;
-		if (isMcpTool) {
+		if (toolError) {
+			icon = Codicon.error;
+		} else if (isMcpTool) {
 			icon = Codicon.mcp;
 		} else if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
 			icon = Codicon.search;

@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceRequest } from '../../common/customizationMarketplaceService.js';
-import { getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, getEnabledCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 
 suite('CustomizationMarketplaceSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +26,30 @@ suite('CustomizationMarketplaceSources', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return configuration;
 	}
+
+	test('Marketplace visibility does not change source enablement', () => {
+		const cases = [
+			{ marketplace: false, first: false, second: false, visible: [] },
+			{ marketplace: false, first: true, second: false, visible: [] },
+			{ marketplace: true, first: false, second: false, visible: [] },
+			{ marketplace: true, first: true, second: false, visible: ['first'] },
+			{ marketplace: true, first: true, second: true, visible: ['first', 'second'] },
+		];
+		assert.deepStrictEqual(cases.map(({ marketplace, first, second }) => {
+			const configuration = new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
+				'test.first.enabled': first,
+				'test.second.enabled': second,
+			});
+			return {
+				enabled: getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
+				visible: getVisibleCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
+			};
+		}), cases.map(({ first, second, visible }) => ({
+			enabled: sources.filter(source => source.id === 'first' ? first : second).map(source => source.id),
+			visible,
+		})));
+	});
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);

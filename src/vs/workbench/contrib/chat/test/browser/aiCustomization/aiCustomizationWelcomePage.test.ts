@@ -5,9 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { shouldShowCustomizationDiscover } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 
 suite('AICustomizationWelcomePage', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,10 +21,10 @@ suite('AICustomizationWelcomePage', () => {
 			{ marketplace: true, publicFeed: false, connectors: true, discover: true },
 		];
 		assert.deepStrictEqual(cases.map(({ marketplace, publicFeed, connectors }) =>
-			shouldShowCustomizationDiscover(new TestConfigurationService({
+			getVisibleCustomizationMarketplaceSources(new TestConfigurationService({
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: connectors,
-			}), Object.values(CustomizationMarketplaceSources))), cases.map(({ discover }) => discover));
+			}), Object.values(CustomizationMarketplaceSources)).length > 0), cases.map(({ discover }) => discover));
 	});
 });

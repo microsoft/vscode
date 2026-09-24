@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import {
@@ -45,14 +46,14 @@ function tokenExpiringIn(minutes: number, from: number, overrides: Partial<IClou
 }
 
 /** Records the stop reports the refresher emits; request counting is covered by its own suite. */
-class RecordingTelemetry implements ICloudSandboxTelemetryService {
+class RecordingTelemetry extends mock<ICloudSandboxTelemetryService>() {
 	declare readonly _serviceBrand: undefined;
 
 	readonly stops: { reason: CloudSandboxRefreshStopReason; consecutiveFailures: number; statusCode: number | undefined }[] = [];
 
-	reportRequest(_action: CloudSandboxRequestAction, _outcome: CloudSandboxRequestOutcome): void { }
+	override reportRequest(_action: CloudSandboxRequestAction, _outcome: CloudSandboxRequestOutcome): void { }
 
-	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void {
+	override reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void {
 		this.stops.push({
 			reason,
 			consecutiveFailures,

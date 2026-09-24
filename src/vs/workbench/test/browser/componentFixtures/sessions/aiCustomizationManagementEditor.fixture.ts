@@ -938,8 +938,8 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderPublicFeedEnabled?: boolean;
-	readonly marketplaceEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
+	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly togglePublicFeed?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -986,7 +986,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const agentFinderPublicFeedEnabled = options.agentFinderPublicFeedEnabled ?? true;
-	const marketplaceEnabled = (options.marketplaceEnabled ?? true) &&
+	const marketplaceEnabled = options.marketplaceVisibilityEnabled !== false &&
 		(agentFinderPublicFeedEnabled || options.copilotConnectorsEnabled === true || options.otherSourceEnabled === true);
 	const marketplaceResources = [
 		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
@@ -1084,8 +1084,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
-				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: options.marketplaceEnabled ?? true,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: options.marketplaceVisibilityEnabled ?? true,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
@@ -2645,6 +2645,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersProvenance: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The MCP Servers page shows linked "Plugin: Linear" and "Extension: Acme Agent Tools" provenance labels beneath their installed server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -3040,9 +3041,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['Overview remains visible when Copilot connectors are enabled but Marketplace is off.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
-			marketplaceEnabled: false,
+			marketplaceVisibilityEnabled: false,
 			agentFinderPublicFeedEnabled: false,
 			copilotConnectorsEnabled: true,
+		}),
+	}),
+
+	OverviewWithMarketplaceDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The original Overview remains available when Marketplace visibility is off, even though the GitHub Feed is enabled by default.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: false,
 		}),
 	}),
 
