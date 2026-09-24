@@ -2723,6 +2723,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 					countLabel: counts.join(' · '),
 				};
 			}
+			case CustomizationMigrationCategoryId.ConfiguredLocations:
+				return {
+					id, count,
+					label: localize('migrationChecklistConfiguredLocations', "Custom location settings"),
+					description: localize('migrationChecklistConfiguredLocationsDescription', "Move customizations out of locations configured in settings that the active agent no longer uses."),
+					countLabel: count === 1
+						? localize('migrationChecklistOneConfiguredLocationCustomization', "1 customization")
+						: localize('migrationChecklistConfiguredLocationCustomizationsCount', "{0} customizations", count),
+				};
 			default:
 				throw new Error(`Unsupported migration checklist category: ${id}`);
 		}

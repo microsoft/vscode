@@ -127,3 +127,33 @@ export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, ur
 		workingDirectory,
 	};
 }
+
+/**
+ * The chat whose checkout a folder's Agent Merge repairs run in: the chat that
+ * turned Agent Merge on (`recordedChat`), else the default chat for the session
+ * folder, else the first chat working in the folder. `undefined` when no chat
+ * of the session works in the folder. The recorded chat is client-written, so
+ * it is honored only for a chat of this session that works in the folder.
+ */
+export function resolveAgentMergeOwningChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
+	const state = stateManager.getSessionState(session);
+	const defaultChat = buildDefaultChatUri(session);
+	const worksInFolder = (chat: ProtocolURI) => {
+		const workingDirectory = getEffectiveWorkingDirectories(stateManager, chat)?.[0];
+		return workingDirectory !== undefined && getWorkingDirectoryKey(workingDirectory) === folderKey;
+	};
+	const isSessionChat = (chat: ProtocolURI) => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true;
+	if (recordedChat && isAhpChatChannel(recordedChat) && isSessionChat(recordedChat) && worksInFolder(recordedChat)) {
+		return recordedChat;
+	}
+	const sessionWorkingDirectory = state?.workingDirectories?.[0];
+	if (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)) {
+		return defaultChat;
+	}
+	for (const chat of [defaultChat, ...state?.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat) ?? []]) {
+		if (worksInFolder(chat)) {
+			return chat;
+		}
+	}
+	return undefined;
+}

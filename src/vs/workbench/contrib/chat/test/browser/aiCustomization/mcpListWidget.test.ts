@@ -26,7 +26,7 @@ import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -45,6 +45,8 @@ import {
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
+	getMcpEntryGroup,
+	getMcpRowKey,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
@@ -58,9 +60,11 @@ import {
 	registerMcpInlineButtonAction,
 	registerMcpSignInButtonAction,
 	type IMcpStatusRenderInput,
+	type IMcpInstalledEntry,
 	updateMcpCompatibilityBadge,
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
+	preserveMcpEntryOrder,
 	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
@@ -209,6 +213,47 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves installed row order across enablement refreshes', () => {
+		const order = new Map<string, number>();
+		const first = { entry: { type: 'session-server-item' as const, server: createAgentHostServer({ id: 'first', name: 'First', enabled: true }) } };
+		const second = { entry: { type: 'session-server-item' as const, server: createAgentHostServer({ id: 'second', name: 'Second', enabled: false }) } };
+
+		const initial = preserveMcpEntryOrder([first, second], order);
+		const refreshed = preserveMcpEntryOrder([
+			{ entry: { ...second.entry, server: { ...second.entry.server, enabled: true } } },
+			{ entry: { ...first.entry, server: { ...first.entry.server, enabled: false } } },
+		], order);
+
+		assert.deepStrictEqual({
+			initial: initial.map(({ entry }) => entry.type === 'session-server-item' ? entry.server.id : ''),
+			refreshed: refreshed.map(({ entry }) => entry.type === 'session-server-item' ? entry.server.id : ''),
+		}, {
+			initial: ['first', 'second'],
+			refreshed: ['first', 'second'],
+		});
+
+		test('classifies installed MCP entries by scope and source', () => {
+			const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
+				type: 'server-item',
+				server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
+			});
+
+			assert.deepStrictEqual([
+				getMcpEntryGroup(localEntry(LocalMcpServerScope.User)),
+				getMcpEntryGroup(localEntry(LocalMcpServerScope.Workspace)),
+				getMcpEntryGroup({ type: 'builtin-item', id: 'plugin', label: 'Plugin', description: '', collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}plugin` }),
+				getMcpEntryGroup({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension') }),
+				getMcpEntryGroup(createBuiltinActiveSessionMcpEntries([createAgentHostServer()])[0]),
+			], [
+				'user',
+				'workspace',
+				'plugins',
+				'extensions',
+				'builtin',
+			]);
+		});
+	});
 
 	test('item count includes only enabled MCP servers', () => {
 		interface TestWidget {
@@ -1196,7 +1241,7 @@ suite('mcpListWidget', () => {
 				},
 				render: (entry: Entry = createBuiltinActiveSessionMcpEntries([server])[0]) => {
 					renderer.renderElement(entry, 0, templateData);
-					renderer.setFocusedIndex(0);
+					renderer.setFocusedRowKey(getMcpRowKey(entry));
 					const label = widget.getMcpEntryAriaLabel(entry);
 					ariaSubscription.value = autorun(reader => { ariaLabel = label.read(reader); });
 				},
@@ -1216,7 +1261,7 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
-				setFocusedIndex: (index: number) => renderer.setFocusedIndex(index),
+				setFocusedIndex: (index: number) => renderer.setFocusedRowKey(index === 0 && templateData.currentElement ? getMcpRowKey(templateData.currentElement) : undefined),
 				actionNode: () => templateData.actions.firstElementChild,
 			};
 		}
