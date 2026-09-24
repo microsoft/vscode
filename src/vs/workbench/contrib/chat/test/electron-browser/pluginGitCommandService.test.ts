@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -74,8 +74,8 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		return error;
 	}
 
-	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService(), authenticationService = createAuthenticationService(accessToken)): NativePluginGitCommandService {
-		return new NativePluginGitCommandService(localGitService, authenticationService, fileService, new NullLogService());
+	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService(), authenticationService = createAuthenticationService(accessToken), logService = new NullLogService()): NativePluginGitCommandService {
+		return new NativePluginGitCommandService(localGitService, authenticationService, fileService, logService);
 	}
 
 	test('cloneRepository delegates to ILocalGitService', async () => {
@@ -403,6 +403,24 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			assert.deepStrictEqual({ cloneCalls, cancellationCalls }, { cloneCalls: 1, cancellationCalls: 1 });
 		});
 	}
+
+	test('cancellation errors are not logged', async () => {
+		const logged: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error, ...args: unknown[]): void {
+				logged.push([message, ...args].join(' '));
+			}
+		}();
+		const service = createService(createLocalGitStub({
+			clone: async () => { throw new CancellationError(); },
+		}), undefined, createFileService(), createAuthenticationService(), logService);
+
+		await assert.rejects(
+			service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo')),
+			isCancellationError,
+		);
+		assert.deepStrictEqual(logged, []);
+	});
 
 	test('cancellation token triggers cancel on local git service', async () => {
 		const cts = store.add(new CancellationTokenSource());

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -136,6 +136,9 @@ export class NativePluginGitCommandService implements IPluginGitService {
 		try {
 			return await runNative();
 		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
 			const isAuthenticationFailure = this._isAuthenticationFailure(error);
 			if (isAuthenticationFailure && !authentication && canUseEditorAuthentication) {
 				authentication = await this._getGitHubAuthentication(remoteUrl, token);
