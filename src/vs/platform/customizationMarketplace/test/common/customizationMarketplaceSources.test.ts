@@ -21,16 +21,24 @@ suite('CustomizationMarketplaceSources', () => {
 		{ id: 'second', enablementSetting: 'test.second.enabled' },
 	];
 
-	test('configured plugin marketplaces have an independent source setting', () => {
-		const configuration = createConfiguration([]);
+	test('configured plugin marketplaces follow Marketplace visibility', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: false,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const disabled = getEnabledCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)).map(source => source.id);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		assert.deepStrictEqual({
 			setting: CustomizationMarketplaceSources.PluginMarketplaces.enablementSetting,
 			publicSetting: CustomizationMarketplaceSources.AgentFinderPublicFeed.enablementSetting,
-			enabled: getEnabledCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)),
+			disabled,
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)).map(source => source.id),
 		}, {
-			setting: CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled,
+			setting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
 			publicSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
-			enabled: [],
+			disabled: [],
+			enabled: [CustomizationMarketplaceSources.PluginMarketplaces.id],
 		});
 	});
 

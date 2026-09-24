@@ -34,15 +34,13 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is default-off while both sources are default-on', () => {
+	test('Marketplace visibility is default-off while the public source is default-on', () => {
 		assert.deepStrictEqual({
 			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
-			pluginMarketplaces: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled].default,
 		}, {
 			marketplace: false,
 			publicFeed: true,
-			pluginMarketplaces: true,
 		});
 	});
 

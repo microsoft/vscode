@@ -20,10 +20,4 @@ export const customizationMarketplaceConfigurationProperties = {
 		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins when Marketplace is shown. If Marketplace or this setting is disabled, the GitHub Feed is not queried."),
 		default: true,
 	},
-	[CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled]: {
-		type: 'boolean',
-		tags: ['experimental'],
-		description: localize('chat.customizations.marketplace.sources.pluginMarketplaces.enabled', "Shows plugins from configured marketplaces in Discover when marketplace visibility is enabled. The built-in Awesome Copilot marketplace is omitted only when the public GitHub Feed is enabled. Only marketplaces permitted by plugin policy are queried. When disabled, plugin discovery remains in the Plugins section."),
-		default: true,
-	},
 } satisfies Record<string, IConfigurationPropertySchema>;

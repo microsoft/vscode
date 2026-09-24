@@ -64,7 +64,9 @@ suite('AICustomizationDiscoveryPage', () => {
 		const configuration = new TestConfigurationService({
 			'workbench.list.smoothScrolling': false,
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			...Object.fromEntries(sources.map(source => [source.enablementSetting, enabledSources.includes(source.id)])),
+			...Object.fromEntries(sources
+				.filter(source => source.id !== CustomizationMarketplaceSources.PluginMarketplaces.id)
+				.map(source => [source.enablementSetting, enabledSources.includes(source.id)])),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
@@ -440,11 +442,12 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('public-mail')] });
 		await setEnabled(fixture.configuration, CustomizationMarketplaceSources.AgentFinderPublicFeed.enablementSetting, false);
+		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			queries: fixture.requests.length,
 			available: fixture.page.getAccessibilityContent().includes('public-mail'),
 			installed: fixture.page.getAccessibilityContent().includes('Local mail skill'),
-		}, { queries: 1, available: false, installed: true });
+		}, { queries: 2, available: false, installed: true });
 	});
 
 	test('plugin-only source picker and accessible results keep configured provenance', async () => {
@@ -529,16 +532,17 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('plugin marketplace changes do not reload Discover when only the public feed is enabled', async () => {
+	test('plugin marketplace changes reload Discover while the public feed remains enabled', async () => {
 		const fixture = createPage([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('public')] });
 		fixture.marketplaceChanges.fire();
 		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			requests: fixture.requests.length,
 			publicResultVisible: fixture.page.getAccessibilityContent().includes('public'),
-		}, { requests: 1, publicResultVisible: true });
+		}, { requests: 2, publicResultVisible: false });
 	});
 
 	for (const query of ['', '@type:mcp mail']) {

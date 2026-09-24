@@ -15,14 +15,13 @@ import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomi
 export const enum CustomizationMarketplaceConfiguration {
 	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
-	PluginMarketplacesEnabled = 'chat.customizations.marketplace.sources.pluginMarketplaces.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
 	PluginMarketplaces: {
 		id: 'pluginMarketplaces',
 		displayName: localize('customizationMarketplace.pluginMarketplaces', "Configured Plugin Marketplaces"),
-		enablementSetting: CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled,
+		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
 	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',

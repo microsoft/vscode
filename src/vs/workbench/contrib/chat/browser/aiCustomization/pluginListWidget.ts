@@ -103,8 +103,7 @@ export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: Plu
 }
 
 export function shouldShowLegacyPluginMarketplace(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true ||
-		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) !== true;
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
 }
 
 export function isCurrentPluginMarketplaceRequest(
@@ -830,9 +829,7 @@ export class PluginListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
 			}
-			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
-				e.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) &&
-				this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
+			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceSnapshotCts?.dispose(true);
 				this.marketplaceSnapshot.reset();

@@ -493,7 +493,7 @@ suite('aiCustomizationManagementEditor', () => {
 	});
 
 	test('keeps a contributed section alive while either source is enabled', async () => {
-		const secondSetting = CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled;
+		const secondSetting = 'test.marketplace.second.enabled';
 		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(
 			true, [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, secondSetting]);
 		editor.rebuildVisibleSections();
@@ -543,8 +543,6 @@ suite('aiCustomizationManagementEditor', () => {
 				setSearchQuery(query: string) { queries.push(query); },
 			},
 		});
-		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
-		await configuration.updateValue(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });

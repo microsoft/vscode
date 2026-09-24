@@ -43,7 +43,7 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 		this._register(marketplaceService.onDidChangeMarketplaces(() => this.invalidate()));
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-				event.affectsConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) ||
+				event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
 				event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)) {
 				this.invalidate();
 			}

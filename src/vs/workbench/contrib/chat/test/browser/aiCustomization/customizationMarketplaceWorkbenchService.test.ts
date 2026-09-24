@@ -64,11 +64,11 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
 		const pages = [
-			await service.query({}, CancellationToken.None),
-			await service.query({ query: 'review' }, CancellationToken.None),
+			await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None),
+			await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], query: 'review' }, CancellationToken.None),
 		];
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
-		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None), isCancellationError);
 
 		assert.deepStrictEqual({
 			whileDisabled,
@@ -82,7 +82,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('plugin-only Discover does not query the public feed', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const reference = parseMarketplaceReference('owner/catalog')!;
 		let publicCalls = 0;
 		let pluginCalls = 0;
@@ -124,7 +124,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
 		const publicResult = new DeferredPromise<Awaited<ReturnType<ICustomizationMarketplaceService['query']>>>();
 		const pluginResult = new DeferredPromise<IMarketplacePlugin[]>();
 		const calls: string[] = [];
