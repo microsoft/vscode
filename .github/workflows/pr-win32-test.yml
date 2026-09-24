@@ -279,37 +279,29 @@ jobs:
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
-      - name: Set up managed settings smoke fixture
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        id: managed-settings-fixture
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path "$env:ProgramFiles\GitHubCopilot" | Out-Null
-          "created=true" >> $env:GITHUB_OUTPUT
-
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 30
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $directory = "$env:ProgramFiles\GitHubCopilot"
+          New-Item -ItemType Directory -Path $directory | Out-Null
+          try {
+            npm run smoketest-no-compile -- --tracing
+            exit $LASTEXITCODE
+          } finally {
+            $file = Join-Path $directory 'managed-settings.json'
+            if (Test-Path -LiteralPath $file) {
+              Remove-Item -LiteralPath $file
+            }
+            [System.IO.Directory]::Delete($directory)
+          }
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
           VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
           VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
-
-      - name: Clean up managed settings smoke fixture
-        if: ${{ always() && steps.managed-settings-fixture.outputs.created == 'true' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $directory = "$env:ProgramFiles\GitHubCopilot"
-          $file = Join-Path $directory 'managed-settings.json'
-          if (Test-Path -LiteralPath $file) {
-            Remove-Item -LiteralPath $file
-          }
-          [System.IO.Directory]::Delete($directory)
 
       - name: Clean up WSL Dev Container smoke tests
         if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
