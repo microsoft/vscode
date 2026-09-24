@@ -108,6 +108,27 @@
 	align-self: center;
 }
 
+.new-session-contextual-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	align-self: center;
+	margin-bottom: var(--vscode-spacing-size400);
+	text-align: center;
+}
+
+.new-session-contextual-message[hidden] {
+	display: none;
+}
+
+.new-session-contextual-message-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.4;
+	margin: 0;
+}
+
 /* Flex centering shares attachment growth above and below the midpoint. Offset
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {

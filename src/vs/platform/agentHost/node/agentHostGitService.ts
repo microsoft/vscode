@@ -56,8 +56,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
-	async getCurrentBranchName(workingDirectory: URI): Promise<string | undefined> {
-		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim() || undefined;
+	async getCurrentBranchName(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined> {
+		return (await this._runGit(workingDirectory, ['branch', '--show-current'], options))?.trim() || undefined;
 	}
 
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
@@ -1005,6 +1005,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		const status = parseGitStatusV2(statusOutput);
+		const hasGitRemote = remotesOutput !== undefined ? remotesOutput.trim().length > 0 : undefined;
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
@@ -1037,6 +1038,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		const result: ISessionGitState = {
+			hasGitRemote,
 			hasGitHubRemote,
 			branchName: status.branchName,
 			isDetachedHead: status.isDetachedHead,

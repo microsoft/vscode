@@ -26,7 +26,7 @@ import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbe
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -156,18 +156,18 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
-			promotedAction: recordedReferenceId && referenceActions ? toAction({
+			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Reference from Session"),
+				label: localize('sessionChatPills.removePullRequest', "Remove pull request reference from session"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
-			}) : undefined,
-			toolbarActions: [toAction({
+			}), chatPillRemoveReferenceHoverLabel) : undefined,
+			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
-				label: localize('sessionChatPills.copyPullRequest', "Copy Pull Request URL"),
+				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
-			})],
+			}), chatPillCopyUrlHoverLabel)],
 			...getChatPillResourceLocation(ref.uri, resourceLabel),
 			ariaDescription: checksDescription
 				? localize('sessionChatPills.pullRequestDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, ref.uri.toString(true))
@@ -222,18 +222,18 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
-			promotedAction: recordedReferenceId && referenceActions ? toAction({
+			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removeIssue', "Remove Issue Reference from Session"),
+				label: localize('sessionChatPills.removeIssue', "Remove issue reference from session"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
-			}) : undefined,
-			toolbarActions: [toAction({
+			}), chatPillRemoveReferenceHoverLabel) : undefined,
+			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
-				label: localize('sessionChatPills.copyIssue', "Copy Issue URL"),
+				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
-			})],
+			}), chatPillCopyUrlHoverLabel)],
 			...getChatPillResourceLocation(ref.uri, resourceLabel),
 			ariaDescription: issue
 				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, ref.uri.toString(true))
@@ -359,7 +359,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const pillsEnabled = constObservable(true);
 		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
-		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader));
+		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader, this._chat.read(reader)));
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
@@ -377,7 +377,8 @@ export class SessionChatInputToolbar extends Disposable {
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
-			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService).read(reader) : undefined;
+			// The pull requests are this chat's folder's, so is their Agent Merge.
+			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
 		});
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
 		const referenceActions = (session: IActiveSession, reader: IReader): IRecordedReferenceActions | undefined => session.capabilities.read(reader).supportsRemoveArtifacts ? {
