@@ -56,6 +56,7 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
+import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../../../node/shared/shellCommandExecution.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -1389,7 +1390,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
 		// `turn/started` records the host turn before any of its items complete.
 		await database.createTurn('turn-1');
-		const output = `BEGIN\n${'x'.repeat(30_000)}\nEND\n`;
+		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
 		const command = (id: string, aggregatedOutput: string | null) => ({
 			type: 'commandExecution', id,
 			command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
@@ -1443,7 +1444,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}));
 		const turns = await agent.chats.getMessages(chat, chatContext(session, chat));
 
-		const preview = output.slice(0, 2_000);
+		const preview = `${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 5)}\nEND\n`;
 		const retainedContent = [
 			{ type: ToolResultContentType.Text, text: preview },
 			{
@@ -1470,7 +1471,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('restored large command output reopens its retained terminal resource', async () => {
-		const output = `BEGIN\n${'x'.repeat(30_000)}\nEND\n`;
+		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'retained-history-thread');
 		await database.createTurn('host-turn');
@@ -1517,7 +1518,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const turns = await agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
 
-		const preview = output.slice(0, 2_000);
+		const preview = `${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 5)}\nEND\n`;
 		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
 			[
 				{ type: ToolResultContentType.Text, text: preview },

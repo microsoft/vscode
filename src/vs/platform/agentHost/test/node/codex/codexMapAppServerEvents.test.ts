@@ -12,6 +12,7 @@ import { ActionType, type ChatAction, type SessionAction } from '../../../common
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
 import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../../../node/activeClientState.js';
+import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../../../node/shared/shellCommandExecution.js';
 
 /** Extracts the content of a Markdown response part emitted by a mapper action. */
 function markdownPartContent(action: SessionAction | ChatAction | undefined): string | undefined {
@@ -633,7 +634,7 @@ suite('codexMapAppServerEvents', () => {
 
 	test('item/completed for commandExecution with retained output publishes a preview and its terminal resource', () => {
 		const state = createCodexSessionMapState();
-		const output = `BEGIN\n${'x'.repeat(30_000)}\nEND\n`;
+		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
 		const item = {
 			type: 'commandExecution', id: 'cmd_large',
 			command: 'build', cwd: '/tmp', processId: null,
@@ -648,7 +649,8 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		}, 'agenthost-terminal://shell/retained');
 
-		const preview = output.slice(0, 2_000);
+		// The preview keeps the end of the output, so `BEGIN` falls outside it.
+		const preview = `${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES - 5)}\nEND\n`;
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: 'turn_a',

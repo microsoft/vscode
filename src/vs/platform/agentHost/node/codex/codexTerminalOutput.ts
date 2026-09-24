@@ -4,27 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ToolResultContentType, type ToolResultContent } from '../../common/state/sessionState.js';
+import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../shared/shellCommandExecution.js';
 
 /**
- * Command output longer than this many characters is retained in the chat's
- * session database and shown as a preview, matching the size above which the
- * workbench terminal tool saves its output to a file.
+ * Codex reports a command's complete output, so it stays inline unless it is
+ * longer than the {@link SHELL_COMMAND_MAX_OUTPUT_BYTES} characters of shell
+ * output the agent host surfaces in a transcript.
  */
-const RETAINED_OUTPUT_THRESHOLD = 20_000;
-
-/** Characters of retained output kept inline as its preview. */
-const RETAINED_OUTPUT_PREVIEW_LENGTH = 2_000;
-
 export function shouldRetainCodexCommandOutput(output: string): boolean {
-	return output.length > RETAINED_OUTPUT_THRESHOLD;
+	return output.length > SHELL_COMMAND_MAX_OUTPUT_BYTES;
 }
 
 /**
- * Result content for a command whose complete output is retained: a bounded
- * preview, and the non-PTY terminal `resource` that serves the rest.
+ * Result content for a command whose complete output is retained: the end of
+ * the output, which is what the terminal card shows, as its preview, and the
+ * non-PTY terminal `resource` that serves the rest.
  */
 export function codexRetainedCommandOutputContent(resource: string, output: string, exitCode: number | null): ToolResultContent[] {
-	const preview = output.slice(0, RETAINED_OUTPUT_PREVIEW_LENGTH);
+	const preview = output.slice(-SHELL_COMMAND_MAX_OUTPUT_BYTES);
 	return [
 		{ type: ToolResultContentType.Text, text: preview },
 		{
