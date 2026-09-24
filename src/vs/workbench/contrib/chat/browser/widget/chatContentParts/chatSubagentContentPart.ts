@@ -256,7 +256,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	/**
 	 * Hosts the compact subagent pill: real subagents use their chat menu action,
-	 * while phase summaries have no navigation target. A subagent's chat resource
+	 * and phase summaries navigate to their phase chat when one exists. A subagent's chat resource
 	 * can arrive later, so the tool-completion autorun also updates this presentation.
 	 */
 	private _updateOpenChatLink(): void {
@@ -337,9 +337,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (!this._collapseButton) {
 			return;
 		}
-		const openChatOnly = !!this._openChatToolbar && this._shouldUseOpenChatPresentation() && (!!this._getChatResource() || this._isPhasePresentation());
+		// A confirmation that is not routed to the input carousel must stay reachable inline.
+		const hasInlineConfirmation = this.toolsWaitingForConfirmation > this.toolsWaitingForCarouselConfirmation;
+		const openChatOnly = !hasInlineConfirmation && !!this._openChatToolbar && this._shouldUseOpenChatPresentation() && (!!this._getChatResource() || this._isPhasePresentation());
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
-		if (openChatOnly || this._shouldReserveOpenChatPresentation()) {
+		if (openChatOnly || (!hasInlineConfirmation && this._shouldReserveOpenChatPresentation())) {
 			dom.hide(this._collapseButton.element);
 			if (this.contentAnimationContainer) {
 				dom.hide(this.contentAnimationContainer);
@@ -392,6 +394,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 					...commonContext,
 					presentation: 'phase',
 					phaseStatus: data.phaseStatus,
+					...(data.phaseRejectedByReview ? { rejectedByReview: true } : {}),
 					activityLabel: data.activityDescription ? new MarkdownString().appendText(data.activityDescription).value : undefined,
 					...(chatResource ? { chatResource, isChatAvailable: data.isChatAvailable } : {}),
 				} satisfies ISubagentPhaseContext;
@@ -1047,6 +1050,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 			if (isWaitingForConfirmation && !wasWaitingForConfirmation) {
 				this.toolsWaitingForConfirmation++;
+				if (!isWaitingForCarouselConfirmation) {
+					this._updateOpenChatOnlyMode();
+				}
 				if (!this.isExpanded() && !(isWaitingForCarouselConfirmation && this._shouldKeepCollapsedForCarouselConfirmation())) {
 					this.autoExpandedForConfirmation = true;
 					this.setExpanded(true);
@@ -1063,6 +1069,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				// Show the working spinner again if still active and no more confirmations
 				if (this.toolsWaitingForConfirmation === 0 && this.isActive) {
 					this.showWorkingSpinner();
+				}
+				if (!wasWaitingForCarouselConfirmation) {
+					this._updateOpenChatOnlyMode();
 				}
 			}
 

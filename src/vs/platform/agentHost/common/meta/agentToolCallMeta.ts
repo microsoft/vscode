@@ -67,6 +67,8 @@ export interface IFusionPhaseMeta {
 	readonly status: AgentFusionPhaseStatus;
 	readonly startedAt: number;
 	readonly duration?: number;
+	/** Set on a solver phase whose result a later review phase rejected; its work was discarded. */
+	readonly rejectedByReview?: boolean;
 }
 
 /** Minimal metadata needed to embed and rank a deferred tool. */
@@ -105,7 +107,8 @@ function readFusionPhase(value: unknown): IFusionPhaseMeta | undefined {
 	if (typeof data.fusionId !== 'string' || typeof data.phaseId !== 'string' || typeof data.model !== 'string'
 		|| typeof data.status !== 'string' || !knownFusionPhaseStatuses.has(data.status)
 		|| typeof data.startedAt !== 'number' || !Number.isFinite(data.startedAt)
-		|| (data.duration !== undefined && (typeof data.duration !== 'number' || !Number.isFinite(data.duration) || data.duration < 0))) {
+		|| (data.duration !== undefined && (typeof data.duration !== 'number' || !Number.isFinite(data.duration) || data.duration < 0))
+		|| (data.rejectedByReview !== undefined && typeof data.rejectedByReview !== 'boolean')) {
 		return undefined;
 	}
 	return data as IFusionPhaseMeta;

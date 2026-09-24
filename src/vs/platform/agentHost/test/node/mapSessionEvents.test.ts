@@ -128,6 +128,52 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores a solver phase rejected by review without a transcript', async () => {
+		const judge = { ...fusion.phaseCompleted, phaseId: 'judge', phaseKind: 'judge', role: 'judge', conversationScope: 'review', content: '', verdict: 'reject' } as const;
+		const repair = { ...fusion.phaseCompleted, phaseId: 'repair', phaseKind: 'repair' } as const;
+		const { turns } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Implement it.' } }]),
+			event('session.fusion_resolved', fusion.resolved),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.fusion_phase_completed', judge),
+			event('assistant.fusion_phase_completed', repair),
+			event('assistant.message', { messageId: 'final', content: 'Done.' }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual(turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+			? [{
+				toolCallId: part.toolCall.toolCallId,
+				pastTense: part.toolCall.pastTenseMessage,
+				rejected: readToolCallMeta(part.toolCall).fusionPhase?.rejectedByReview,
+				linked: !!part.toolCall.content?.some(item => item.type === ToolResultContentType.Subagent),
+			}] : []), [
+			{ toolCallId: 'fusion:fusion-1:phase-1', pastTense: 'Main pass rejected by review', rejected: true, linked: false },
+			{ toolCallId: 'fusion:fusion-1:judge', pastTense: 'Review pass completed', rejected: undefined, linked: false },
+			{ toolCallId: 'fusion:fusion-1:repair', pastTense: 'Fix-up pass completed', rejected: undefined, linked: false },
+		]);
+	});
+
+	test('restores a skill read from a Fusion phase under that phase', async () => {
+		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Run the eval.' } }]),
+			event('session.fusion_resolved', fusion.resolved),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('tool.execution_start', { toolCallId: 'tc-skill', toolName: 'skill', arguments: { skill: 'benchmark-test' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-skill', success: true, fusion: committed }, { id: 'skill-complete' }),
+			event('skill.invoked', { name: 'benchmark-test', path: '/skills/benchmark-test/SKILL.md', content: '', allowedTools: [], source: 'project', trigger: 'agent-invoked' }, { id: 'skill-event', parentId: 'skill-complete' }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		const toolKinds = (parts: readonly ResponsePart[]) => parts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall).toolKind ?? part.toolCall.toolName] : []);
+		assert.deepStrictEqual({
+			root: toolKinds(turns[0].responseParts),
+			phase: subagentTurnsByToolCallId.get('fusion:fusion-1:phase-1')?.flatMap(turn => toolKinds(turn.responseParts)),
+		}, {
+			root: ['fusionPhase'],
+			phase: ['skill'],
+		});
+	});
+
 	test('attaches early Fusion routing to the next user turn rather than the previous answer', async () => {
 		const { turns } = await mapSessionEvents(session, undefined, [
 			...toSessionEvents([

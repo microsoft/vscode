@@ -187,4 +187,39 @@ suite('CopilotFusionProgress', () => {
 		});
 	});
 
+	test('holds a solver phase for its planned review and settles it with the verdict', () => {
+		const judge = { ...data.phaseCompleted, phaseId: 'judge', phaseKind: 'judge', role: 'judge', conversationScope: 'review', content: '' } as const;
+		const run = (plan: 'cascade' | 'single', ending: 'accept' | 'reject' | 'interrupt' | 'completed') => {
+			const progress = new CopilotFusionProgress();
+			progress.accept(event('session.fusion_resolved', plan === 'cascade' ? data.resolved : { ...data.resolved, pattern: 'single', phasePlan: [data.resolved.phasePlan[0]] }));
+			const solver = progress.accept(event('assistant.fusion_phase_completed', data.phaseCompleted));
+			const settled = ending === 'interrupt' ? progress.interrupt()
+				: ending === 'completed' ? progress.accept(event('session.fusion_completed', data.completed))
+					: progress.accept(event('assistant.fusion_phase_completed', { ...judge, verdict: ending }));
+			return {
+				awaitingReview: solver?.phase?.awaitingReview,
+				settled: settled?.settledPhase && {
+					toolCallId: settled.settledPhase.toolCallId,
+					pastTense: settled.settledPhase.pastTenseMessage,
+					rejected: readToolCallMeta(settled.settledPhase).fusionPhase?.rejectedByReview,
+				},
+			};
+		};
+		const main = 'fusion:fusion-1:phase-1';
+		assert.deepStrictEqual({
+			accepted: run('cascade', 'accept'),
+			rejected: run('cascade', 'reject'),
+			interrupted: run('cascade', 'interrupt'),
+			completed: run('cascade', 'completed'),
+			single: run('single', 'completed'),
+		}, {
+			accepted: { awaitingReview: true, settled: { toolCallId: main, pastTense: 'Main pass completed', rejected: undefined } },
+			rejected: { awaitingReview: true, settled: { toolCallId: main, pastTense: 'Main pass rejected by review', rejected: true } },
+			interrupted: { awaitingReview: true, settled: { toolCallId: main, pastTense: 'Main pass completed', rejected: undefined } },
+			completed: { awaitingReview: true, settled: { toolCallId: main, pastTense: 'Main pass completed', rejected: undefined } },
+			// Without a review in the plan nothing is held; the workflow's end settles the unchanged tile.
+			single: { awaitingReview: false, settled: { toolCallId: main, pastTense: 'Main pass completed', rejected: undefined } },
+		});
+	});
+
 });

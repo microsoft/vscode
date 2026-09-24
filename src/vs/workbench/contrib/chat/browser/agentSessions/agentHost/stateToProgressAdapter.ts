@@ -421,6 +421,7 @@ function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): I
 			kind: 'subagent',
 			presentation: 'phase',
 			phaseStatus,
+			...(phase.rejectedByReview ? { phaseRejectedByReview: true } : {}),
 			activityDescription: isActive ? readToolCallMeta(tc).progressMessage : undefined,
 			hasStarted: true,
 			isActive,

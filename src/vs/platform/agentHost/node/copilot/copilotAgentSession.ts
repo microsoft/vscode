@@ -26,6 +26,7 @@ import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../..
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileOperationResult, FileSystemProviderCapabilities, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -48,7 +49,7 @@ import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
@@ -62,7 +63,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallCompletedState, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
@@ -81,7 +82,7 @@ import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigFor
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
@@ -1249,8 +1250,12 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _surfacedProvisionalFusionToolCallIds = new Set<string>();
 	private _surfaceProvisionalFusionToolStart: ((e: SessionEventPayload<'tool.execution_start'>) => void) | undefined;
-	/** Labels of the phase tiles shown this workflow, keyed by phase tool call id; a phase gets a child chat only once an event is routed to it. */
+	/** Labels of the phase tiles shown this workflow, keyed by phase tool call id; each phase opens its child chat when first shown. */
 	private readonly _fusionPhaseLabels = new Map<string, string>();
+	/** Finished solver phase tiles held open until a review decides whether their work stands. */
+	private readonly _fusionPhasesAwaitingReview = new Map<string, ToolCallCompletedState>();
+	/** Fusion attribution of hidden tool completions, keyed by event id, for events that reference them by `parentId`. */
+	private readonly _fusionByToolCompletionEventId = new Map<string, { readonly fusionId: string; readonly phaseId?: string }>();
 	/** Phase tool call ids whose child chat is open; kept until the workflow ends because commit replays arrive after the phase. */
 	private readonly _fusionPhaseChats = new Set<string>();
 	/** The latest pending close per phase chat; a close whose drain finishes after a reopen or a newer close must not fire. */
@@ -1944,6 +1949,8 @@ export class CopilotAgentSession extends Disposable {
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
 		this._clearProvisionalFusionToolCalls();
+		this._fusionPhasesAwaitingReview.clear();
+		this._fusionByToolCompletionEventId.clear();
 		this._completeFusionPhaseChats();
 		// Labels outlive a closed chat within the turn so a resumed workflow reopens it rather than routing to the root.
 		this._fusionPhaseLabels.clear();
@@ -2033,6 +2040,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!turn) {
 			return;
 		}
+		this._settleFusionPhasesAwaitingReview(trustedRootTurn);
 		turn.markCompleted();
 		this._reportToolCallDetails(turn, 'success');
 		this._emitAction({
@@ -2048,6 +2056,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!turn) {
 			return undefined;
 		}
+		this._settleFusionPhasesAwaitingReview(false);
 		this._reportToolCallDetails(turn, 'failed');
 		this._emitAction({
 			type: ActionType.ChatError,
@@ -2077,6 +2086,8 @@ export class CopilotAgentSession extends Disposable {
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
 		this._clearProvisionalFusionToolCalls();
+		this._fusionPhasesAwaitingReview.clear();
+		this._fusionByToolCompletionEventId.clear();
 		this._clearActivity();
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
@@ -4384,7 +4395,9 @@ export class CopilotAgentSession extends Disposable {
 			// A tool from a provisional Fusion phase is hidden until it needs
 			// the user; show it now so the confirmation has a row to land on
 			// and its completion can close that same row.
-			this._surfaceProvisionalFusionToolCall(toolCallId);
+			if (!this._surfaceProvisionalFusionToolCall(toolCallId)) {
+				this._surfaceStagedFusionToolForPermission(toolCallId, request);
+			}
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
 			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
@@ -6026,6 +6039,11 @@ export class CopilotAgentSession extends Disposable {
 			turn?.trackToolCompletion(completion);
 		};
 		this._register(wrapper.onToolComplete(e => {
+			if (!e.agentId && e.data.fusion && !this._activeToolCalls.has(e.data.toolCallId)) {
+				// Hidden tools (notably `skill`) are never tracked, but a later `skill.invoked`
+				// references this completion by `parentId` and needs its phase to nest under.
+				this._fusionByToolCompletionEventId.set(e.id, e.data.fusion);
+			}
 			if (this._surfacedProvisionalFusionToolCallIds.delete(e.data.toolCallId) && !this._activeToolCalls.has(e.data.toolCallId)) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool completion already surfaced: ${e.data.toolCallId}`);
 				return;
@@ -6147,7 +6165,11 @@ export class CopilotAgentSession extends Disposable {
 					pluginVersion: e.data.pluginVersion,
 				});
 			}
-			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			const fusion = e.parentId ? this._fusionByToolCompletionEventId.get(e.parentId) : undefined;
+			if (e.parentId) {
+				this._fusionByToolCompletionEventId.delete(e.parentId);
+			}
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e) ?? (fusion ? this._fusionPhaseParentToolCallId(e.agentId, fusion) : undefined);
 			const synth = synthesizeSkillToolCall(e.data, e.id);
 			this._emitAction({
 				type: ActionType.ChatToolCallStart,
@@ -6245,6 +6267,9 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (turn) {
 				this._reportToolCallDetails(turn, 'failed');
+			}
+			if (!parentToolCallId && !e.agentId) {
+				this._settleFusionPhasesAwaitingReview(false);
 			}
 			this._emitAction({
 				type: ActionType.ChatError,
@@ -7238,12 +7263,19 @@ export class CopilotAgentSession extends Disposable {
 		if (!turn) {
 			return;
 		}
+		// Settle a held phase first: it precedes anything this update adds to the transcript.
+		if (update.settledPhase && this._fusionPhasesAwaitingReview.delete(update.settledPhase.toolCallId)) {
+			if (readToolCallMeta(update.settledPhase).fusionPhase?.rejectedByReview) {
+				this._discardRejectedFusionPhaseTools(update.settledPhase.toolCallId);
+			}
+			this._completeFusionPhaseTool(turn.id, update.settledPhase, trustedRootTurn);
+		}
 		if (update.part) {
 			this._beginToolCallRound(undefined);
 			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: update.part }, undefined, trustedRootTurn);
 		}
 		if (update.phase) {
-			const { toolCall, isNew } = update.phase;
+			const { toolCall, isNew, awaitingReview } = update.phase;
 			if (isNew) {
 				this._beginToolCallRound(undefined);
 				this._emitAction({
@@ -7253,7 +7285,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 			// A terminal event can be the first observation of a phase. It still
 			// needs to enter Running before Complete; repeat Ready refreshes live metadata.
-			if (isNew || toolCall.status === ToolCallStatus.Running) {
+			// A solver phase awaiting review stays Running so its outcome can still be recorded,
+			// while its metadata already presents it as finished.
+			const holdForReview = awaitingReview === true && toolCall.status === ToolCallStatus.Completed;
+			if (isNew || toolCall.status === ToolCallStatus.Running || holdForReview) {
 				this._emitAction({
 					type: ActionType.ChatToolCallReady, turnId: turn.id, toolCallId: toolCall.toolCallId,
 					invocationMessage: toolCall.invocationMessage, confirmed: ToolCallConfirmationReason.NotNeeded,
@@ -7262,16 +7297,65 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (isNew && !this._dropLateRootTurnEvents) {
 				this._fusionPhaseLabels.set(toolCall.toolCallId, toolCall.displayName);
+				// Open the phase chat up front so the pill is navigable while the phase runs,
+				// including a phase whose work a review later rejects and never replays.
+				this._openFusionPhaseChat(toolCall.toolCallId, toolCall.displayName);
 			}
-			if (toolCall.status === ToolCallStatus.Completed) {
-				this._emitAction({
-					type: ActionType.ChatToolCallComplete, turnId: turn.id, toolCallId: toolCall.toolCallId,
-					result: { success: toolCall.success, pastTenseMessage: toolCall.pastTenseMessage, content: toolCall.content },
-					_meta: toolCall._meta,
-				}, undefined, trustedRootTurn);
+			if (holdForReview) {
+				this._fusionPhasesAwaitingReview.set(toolCall.toolCallId, toolCall);
+			} else if (toolCall.status === ToolCallStatus.Completed) {
+				this._completeFusionPhaseTool(turn.id, toolCall, trustedRootTurn);
 			}
 		}
 		this._publishActivity('fusion', update.activity);
+	}
+
+	private _completeFusionPhaseTool(turnId: string, toolCall: ToolCallCompletedState, trustedRootTurn: boolean): void {
+		this._emitAction({
+			type: ActionType.ChatToolCallComplete, turnId, toolCallId: toolCall.toolCallId,
+			result: { success: toolCall.success, pastTenseMessage: toolCall.pastTenseMessage, content: toolCall.content },
+			_meta: toolCall._meta,
+		}, undefined, trustedRootTurn);
+	}
+
+	/** Completes any held phase tiles as they are, before their turn ends without a review outcome. */
+	private _settleFusionPhasesAwaitingReview(trustedRootTurn: boolean): void {
+		const turn = this._currentTurn.value;
+		if (!turn || this._fusionPhasesAwaitingReview.size === 0) {
+			return;
+		}
+		const toolCalls = [...this._fusionPhasesAwaitingReview.values()];
+		this._fusionPhasesAwaitingReview.clear();
+		for (const toolCall of toolCalls) {
+			this._completeFusionPhaseTool(turn.id, toolCall, trustedRootTurn);
+		}
+	}
+
+	/**
+	 * Closes the rows a rejected phase showed early. Their staged completions only replay for a
+	 * winning phase, so without this they would keep spinning inside the phase chat.
+	 */
+	private _discardRejectedFusionPhaseTools(phaseToolCallId: string): void {
+		for (const [toolCallId, tracked] of [...this._activeToolCalls]) {
+			if (tracked.parentToolCallId !== phaseToolCallId) {
+				continue;
+			}
+			this._activeToolCalls.delete(toolCallId);
+			this._provisionalFusionToolStarts.delete(toolCallId);
+			if (isShellTool(tracked.toolName)) {
+				this._nonPtyShellTerminals.retire(toolCallId);
+			}
+			this._emitAction({
+				type: ActionType.ChatToolCallComplete,
+				turnId: tracked.turnId,
+				toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: tracked.displayName,
+					error: { message: localize('copilot.fusion.toolDiscarded', "Result discarded because the review rejected this pass.") },
+				},
+			}, phaseToolCallId);
+		}
 	}
 
 	private _recordHostSdkTurn(sdkTurnId: string, hostTurnId: string): void {
@@ -7305,7 +7389,7 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionPhaseChats.add(toolCallId);
 		// Reopening supersedes a close still waiting on its drain.
 		this._pendingFusionPhaseChatCloses.delete(toolCallId);
-		// Usually opened after the phase tile completed, so the host's Subagent discovery block is rejected; clients follow the chat catalog, and restore links it.
+		// Opened when the phase tile is first shown, so the host attaches its Subagent discovery block to the running tile; restore links it for phases with a committed conversation.
 		this._onDidSessionProgress.fire({
 			kind: 'subagent_started',
 			chat: this._chatChannelUri,
@@ -7368,7 +7452,7 @@ export class CopilotAgentSession extends Disposable {
 		this._provisionalFusionToolStarts.delete(toolCallId);
 		this._surfacedProvisionalFusionToolCallIds.add(toolCallId);
 		this._logService.info(synthesized
-			? `[Copilot:${this.sessionId}] Surfacing client tool whose start Fusion staged: ${toolCallId} (${start.data.toolName})`
+			? `[Copilot:${this.sessionId}] Surfacing tool whose start Fusion staged: ${toolCallId} (${start.data.toolName})`
 			: `[Copilot:${this.sessionId}] Surfacing provisional Fusion tool call: ${toolCallId}`);
 		this._surfaceProvisionalFusionToolStart(start);
 		return true;
@@ -7392,6 +7476,47 @@ export class CopilotAgentSession extends Disposable {
 			parentId: null,
 			ephemeral: true,
 			data: { toolCallId, toolName: invocation.toolName, ...(isObject(args) ? { arguments: args as JsonValue } : {}) },
+		});
+		this._surfaceProvisionalFusionToolCall(toolCallId, true);
+	}
+
+	/**
+	 * Fusion stages a phase's `tool.execution_start` until commit, so a permission request can be
+	 * the first sign of a phase tool. Synthesize its start under the running phase so the
+	 * confirmation lands in the phase chat, and its committed completion later closes that row.
+	 */
+	private _surfaceStagedFusionToolForPermission(toolCallId: string, request: PermissionRequest): void {
+		if (this._activeToolCalls.has(toolCallId) || this._fusionProgress.runningPhaseToolCallId === undefined) {
+			return;
+		}
+		let toolName: string;
+		let args: JsonValue | undefined;
+		let mcpServerName: string | undefined;
+		switch (request.kind) {
+			case 'shell':
+				toolName = isWindows ? CopilotToolName.PowerShell : CopilotToolName.Bash;
+				args = { command: request.fullCommandText, description: request.intention };
+				break;
+			case 'custom-tool':
+				toolName = request.toolName;
+				args = request.args;
+				break;
+			case 'mcp':
+				toolName = request.toolName;
+				args = request.args;
+				mcpServerName = request.serverName;
+				break;
+			default:
+				// Other kinds keep today's behavior: their confirmation carries its own display.
+				return;
+		}
+		this._provisionalFusionToolStarts.set(toolCallId, {
+			type: 'tool.execution_start',
+			id: generateUuid(),
+			timestamp: new Date().toISOString(),
+			parentId: null,
+			ephemeral: true,
+			data: { toolCallId, toolName, ...(args !== undefined && args !== null ? { arguments: args } : {}), ...(mcpServerName ? { mcpServerName } : {}) },
 		});
 		this._surfaceProvisionalFusionToolCall(toolCallId, true);
 	}

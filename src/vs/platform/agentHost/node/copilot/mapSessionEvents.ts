@@ -346,9 +346,13 @@ export async function mapSessionEvents(
 		const toolCallId = !agentId && fusion?.phaseId ? getFusionPhaseToolCallId(fusion.fusionId, fusion.phaseId) : undefined;
 		return toolCallId && fusionPhaseToolCallIds.has(toolCallId) ? toolCallId : undefined;
 	};
+	// `skill.invoked` carries no Fusion attribution of its own; it names the hidden `skill` tool completion by `parentId`.
+	const fusionByToolCompletionEventId = new Map<string, { readonly fusionId: string; readonly phaseId?: string }>();
 	for (const event of events) {
 		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId) {
 			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
+		} else if (event.type === 'tool.execution_complete' && event.data.fusion && !isProvisionalFusionConversationEvent(event)) {
+			fusionByToolCompletionEventId.set(event.id, event.data.fusion);
 		}
 	}
 	for (const event of events) {
@@ -814,7 +818,8 @@ export async function mapSessionEvents(
 			}
 			case 'skill.invoked': {
 				const synth = synthesizeSkillToolCall(e.data, e.id);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined)
+					?? (e.parentId ? resolveFusionPhaseToolCallId(e.agentId, fusionByToolCompletionEventId.get(e.parentId)) : undefined);
 				const builder = targetBuilderFor(parentToolCallId)
 					?? (parentBuilder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp }));
 				if (!parentToolCallId && builder === parentBuilder) {

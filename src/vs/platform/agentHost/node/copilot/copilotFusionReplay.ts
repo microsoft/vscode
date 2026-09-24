@@ -135,14 +135,16 @@ export class FusionReplayState {
 			if (update.part) {
 				parts.push(update.part);
 			}
-			if (update.phase) {
-				const toolCall = update.phase.toolCall;
+			for (const [toolCall, mayAppend] of [[update.phase?.toolCall, true], [update.settledPhase, false]] as const) {
+				if (!toolCall) {
+					continue;
+				}
 				const part: ResponsePart = { kind: ResponsePartKind.ToolCall, toolCall };
 				const index = parts.findIndex(existing => existing.kind === ResponsePartKind.ToolCall && existing.toolCall.toolCallId === toolCall.toolCallId);
-				if (index < 0) {
-					parts.push(part);
-				} else {
+				if (index >= 0) {
 					parts[index] = part;
+				} else if (mayAppend) {
+					parts.push(part);
 				}
 			}
 		}
@@ -150,7 +152,7 @@ export class FusionReplayState {
 	}
 
 	private _append(update: ICopilotFusionProgressUpdate | undefined): void {
-		if (update && (update.part || update.phase)) {
+		if (update && (update.part || update.phase || update.settledPhase)) {
 			this._updates.push(update);
 		}
 	}

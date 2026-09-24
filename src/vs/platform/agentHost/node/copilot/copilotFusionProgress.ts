@@ -88,7 +88,13 @@ export function isProvisionalFusionConversationEvent(event: SessionEvent): boole
 export interface ICopilotFusionProgressUpdate {
 	readonly activity: string | undefined;
 	readonly part?: SystemNotificationResponsePart;
-	readonly phase?: { readonly toolCall: ToolCallRunningState | ToolCallCompletedState; readonly isNew: boolean };
+	/**
+	 * A phase tile to create or refresh. `awaitingReview` marks a completed solver phase whose
+	 * outcome a later review phase decides; live sessions keep it open until {@link settledPhase}.
+	 */
+	readonly phase?: { readonly toolCall: ToolCallRunningState | ToolCallCompletedState; readonly isNew: boolean; readonly awaitingReview?: boolean };
+	/** The final state of a solver phase once its review finished, was skipped, or the workflow ended. */
+	readonly settledPhase?: ToolCallCompletedState;
 }
 
 type FusionPhase = SessionEventPayload<'assistant.fusion_phase_started'>['data'];
@@ -111,6 +117,11 @@ function phaseLabel(kind: FusionPhase['phaseKind'], pattern: FusionPhase['patter
 		case 'revision': return localize('copilot.fusion.revision', "Revision pass");
 		case 'follow_up': return localize('copilot.fusion.followUp', "Follow-up pass");
 	}
+}
+
+/** Review phases judge another phase's result in an isolated, tool-free conversation. */
+function isReviewPhaseKind(kind: FusionPhase['phaseKind']): boolean {
+	return kind === 'judge' || kind === 'critic';
 }
 
 function workflowDescription(pattern: FusionPhase['pattern']): string {
@@ -148,6 +159,10 @@ export class CopilotFusionProgress {
 	private _interrupted = false;
 	private readonly _phaseTools = new Map<string, ToolCallRunningState | ToolCallCompletedState>();
 	private readonly _patterns = new Map<string, FusionPhase['pattern']>();
+	/** Workflows whose plan still has a review phase to run. */
+	private readonly _pendingReviews = new Set<string>();
+	/** The latest completed solver phase per workflow, which the next review judges. */
+	private readonly _reviewedPhases = new Map<string, string>();
 
 	get runningPhaseToolCallId(): string | undefined {
 		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
@@ -163,6 +178,8 @@ export class CopilotFusionProgress {
 		this._interrupted = false;
 		this._phaseTools.clear();
 		this._patterns.clear();
+		this._pendingReviews.clear();
+		this._reviewedPhases.clear();
 	}
 
 	interrupt(timestamp?: string): ICopilotFusionProgressUpdate | undefined {
@@ -172,6 +189,7 @@ export class CopilotFusionProgress {
 		this._inFlight = false;
 		this._interrupted = true;
 		const phase = this._phase ? this._updatePhase(this._phase, 'cancelled', timestamp) : undefined;
+		const settledPhase = this._fusionId ? this._settleReviewedPhase(this._fusionId, undefined) : undefined;
 		this._activity = undefined;
 		this._phase = undefined;
 		if (this._fusionId) {
@@ -180,6 +198,7 @@ export class CopilotFusionProgress {
 		return {
 			activity: undefined,
 			phase,
+			settledPhase,
 			part: phase ? undefined : milestone(localize('copilot.fusion.interrupted', "HydraFusion workflow interrupted"), 'cancelled'),
 		};
 	}
@@ -194,6 +213,7 @@ export class CopilotFusionProgress {
 		}
 		let part: SystemNotificationResponsePart | undefined;
 		let phase: ICopilotFusionProgressUpdate['phase'];
+		let settledPhase: ToolCallCompletedState | undefined;
 		switch (event.type) {
 			case 'session.fusion_route_started':
 				this._inFlight = true;
@@ -210,6 +230,9 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
+				if (d.phasePlan?.some(step => isReviewPhaseKind(step.kind))) {
+					this._pendingReviews.add(d.fusionId);
+				}
 				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, workflowDescription(d.pattern));
 				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
@@ -248,7 +271,21 @@ export class CopilotFusionProgress {
 				}
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
-				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs, d.verdict);
+				const isReview = d.conversationScope === 'review' || isReviewPhaseKind(d.phaseKind);
+				// A new solver result supersedes the one an earlier review already settled.
+				const superseded = isReview ? undefined : this._settleReviewedPhase(d.fusionId, undefined);
+				const completed = this._updatePhase(d, d.status, event.timestamp, d.durationMs, d.verdict);
+				if (isReview) {
+					this._pendingReviews.delete(d.fusionId);
+					phase = completed;
+					settledPhase = this._settleReviewedPhase(d.fusionId, d.verdict);
+				} else {
+					if (d.status === 'succeeded') {
+						this._reviewedPhases.set(d.fusionId, completed.toolCall.toolCallId);
+					}
+					phase = { ...completed, awaitingReview: d.status === 'succeeded' && this._pendingReviews.has(d.fusionId) };
+					settledPhase = superseded;
+				}
 				this._phase = undefined;
 				this._activity = d.status === 'succeeded' ? localize('copilot.fusion.continuing', "Continuing the HydraFusion workflow...") : undefined;
 				break;
@@ -261,6 +298,11 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs);
+				if (d.conversationScope === 'review' || isReviewPhaseKind(d.phaseKind)) {
+					// A failed review decides nothing; the reviewed result stands.
+					this._pendingReviews.delete(d.fusionId);
+					settledPhase = this._settleReviewedPhase(d.fusionId, undefined);
+				}
 				this._phase = undefined;
 				this._activity = d.degradedToPhaseId ? localize('copilot.fusion.fallback', "Continuing with a fallback phase...") : undefined;
 				break;
@@ -277,6 +319,8 @@ export class CopilotFusionProgress {
 				const d = event.data;
 				this._finishedFusions.add(d.fusionId);
 				this._inFlight = false;
+				this._pendingReviews.delete(d.fusionId);
+				settledPhase = this._settleReviewedPhase(d.fusionId, undefined);
 				// The phase pills already show a clean run; only a fallback or an abnormal ending needs a row.
 				const degraded = d.outcome === 'degraded' || (d.degradedReason !== null && d.degradedReason !== undefined);
 				if (degraded) {
@@ -289,7 +333,40 @@ export class CopilotFusionProgress {
 				break;
 			}
 		}
-		return { part, phase, activity: this._activity };
+		return { part, phase, settledPhase, activity: this._activity };
+	}
+
+	/**
+	 * Settles the solver phase a review judged. A rejection is recorded on that phase so its
+	 * pill can say its work was discarded; any other outcome finalizes it unchanged.
+	 */
+	private _settleReviewedPhase(fusionId: string, verdict: string | null | undefined): ToolCallCompletedState | undefined {
+		const toolCallId = this._reviewedPhases.get(fusionId);
+		if (toolCallId === undefined) {
+			return undefined;
+		}
+		this._reviewedPhases.delete(fusionId);
+		const toolCall = this._phaseTools.get(toolCallId);
+		if (toolCall?.status !== ToolCallStatus.Completed) {
+			return undefined;
+		}
+		if (verdict !== 'reject') {
+			return toolCall;
+		}
+		const meta = readToolCallMeta(toolCall);
+		if (!meta.fusionPhase) {
+			return toolCall;
+		}
+		const label = toolCall.displayName;
+		const summary = localize('copilot.fusion.phaseRejected', "{0} rejected by review", label);
+		const rejected: ToolCallCompletedState = {
+			...toolCall,
+			pastTenseMessage: summary,
+			content: [{ type: ToolResultContentType.Text, text: new MarkdownString().appendText(summary).appendMarkdown('\n\n').appendText(localize('copilot.fusion.phaseRejectedDetails', "The review rejected this result, so its work was discarded and another phase continued the task.")).value }],
+			_meta: toToolCallMeta({ ...meta, fusionPhase: { ...meta.fusionPhase, rejectedByReview: true } }),
+		};
+		this._phaseTools.set(toolCallId, rejected);
+		return rejected;
 	}
 
 	private _updatePhase(data: Pick<FusionPhase, 'fusionId' | 'phaseId' | 'phaseKind' | 'model'>, status: IFusionPhaseMeta['status'], timestamp: string | undefined, duration?: number, verdict?: string | null): NonNullable<ICopilotFusionProgressUpdate['phase']> {

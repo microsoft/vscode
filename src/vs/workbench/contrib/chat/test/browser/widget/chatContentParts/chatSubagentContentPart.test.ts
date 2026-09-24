@@ -549,7 +549,7 @@ suite('ChatSubagentContentPart', () => {
 				opened: 0, tracked: 0, dragged: 0, dragPrevented: true,
 				enabled: false, draggable: false, role: 'group', ariaDisabled: null,
 				tabIndex: -1, focusable: false, focused: false,
-				phaseTooltip: 'HydraFusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
+				phaseTooltip: 'HydraFusion phase: Main pass\nPhase cancelled\nModel: model-a\nNo transcript is available for this pass.', model: 'model-a',
 				cancelled: true, cancelledIcon: true,
 			});
 		});
@@ -566,6 +566,32 @@ suite('ChatSubagentContentPart', () => {
 			assert.deepStrictEqual({ before, after: { role: container.getAttribute('role'), tabIndex: container.tabIndex } }, {
 				before: { role: 'group', focusable: false },
 				after: { role: 'button', tabIndex: 0 },
+			});
+		});
+
+		test('a phase pill marks a rejected pass and a pending approval, and explains a missing transcript', () => {
+			const context: ISubagentPhaseContext = { presentation: 'phase', phaseStatus: 'succeeded', title: 'Main pass', modelName: 'model-a', parentModelName: 'model-a' };
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, true));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			const snapshot = () => ({
+				tooltip: item.tooltip,
+				discardIcon: !!container.querySelector('.codicon-discard'),
+				waiting: container.classList.contains('chat-subagent-waiting'),
+			});
+			item.setActionContext({ ...context, rejectedByReview: true } satisfies ISubagentPhaseContext);
+			const rejected = snapshot();
+			item.setActionContext({ ...context, rejectedByReview: true, chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/fusion%3Aphase', isChatAvailable: true } satisfies ISubagentPhaseContext);
+			const rejectedWithChat = snapshot();
+			item.setActionContext({ ...context, phaseStatus: 'running', isActive: true, confirmationCount: 1, chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/fusion%3Aphase', isChatAvailable: true } satisfies ISubagentPhaseContext);
+			assert.deepStrictEqual({ rejected, rejectedWithChat, waiting: snapshot() }, {
+				rejected: {
+					tooltip: 'HydraFusion phase: Main pass\nRejected by review\nModel: model-a\nNo transcript is available because the review discarded this pass.',
+					discardIcon: true, waiting: false,
+				},
+				rejectedWithChat: { tooltip: 'HydraFusion phase: Main pass\nRejected by review\nModel: model-a', discardIcon: true, waiting: false },
+				waiting: { tooltip: 'HydraFusion phase: Main pass\nPhase is waiting for approval\nModel: model-a', discardIcon: false, waiting: true },
 			});
 		});
 
@@ -819,7 +845,7 @@ suite('ChatSubagentContentPart', () => {
 				const restoredContainer = mainWindow.document.createElement('div');
 				restoredItem.render(restoredContainer);
 				const statusLabel = phaseStatus === 'succeeded' ? 'completed' : phaseStatus;
-				const expected = { hidden: true, text: '', ariaLabel: `HydraFusion phase: Main pass. Phase ${statusLabel}` };
+				const expected = { hidden: true, text: '', ariaLabel: `HydraFusion phase: Main pass. Phase ${statusLabel}. No transcript is available for this pass.` };
 				assert.deepStrictEqual({ before, restored: snapshot(restoredContainer) }, { before: expected, restored: expected });
 			}));
 		}

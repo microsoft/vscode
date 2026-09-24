@@ -18,6 +18,8 @@ import { OpenSubagentChatActionViewItem, SubagentPillContext, type IOpenSubagent
 export interface ISubagentPhaseContext extends SubagentPillContext {
 	readonly presentation: 'phase';
 	readonly phaseStatus?: AgentFusionPhaseStatus;
+	/** Whether a later review rejected this phase's result, so its work was discarded. */
+	readonly rejectedByReview?: boolean;
 	readonly activityLabel?: string;
 	/** The phase's own chat, holding its tool calls and intermediate messages, when the host provides one. */
 	readonly chatResource?: string;
@@ -131,11 +133,18 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 	}
 
 	protected override get status(): SubagentChatStatus | undefined {
-		const status = this.pillContext?.phaseStatus;
+		const context = this.pillContext;
+		if ((context?.confirmationCount ?? 0) > 0) {
+			return 'waiting';
+		}
+		const status = context?.phaseStatus;
 		return status === 'succeeded' ? 'completed' : status;
 	}
 
 	protected override get statusIcon(): ThemeIcon {
+		if (this.status === 'completed' && this.pillContext?.rejectedByReview) {
+			return Codicon.discard;
+		}
 		return this.status === 'failed' ? Codicon.error : this.status === 'cancelled' ? Codicon.circleSlash : Codicon.check;
 	}
 
@@ -151,7 +160,10 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 	private get statusLabel(): string | undefined {
 		switch (this.status) {
 			case 'running': return localize('chat.phase.running', "Phase is running");
-			case 'completed': return localize('chat.phase.completed', "Phase completed");
+			case 'waiting': return localize('chat.phase.waiting', "Phase is waiting for approval");
+			case 'completed': return this.pillContext?.rejectedByReview
+				? localize('chat.phase.rejected', "Rejected by review")
+				: localize('chat.phase.completed', "Phase completed");
 			case 'failed': return localize('chat.phase.failed', "Phase failed");
 			case 'cancelled': return localize('chat.phase.cancelled', "Phase cancelled");
 			default: return undefined;
@@ -164,7 +176,18 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 			localize('chat.phase.title', "HydraFusion phase: {0}", this.pillContext?.title ?? this.action.label),
 			this.statusLabel,
 			modelName ? localize('chat.phase.modelTooltip', "Model: {0}", modelName) : undefined,
+			this.noTranscriptLabel,
 		].filter(Boolean).join('\n');
+	}
+
+	/** Explains a finished phase that has no chat to open, typically a rejected phase restored from history. */
+	private get noTranscriptLabel(): string | undefined {
+		if (this.navigationContext || this.isActive || this.status === undefined) {
+			return undefined;
+		}
+		return this.pillContext?.rejectedByReview
+			? localize('chat.phase.noTranscriptRejected', "No transcript is available because the review discarded this pass.")
+			: localize('chat.phase.noTranscript', "No transcript is available for this pass.");
 	}
 
 	protected override updateAriaLabel(): void {

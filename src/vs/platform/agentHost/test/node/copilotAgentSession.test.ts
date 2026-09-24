@@ -18,6 +18,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -11419,10 +11420,11 @@ Use the attached image as context.
 			}, {
 				statuses: ['selected'],
 				phaseModels: ['model-a'],
-				phaseActions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+				// The plan has a review, so the finished main pass stays open until the workflow settles it.
+				phaseActions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
 				phaseParts: [],
-				// A phase gets a child chat only once one of its events is routed to it.
-				subagentSignals: [],
+				// A phase opens its child chat as soon as its tile is shown.
+				subagentSignals: [{ kind: 'subagent_started', toolCallId: 'fusion:fusion-1:phase-1' }],
 				activity: [
 					'Choosing a HydraFusion workflow...',
 					'Preparing the Cascade workflow...',
@@ -11506,7 +11508,7 @@ Use the attached image as context.
 					status,
 					model: 'model-a',
 					leaksContent: false,
-					subagentSignals: [],
+					subagentSignals: [{ kind: 'subagent_started', toolCallId: 'fusion:fusion-1:phase-1' }],
 				});
 			});
 		}
@@ -11789,7 +11791,10 @@ Use the attached image as context.
 				}, {
 					buffered: { count: 4, leaksContent: false, signals: 0 },
 					pendingEvents: 0,
-					actions: [ActionType.ChatResponsePart, ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete, ActionType.ChatResponsePart],
+					// A succeeded main pass awaits its planned review; the workflow's end settles it before its degraded row.
+					actions: phaseEvent === 'assistant.fusion_phase_completed'
+						? [ActionType.ChatResponsePart, ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete, ActionType.ChatResponsePart]
+						: [ActionType.ChatResponsePart, ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete, ActionType.ChatResponsePart],
 					leaksContent: false,
 				});
 			});
@@ -11972,7 +11977,6 @@ Use the attached image as context.
 				}
 				return signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [{ type: signal.kind, toolCallId: signal.toolCallId }] : [];
 			}), [
-				{ type: 'subagent_started', toolCallId: phaseToolCallId },
 				{ type: ActionType.ChatResponsePart, content: 'Starting the server', parent: phaseToolCallId },
 				{ type: ActionType.ChatToolCallStart, toolCallId: 'tc-bash', parent: phaseToolCallId },
 				{ type: ActionType.ChatToolCallComplete, toolCallId: 'tc-bash', parent: phaseToolCallId },
@@ -12092,10 +12096,118 @@ Use the attached image as context.
 					? [{ parent: signal.parentToolCallId, content: signal.action.part.content }] : []),
 				leaksPhaseContent: JSON.stringify(signals).includes('PRIVATE'),
 			}, {
-				chats: ['subagent_started:fusion:fusion-1:critic', 'subagent_completed:fusion:fusion-1:critic'],
+				chats: ['subagent_started:fusion:fusion-1:phase-1', 'subagent_started:fusion:fusion-1:critic', 'subagent_completed:fusion:fusion-1:phase-1', 'subagent_completed:fusion:fusion-1:critic'],
 				markdown: [{ parent: 'fusion:fusion-1:critic', content: '**Approved**\n\nAll 13 tests pass.' }],
 				leaksPhaseContent: false,
 			});
+		});
+
+		const stagedShellRequest = (toolCallId: string) => ({
+			kind: 'shell', toolCallId, canOfferSessionApproval: false, commands: [{ identifier: 'ls', readOnly: true }],
+			fullCommandText: 'ls', hasWriteFileRedirection: false, intention: 'List files', possiblePaths: [], possibleUrls: [],
+		} satisfies Extract<PermissionRequest, { kind: 'shell' }>);
+		const toolRows = (signals: readonly AgentSignal[], toolCallId: string) => signals.flatMap(signal =>
+			signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === toolCallId
+				? [`${signal.action.type}:${signal.parentToolCallId}`]
+				: signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId ? [`pending_confirmation:${signal.parentToolCallId}`] : []);
+
+		test('a staged phase tool that needs approval confirms inside its phase chat, and its committed replay closes that row', async () => {
+			const { session, mockSession, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const toolCallId = 'tc-staged-shell';
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const result = runtime.handlePermissionRequest(stagedShellRequest(toolCallId));
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest(toolCallId, true));
+			await result;
+			const beforeCommit = signals.length;
+			mockSession.fire('tool.execution_start', { toolCallId, toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'a.ts' }, fusion });
+			assert.deepStrictEqual({ beforeCommit: toolRows(signals.slice(0, beforeCommit), toolCallId), committed: toolRows(signals.slice(beforeCommit), toolCallId) }, {
+				beforeCommit: [
+					`${ActionType.ChatToolCallStart}:fusion:fusion-1:phase-1`,
+					`${ActionType.ChatToolCallReady}:fusion:fusion-1:phase-1`,
+					'pending_confirmation:fusion:fusion-1:phase-1',
+				],
+				committed: [`${ActionType.ChatToolCallComplete}:fusion:fusion-1:phase-1`],
+			});
+		});
+
+		test('a staged tool that needs approval outside a phase keeps its root confirmation', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn');
+			const result = runtime.handlePermissionRequest(stagedShellRequest('tc-root-shell'));
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest('tc-root-shell', true));
+			await result;
+			assert.deepStrictEqual(toolRows(signals, 'tc-root-shell'), ['pending_confirmation:undefined']);
+		});
+
+		for (const verdict of ['accept', 'reject'] as const) {
+			test(`a reviewed main pass stays open until its review settles it (${verdict})`, async () => {
+				const { session, mockSession, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const phaseToolCallId = 'fusion:fusion-1:phase-1';
+				const judge = { ...fusionTestData.started, phaseId: 'judge', phaseKind: 'judge', role: 'judge', conversationScope: 'review' } as const;
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+				const result = runtime.handlePermissionRequest(stagedShellRequest('tc-staged-shell'));
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest('tc-staged-shell', true));
+				await result;
+				mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+				const heldState = reduceTurnSignals(signals, 'fusion-turn');
+				mockSession.fire('assistant.fusion_phase_started', judge);
+				mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...judge, content: '', verdict });
+				const phaseTile = (state: ReturnType<typeof reduceTurnSignals>) => {
+					const part = state.activeTurn?.responseParts.find(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === phaseToolCallId);
+					return part?.kind === ResponsePartKind.ToolCall
+						? { status: part.toolCall.status, phaseStatus: readToolCallMeta(part.toolCall).fusionPhase?.status, rejected: readToolCallMeta(part.toolCall).fusionPhase?.rejectedByReview }
+						: undefined;
+				};
+				assert.deepStrictEqual({
+					held: phaseTile(heldState),
+					settled: phaseTile(reduceTurnSignals(signals, 'fusion-turn')),
+					stagedRow: toolRows(signals, 'tc-staged-shell').at(-1),
+				}, {
+					held: { status: ToolCallStatus.Running, phaseStatus: 'succeeded', rejected: undefined },
+					settled: { status: ToolCallStatus.Completed, phaseStatus: 'succeeded', rejected: verdict === 'reject' ? true : undefined },
+					// Only a rejected phase never replays its work, so only its early rows are closed here.
+					stagedRow: verdict === 'reject' ? `${ActionType.ChatToolCallComplete}:${phaseToolCallId}` : `pending_confirmation:${phaseToolCallId}`,
+				});
+			});
+		}
+
+		test('a held main pass is completed as-is when its turn ends before a review', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('session.error', { errorType: 'rate_limit', message: 'Rate limited' });
+			assert.deepStrictEqual(toolRows(signals, 'fusion:fusion-1:phase-1'), [
+				`${ActionType.ChatToolCallStart}:undefined`,
+				`${ActionType.ChatToolCallReady}:undefined`,
+				`${ActionType.ChatToolCallReady}:undefined`,
+				`${ActionType.ChatToolCallComplete}:undefined`,
+			]);
+		});
+
+		test('a skill read from a Fusion phase nests under that phase', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-skill', toolName: 'skill', arguments: { skill: 'benchmark-test' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-skill', success: true, fusion }, { id: 'skill-complete' });
+			mockSession.fire('skill.invoked', {
+				name: 'benchmark-test',
+				path: '/skills/benchmark-test/SKILL.md',
+			} as SessionEventPayload<'skill.invoked'>['data'], { id: 'skill-event', parentId: 'skill-complete' });
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart && signal.action.toolCallId !== 'fusion:fusion-1:phase-1'
+				? [signal.parentToolCallId] : []), ['fusion:fusion-1:phase-1']);
 		});
 
 		test('assistant.intent from a peer chat targets the owning session', async () => {

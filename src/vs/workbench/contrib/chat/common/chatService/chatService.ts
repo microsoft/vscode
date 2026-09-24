@@ -1209,6 +1209,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Reuse the compact pill for a phase summary without a child-chat navigation target. */
 	presentation?: 'phase';
 	phaseStatus?: AgentFusionPhaseStatus;
+	/** Whether a later review rejected this phase's result, discarding its work. */
+	phaseRejectedByReview?: boolean;
 	/** Content-free phase activity, not a tool name or a model-authored summary. */
 	activityDescription?: string;
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */

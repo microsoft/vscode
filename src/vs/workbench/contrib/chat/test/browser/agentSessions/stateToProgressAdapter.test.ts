@@ -175,6 +175,18 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	test('Fusion phases carry a review rejection to live and restored pills', () => {
+		const completed = createCompletedToolCall({
+			toolCallId: 'fusion:phase-1', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+			_meta: { toolKind: 'fusionPhase', subagentDescription: 'Main pass', fusionPhase: { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'succeeded', startedAt: 1000, duration: 2000, rejectedByReview: true } },
+			content: [{ type: ToolResultContentType.Text, text: 'Main pass rejected by review' }],
+		});
+		const serialized = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+		assert.deepStrictEqual(serialized.toolSpecificData?.kind === 'subagent' ? { status: serialized.toolSpecificData.phaseStatus, rejected: serialized.toolSpecificData.phaseRejectedByReview } : undefined, {
+			status: 'succeeded', rejected: true,
+		});
+	});
+
 	test('Fusion milestones render with status-specific icons', () => {
 		assert.deepStrictEqual(['selected', 'completed', 'failed', 'cancelled', 'degraded'].map(fusionStatus => {
 			const part = systemNotificationToChatPart('Fusion milestone', 'local', { kind: AgentSystemNotificationKind.FusionProgress, fusionStatus });
