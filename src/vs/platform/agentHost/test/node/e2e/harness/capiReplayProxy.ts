@@ -58,7 +58,7 @@ const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dum
  * cache miss (reusing a stale turn could spin the agent loop forever), whereas
  * idempotent endpoints (`/models`, token) may be safely re-served. */
 const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/messages']);
-const STORED_RESPONSE_HEADERS = new Set(['content-type']);
+const STORED_RESPONSE_HEADERS = new Set(['content-type', 'x-should-retry']);
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
@@ -1243,5 +1243,8 @@ function flattenHeaders(headers: http.IncomingHttpHeaders): Record<string, strin
 }
 
 function filterRecordedResponseHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
-	return Object.fromEntries(Object.entries(headers).filter(([key]) => STORED_RESPONSE_HEADERS.has(key.toLowerCase())));
+	return Object.fromEntries(Object.entries(headers).filter(([key, value]) =>
+		STORED_RESPONSE_HEADERS.has(key.toLowerCase())
+		// Absolute Retry-After dates expire; relative delays preserve replay behavior.
+		|| (key.toLowerCase() === 'retry-after' && /^\d+$/.test(value))));
 }

@@ -511,6 +511,17 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Claude can complete an endpoint-not-found request without a response
+
+When a model endpoint temporarily returns HTTP 404, the Claude provider can report that the turn completed even though it produced neither an answer nor an error. The user is left with an apparently finished, empty response. Other recordings of the same scenario successfully retry, so the missing response is not a stable alternative error presentation.
+
+- Test: `provider errors: missing model endpoint retries without losing the request`.
+- Scope: observed in live recording on macOS with Claude; other provider error/retry scenarios remain enabled.
+- Expected: a retried request returns the requested answer, or a failed request is surfaced as an error rather than successful empty completion.
+- Observed: `chat/turnComplete`, no `chat/error`, and no response text after the injected 404.
+- Gate: Claude HTTP 404 requires `context.runKnownIssueTests`.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts --grep 'provider errors: missing model endpoint'`.
+
 ### Submitting synchronized input answers without a replacement loses the provider's answer
 
 A client can synchronize a question's answer while the user edits it, then submit the request without repeating those answers. The chat transcript retains the submitted answer, but the provider does not receive the selected option. The agent can therefore ignore the user's choice or ask the same question again.

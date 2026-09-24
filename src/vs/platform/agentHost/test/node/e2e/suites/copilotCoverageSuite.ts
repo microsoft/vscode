@@ -25,7 +25,7 @@ import type { TerminalCommandPart, TerminalState } from '../../../../common/stat
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -41,6 +41,50 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		return;
 	}
 	const { config, createdSessions, tempDirs } = context;
+
+	providerHostOnlyTest(context, 'runtime compaction: an empty conversation returns to idle without a model request', async function () {
+		const { sessionUri } = await createWorkspaceSession('compact-empty');
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'compact-empty', '/compact', 1);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: result.responseText.trim(),
+			active: state.activeTurn,
+			states: state.turns.map(turn => turn.state),
+			requests: context.observedModelRequestBodies.length,
+		}, { response: 'Compaction completed', active: undefined, states: ['complete'], requests: 0 });
+	});
+
+	test('runtime compaction: explicit compaction retains conversation facts and permits followup', async function () {
+		this.timeout(240_000);
+		const { sessionUri } = await createWorkspaceSession('compact-context');
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-memory',
+			'Remember COMPACT_ORCHID as the exact project code word for this conversation. Reply exactly "remembered".', 1);
+		const compacted = await driveTurnToCompletion(context.client, sessionUri, 'compact-request', '/compact', 100);
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'compact-followup',
+			'What exact project code word did I ask you to remember? Reply with only that word.', 200);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			compacted: compacted.responseText.trim(),
+			followup: followup.responseText.trim(),
+			active: state.activeTurn,
+			finalState: state.turns.at(-1)?.state,
+		}, { compacted: 'Compaction completed', followup: 'COMPACT_ORCHID', active: undefined, finalState: 'complete' });
+	});
+
+	test('runtime compaction: a compacted conversation retains context after host restart', async function () {
+		this.timeout(240_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('compact-restart');
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-memory',
+			'Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly "remembered".', 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-request', '/compact', 100);
+		await context.restartServer();
+		await initialize('compact-restored', workspace);
+		await context.client.call('subscribe', { channel: sessionUri });
+		await context.client.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const response = await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-followup',
+			'What exact project code word did I ask you to remember? Reply with only that word.', 1);
+		assert.strictEqual(response.responseText.trim(), 'PERSISTED_COMPACTION');
+	});
 
 	async function initialize(clientId: string, workingDirectory: string): Promise<void> {
 		context.client.setWorkingDirectory(workingDirectory);
