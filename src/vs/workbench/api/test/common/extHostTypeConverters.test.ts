@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type * as vscode from 'vscode';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatSessionItem, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
 import { ChatReferenceBinaryData, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
 import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
@@ -308,6 +309,38 @@ suite('extHostTypeConverters', function () {
 				result: 'Passed',
 				modelName: 'Execution Model',
 			});
+		});
+	});
+
+	suite('ChatSessionItem', function () {
+		test('converts ThemeIcon iconPath', function () {
+			const item = {
+				resource: URI.parse('vscode-chat://test/session-1'),
+				label: 'Session 1',
+				iconPath: new ThemeIcon('my-ext-logo'),
+				timing: { created: 0 },
+			} as vscode.ChatSessionItem;
+			const dto = ChatSessionItem.from(item);
+			assert.strictEqual(dto.iconPath?.id, 'my-ext-logo');
+		});
+
+		test('drops URI iconPath', function () {
+			const item = {
+				resource: URI.parse('vscode-chat://test/session-1'),
+				label: 'Session 1',
+				iconPath: URI.parse('file:///icon.svg'),
+				timing: { created: 0 },
+			} as vscode.ChatSessionItem;
+			assert.strictEqual(ChatSessionItem.from(item).iconPath, undefined);
+		});
+
+		test('undefined when no iconPath', function () {
+			const item = {
+				resource: URI.parse('vscode-chat://test/session-1'),
+				label: 'Session 1',
+				timing: { created: 0 },
+			} as vscode.ChatSessionItem;
+			assert.strictEqual(ChatSessionItem.from(item).iconPath, undefined);
 		});
 	});
 });
