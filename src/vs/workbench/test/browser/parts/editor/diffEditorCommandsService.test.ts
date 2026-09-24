@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -41,12 +42,15 @@ suite('DiffEditorCommandsService', () => {
 
 	let focusCalls: string[] = [];
 	let goToDiffCalls: Array<'next' | 'previous'> = [];
+	let resetWidthBasedLayoutCalls = 0;
 
 	function createDiffEditorControl(model: ITextModel | undefined, originalFocused: boolean, modifiedFocused: boolean): IDiffEditor {
 		return new class extends mock<IDiffEditor>() {
+			override getEditorType() { return EditorType.IDiffEditor; }
 			override getOriginalEditor() { return createOriginalEditor(originalFocused); }
 			override getModifiedEditor() { return createModifiedEditor(model, modifiedFocused); }
 			override goToDiff(target: 'next' | 'previous') { goToDiffCalls.push(target); }
+			override resetWidthBasedLayout(): void { resetWidthBasedLayoutCalls++; }
 		};
 	}
 
@@ -83,6 +87,7 @@ suite('DiffEditorCommandsService', () => {
 	setup(() => {
 		focusCalls = [];
 		goToDiffCalls = [];
+		resetWidthBasedLayoutCalls = 0;
 	});
 
 	test('navigateInDiffEditor goes to the next/previous change of the active text diff editor', () => {
@@ -144,5 +149,55 @@ suite('DiffEditorCommandsService', () => {
 		await service.toggleDiffIgnoreTrimWhitespace([]);
 
 		assert.deepStrictEqual(resourceWrites, []);
+	});
+
+	test('sets explicit and automatic diff view modes', async () => {
+		const model = { uri: URI.file('/foo.txt') } as ITextModel;
+		const control = createDiffEditorControl(model, false, false);
+		const { service, resourceWrites } = createService(createTextDiffEditor(control));
+
+		await service.setViewMode([], 'inline');
+		await service.setViewMode([], 'sideBySide');
+		await service.setViewMode([], 'automatic');
+
+		assert.deepStrictEqual({
+			resourceWrites,
+			resetWidthBasedLayoutCalls,
+		}, {
+			resourceWrites: [
+				{ resource: model.uri, key: 'diffEditor.renderSideBySide', value: false },
+				{ resource: model.uri, key: 'diffEditor.renderSideBySide', value: true },
+				{ resource: model.uri, key: 'diffEditor.useInlineViewWhenSpaceIsLimited', value: false },
+				{ resource: model.uri, key: 'diffEditor.renderSideBySide', value: true },
+				{ resource: model.uri, key: 'diffEditor.useInlineViewWhenSpaceIsLimited', value: true },
+			],
+			resetWidthBasedLayoutCalls: 1,
+		});
+	});
+
+	test('sets the view mode for a multi-diff editor pane and resets all embedded layouts', async () => {
+		const model = { uri: URI.file('/foo.txt') } as ITextModel;
+		const control = createDiffEditorControl(model, false, false);
+		let resetAllCalls = 0;
+		const pane = new class extends mock<IEditorPane>() {
+			override getControl() { return control; }
+			resetDiffEditorWidthBasedLayout(): void { resetAllCalls++; }
+		};
+		const { service, resourceWrites } = createService(pane);
+
+		await service.setViewMode([], 'automatic');
+
+		assert.deepStrictEqual({
+			resourceWrites,
+			resetAllCalls,
+			resetActiveControlCalls: resetWidthBasedLayoutCalls,
+		}, {
+			resourceWrites: [
+				{ resource: model.uri, key: 'diffEditor.renderSideBySide', value: true },
+				{ resource: model.uri, key: 'diffEditor.useInlineViewWhenSpaceIsLimited', value: true },
+			],
+			resetAllCalls: 1,
+			resetActiveControlCalls: 0,
+		});
 	});
 });

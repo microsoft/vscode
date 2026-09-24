@@ -71,6 +71,9 @@ export const enum AgentHostMcpSupportReason {
 	UnresolvedConfiguration = 'unresolvedConfiguration',
 	LaunchNotRepresentable = 'launchNotRepresentable',
 	EnvironmentFileIgnored = 'environmentFileIgnored',
+	WorkingDirectoryNotPortable = 'workingDirectoryNotPortable',
+	ServerVersionNotPortable = 'serverVersionNotPortable',
+	SseTransportNotPortable = 'sseTransportNotPortable',
 	SandboxConfigurationIgnored = 'sandboxConfigurationIgnored',
 	DevelopmentModeIgnored = 'developmentModeIgnored',
 	OAuthClientConfigurationIgnored = 'oauthClientConfigurationIgnored',
@@ -116,6 +119,8 @@ export interface IAgentHostMcpServerSupport {
 	readonly delivery: AgentHostMcpServerDelivery;
 	/** Whether that delivery preserves the configuration's behavior. */
 	readonly compatibility: AgentHostMcpServerCompatibility;
+	/** The exact configuration projected through the current Agent Host delivery path. */
+	readonly projectedConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -166,7 +171,7 @@ export async function assessMcpServersForCopilotAgentHost(
 
 	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
 	return {
-		servers: resolved.map(({ server, source, applicability, delivery, compatibility }) => ({
+		servers: resolved.map(({ server, source, applicability, delivery, compatibility, projectedConfiguration }) => ({
 			id: server.definition.id,
 			name: server.definition.label,
 			collectionId: server.collection.id,
@@ -175,6 +180,7 @@ export async function assessMcpServersForCopilotAgentHost(
 			applicability,
 			delivery,
 			compatibility,
+			projectedConfiguration,
 		})),
 		discoveryComplete: lazyCollectionState === LazyCollectionState.AllKnown,
 	};
@@ -291,7 +297,7 @@ async function resolveMcpServerForAgentHostDelivery(
 		}
 	}
 
-	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode);
+	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode, definition.version);
 	const unknownReasons = source.kind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	const delivery = applicability === AgentHostMcpServerApplicability.Applicable
 		? AgentHostMcpServerDelivery.ClientForwarded
@@ -494,11 +500,12 @@ async function assessDisabledInstalledMcpServer(
 	configurationResolverService: IConfigurationResolverService,
 	workingDirectories: readonly URI[] | undefined,
 ): Promise<IAgentHostMcpServerSupport> {
-	const sourceKind = getMcpConfigurationSourceKind(server.configPath?.target);
+	const sourceKind = getMcpCollectionSourceKind(server.configPath?.provenance ?? getMcpCollectionProvenance(server.configPath?.target), undefined)
+		?? AgentHostMcpServerSourceKind.Unknown;
 	const compatibility = await getInstalledMcpServerCompatibility(server, sourceKind, configurationResolverService);
-	const collectionId = server.configPath
+	const collectionId = server.configPath?.collectionId ?? (server.configPath
 		? `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${server.configPath.id}`
-		: getCollectionIdFromInstalledServer(server);
+		: getCollectionIdFromInstalledServer(server));
 	return {
 		id: server.id,
 		name: server.name,
@@ -528,11 +535,6 @@ function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer
 	return server.id.endsWith(nameSuffix)
 		? server.id.slice(0, -nameSuffix.length)
 		: `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}unknown`;
-}
-
-function getMcpConfigurationSourceKind(configTarget: ConfigurationTarget | undefined): AgentHostMcpServerSourceKind {
-	return getMcpCollectionSourceKind(getMcpCollectionProvenance(configTarget), undefined)
-		?? AgentHostMcpServerSourceKind.Unknown;
 }
 
 async function getInstalledMcpServerCompatibility(
@@ -569,6 +571,7 @@ async function getInstalledMcpServerCompatibility(
 		launch,
 		server.configuration.type === McpServerType.LOCAL ? server.configuration.sandboxEnabled : undefined,
 		server.configuration.dev,
+		server.configuration.version,
 	);
 	const unknownReasons = sourceKind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	return getCompatibility(unsupportedReasons, partialReasons, unknownReasons);
@@ -626,6 +629,7 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 		case McpServerTransportType.HTTP:
 			return {
 				type: McpServerType.REMOTE,
+				transport: launch.transport === 'sse' ? 'sse' : 'http',
 				url: launch.uri.toString(),
 				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
 			};
@@ -670,20 +674,31 @@ function getExpressionUnresolvedReason(expression: ConfigurationResolverExpressi
 	return hasUnresolved ? AgentHostMcpSupportReason.UnresolvedConfiguration : undefined;
 }
 
-function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode']): AgentHostMcpSupportReason[] {
+function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode'], version: string | undefined): AgentHostMcpSupportReason[] {
 	const reasons: AgentHostMcpSupportReason[] = [];
 	if (launch.type === McpServerTransportType.Stdio) {
 		if (launch.envFile) {
 			reasons.push(AgentHostMcpSupportReason.EnvironmentFileIgnored);
 		}
+		if (launch.cwd !== undefined) {
+			reasons.push(AgentHostMcpSupportReason.WorkingDirectoryNotPortable);
+		}
 		if (launch.sandbox || sandboxEnabled) {
 			reasons.push(AgentHostMcpSupportReason.SandboxConfigurationIgnored);
 		}
-	} else if (launch.oauth) {
-		reasons.push(AgentHostMcpSupportReason.OAuthClientConfigurationIgnored);
+	} else {
+		if (launch.oauth) {
+			reasons.push(AgentHostMcpSupportReason.OAuthClientConfigurationIgnored);
+		}
+		if (launch.transport === 'sse') {
+			reasons.push(AgentHostMcpSupportReason.SseTransportNotPortable);
+		}
 	}
 	if (devMode) {
 		reasons.push(AgentHostMcpSupportReason.DevelopmentModeIgnored);
+	}
+	if (version !== undefined) {
+		reasons.push(AgentHostMcpSupportReason.ServerVersionNotPortable);
 	}
 	return reasons;
 }

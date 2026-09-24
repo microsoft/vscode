@@ -40,7 +40,7 @@ async function getElectron() {
 	// directory is being removed and re-extracted. Skip the refresh when the
 	// already-present Electron matches the expected version; any detection
 	// failure falls back to a (re)download to preserve the previous behavior.
-	if (await isExpectedElectronInstalled()) {
+	if (!process.env['VSCODE_FORCE_PRELAUNCH'] && await isExpectedElectronInstalled()) {
 		return;
 	}
 	await runProcess(npm, ['run', 'electron']);
@@ -66,9 +66,6 @@ async function ensureCompiled() {
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
-	if (process.argv.includes('--only-electron')) {
-		return;
-	}
 	await ensureCompiled();
 
 	// Can't require this until after dependencies are installed

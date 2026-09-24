@@ -12,13 +12,14 @@ import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { mapValues } from '../../../../base/common/objects.js';
-import { autorun, autorunSelfDisposable, derived, derivedDisposable, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, derived, derivedDisposable, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { hasConfigurationVariable } from '../../../../platform/configuration/common/configurationVariables.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerIdentity } from '../../../../platform/mcp/common/allowedMcpServers.js';
@@ -29,7 +30,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -402,22 +402,12 @@ export class McpServer extends Disposable implements IMcpServer {
 	public readonly collection: McpCollectionReference;
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
+	private readonly _resolvedPolicyIdentity = observableValue<{ definition: McpServerDefinition; identity: IMcpServerIdentity } | undefined>(this, undefined);
 
 	public readonly connection = this._connection;
 
-	/**
-	 * Reactively evaluates the `chat.mcp.allowedServers` / `chat.mcp.deniedServers` policy against
-	 * this server's identity. Holds an error state while blocked, `undefined` while allowed.
-	 *
-	 * Being a derived, it recomputes whenever the policy changes (via {@link _policyEpoch}), the
-	 * server definition changes, or a connection resolves — so it always evaluates the *resolved*
-	 * launch of a live connection and falls back to the definition otherwise. This also means a
-	 * blocked server surfaces the block at rest (before any start), which hides its cached tools
-	 * and prompts and lets the UI show the reason.
-	 *
-	 * Initialized in the constructor because it depends on the injected allowed-servers service.
-	 */
 	private readonly _policyEpoch: IObservable<void>;
+	/** Retains policy enforcement for the last resolved launch while its definition is unchanged. */
 	private readonly _policyBlock: IObservable<McpConnectionState.Error | undefined>;
 	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._policyBlock.read(reader) ?? this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
 
@@ -539,7 +529,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
 		this.enablement = derived(r => enablementModel.readEnabled(definition.id, r));
 
-		this._policyEpoch = observableFromEvent(this, this._allowedMcpServersService.onDidChangeAllowedMcpServers, () => undefined);
+		this._policyEpoch = observableSignalFromEvent(this, this._allowedMcpServersService.onDidChangeAllowedMcpServers);
 		this._policyBlock = derived<McpConnectionState.Error | undefined>(this, reader => {
 			this._policyEpoch.read(reader);
 			const connection = this._connection.read(reader);
@@ -547,28 +537,26 @@ export class McpServer extends Disposable implements IMcpServer {
 				// Authoritative: the connection carries the fully resolved launch.
 				return this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
 			}
-			// At rest, only decide when we have a concrete, fully-resolved launch. If the definition
-			// has not been provided yet (e.g. a lazy/extension server before activation) or the launch
-			// still contains unresolved `${...}` variables (inputs, workspace or env vars), a
-			// URL/command allow/deny rule cannot be matched reliably, so defer the decision to start()
-			// — which re-checks the fully resolved launch — to avoid over-eagerly blocking (and hiding
-			// the cached tools of) a server that will actually be allowed once resolved. `chat.mcp.access`
-			// and deny-by-name are still enforced at start(), and access also by the enablement layer.
-			const launch = this._fullDefinitions.read(reader).server?.launch;
+			const definition = this._fullDefinitions.read(reader).server;
+			const resolved = this._resolvedPolicyIdentity.read(reader);
+			if (resolved && definition && McpServerDefinition.equals(resolved.definition, definition)) {
+				return this._evaluatePolicy(resolved.identity);
+			}
+			const launch = definition?.launch;
 			if (!launch) {
 				return undefined;
 			}
-			const identity = this._identityFromLaunch(launch);
-			if (McpServer._hasUnresolvedVariables(identity)) {
-				return undefined;
-			}
-			return this._evaluatePolicy(identity);
+			return this._evaluatePolicy(this._identityFromLaunch(launch), 'definition');
 		});
 
-		// Stop a live connection when the policy blocks it (e.g. the policy was tightened while the
-		// server was running). The block itself is evaluated reactively by `_policyBlock`, which also
-		// hides cached tools/prompts and surfaces the reason in the UI.
 		this._register(autorun(reader => {
+			const resolved = this._resolvedPolicyIdentity.read(reader);
+			const definition = this._fullDefinitions.read(reader).server;
+			// A reverted definition must not revive an identity from before its last change.
+			if (resolved && (!definition || !McpServerDefinition.equals(resolved.definition, definition))) {
+				this._resolvedPolicyIdentity.set(undefined, undefined);
+			}
+
 			if (this._policyBlock.read(reader) && this._connection.read(undefined)) {
 				this._connection.set(undefined, undefined); // disposes and stops the connection
 			}
@@ -740,31 +728,33 @@ export class McpServer extends Disposable implements IMcpServer {
 		return { name: this.definition.label };
 	}
 
-	private _evaluatePolicy(identity: IMcpServerIdentity): McpConnectionState.Error | undefined {
-		const allowed = this._allowedMcpServersService.isServerAllowed(identity);
+	private _evaluatePolicy(identity: IMcpServerIdentity, phase: 'definition' | 'resolved' = 'resolved'): McpConnectionState.Error | undefined {
+		const allowed = phase === 'definition'
+			? this._allowedMcpServersService.isServerAllowedBeforeResolution(identity)
+			: this._allowedMcpServersService.isServerAllowed(identity);
 		return allowed === true ? undefined : { state: McpConnectionState.Kind.Error, message: allowed.value };
 	}
 
-	/**
-	 * Whether the URL/command fields matched by the policy still contain unresolved `${...}`
-	 * configuration variables. When they do, matching against allow/deny URL or command rules is
-	 * unreliable, so the block is deferred until the launch is resolved. The server name is used
-	 * verbatim and is not considered here.
-	 */
+	/** Whether policy URL/command fields contain unresolved configuration variables; the server name is literal. */
 	private static _hasUnresolvedVariables(identity: IMcpServerIdentity): boolean {
-		const variableMarker = ConfigurationResolverExpression.VARIABLE_LHS;
-		return !!identity.url?.includes(variableMarker) || !!identity.command?.some(arg => arg.includes(variableMarker));
+		return (identity.url !== undefined && hasConfigurationVariable(identity.url))
+			|| (identity.command?.some(hasConfigurationVariable) ?? false);
 	}
 
 	public start({ interaction, autoTrustChanges, promptType, debug, errorOnUserInteraction }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
 		interaction?.participants.set(this.definition.id, { s: 'unknown' });
 
 		return this._connectionSequencer.queue<McpConnectionState>(async () => {
-			// Evaluated against the definition here (no connection yet). `_policyBlock` re-evaluates
-			// against the resolved launch once the connection exists (checked again below).
 			const preStartBlock = this._policyBlock.get();
 			if (preStartBlock) {
-				return preStartBlock;
+				const definition = this._fullDefinitions.get().server;
+				const identity = definition && this._identityFromLaunch(definition.launch);
+				const canResolveAgain = !errorOnUserInteraction && this._resolvedPolicyIdentity.get()
+					&& identity && McpServer._hasUnresolvedVariables(identity) && !this._evaluatePolicy(identity, 'definition');
+				// Keep cached metadata blocked while an interactive retry resolves the current inputs.
+				if (!canResolveAgain) {
+					return preStartBlock;
+				}
 			}
 
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
@@ -814,18 +804,19 @@ export class McpServer extends Disposable implements IMcpServer {
 					return { state: McpConnectionState.Kind.Stopped };
 				}
 
-				this._connection.set(connection, undefined);
+				const resolvedPolicyIdentity = { definition: connection.definition, identity: this._identityFromLaunch(connection.launchDefinition) };
+				transaction(tx => {
+					this._resolvedPolicyIdentity.set(resolvedPolicyIdentity, tx);
+					this._connection.set(connection, tx);
+				});
 
 				if (connection.definition.devMode) {
 					this.showOutput();
 				}
 			}
 
-			// Re-evaluate the policy against the *resolved* launch definition. Extension activation and
-			// variable/input substitution during resolution can change the URL or command, so the
-			// identity that actually launches may differ from the one checked before resolution.
-			// `_policyBlock` now sees the live connection and uses its resolved launch.
-			const resolvedBlock = this._policyBlock.get();
+			// Check the local resolved connection: reactive policy enforcement may already have cleared `_connection`.
+			const resolvedBlock = this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
 			if (resolvedBlock) {
 				this._connection.set(undefined, undefined); // dispose the just-resolved connection
 				return resolvedBlock;
@@ -854,6 +845,11 @@ export class McpServer extends Disposable implements IMcpServer {
 					return r.value;
 				}
 			});
+
+			const policyBlock = this._policyBlock.get();
+			if (policyBlock) {
+				return policyBlock;
+			}
 
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
 				state: McpConnectionState.toKindString(state.state),

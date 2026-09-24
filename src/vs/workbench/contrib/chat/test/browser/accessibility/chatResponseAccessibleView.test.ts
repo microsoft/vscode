@@ -7,18 +7,104 @@ import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
+import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import type { IResponse } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMcpToolInvocation(): ChatToolInvocation {
+		return new ChatToolInvocation({
+			invocationMessage: 'Read issue',
+			originMessage: 'GitHub (MCP Server)',
+		}, {
+			id: 'io-github-github-github-mcp-server-issue_read',
+			displayName: 'Read issue',
+			modelDescription: 'Read an issue',
+			source: ToolDataSource.Internal,
+		}, 'tc-mcp', undefined, undefined);
+	}
+
+	test('includes MCP tool titles and server origins in live and restored content', () => {
+		const invocation = createMcpToolInvocation();
+		invocation.didExecuteTool(undefined);
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation, invocation.toJSON()] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{ partIndex: 0, text: 'Read issue. GitHub (MCP Server)' },
+			{ partIndex: 1, text: 'Read issue. GitHub (MCP Server)' },
+		]);
+	});
+
+	test('includes the canonical MCP title and origin while waiting for authentication', () => {
+		const invocation = createMcpToolInvocation();
+		invocation.invocationMessage = new MarkdownString('**Read issue**');
+		invocation.originMessage = new MarkdownString('**GitHub** (MCP Server)');
+		invocation.setAuthenticationRequired({ id: 'github', name: 'GitHub account', resource: 'https://api.github.com/mcp' });
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
+			partIndex: 0,
+			text: 'MCP authentication required for GitHub account to continue Read issue.\nGitHub (MCP Server)',
+		}]);
+	});
+
+	test('includes the canonical MCP title and origin while waiting for result approval', async () => {
+		const invocation = createMcpToolInvocation();
+		invocation.confirmationMessages = { confirmResults: true };
+		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Issue details' }] });
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [invocation] }),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
+			partIndex: 0,
+			text: 'Approve results of Read issue? Result: Issue details\nGitHub (MCP Server)',
+		}]);
+	});
+
+	test('omits the hidden workspace-continuation request text while preserving transition and provider response text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'systemNotification',
+						content: new MarkdownString('Now working in vscode'),
+						presentation: 'workspaceTransition',
+						accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Provider continued work') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+			},
+			{
+				partIndex: 1,
+				text: 'Provider continued work',
+			},
+		]);
+	});
 
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {
@@ -227,6 +313,16 @@ suite('ChatResponseAccessibleView', () => {
 				'Created an automation: Morning review',
 				'Edited an automation: Morning review',
 			]);
+		});
+
+		test('describes a created session using its full title when available', () => {
+			const sessionData: IChatSessionCreatedData = {
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://local/session',
+				label: 'Implement issue',
+				fullTitle: 'Implement issue and validate the fix',
+			};
+			assert.strictEqual(getToolSpecificDataDescription(sessionData), 'Implement issue and validate the fix');
 		});
 	});
 

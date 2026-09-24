@@ -16,7 +16,7 @@ import { BrowserViewUri } from '../../../../../platform/browserView/common/brows
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
-import { IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
@@ -119,6 +119,34 @@ suite('BrowserEditorInput', () => {
 			resourceScheme: Schemas.vscodeBrowser,
 			untypedResource: input.resource.toString(),
 			override: BrowserEditorInput.EDITOR_ID
+		});
+
+		test('reports sharing availability from the model state', () => {
+			const input = createInput({ id: 'sharing-state-browser' });
+			let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
+			input.model = new class extends mock<IBrowserViewModel>() {
+				override get sharingState(): BrowserViewSharingState { return sharingState; }
+				override readonly onWillDispose = Event.None;
+				override readonly onDidClose = Event.None;
+				override readonly onDidChangeTitle = Event.None;
+				override readonly onDidChangeFavicon = Event.None;
+				override readonly onDidChangeLoadingState = Event.None;
+			}();
+
+			const blocked = input.isSharingAvailable;
+			sharingState = BrowserViewSharingState.Available;
+			const notShared = input.isSharingAvailable;
+			sharingState = BrowserViewSharingState.Shared;
+			const shared = input.isSharingAvailable;
+			sharingState = BrowserViewSharingState.Unavailable;
+			const unavailable = input.isSharingAvailable;
+
+			assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
+				blocked: false,
+				notShared: true,
+				shared: true,
+				unavailable: false,
+			});
 		});
 	});
 

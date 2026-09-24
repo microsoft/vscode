@@ -13,6 +13,7 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -45,6 +46,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -60,6 +62,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
+import { isChatModelIdle } from '../../common/model/chatModelIdle.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -103,7 +106,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { shouldReserveChatPetSpace } from './chatPetWidget.js';
+import { getChatPetListPadding } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
@@ -113,11 +116,11 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 const $ = dom.$;
 
 /**
- * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
- * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
  * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
  */
-const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
@@ -302,6 +305,25 @@ export const chatPersistentContentVisibleClass = 'chat-persistent-content-visibl
 /** Carries {@link IChatWidgetViewOptions.persistentContentHeight} to `chat.css`. */
 export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-content-height';
 
+/** Computes the visual session state and whether its latest completion remains unvisited. */
+export function computeChatSessionStateIndicatorState(input: {
+	readonly requestNeedsInput: boolean;
+	readonly isIdle: boolean;
+	readonly containsFocus: boolean;
+	readonly requestWasActive: boolean;
+	readonly requestBecameActive: boolean;
+	readonly hasUnvisitedCompletion: boolean;
+}) {
+	const state = input.requestNeedsInput ? 'needsInput' : input.isIdle ? 'idle' : 'inProgress';
+	const requestActive = state !== 'idle';
+	let hasUnvisitedCompletion = input.containsFocus ? false : input.hasUnvisitedCompletion;
+	if (!requestActive && (input.requestWasActive || input.requestBecameActive)) {
+		hasUnvisitedCompletion = !input.containsFocus;
+	}
+
+	return { state, requestActive, hasUnvisitedCompletion };
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -359,9 +381,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
-	private transcriptProgress: { readonly container: HTMLElement; readonly content: HTMLElement } | undefined;
+	private _persistentContentHeight: number;
+	private _chatPetListPadding = 0;
+	private transcriptProgress: {
+		readonly container: HTMLElement;
+		readonly status: HTMLElement;
+		readonly detail: HTMLElement;
+		readonly link: Link;
+		readonly part: ChatProgressSubPart;
+		onDetail?: () => void;
+		onCancel?: () => void;
+	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
+	private readonly transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>(this, undefined);
 	private transcriptProgressActive = false;
+	private readonly transcriptProgressActiveContext: IContextKey<boolean>;
 	private transcriptContext: HTMLElement | undefined;
 	private readonly transcriptContextPart = this._register(new MutableDisposable<ChatAttachmentsContentPart>());
 	private transcriptContextValue: IChatRequestTranscriptContextVariableEntry | undefined;
@@ -410,13 +444,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
 	private bodyDimension: dom.Dimension | undefined;
+	private maximumWidth = 950;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private hasActiveRequest: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
-	private _visible = false;
-	get visible() { return this._visible; }
+	private readonly _visible = observableValue(this, false);
+	get visible() { return this._visible.get(); }
 
 	private _inputVisible = true;
 	private _readOnly = false;
@@ -468,6 +503,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
+	private _requestActiveForStateIndicator = false;
+	private _hasUnvisitedCompletion = false;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -478,6 +515,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
+		this._requestActiveForStateIndicator = false;
+		this._hasUnvisitedCompletion = false;
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug(`ChatWidget#setViewModel: have viewModel session=${viewModel.sessionResource.toString()} requests=${viewModel.model.getRequests().length}`);
@@ -491,6 +530,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
+		this.updateSessionStateIndicator();
 	}
 
 	get viewModel() {
@@ -585,6 +625,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -658,6 +699,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 		this.hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		this.transcriptProgressActiveContext = ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService);
 
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
@@ -671,6 +713,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (e.affectsConfiguration(ChatConfiguration.ProgressBorder)) {
 				this.updateWorkingProgressBorder();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.SessionStateIndicatorEnabled)) {
+				this.updateWorkingProgressBorder();
+				this.updateSessionStateIndicator();
 			}
 		}));
 
@@ -954,6 +1000,55 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		setChatInputStackInputWorking(inputContainer, working);
 	}
 
+	private isSessionStateIndicatorEnabled(): boolean {
+		if (isInlineChat(this) || isQuickChat(this) || this.viewOptions.enableSessionStateIndicator !== true) {
+			return false;
+		}
+
+		return this.configurationService.getValue<boolean>(ChatConfiguration.SessionStateIndicatorEnabled) === true;
+	}
+
+	/** Updates the whole-widget session state indicator. */
+	private updateSessionStateIndicator(requestBecameActive = false): void {
+		if (!this.container) {
+			return;
+		}
+
+		const enabled = this.isSessionStateIndicatorEnabled();
+		const model = this.viewModel?.model;
+		const modelNeedsInput = !!model?.requestNeedsInput.get();
+		const indicatorState = computeChatSessionStateIndicatorState({
+			requestNeedsInput: modelNeedsInput,
+			isIdle: !model || isChatModelIdle(model),
+			containsFocus: this.container.ownerDocument.hasFocus() && dom.isAncestorOfActiveElement(this.container),
+			requestWasActive: this._requestActiveForStateIndicator,
+			requestBecameActive,
+			hasUnvisitedCompletion: this._hasUnvisitedCompletion,
+		});
+		this._requestActiveForStateIndicator = indicatorState.requestActive;
+		this._hasUnvisitedCompletion = indicatorState.hasUnvisitedCompletion;
+
+		const needsInput = enabled && indicatorState.state === 'needsInput';
+		const inProgress = enabled && indicatorState.state === 'inProgress';
+		const idle = enabled && !needsInput && !inProgress;
+		const idleUnvisited = idle && this._hasUnvisitedCompletion;
+
+		this.container.classList.toggle('chat-session-state-indicator', enabled);
+		this.container.classList.toggle('chat-state-needs-input', needsInput);
+		this.container.classList.toggle('chat-state-in-progress', inProgress);
+		this.container.classList.toggle('chat-state-idle', idle);
+		this.container.classList.toggle('chat-state-idle-unvisited', idleUnvisited);
+	}
+
+	private markSessionStateIndicatorVisited(): void {
+		if (!this._hasUnvisitedCompletion) {
+			return;
+		}
+
+		this._hasUnvisitedCompletion = false;
+		this.updateSessionStateIndicator();
+	}
+
 	get inputEditor(): ICodeEditor {
 		return this.input.inputEditor;
 	}
@@ -993,6 +1088,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.domNode;
 	}
 
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this.listWidget.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this.listWidget.onDidChangeStickyScrollDomNode;
+	}
+
 	get scrollHeight(): number {
 		return this.listWidget.scrollHeight;
 	}
@@ -1013,12 +1116,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
-		if (this.viewOptions.persistentContentHeight) {
-			// The class floats the persistent content; the variable tells the
-			// surfaces the list now extends behind how far to keep clear.
-			this.container.classList.add(chatFloatingPersistentContentClass);
-			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this.viewOptions.persistentContentHeight}px`);
-		}
+		const targetWindow = dom.getWindow(this.container);
+		const focusTracker = this._register(dom.trackFocus(this.container));
+		this._register(focusTracker.onDidFocus(() => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, () => this.updateSessionStateIndicator()));
+		this.updateSessionStateIndicator();
+		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
 		if (!this.editorOverflowWidgetsDomNode) {
 			const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -1062,18 +1166,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
-			const registration = this._register(this.chatPetWidgetService.register(this, {
+			this._register(this.chatPetWidgetService.register(this, {
 				parent: petHost,
 				dragBounds: inputContainer ?? petHost,
 				movementBounds: petMovementBounds ?? parent,
+				transition: this.viewOptions.isSessionsWindow ? 'fall' : undefined,
 				model: this._viewModelObs.map(viewModel => viewModel?.model),
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
 			}, preferredPetHost));
-			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), registration.active.read(reader)));
-			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petSpaceReserved.read(reader))));
+			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader), this.chatPetService.scale.read(reader)));
+			this._register(autorun(reader => {
+				this._chatPetListPadding = chatPetListPadding.read(reader);
+				this._applyListPaddingBottom();
+			}));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
@@ -1353,7 +1461,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
-		if (this._visible || !this.viewModel) {
+		if (this._visible.get() || !this.viewModel) {
 			const items = this.viewModel?.getItems() ?? [];
 
 			if (items.length > 0) {
@@ -1411,32 +1519,65 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	setTranscriptProgress(message: string | undefined, ariaLabel = message): void {
+	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
-			container.setAttribute('role', 'status');
-			container.setAttribute('aria-live', 'polite');
-			const content = dom.append(container, $('.interactive-item-container'));
-			content.setAttribute('aria-hidden', 'true');
-			this.transcriptProgress = { container, content };
+			const row = dom.append(container, $('.interactive-item-container'));
+			const status = $('div', { role: 'status', 'aria-live': 'polite' });
+			const part = this._register(this.instantiationService.createInstance(ChatProgressSubPart, status, Codicon.check, undefined));
+			part.iconElement.setAttribute('aria-hidden', 'true');
+			const detail = dom.append(part.domNode, $('span'));
+			const link = this._register(this.instantiationService.createInstance(Link, detail, { label: '', href: '#' }, { opener: () => this.transcriptProgress?.onDetail?.() }));
+			dom.append(row, part.domNode);
+			this.transcriptProgress = { container, status, detail, link, part };
 		}
 		this.transcriptProgressPart.clear();
-		dom.clearNode(this.transcriptProgress.content);
+		dom.clearNode(this.transcriptProgress.status);
 		if (message) {
 			const store = new DisposableStore();
+			this.transcriptProgressPart.value = store;
 			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
-			const progressPart = store.add(this.instantiationService.createInstance(ChatProgressSubPart, renderedMessage.element, Codicon.check, undefined));
-			progressPart.domNode.classList.add('shimmer-progress');
-			dom.append(this.transcriptProgress.content, progressPart.domNode);
-			this.transcriptProgressPart.value = store;
+			renderedMessage.element.classList.add('progress-step');
+			renderedMessage.element.setAttribute('aria-hidden', 'true');
+			if (options?.detail) {
+				this.transcriptProgress.link.link = { label: options.detail.label, href: '#' };
+			}
+			dom.append(this.transcriptProgress.status, renderedMessage.element);
 		}
-		this.transcriptProgress.container.setAttribute('aria-label', ariaLabel ?? '');
-		this.transcriptProgress.container.hidden = message === undefined;
+		this.transcriptProgress.part.domNode.classList.toggle('shimmer-progress', options?.complete !== true);
+		this.transcriptProgress.part.domNode.classList.toggle('show-checkmarks', options?.complete === true);
+		this.transcriptProgress.detail.hidden = !message || !options?.detail;
+		this.transcriptProgress.status.setAttribute('aria-label', ariaLabel ?? '');
+		this.transcriptProgress.container.hidden = message === undefined || !!options?.inTranscript;
+		this.transcriptProgressAction.set(message && options?.inTranscript ? options.detail : undefined, undefined);
+		this.transcriptProgress.onDetail = message ? options?.detail?.run : undefined;
+		const wasPreparing = this.isTranscriptProgressActive;
+		this.transcriptProgress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
+		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
+		if (wasPreparing !== this.isTranscriptProgressActive) {
+			this.input.setInputEnabled(!this.isTranscriptProgressActive);
+			this._readOnlyContextKey.set(this._readOnly || this.isTranscriptProgressActive);
+			this._applyRendererEditable(!this._readOnly);
+		}
 		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 		this.updateChatViewVisibility();
+		this._layoutListForInputHeight();
+	}
+
+	get isTranscriptProgressActive(): boolean {
+		return !!this.transcriptProgress?.onCancel;
+	}
+
+	cancelTranscriptProgress(): boolean {
+		const onCancel = this.transcriptProgress?.onCancel;
+		if (!onCancel) {
+			return false;
+		}
+		onCancel();
+		return true;
 	}
 
 	setTranscriptContext(context: IChatRequestTranscriptContextVariableEntry | undefined): void {
@@ -1688,10 +1829,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// This ensures handoffs reflect what the response agent offers, regardless of mode picker state.
 		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
 		const modeInfo = lastItem.model.request?.modeInfo;
-		let responseMode: IChatMode | undefined;
 		const modes = this.input.currentChatModesObs.get();
+		let responseMode: IChatMode | undefined;
 		if (modeInfo?.modeInstructions?.name) {
 			responseMode = modes.findModeByName(modeInfo.modeInstructions.name);
+		} else if (modeInfo?.kind) {
+			responseMode = modes.findModeById(modeInfo.kind);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -1936,7 +2079,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setReadOnly(readOnly: boolean): void {
 		const wasReadOnly = this._readOnly;
 		this._readOnly = readOnly;
-		this._readOnlyContextKey.set(readOnly);
+		this._readOnlyContextKey.set(readOnly || this.isTranscriptProgressActive);
 		if (readOnly) {
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
@@ -1965,7 +2108,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly });
+		const readOnly = this._readOnly || this.isTranscriptProgressActive;
+		this.listWidget?.updateRendererOptions({ editable: editable && !readOnly, readOnly });
 	}
 
 	/**
@@ -1983,6 +2127,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	/**
+	 * Updates the horizontal space reserved for chat item content and re-lays out embedded editors.
+	 */
+	setContentHorizontalPadding(contentHorizontalPadding: number): void {
+		this.listWidget.updateRendererOptions({ contentHorizontalPadding });
+		if (this.bodyDimension) {
+			this._layoutListForInputHeight();
+		}
+	}
+
 	private _applyInputVisibility(): void {
 		const inputElement = this.inputPartDisposable.value?.element;
 		if (inputElement) {
@@ -1992,8 +2146,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setVisible(visible: boolean): void {
-		const wasVisible = this._visible;
-		this._visible = visible;
+		const wasVisible = this._visible.get();
+		this._visible.set(visible, undefined);
 		this.visibleChangeCount++;
 		this.listWidget.setVisible(visible);
 		this.input.setVisible(visible);
@@ -2003,7 +2157,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.visibilityTimeoutDisposable.value = disposableTimeout(() => {
 					// Progressive rendering paused while hidden, so start it up again.
 					// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
-					if (this._visible) {
+					if (this._visible.get()) {
 						this.onDidChangeItems(true);
 					}
 				}, 0);
@@ -2028,7 +2182,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: options,
+				rendererOptions: { ...options, readOnly: this._readOnly, progressMessageAction: this.transcriptProgressAction },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2044,7 +2198,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
-				paddingBottom: this.viewOptions.persistentContentHeight,
+				paddingBottom: this._getListPaddingBottom(),
+				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
 
@@ -2104,7 +2259,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	startEditing(requestId: string): void {
-		if (this._readOnly) {
+		if (this._readOnly || this.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -2180,7 +2335,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.element.classList.add('editing');
 			}
 			if (currentElement.modelId) {
-				void this.input.requestModelByIdentifier(currentElement.modelId);
+				void this.input.requestModelByIdentifier(currentElement.modelId, currentElement.modelConfiguration);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);
@@ -2622,6 +2777,36 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	setPersistentContentHeight(height: number | undefined): void {
+		const persistentContentHeight = Math.max(0, height ?? 0);
+		if (persistentContentHeight === this._persistentContentHeight) {
+			return;
+		}
+		this._persistentContentHeight = persistentContentHeight;
+		this._applyPersistentContentHeight();
+	}
+
+	private _applyPersistentContentHeight(): void {
+		if (!this.container) {
+			return;
+		}
+		const floatsPersistentContent = this._persistentContentHeight > 0;
+		this.container.classList.toggle(chatFloatingPersistentContentClass, floatsPersistentContent);
+		if (floatsPersistentContent) {
+			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this._persistentContentHeight}px`);
+		} else {
+			this.container.style.removeProperty(chatPersistentContentHeightVariable);
+		}
+		this._applyListPaddingBottom();
+	}
+
+	private _getListPaddingBottom(): number {
+		return this._persistentContentHeight + this._chatPetListPadding;
+	}
+
+	private _applyListPaddingBottom(): void {
+		this.listWidget?.setPaddingBottom(this._getListPaddingBottom());
+	}
 
 	setModel(model: IChatModel | undefined): void {
 		if (!this.container || !this.inputPart) {
@@ -2706,6 +2891,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 			this.updateWorkingProgressBorder();
+			this.updateSessionStateIndicator(events?.some(e => e?.kind === 'addRequest') ?? false);
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
@@ -2928,7 +3114,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
+		const expectedSessionResource = options?.expectedSessionResource;
+		const expectedViewModel = expectedSessionResource ? this.viewModel : undefined;
+		const validateSession = expectedSessionResource ? () => {
+			if (this._store.isDisposed || !expectedViewModel || this.viewModel !== expectedViewModel || !isEqual(expectedViewModel.sessionResource, expectedSessionResource)) {
+				throw new ErrorNoTelemetry(localize('chat.submitSessionChanged', "The chat session changed or was closed before the request could be sent. Please try again in the original chat."));
+			}
+			if (this._readOnly || expectedViewModel.model.isReadOnly.get()) {
+				throw new ErrorNoTelemetry(localize('chat.submitSessionReadOnly', "The chat session is read-only. The request was not sent."));
+			}
+		} : undefined;
+		validateSession?.();
+
+		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
 
@@ -2937,16 +3135,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// requests) leave the input draft untouched, so they must not stop an
 			// unrelated dictation and flush its final transcript into that draft.
 			await stopDictationForEditor(this.inputEditor);
+			validateSession?.();
 		}
 
 		if (this.viewModel) {
 			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
 		}
-		return this._acceptInput(query ? { query } : undefined, options);
+		return this._acceptInput(query ? { query } : undefined, options, validateSession);
 	}
 
 	async rerunLastRequest(): Promise<void> {
-		if (this._readOnly || !this.viewModel) {
+		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel) {
 			return;
 		}
 
@@ -3050,7 +3249,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * @returns `false` when the prompt metadata requested an agent switch that the
 	 * user cancelled, signalling that input submission should be aborted.
 	 */
-	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions, sessionResource: URI): Promise<boolean> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions, sessionResource: URI, validateSession?: () => void): Promise<boolean> {
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (!agentSlashPromptPart) {
@@ -3063,14 +3262,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// need to resolve the slash command to get the prompt file
 		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionResource, CancellationToken.None);
+		validateSession?.();
 		if (!slashCommand) {
 			return true;
 		}
-		const parseResult = slashCommand.parsedPromptFile;
-		// add the prompt file to the context
-		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
-		const toolReferences = this.toolsService.toToolReferences(refs);
-		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		const promptRunEvent: ChatPromptRunEvent = {
 			storage: slashCommand.storage,
@@ -3083,8 +3278,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.telemetryService.publicLog2<ChatPromptRunEvent, ChatPromptRunClassification>('chat.promptRun', promptRunEvent);
 
+		const parseResult = slashCommand.parsedPromptFile;
+		if (!parseResult) {
+			return true;
+		}
+
+		// add the prompt file to the context
+		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
+		const toolReferences = this.toolsService.toToolReferences(refs);
+		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
+
 		if (parseResult.header) {
-			const applied = await this._applyPromptMetadata(parseResult.header, requestInput);
+			const applied = await this._applyPromptMetadata(parseResult.header, requestInput, validateSession);
+			validateSession?.();
 			if (!applied) {
 				return false;
 			}
@@ -3093,12 +3299,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, validateSession?: () => void): Promise<IChatResponseModel | undefined> {
+		if (this.isTranscriptProgressActive) {
+			return undefined;
+		}
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
 			const start = Date.now();
 			await this.input.generating;
+			validateSession?.();
 			if (Date.now() - start > generatingAutoSubmitWindow) {
 				return;
 			}
@@ -3106,6 +3316,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		while (!this._viewModel && !this._store.isDisposed) {
 			await Event.toPromise(this.onDidChangeViewModel, this._store);
+			validateSession?.();
 		}
 
 		if (!this.viewModel) {
@@ -3122,9 +3333,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			try {
 				const inputValue = !query ? this.getInput() : query.query;
 				await saveAllBeforeChatSend(this.configurationService, this.editorService);
+				validateSession?.();
 				savedBeforeSend = true;
 				const attachedContext = this.input.getAttachedContext().asArray();
 				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
+				validateSession?.();
 				if (handled) {
 					return;
 				}
@@ -3135,15 +3348,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const isUserQuery = !query;
 		const inputValue = isUserQuery ? this.getInput() : query.query;
-		if (this.viewModel.model.hasActiveRequest.get() && await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined)) {
-			this.setInput('');
-			return;
+		if (this.viewModel.model.hasActiveRequest.get()) {
+			const handled = await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined);
+			validateSession?.();
+			if (handled) {
+				this.setInput('');
+				return;
+			}
 		}
 		if (isUserQuery) {
 			const preSubmitResult = await this.chatSubmitRequestHandlerService.tryHandle({
 				sessionResource: this.viewModel.sessionResource,
 				input: inputValue,
 			});
+			validateSession?.();
 			if (preSubmitResult) {
 				this.setInput('');
 				return;
@@ -3152,12 +3370,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!savedBeforeSend) {
 			await saveAllBeforeChatSend(this.configurationService, this.editorService);
+			validateSession?.();
 		}
 
 		if (!options.preserveInput) {
 			// Would stop dictation the preserved draft may still be using.
 			this._onDidAcceptInput.fire();
 		}
+		validateSession?.();
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
 		const requestInputs: IChatRequestInputOptions = {
@@ -3170,7 +3390,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+		const executedSlashCommand = await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus);
+		validateSession?.();
+		if (executedSlashCommand) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
@@ -3200,6 +3422,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			} else {
 				await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
+				validateSession?.();
 				cancelledCurrentRequest = true;
 				options.queue = undefined;
 			}
@@ -3212,6 +3435,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.recentlyRestoredCheckpoint = true;
 			}
 			this.finishedEditing(true);
+			validateSession?.();
 			if (!preserveCheckpoint) {
 				this.viewModel.model?.setCheckpoint(undefined);
 			}
@@ -3220,6 +3444,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const model = this.viewModel.model;
 		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
+			validateSession?.();
 			cancelledCurrentRequest = true;
 			options.queue = undefined;
 		}
@@ -3232,19 +3457,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// request just as confirmation is triggered.
 		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
+			validateSession?.();
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (requestInProgress && !options.cancelCurrentRequest) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
-		if (!requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
-			return;
+		if (!requestInProgress && !isEditing) {
+			const confirmed = await this.confirmPendingRequestsBeforeSend(model, options, validateSession);
+			validateSession?.();
+			if (!confirmed) {
+				return;
+			}
 		}
 
 		// process the prompt command
 		// Skipped for preserveInput: parsedInput is the draft, and an agent switch can clear the session.
 		if (!options.preserveInput) {
-			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
+			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource, validateSession);
+			validateSession?.();
 			if (!promptApplied) {
 				return;
 			}
@@ -3283,6 +3514,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.validateAgentMode();
+		validateSession?.();
 
 		if (this.viewModel.model.checkpoint) {
 			const requests = this.viewModel.model.getRequests();
@@ -3297,6 +3529,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
+		validateSession?.();
 		const submittedWithImage = isUserQuery && hasChatPetImageAttachment([
 			...requestInputs.attachedContext.asArray(),
 			...resolvedImageVariables,
@@ -3312,11 +3545,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modeInfo = resolveEditedRequestSelection(editedModeInfo, this.input.currentModeInfo);
 		const selectedModelRequestOptions = resolveEditedRequestSelection(editedModelRequestOptions, this.getSelectedModelRequestOptions());
 
+		validateSession?.();
 		const transcriptContext = this.transcriptContextValue;
 		if (transcriptContext) {
 			requestInputs.attachedContext.insertFirst(transcriptContext);
 			this.setTranscriptContext(undefined);
 		}
+		validateSession?.();
 		let result: ChatSendResult;
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
@@ -3468,6 +3703,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				CancellationToken.None,
 				requestOptions,
 			);
+			this.chatTipService.recordSlashCommandUsage(commandPart.slashCommand.command);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
 		}
@@ -3531,10 +3767,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			viewModel.sessionResource,
 			CancellationToken.None,
 		);
+		this.chatTipService.recordSlashCommandUsage(command);
 		return true;
 	}
 
-	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {
+	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions, validateSession?: () => void): Promise<boolean> {
 		if (options.queue) {
 			return true;
 		}
@@ -3560,6 +3797,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			],
 			cancelButton: true
 		});
+		validateSession?.();
 
 		if (!promptResult.result) {
 			return false;
@@ -3578,6 +3816,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// resend/confirmation flows preserve custom per-model settings.
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'> {
 		const modelId = this.input.currentLanguageModel;
+		const model = this.viewModel?.model;
+		const intendedModel = model?.inputModel.intendedModel;
+		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
+			return { userSelectedModelId: undefined, userSelectedModelConfiguration: undefined };
+		}
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
@@ -3668,8 +3911,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPartMaxHeightOverride = maxHeight;
 	}
 
+	setMaximumWidth(maximumWidth: number): void {
+		this.maximumWidth = maximumWidth;
+	}
+
 	layout(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth); // no min width of inline chat
 
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._findController?.layout(width);
@@ -3697,7 +3944,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * surfaces and must not call {@link ChatInputPart.layout}.
 	 */
 	layoutForInputHeight(height: number, width: number): void {
-		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950);
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth);
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._layoutListForInputHeight();
 	}
@@ -3849,7 +4096,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _switchToAgentByName(agentName: string): Promise<boolean> {
+	private async _switchToAgentByName(agentName: string, validateSession?: () => void): Promise<boolean> {
 		const currentAgent = this.input.currentModeObs.get();
 
 		// already on the target agent
@@ -3865,12 +4112,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (currentAgent.kind !== agent.kind) {
 			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model);
+			validateSession?.();
 			if (!chatModeCheck) {
 				return false;
 			}
 
 			if (chatModeCheck.needToClearSession) {
 				await this.clear();
+				validateSession?.();
 			}
 		}
 		this.input.setChatMode(agent.id);
@@ -3882,14 +4131,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * mode-switch confirmation dialog), signalling that the caller should abort the
 	 * current input submission.
 	 */
-	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<boolean> {
+	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions, validateSession?: () => void): Promise<boolean> {
 
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
 			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
 		if (agent) {
-			const switched = await this._switchToAgentByName(agent);
+			const switched = await this._switchToAgentByName(agent, validateSession);
+			validateSession?.();
 			if (!switched) {
 				return false;
 			}

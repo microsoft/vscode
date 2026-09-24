@@ -8,20 +8,21 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-list-row.session-list-inset-row {
-		border-radius: var(--vscode-cornerRadius-medium);
-		margin: 0 10px;
-		width: calc(100% - 20px);
-	}
-
-	&.session-list-row-spacing .monaco-list-row.session-list-inset-row {
-		padding-bottom: var(--vscode-spacing-size20);
-		background-clip: content-box;
-		outline: 0 !important;
+	&.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
+		left: var(--vscode-spacing-size40);
+		right: var(--vscode-spacing-size40);
+		width: auto;
+		border-radius: var(--vscode-cornerRadius-small);
 
 		> .monaco-tl-row {
 			border-radius: inherit;
 		}
+	}
+
+	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
+		padding-bottom: var(--vscode-spacing-size20);
+		background-clip: content-box;
+		outline: 0 !important;
 	}
 
 	&.session-list-row-spacing .monaco-list .monaco-list-row.session-list-inset-row {
@@ -80,7 +81,7 @@
 		width: var(--vscode-spacing-size160);
 		height: var(--vscode-spacing-size160);
 		padding-right: 0;
-		font-size: 16px;
+		font-size: var(--vscode-codiconFontSize);
 		opacity: 0;
 		pointer-events: none;
 		transform: none;
@@ -157,8 +158,28 @@
 		}
 	}
 
+	.session-inline-rename-input {
+		display: none;
+		flex: 1;
+		min-width: 0;
+
+		.monaco-inputbox {
+			width: 100%;
+			height: 22px;
+			box-sizing: border-box;
+			line-height: normal;
+		}
+
+		.monaco-inputbox > .ibwrapper > .input {
+			height: 20px;
+			padding: 0;
+		}
+	}
+
 	.monaco-list-row:hover,
-	.monaco-list-row.focused:not(.selected) {
+	.monaco-list-row.focused:not(.selected),
+	.monaco-list:focus-within .monaco-list-row.focused,
+	.session-item.archive-onboarding {
 		.session-title-toolbar {
 			display: block;
 		}
@@ -168,20 +189,6 @@
 		}
 	}
 
-	/* Pinned but not hovered/focused: show only the unpin action */
-	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
-		.session-title-toolbar {
-			display: block;
-
-			.action-item:not(:last-child) {
-				display: none;
-			}
-		}
-
-		.session-title {
-			margin-right: 8px;
-		}
-	}
 }
 
 /* Session Item */
@@ -192,6 +199,8 @@
 	height: 100%;
 	box-sizing: border-box;
 	position: relative;
+	overflow: visible;
+	min-width: 0;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -199,8 +208,16 @@
 	}
 
 	&.sticky {
-		border-left: 2px solid var(--vscode-focusBorder);
-		padding-left: 4px;
+		&::before {
+			content: '';
+			position: absolute;
+			top: var(--vscode-spacing-size80);
+			bottom: var(--vscode-spacing-size80);
+			left: 0;
+			width: var(--vscode-spacing-size20);
+			border-radius: var(--vscode-cornerRadius-circle);
+			background-color: var(--vscode-focusBorder);
+		}
 	}
 
 	/* Quick-chat rows are compact single-line entries — no second (details) row.
@@ -213,15 +230,6 @@
 
 		.session-icon {
 			line-height: 16px;
-
-			> .codicon {
-				font-size: var(--vscode-codiconFontSize-compact, 12px);
-			}
-
-			> .monaco-pixel-spinner {
-				width: 14px;
-				height: 14px;
-			}
 		}
 
 		.session-title-row {
@@ -277,6 +285,87 @@
 		}
 	}
 
+	&[data-session-group-connector] .session-icon {
+		> .codicon,
+		> .monaco-pixel-spinner {
+			display: none;
+		}
+
+		&::before {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
+			color: var(--vscode-descriptionForeground);
+			font-family: var(--monaco-monospace-font);
+			font-size: var(--vscode-fontSize-body1);
+			line-height: 16px;
+			text-align: center;
+		}
+	}
+
+	&[data-session-group-connector='first'] .session-icon::before {
+		content: '┌';
+	}
+
+	&[data-session-group-connector='middle'] .session-icon::before {
+		content: '├';
+	}
+
+	&[data-session-group-connector='last'] .session-icon::before {
+		content: '└';
+	}
+
+	&.session-comparison-participant[data-session-group-connector] .session-icon {
+		align-self: stretch;
+		width: var(--vscode-spacing-size160);
+
+		&::before,
+		&::after {
+			position: absolute;
+			content: '';
+		}
+
+		&::before {
+			top: var(--vscode-spacing-size80);
+			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
+			width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+			height: 0;
+			border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		}
+
+		&::after {
+			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
+			width: 0;
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		}
+	}
+
+	&.session-comparison-participant[data-session-group-connector='first'] .session-icon::after {
+		top: var(--vscode-spacing-size80);
+		bottom: calc(-1 * var(--vscode-spacing-size100));
+		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		border-top-left-radius: var(--vscode-cornerRadius-small);
+	}
+
+	&.session-comparison-participant[data-session-group-connector='middle'] .session-icon::after {
+		top: calc(-1 * var(--vscode-spacing-size80));
+		bottom: calc(-1 * var(--vscode-spacing-size100));
+	}
+
+	&.session-comparison-participant[data-session-group-connector='last'] .session-icon::after {
+		top: calc(-1 * var(--vscode-spacing-size80));
+		bottom: calc(100% - var(--vscode-spacing-size80));
+		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		border-bottom-left-radius: var(--vscode-cornerRadius-small);
+	}
+
+	&.session-comparison-participant[data-session-group-connector='first'] .session-icon::before,
+	&.session-comparison-participant[data-session-group-connector='last'] .session-icon::before {
+		display: none;
+	}
+
 	.session-main {
 		padding-left: 6px;
 	}
@@ -290,6 +379,68 @@
 	.session-title-row {
 		line-height: 17px;
 		padding-bottom: 4px;
+	}
+
+	.session-comparison-attempt-status {
+		display: none;
+		flex-shrink: 0;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-size80);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
+
+		&.visible {
+			display: flex;
+		}
+
+		.session-comparison-attempt-status-icon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+
+		.session-comparison-participant-stop.monaco-button {
+			display: none;
+			align-items: center;
+			justify-content: center;
+			width: var(--vscode-spacing-size160);
+			min-width: var(--vscode-spacing-size160);
+			height: var(--vscode-spacing-size160);
+			padding: 0;
+			border-radius: var(--vscode-cornerRadius-small);
+
+			.codicon {
+				font-size: var(--vscode-codiconFontSize-compact);
+			}
+
+			&[hidden] {
+				display: none;
+			}
+		}
+	}
+
+	&.session-comparison-attempt {
+		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		.session-icon {
+			line-height: 16px;
+		}
+
+		.session-title-row {
+			line-height: 16px;
+			padding-bottom: 0;
+		}
+
+		.session-title {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.session-details-row {
+			display: none;
+		}
 	}
 
 	.session-details-row {
@@ -350,6 +501,19 @@
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	&.renaming {
+		.session-title,
+		.session-title-toolbar,
+		.session-compact-hover-description,
+		.session-pending-voice-indicator {
+			display: none;
+		}
+
+		.session-title-input {
+			display: block;
+		}
 	}
 
 	.session-description p {
@@ -430,6 +594,119 @@
 	}
 }
 
+.sessions-list-control.compact {
+	.monaco-list-row .session-chat-twistie {
+		top: var(--vscode-spacing-size60);
+	}
+
+	.session-item:not(.quick-chat) {
+		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		.session-main {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr);
+			align-items: center;
+		}
+
+		.session-title-row {
+			height: var(--vscode-spacing-size160, 16px);
+			padding-bottom: 0;
+			line-height: var(--vscode-spacing-size160, 16px);
+		}
+
+		.session-details-row {
+			display: none;
+		}
+
+		.session-approval-row,
+		.session-input-needed-row,
+		.session-ci-row {
+			grid-column: 1 / -1;
+		}
+
+		.session-approval-row {
+			margin-top: var(--vscode-spacing-size60);
+			padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+			padding-bottom: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+		}
+	}
+
+	.monaco-list-row:hover .session-item:not(.quick-chat),
+	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat) {
+		.session-title-row {
+			grid-column: 1 / -1;
+
+			.session-title {
+				flex: 0 1 auto;
+			}
+
+			.session-title-toolbar {
+				margin-left: auto;
+			}
+		}
+
+	}
+
+	.monaco-list-row:hover .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description,
+	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description {
+		display: flex;
+	}
+
+	.monaco-list-row:hover .session-chat-item.has-folder-label:not(.renaming),
+	.monaco-list:focus-within .monaco-list-row.focused .session-chat-item.has-folder-label:not(.renaming) {
+		.session-compact-hover-description {
+			display: flex;
+		}
+
+		.session-chat-title {
+			flex: 0 1 auto;
+		}
+	}
+
+	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
+		top: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size120));
+	}
+
+}
+
+.session-input-needed-row {
+	line-height: 18px;
+
+	.session-input-needed-label {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+
+		&.rendered-markdown,
+		&.rendered-markdown p {
+			margin: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+}
+
+.session-compact-hover-description {
+	display: none;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+	margin-right: var(--vscode-spacing-size80);
+	max-width: 40%;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+
+	.session-badge {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
 /* Approval prompt shown when a chat is waiting for the user to allow a pending
 	tool action. Rendered on the session row (for the session's main chat) and on
 	each nested/side chat row (for that chat), so it is scoped to neither. */
@@ -486,9 +763,9 @@
 	content: '';
 	position: absolute;
 	top: var(--vscode-spacing-size280);
-	bottom: 0;
+	bottom: calc(-1 * var(--vscode-spacing-size20));
 	left: var(--vscode-spacing-size200);
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 	opacity: 0;
 }
 
@@ -497,14 +774,15 @@
 }
 
 .session-chat-item {
-	/* Base (title-only) row height, matching SessionsTreeDelegate.CHAT_ITEM_HEIGHT.
-		The title row occupies this fixed height at the top; an optional approval
-		row is stacked beneath it and grows the overall row height. */
+	/* Base title-row height, matching SessionsTreeDelegate.CHAT_ITEM_HEIGHT.
+		Folder and approval rows stack beneath it without changing this value. */
 	--session-chat-base-height: 28px;
 	display: flex;
 	flex-direction: column;
 	box-sizing: border-box;
 	position: relative;
+	overflow: visible;
+	min-width: 0;
 	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
@@ -514,20 +792,23 @@
 		content: '';
 		position: absolute;
 		top: 0;
-		bottom: 0;
+		bottom: calc(-1 * var(--vscode-spacing-size20));
 		left: var(--vscode-spacing-size200);
-		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		opacity: 0;
 	}
 
 	&::after {
 		content: '';
 		position: absolute;
-		/* Align with the title row and stop before the status icon. */
-		top: calc(var(--session-chat-base-height) / 2);
+		box-sizing: border-box;
+		top: 0;
+		height: calc(var(--session-chat-base-height) / 2);
 		left: var(--vscode-spacing-size200);
 		width: var(--vscode-spacing-size120);
-		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+		border-bottom-left-radius: var(--vscode-cornerRadius-small);
 		opacity: 0;
 	}
 
@@ -540,15 +821,6 @@
 
 	&.last-chat {
 		&::before {
-			/* Stop the vertical guide at the title row's center (its connector),
-				not at the middle of the taller approval-augmented row. */
-			bottom: calc(100% - var(--session-chat-base-height) / 2);
-			width: var(--vscode-spacing-size120);
-			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
-			border-bottom-left-radius: var(--vscode-cornerRadius-small);
-		}
-
-		&::after {
 			display: none;
 		}
 	}
@@ -560,6 +832,41 @@
 		height: var(--session-chat-base-height);
 		gap: var(--vscode-spacing-size60);
 		line-height: 17px;
+	}
+
+	.session-chat-folder-row {
+		display: flex;
+		align-items: center;
+		flex: 0 0 var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		margin-left: var(--vscode-spacing-size240);
+		gap: var(--vscode-spacing-size40);
+		min-width: 0;
+		overflow: hidden;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+		line-height: var(--vscode-spacing-size160);
+
+		&[hidden] {
+			display: none;
+		}
+
+		.session-chat-folder-icon {
+			display: flex;
+			align-items: center;
+			flex-shrink: 0;
+
+			> .codicon {
+				font-size: var(--vscode-codiconFontSize-compact);
+			}
+		}
+
+		.session-chat-folder-label {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
 	}
 
 	.session-chat-icon {
@@ -597,6 +904,16 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	&.renaming {
+		.session-chat-title {
+			display: none;
+		}
+
+		.session-chat-title-input {
+			display: block;
+		}
 	}
 
 	/* Reuses the session row's approval-row styling; only the left inset is
@@ -640,6 +957,10 @@
 		height: 1px;
 		background: var(--vscode-widget-border, var(--vscode-contrastBorder));
 	}
+}
+
+.session-list-show-more-row .session-show-more {
+	padding-inline: var(--vscode-spacing-size200);
 }
 
 .monaco-list-row:hover .session-show-more:hover {
@@ -686,10 +1007,28 @@
 
 /* Section Header */
 
+.sessions-list-header {
+	width: 100%;
+	padding: var(--vscode-spacing-size100) 0 0;
+	box-sizing: border-box;
+}
+
+.sessions-list-header-row {
+	--vscode-list-hoverBackground: transparent;
+}
+
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:hover,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
+	background-color: transparent;
+	cursor: default;
+}
+
 .session-section {
 	display: flex;
 	align-items: center;
-	font-size: var(--vscode-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;
@@ -720,6 +1059,39 @@
 		margin-right: 4px;
 	}
 
+	.session-section-new-badge {
+		display: none;
+		align-items: center;
+		flex-shrink: 0;
+		height: var(--vscode-spacing-size160);
+		margin-left: var(--vscode-spacing-size40);
+		padding: 0 var(--vscode-spacing-size40);
+		box-sizing: border-box;
+		border: var(--vscode-strokeThickness) solid transparent;
+		border-radius: var(--vscode-cornerRadius-circle);
+		color: var(--vscode-foreground);
+		font-size: var(--vscode-fontSize-label3);
+		font-weight: var(--vscode-fontWeight-semiBold);
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+
+	.session-section-new-badge-accent {
+		border-color: var(--vscode-activityBarBadge-background);
+		background-color: var(--vscode-activityBarBadge-background);
+		color: var(--vscode-activityBarBadge-foreground);
+	}
+
+	.session-section-new-badge-soft {
+		background-color: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	}
+
+	.session-section-new-badge-outline {
+		border-color: var(--vscode-descriptionForeground);
+	}
+
 	.session-section-toolbar {
 		flex-shrink: 0;
 		margin-left: 4px;
@@ -746,13 +1118,18 @@
 	}
 }
 
+.hc-black .session-section-new-badge,
+.hc-light .session-section-new-badge {
+	border-color: var(--vscode-contrastBorder);
+}
+
 .monaco-list-row:hover .session-section .session-section-toolbar,
 .monaco-list-row.focused .session-section .session-section-toolbar,
 .monaco-list-row .session-section.dropdown-active .session-section-toolbar {
 	display: block;
 }
 
-/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+/* Shortcut sections only show toolbar on hover, not on focus */
 .monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: hidden;
 }
@@ -768,6 +1145,11 @@
 .session-section.session-section-shortcut.active {
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-list-row:hover .session-section.session-section-shortcut.active {
+	background-color: transparent;
+	border-radius: 0;
 }
 
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
@@ -788,17 +1170,6 @@
 }
 
 .sessions-list-control {
-
-	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
-	.monaco-list-row:has(.session-section):hover,
-	.monaco-list-row:has(.session-show-more-folders):hover,
-	.monaco-list-row.focused:has(.session-section),
-	.monaco-list-row.focused:has(.session-show-more-folders),
-	.monaco-list-row.selected:has(.session-section),
-	.monaco-list-row.selected:has(.session-show-more-folders) {
-		background: transparent !important;
-	}
-
 	.monaco-list-row:hover .session-section .session-section-label,
 	.monaco-list-row.focused .session-section .session-section-label,
 	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
@@ -813,8 +1184,10 @@
 	}
 
 	&.session-section-focus-from-pointer {
-		.monaco-list-row.focused:has(.session-section),
-		.monaco-list-row.selected:has(.session-section) {
+		.monaco-list-row.session-list-section-row.focused,
+		.monaco-list-row.session-list-section-row.selected,
+		.monaco-list-row.session-list-shortcut-row.focused,
+		.monaco-list-row.session-list-shortcut-row.selected {
 			outline: none !important;
 		}
 	}
@@ -822,6 +1195,31 @@
 
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
+	.session-group-labels {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		line-height: normal;
+	}
+
+	.session-group-description {
+		display: none;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
+		line-height: 14px;
+
+		&.visible {
+			display: block;
+		}
+	}
+
 	.session-group-input {
 		flex: 1 1 auto;
 		min-width: 0;
@@ -838,6 +1236,80 @@
 			font-size: var(--vscode-fontSize-label2, 11px);
 		}
 	}
+}
+
+.monaco-list-row:hover .session-comparison-participant .session-comparison-attempt-status.stop-only:has(.session-comparison-participant-stop:not([hidden])),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-participant .session-comparison-attempt-status.stop-only:has(.session-comparison-participant-stop:not([hidden])),
+.monaco-list-row:hover .session-comparison-participant .session-comparison-participant-stop:not([hidden]),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-participant .session-comparison-participant-stop:not([hidden]),
+.session-comparison-participant .session-comparison-participant-stop:focus {
+	display: flex;
+}
+
+.monaco-list-row:hover .session-comparison-attempt .session-comparison-attempt-status-icon:has(+ .session-comparison-attempt-status-label + .session-comparison-participant-stop:not([hidden])),
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-attempt .session-comparison-attempt-status-icon:has(+ .session-comparison-attempt-status-label + .session-comparison-participant-stop:not([hidden])),
+.session-comparison-attempt .session-comparison-attempt-status:focus-within .session-comparison-attempt-status-icon {
+	display: none;
+}
+
+.session-group.session-comparison-group {
+	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
+	color: var(--vscode-foreground);
+
+	.session-section-label {
+		display: block;
+		color: var(--vscode-strongForeground);
+		font-size: var(--vscode-fontSize-label1);
+		font-weight: var(--vscode-fontWeight-semiBold);
+		line-height: 16px;
+	}
+
+	.session-section-chevron.collapsible {
+		order: 4;
+		display: flex;
+		align-items: center;
+		margin-right: 0;
+		margin-left: var(--vscode-spacing-size40);
+	}
+
+	.session-section-toolbar {
+		order: 3;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
+	}
+
+	.session-comparison-stop-all.monaco-button,
+	.session-comparison-archive.monaco-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--vscode-spacing-size160);
+		min-width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding: 0;
+		border-radius: var(--vscode-cornerRadius-small);
+
+		.codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+
+		&[hidden] {
+			display: none;
+		}
+	}
+}
+
+.monaco-list-row:hover .session-group.session-comparison-group .session-section-toolbar,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-toolbar,
+.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-toolbar {
+	display: flex;
+}
+
+.monaco-list-row:hover .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
+	display: flex;
 }
 
 .session-group.session-group-editing .session-group-input {
@@ -911,6 +1383,12 @@
 				var(--vscode-strongForeground) 100%
 			);
 		}
+
+		.monaco-list-row:not(.selected) .session-item.session-comparison-attempt.in-progress .session-title {
+			background: none;
+			-webkit-text-fill-color: currentColor;
+			animation: none;
+		}
 	}
 }
 
@@ -952,16 +1430,6 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
-	.monaco-list-row.session-list-inset-row {
-		/* Horizontal-only margin: virtual list rows are absolutely
-		 * positioned with JS-set `top`/`height`, so vertical margins
-		 * here would not produce reliable inter-row spacing. Any gap
-		 * lives inside the row via padding. */
-		margin: 0 8px;
-		width: calc(100% - 16px);
-		border-radius: var(--vscode-cornerRadius-xLarge);
-	}
-
 	.session-item {
 		padding: 10px 10px;
 		/* Vertically center the icon + main column inside the fixed phone row height. */
@@ -1006,7 +1474,7 @@
 		line-height: 20px;
 
 		> .codicon {
-			font-size: 14px;
+			font-size: var(--vscode-codiconFontSize);
 			height: 20px;
 		}
 

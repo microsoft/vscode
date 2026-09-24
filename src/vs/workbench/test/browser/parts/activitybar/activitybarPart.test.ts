@@ -25,10 +25,13 @@ import { ViewContainerLocation } from '../../../../common/views.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { GlobalCompositeBar } from '../../../../browser/parts/globalCompositeBar.js';
 
 interface ILayoutTestHarness {
 	menuBarContainer: HTMLElement | undefined;
-	globalCompositeBar: { element: HTMLElement } | undefined;
+	globalCompositeBar: { element: HTMLElement; getHeight(actionHeight: number, actionGap: number): number } | undefined;
+	globalActivities: { actionHeight: number; actionGap: number } | undefined;
+	lastLayoutDimensions?: Dimension;
 	options: { orientation: ActionsOrientation };
 	compositeBar: { layout: (dimension: Dimension) => void };
 }
@@ -457,9 +460,16 @@ suite('ActivitybarPart', () => {
 		});
 		const el = document.createElement('div');
 		fixture.appendChild(el);
+		hostService.setActiveWindow(mainWindow.vscodeWindowId);
 		part.create(el);
 
 		const activeModernBackground = el.style.backgroundColor;
+		hostService.setActiveWindow(mainWindow.vscodeWindowId + 1);
+		const inactiveAuxiliaryModernBackground = el.style.backgroundColor;
+		hostService.setFocus(false);
+		hostService.setFocus(true);
+		const refocusedAuxiliaryModernBackground = el.style.backgroundColor;
+		hostService.setActiveWindow(mainWindow.vscodeWindowId);
 		hostService.setFocus(false);
 		const inactiveModernBackground = el.style.backgroundColor;
 		configService.setUserConfiguration(LayoutSettings.MODERN_UI, false);
@@ -467,10 +477,14 @@ suite('ActivitybarPart', () => {
 
 		assert.deepStrictEqual({
 			activeModernBackground,
+			inactiveAuxiliaryModernBackground,
+			refocusedAuxiliaryModernBackground,
 			inactiveModernBackground,
 			inactiveClassicBackground: el.style.backgroundColor,
 		}, {
 			activeModernBackground: 'rgb(171, 205, 239)',
+			inactiveAuxiliaryModernBackground: 'rgb(101, 67, 33)',
+			refocusedAuxiliaryModernBackground: 'rgb(101, 67, 33)',
 			inactiveModernBackground: 'rgb(101, 67, 33)',
 			inactiveClassicBackground: 'rgb(18, 52, 86)',
 		});
@@ -556,12 +570,14 @@ suite('ActivitybarPart', () => {
 	// The composite bar decides how many activity icons fit before collapsing the rest into
 	// the overflow ("Additional Views") menu, so the size it is handed has to match the
 	// vertical space an item actually occupies in the current mode.
-	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false): IPaneCompositeBarOptions {
+	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
 		let captured: IPaneCompositeBarOptions | undefined;
+		let capturedGlobalActivities: { actionHeight: number; actionGap: number } | undefined;
 		const stubCompositeBar = { create: () => { }, layout: () => { }, dispose: () => { } };
 		const { part } = createActivitybarPart(compact, floatingPanelsEnabled, Position.LEFT, {}, modernUICompact, {
-			createInstance: (_descriptor: unknown, _location: unknown, options: IPaneCompositeBarOptions) => {
+			createInstance: (_descriptor: typeof ActivityBarCompositeBar, _location: ViewContainerLocation, options: IPaneCompositeBarOptions, _part: Parts, _paneCompositePart: IPaneCompositePart, globalActivities: { actionHeight: number; actionGap: number }) => {
 				captured = options;
+				capturedGlobalActivities = globalActivities;
 				return stubCompositeBar;
 			}
 		} as unknown as IInstantiationService);
@@ -571,13 +587,13 @@ suite('ActivitybarPart', () => {
 		part.create(el);
 		part.show();
 
-		return captured!;
+		return { options: captured!, globalActivities: capturedGlobalActivities! };
 	}
 
 	test('composite bar item size tracks the rendered item stride in every mode', () => {
 		const sizesFor = (compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false) => {
-			const { compositeSize, overflowActionSize } = capturedCompositeBarOptions(compact, floatingPanelsEnabled, modernUICompact);
-			return { compositeSize, overflowActionSize };
+			const { options: { compositeSize, overflowActionSize }, globalActivities } = capturedCompositeBarOptions(compact, floatingPanelsEnabled, modernUICompact);
+			return { compositeSize, overflowActionSize, globalActivities };
 		};
 
 		assert.deepStrictEqual(
@@ -590,14 +606,14 @@ suite('ActivitybarPart', () => {
 			},
 			{
 				// Items stack flush against each other, so the stride is just the action height.
-				classicDefault: { compositeSize: 48, overflowActionSize: 48 },
-				classicCompact: { compositeSize: 28, overflowActionSize: 28 },
+				classicDefault: { compositeSize: 48, overflowActionSize: 48, globalActivities: { actionHeight: 48, actionGap: 0 } },
+				classicCompact: { compositeSize: 28, overflowActionSize: 28, globalActivities: { actionHeight: 28, actionGap: 0 } },
 				// Modern UI separates items with an 8px gap, but only at the default size.
-				modernDefault: { compositeSize: 44, overflowActionSize: 44 },
-				modernCompact: { compositeSize: 28, overflowActionSize: 28 },
+				modernDefault: { compositeSize: 44, overflowActionSize: 44, globalActivities: { actionHeight: 36, actionGap: 8 } },
+				modernCompact: { compositeSize: 28, overflowActionSize: 28, globalActivities: { actionHeight: 28, actionGap: 0 } },
 				// The compact density tightens that gap to 4px, and the stride has to follow it
 				// so items do not collapse into the overflow menu early.
-				modernCompactDensity: { compositeSize: 40, overflowActionSize: 40 },
+				modernCompactDensity: { compositeSize: 40, overflowActionSize: 40, globalActivities: { actionHeight: 36, actionGap: 4 } },
 			}
 		);
 	});
@@ -654,25 +670,20 @@ suite('ActivitybarPart', () => {
 
 	// --- global activity icons reservation -----------------------------------
 
-	// The global (Accounts/Manage) icons are a separate action bar stacked beneath the view
-	// containers, so the room they take has to be measured rather than derived from the item
-	// size: the gap sits only *between* items, so N icons occupy N * height + (N - 1) * gap.
 	function heightLeftForCompositeBar(globalActionCount: number, itemHeight: number, gap: number): number {
 		const globalBarElement = document.createElement('div');
-		for (let i = 0; i < globalActionCount; i++) {
-			const item = document.createElement('div');
-			item.style.height = `${itemHeight}px`;
-			if (i > 0) {
-				item.style.marginTop = `${gap}px`;
-			}
-			globalBarElement.appendChild(item);
-		}
-		fixture.appendChild(globalBarElement);
+		Object.defineProperty(globalBarElement, 'clientHeight', { get: () => { throw new Error('Layout must not measure global activities'); } });
+		const globalCompositeBar = {
+			element: globalBarElement,
+			globalActivityActionBar: { length: () => globalActionCount },
+			getHeight: GlobalCompositeBar.prototype.getHeight,
+		};
 
 		let laidOut: Dimension | undefined;
 		activityBarCompositeBarLayout.call({
 			menuBarContainer: undefined,
-			globalCompositeBar: { element: globalBarElement },
+			globalCompositeBar,
+			globalActivities: { actionHeight: itemHeight, actionGap: gap },
 			options: { orientation: ActionsOrientation.VERTICAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
 		}, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH, 300);
@@ -680,22 +691,40 @@ suite('ActivitybarPart', () => {
 		return laidOut!.height;
 	}
 
-	test('reserves the measured height of the global activity icons', () => {
-		const gap = ActivitybarPart.FLOATING_ACTION_GAP;
-		const itemHeight = ActivitybarPart.FLOATING_ACTION_HEIGHT;
-
+	test('reserves global activity sizes without synchronous DOM measurement', () => {
 		assert.deepStrictEqual(
 			{
-				oneGlobalAction: heightLeftForCompositeBar(1, itemHeight, gap),
-				twoGlobalActions: heightLeftForCompositeBar(2, itemHeight, gap),
+				classicDefault: heightLeftForCompositeBar(2, 48, 0),
+				classicCompact: heightLeftForCompositeBar(2, 28, 0),
+				modernDefault: heightLeftForCompositeBar(2, 36, 8),
+				modernCompact: heightLeftForCompositeBar(2, 28, 0),
+				modernCompactDensity: heightLeftForCompositeBar(2, 36, 4),
+				accountsHidden: heightLeftForCompositeBar(1, 36, 8),
 			},
 			{
-				// A lone icon has no gap at all, so it occupies exactly its own height.
-				oneGlobalAction: 300 - itemHeight,
-				// Two icons share a single gap: 36 + 8 + 36 = 80, not 2 * (36 + 8) = 88.
-				twoGlobalActions: 300 - (itemHeight * 2 + gap),
+				classicDefault: 204,
+				classicCompact: 244,
+				modernDefault: 220,
+				modernCompact: 244,
+				modernCompactDensity: 224,
+				accountsHidden: 264,
 			}
 		);
+	});
+
+	test('horizontal composite bars preserve compact menu space without global activities', () => {
+		const menuBarContainer = document.createElement('div');
+		Object.defineProperty(menuBarContainer, 'clientWidth', { get: () => 35 });
+		let laidOut: Dimension | undefined;
+		activityBarCompositeBarLayout.call({
+			menuBarContainer,
+			globalCompositeBar: undefined,
+			globalActivities: undefined,
+			options: { orientation: ActionsOrientation.HORIZONTAL },
+			compositeBar: { layout: dimension => { laidOut = dimension; } },
+		}, 300, 35);
+
+		assert.deepStrictEqual(laidOut, new Dimension(265, 35));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

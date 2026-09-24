@@ -51,7 +51,7 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -74,6 +74,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly activeSessionChangesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
@@ -97,6 +98,11 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionTypeObs = constObservable(session.sessionType);
 		this.activeSessionIsVirtualWorkspaceObs = constObservable(false);
 		this.activeSessionChangesObs = constObservable(options.changes);
+		this.activeSessionChangesSummaryObs = constObservable(options.changes.length === 0 ? undefined : {
+			additions: options.changes.reduce((total, change) => total + change.insertions, 0),
+			deletions: options.changes.reduce((total, change) => total + change.deletions, 0),
+			files: options.changes.length,
+		});
 		this.activeSessionChangesetsObs = constObservable([changeset]);
 		this.activeSessionChangesetsLoadingObs = constObservable(false);
 		this.activeSessionChangesetObs = constObservable(changeset);
@@ -268,7 +274,13 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		supportsRename: true,
 	};
 	const changesets = [createChangeset(options.changes)];
-	const chat = new class extends mock<IChat>() { }();
+	// A chat without its own folders shares the session's workspace.
+	const workspace = constObservable(createWorkspace());
+	const chat = new class extends mock<IChat>() {
+		override readonly changes = constObservable(options.changes);
+		override readonly changesets = constObservable(changesets);
+		override readonly workspace = workspace;
+	}();
 
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'fixture:changes-view';
@@ -277,12 +289,10 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		override readonly sessionType = 'fixture';
 		override readonly icon = Codicon.account;
 		override readonly createdAt = new Date('2026-05-14T12:00:00Z');
-		override readonly workspace = constObservable(createWorkspace());
+		override readonly workspace = workspace;
 		override readonly title = constObservable('Changes view fixture');
 		override readonly updatedAt = constObservable(new Date('2026-05-14T12:30:00Z'));
 		override readonly status = constObservable(SessionStatus.Completed);
-		override readonly changes = constObservable(options.changes);
-		override readonly changesets = constObservable(changesets);
 		override readonly modelId = constObservable(undefined);
 		override readonly mode = constObservable(undefined);
 		override readonly loading = constObservable(false);
@@ -539,6 +549,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 
 	Empty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A centered empty state shows the semibold title "Changes" above the secondary text "No changed files", with compact spacing and no icon.'],
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: [],

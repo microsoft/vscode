@@ -5,19 +5,20 @@
 
 import { $ } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun, derived } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, type IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../platform/actionWidget/browser/actionWidget.js';
 import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
-import { FileKind } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItem, getChatPillEntries, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { FileKind, IFileService } from '../../platform/files/common/files.js';
+import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverActions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -43,7 +44,7 @@ export interface IChatDropdownPillOptions {
 	/** Identifies the pill's dropdown to the action widget service. */
 	readonly widgetId: string;
 	/** Icon of the summary shown for several entries. */
-	readonly icon: ThemeIcon;
+	readonly icon: ThemeIcon | IObservable<ThemeIcon>;
 	/** Accessible name of the dropdown. */
 	readonly title: string;
 	/** Summary label, e.g. `3 Artifacts`. */
@@ -90,20 +91,60 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super(undefined, action, options);
 	}
 
 	private _dropdownVisible = false;
+	private _entries: readonly IChatPillEntry[] = [];
+	private _summaryIcon: ThemeIcon | undefined;
+	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
+	private readonly _dropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
+	private readonly _imageDropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
 
 	protected override renderContent(): void {
 		this._register(autorun(reader => {
-			this._sections.read(reader);
-			this.updateLabel();
-			this.updateTooltip();
-			this.updateAriaLabel();
-			this._updatePopupState();
+			const previous = this._getPresentation();
+			this._entries = getChatPillEntries(this._sections.read(reader));
+			this._summaryIcon = ThemeIcon.isThemeIcon(this._pillOptions.icon) ? this._pillOptions.icon : this._pillOptions.icon.read(reader);
+			const current = this._getPresentation();
+			if (previous.label !== current.label || previous.summarized !== current.summarized || !iconsEqual(previous.icon, current.icon)) {
+				this.updateLabel();
+			}
+			if (previous.hoverContent !== current.hoverContent || !actionsEqual(previous.toolbarActions, current.toolbarActions)) {
+				this.updateTooltip();
+			}
+			if (previous.ariaLabel !== current.ariaLabel) {
+				this.updateAriaLabel();
+			}
+			if (previous.ariaDescription !== current.ariaDescription) {
+				this._updateAriaDescription(current.ariaDescription);
+			}
+			if (previous.summarized !== current.summarized) {
+				this._updatePopupState();
+			}
+			if (this._dropdownVisible) {
+				if (current.summarized) {
+					this._actionWidgetService.updateItems(this._getDropdownItems(), undefined, { preserveHover: true, animateItemMove: true });
+				} else {
+					this._actionWidgetService.hide();
+				}
+			}
 		}));
+	}
+
+	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly label: string; readonly hoverContent: IManagedHoverContent; readonly toolbarActions: readonly IAction[]; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
+		const entry = this.isSummarized ? undefined : this.entries.at(0);
+		return {
+			summarized: this.isSummarized,
+			icon: this.isSummarized ? this._summaryIcon : entry?.icon,
+			label: this.getLabelText(),
+			hoverContent: this.getHoverContents(),
+			toolbarActions: entry ? getChatPillEntryToolbarActions(entry) : [],
+			ariaLabel: this.getAriaLabel(),
+			ariaDescription: entry?.ariaDescription,
+		};
 	}
 
 	/**
@@ -124,6 +165,18 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		}
 	}
 
+	private _updateAriaDescription(description: string | undefined): void {
+		const element = this.button?.element;
+		if (!element) {
+			return;
+		}
+		if (description) {
+			element.setAttribute('aria-description', description);
+		} else {
+			element.removeAttribute('aria-description');
+		}
+	}
+
 	/** Whether the pill stands for its entries rather than showing a single one. */
 	protected get isSummarized(): boolean {
 		const entries = this.entries;
@@ -131,11 +184,11 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected get entries(): readonly IChatPillEntry[] {
-		return getChatPillEntries(this._sections.get());
+		return this._entries;
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
-		const icon = this.isSummarized ? this._pillOptions.icon : this.entries.at(0)?.icon;
+		const icon = this.isSummarized ? this._summaryIcon : this.entries.at(0)?.icon;
 		return icon ? this.createIconElement(icon) : undefined;
 	}
 
@@ -153,7 +206,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	protected override getLabelText(): string {
 		return this.isSummarized
 			? this._pillOptions.summaryLabel(this.entries.length)
-			: this.entries.at(0)?.label ?? '';
+			: this.entries.at(0)?.pillLabel ?? this.entries.at(0)?.label ?? '';
 	}
 
 	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
@@ -168,10 +221,44 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		return entry?.tooltip ?? entry?.label ?? this._pillOptions.title;
 	}
 
+	protected override getHoverContents(): IManagedHoverContent {
+		if (this.isSummarized) {
+			return super.getHoverContents();
+		}
+		const entry = this.entries.at(0);
+		if (!entry?.imagePreview) {
+			return entry?.pillHover ?? super.getHoverContents();
+		}
+		const imagePreview = entry.imagePreview;
+		let content = this._imageHoverContents.get(entry);
+		if (!content) {
+			content = {
+				element: token => createChatPillImagePreview({ ...entry, imagePreview }, this._fileService, token).element,
+				contentOwnsPadding: true,
+			};
+			this._imageHoverContents.set(entry, content);
+		}
+		return content;
+	}
+
 	protected override getAriaLabel(): string | undefined {
 		return this.isSummarized
 			? this._pillOptions.summaryAriaLabel(this.entries.length)
 			: this.entries.at(0)?.ariaLabel ?? super.getAriaLabel();
+	}
+
+	protected override getHoverOptions(): IManagedHoverOptions | undefined {
+		const entry = this.isSummarized ? undefined : this.entries.at(0);
+		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
+		return hoverActions?.length ? {
+			trapFocus: true,
+			actions: hoverActions.map(action => ({
+				commandId: action.id,
+				label: action.hoverLabel ?? action.label,
+				iconClass: action.class,
+				run: () => { void action.run(); },
+			})),
+		} : undefined;
 	}
 
 	protected override onDidClickButton(): void {
@@ -204,26 +291,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			return;
 		}
 
-		const items: IActionListItem<IChatPillEntry>[] = [];
-		for (const section of sections) {
-			if (items.length > 0) {
-				items.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
-			items.push({ kind: ActionListItemKind.Header, label: section.title, group: { title: section.title } });
-			for (const entry of section.entries) {
-				items.push({
-					kind: ActionListItemKind.Action,
-					label: entry.label,
-					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
-					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
-					...(entry.toolbarActions?.length ? { toolbarActions: [...entry.toolbarActions] } : {}),
-					ariaDescription: entry.ariaDescription,
-					hover: entry.hover,
-					item: entry,
-				});
-			}
-		}
-
+		const items = this._getDropdownItems(sections);
 		const delegate: IActionListDelegate<IChatPillEntry> = {
 			onSelect: entry => {
 				this._actionWidgetService.hide();
@@ -232,7 +300,9 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			onHide: () => {
 				this._dropdownVisible = false;
 				this._updatePopupState();
-				trigger.focus();
+				if (trigger.isConnected) {
+					trigger.focus();
+				}
 			},
 		};
 		this._dropdownVisible = true;
@@ -246,12 +316,94 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.label ?? '',
+				getAriaLabel: item => [item.item?.ariaLabel ?? item.label, item.ariaDescription].filter(Boolean).join(', '),
 				getWidgetAriaLabel: () => this._pillOptions.title,
 			},
-			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons' },
+			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons chat-pill-dropdown' },
 		);
 	}
+
+	private _getDropdownItems(sections = this._sections.get().filter(section => section.entries.length > 0)): IActionListItem<IChatPillEntry>[] {
+		const items: IActionListItem<IChatPillEntry>[] = [];
+		for (const section of sections) {
+			if (items.length > 0) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			items.push({ kind: ActionListItemKind.Header, label: section.title, group: { title: section.title } });
+			for (const entry of section.entries) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: entry.label,
+					...(entry.badge ? { badge: entry.badge } : {}),
+					...(entry.className ? { className: entry.className } : {}),
+					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
+					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
+					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
+					ariaDescription: entry.ariaDescription,
+					hover: this._getDropdownHover(entry),
+					item: entry,
+				});
+			}
+		}
+		return items;
+	}
+
+	private _getDropdownHover(entry: IChatPillEntry): IActionListItemHover | undefined {
+		let baseHover = this._dropdownHovers.get(entry);
+		if (!baseHover) {
+			const actions = (entry.hoverActions ?? []).map(action => ({
+				commandId: action.id,
+				label: action.hoverLabel ?? action.label,
+				iconClass: action.class,
+				run: () => { void action.run(); },
+			}));
+			baseHover = actions.length ? { ...entry.hover, actions } : entry.hover;
+			if (baseHover) {
+				this._dropdownHovers.set(entry, baseHover);
+			}
+		}
+		if (!entry.imagePreview) {
+			return baseHover;
+		}
+		let hover = this._imageDropdownHovers.get(entry);
+		if (!hover) {
+			const imagePreview = entry.imagePreview;
+			let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
+			hover = {
+				...baseHover,
+				content: () => {
+					preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
+					return preview.element;
+				},
+				disposable: {
+					dispose: () => {
+						preview?.disposable.dispose();
+						preview = undefined;
+					},
+				},
+				contentOwnsPadding: true,
+				alignToAnchorTop: true,
+				preserveVerticalPosition: true,
+			};
+			this._imageDropdownHovers.set(entry, hover);
+		}
+		return hover;
+	}
+
+	override dispose(): void {
+		if (this._dropdownVisible) {
+			this._actionWidgetService.hide(true);
+		}
+		super.dispose();
+	}
+}
+
+function iconsEqual(first: ThemeIcon | undefined, second: ThemeIcon | undefined): boolean {
+	return first === second || (!!first && !!second && ThemeIcon.isEqual(first, second));
+}
+
+function actionsEqual(first: readonly IAction[], second: readonly IAction[]): boolean {
+	return first === second || (first.length === second.length && first.every((action, index) => action === second[index]));
 }
 
 /**
@@ -275,8 +427,16 @@ export function createChatSectionPill(
 		return entry?.resource ? entry : undefined;
 	});
 	const isResource = derived(reader => !!singleResourceEntry.read(reader));
+	const resourcePill: IChatPill = {
+		action,
+		createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatResourcePillActionViewItem, action, viewItemOptions, singleResourceEntry, resourceLabels),
+	};
+	const dropdownPill: IChatPill = {
+		action,
+		createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, viewItemOptions, sections, options),
+	};
 
 	return derived<IChatPill>(reader => isResource.read(reader)
-		? { action, createActionViewItem: viewItemOptions => new ChatResourcePillActionViewItem(action, viewItemOptions, singleResourceEntry, resourceLabels) }
-		: { action, createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, viewItemOptions, sections, options) });
+		? resourcePill
+		: dropdownPill);
 }

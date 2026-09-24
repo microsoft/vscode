@@ -29,7 +29,6 @@ export type IChatSurfaceMeta = ITerminalChatSurfaceMeta | IEditorInlineChatSurfa
 
 /** Reads recognized chat-surface metadata, dropping malformed values. */
 export function readChatSurfaceMeta(source: IHasChatSurfaceMeta): IChatSurfaceMeta | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced chat-surface slot.
 	const value = source._meta?.[VSCODE_CHAT_SURFACE_META_KEY];
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
@@ -133,6 +132,7 @@ export function createEditorInlineChatInstruction(surface: IEditorInlineChatSurf
 		'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 		'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 		'- Focus on the user\'s selected range when one is provided.',
+		'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 		'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 		'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 		'- Produce the edit directly rather than explaining it or writing a tutorial.',

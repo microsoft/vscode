@@ -58,6 +58,7 @@ export class ModelPicker extends Disposable {
 
 		this._delegate = {
 			currentModel,
+			modelConfiguration: this._selectionModel.modelConfiguration,
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {

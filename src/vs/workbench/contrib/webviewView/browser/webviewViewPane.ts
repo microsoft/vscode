@@ -257,6 +257,8 @@ export class WebviewViewPane extends ViewPane {
 				priority: 150
 			};
 			this.activity.value = this.activityService.showViewActivity(this.id, activity);
+		} else {
+			this.activity.clear();
 		}
 	}
 

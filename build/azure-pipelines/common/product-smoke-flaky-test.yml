@@ -64,13 +64,7 @@ jobs:
     steps:
       - checkout: none
 
-      # These paths must exist for the unconditional crash/log artifact outputs.
-      - ${{ if eq(parameters.platform, 'windows') }}:
-        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-          displayName: Ensure artifact directories exist
-      - ${{ else }}:
-        - script: mkdir -p .build/crashes .build/logs
-          displayName: Ensure artifact directories exist
+      - template: ./ensure-test-artifact-directories.yml@self
 
       - ${{ each artifact in parameters.artifacts }}:
         - task: DownloadPipelineArtifact@2

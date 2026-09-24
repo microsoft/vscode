@@ -122,7 +122,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private readonly _xtermColorProvider: IXtermColorProvider;
 	private readonly _capabilities: ITerminalCapabilityStore;
 	private readonly _disableOverviewRuler: boolean;
-	private readonly _mainDocument: Document;
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -234,7 +233,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._xtermColorProvider = options.xtermColorProvider;
 		this._capabilities = options.capabilities;
 		this._disableOverviewRuler = options.disableOverviewRuler ?? false;
-		this._mainDocument = layoutService.mainContainer.ownerDocument;
 
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
@@ -244,7 +242,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			allowProposedApi: true,
 			cols: options.cols,
 			rows: options.rows,
-			documentOverride: this._mainDocument,
+			documentOverride: layoutService.mainContainer.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this.getXtermTheme(),
@@ -895,7 +893,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element) {
 			return;
 		}
-		const customGlyphs = this._getWebglCustomGlyphs();
+		const customGlyphs = this._terminalConfigurationService.config.customGlyphs;
 		if ((this._webglAddon || this._webglAddonLoading) && this._webglAddonCustomGlyphs === customGlyphs) {
 			return;
 		}
@@ -927,7 +925,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			return;
 		}
 
-		const currentCustomGlyphs = this._getWebglCustomGlyphs();
+		const currentCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
 		if (customGlyphs !== currentCustomGlyphs) {
 			this._webglAddonCustomGlyphs = undefined;
 			await this._enableWebglRenderer();
@@ -959,11 +957,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			XtermTerminal._suggestedRendererType = 'dom';
 			this._disposeOfWebglRenderer();
 		}
-	}
-
-	private _getWebglCustomGlyphs(): boolean {
-		// The custom glyph rasterizer creates a canvas through the rendering document, which is blocked in auxiliary windows.
-		return this._terminalConfigurationService.config.customGlyphs && this.raw.element?.ownerDocument === this._mainDocument;
 	}
 
 	@debounce(100)
@@ -1150,9 +1143,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	refresh() {
 		this._updateTheme();
 		this._decorationAddon.refreshLayouts();
-		if (this._webglAddon || this._webglAddonLoading) {
-			this._enableWebglRenderer();
-		}
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterEach, assert, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
@@ -31,6 +31,7 @@ import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -56,6 +57,7 @@ const testModelService: IInlineEditsModelService = {
 	_serviceBrand: undefined,
 	modelInfo: undefined,
 	onModelListUpdated: Event.None,
+	supportsUnifiedCompletions: constObservable(undefined),
 	setCurrentModelId: async _modelId => { },
 	selectedModelConfiguration: () => testModelConfiguration,
 	defaultModelConfiguration: () => testModelConfiguration,
@@ -233,7 +235,6 @@ function createInlineContext(): NESInlineCompletionContext {
 		requestUuid: generateUuid(),
 		requestIssuedDateTime: Date.now(),
 		earliestShownDateTime: Date.now(),
-		enforceCacheDelay: false,
 	};
 }
 
@@ -257,10 +258,11 @@ describe('NextEditProvider speculative requests', () => {
 	let workspaceService: IWorkspaceService;
 	let requestLogger: IRequestLogger;
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		disposables = new DisposableStore();
 		workspaceService = disposables.add(new TestWorkspaceService());
 		configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
 		snippyService = new NullSnippyService();
 		gitExtensionService = new NullGitExtensionService();
 		logService = new LogServiceImpl([]);
@@ -274,8 +276,8 @@ describe('NextEditProvider speculative requests', () => {
 
 	function createProviderAndWorkspace(statelessProvider: IStatelessNextEditProvider): { nextEditProvider: NextEditProvider; workspace: MutableObservableWorkspace } {
 		const workspace = new MutableObservableWorkspace();
-		const git = new ObservableGit(gitExtensionService);
-		const nextEditProvider = new NextEditProvider(
+		const git = disposables.add(new ObservableGit(gitExtensionService));
+		const nextEditProvider = disposables.add(new NextEditProvider(
 			workspace,
 			statelessProvider,
 			new NesHistoryContextProvider(workspace, git),
@@ -287,7 +289,7 @@ describe('NextEditProvider speculative requests', () => {
 			logService,
 			expService,
 			requestLogger,
-		);
+		));
 		return { nextEditProvider, workspace };
 	}
 
@@ -686,10 +688,9 @@ describe('NextEditProvider speculative requests', () => {
 			});
 		});
 
-		it('skips cache delay for edits from speculative requests even when enforceCacheDelay is true', async () => {
+		it('skips cache delay for edits from speculative requests', async () => {
 			const CACHE_DELAY_MS = 5_000;
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, CACHE_DELAY_MS);
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, 0);
 
 			const statelessProvider = new TestStatelessNextEditProvider();
@@ -704,9 +705,10 @@ describe('NextEditProvider speculative requests', () => {
 			});
 			doc.setSelection([new OffsetRange(0, 0)], undefined);
 
-			// First request (fresh, no cache delay since enforceCacheDelay=false)
+			// First request (fresh)
 			const firstSuggestion = await getNextEdit(nextEditProvider, doc.id);
 			assert(firstSuggestion.result?.edit);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, CACHE_DELAY_MS);
 			nextEditProvider.handleShown(firstSuggestion);
 			await statelessProvider.waitForCall(2);
 
@@ -714,16 +716,9 @@ describe('NextEditProvider speculative requests', () => {
 			nextEditProvider.handleAcceptance(doc.id, firstSuggestion);
 			doc.applyEdit(firstSuggestion.result.edit.toEdit());
 
-			// Second request with enforceCacheDelay=true — should still return fast because the result
+			// Second request should still return fast because the result
 			// comes from a speculative request, which uses speculativeRequestDelay (0) instead of cacheDelay (5000)
-			const context: NESInlineCompletionContext = {
-				triggerKind: 1,
-				selectedCompletionInfo: undefined,
-				requestUuid: generateUuid(),
-				requestIssuedDateTime: Date.now(),
-				earliestShownDateTime: Date.now(),
-				enforceCacheDelay: true,
-			};
+			const context = createInlineContext();
 			const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 			const telemetryBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, undefined);
 			const start = Date.now();
@@ -1413,11 +1408,38 @@ describe('NextEditProvider speculative requests', () => {
 		});
 	});
 
-	describe('cached speculative result delay', () => {
+	describe('response delay', () => {
+		it('uses the configured minimum response delay for ordinary requests', async () => {
+			const cacheDelayMs = 200;
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, cacheDelayMs);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+			const doc = disposables.add(workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/response-delay.ts').toString()),
+				initialValue: 'const value = 1;',
+			}));
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			vi.useFakeTimers();
+			try {
+				const start = Date.now();
+				const response = (async () => {
+					const suggestion = await getNextEdit(nextEditProvider, doc.id);
+					return { text: suggestion.result?.edit?.replace(doc.value.get().value), elapsed: Date.now() - start };
+				})();
+
+				await vi.advanceTimersByTimeAsync(cacheDelayMs);
+				expect(await response).toEqual({ text: 'const value = 2;', elapsed: cacheDelayMs });
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
 		it('uses speculativeRequestDelay (not cacheDelay) when speculative result is served from cache', async () => {
 			const CACHE_DELAY_MS = 5_000;
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, CACHE_DELAY_MS);
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, 0);
 
 			const statelessProvider = new TestStatelessNextEditProvider();
@@ -1434,6 +1456,7 @@ describe('NextEditProvider speculative requests', () => {
 			// First request (fresh)
 			const firstSuggestion = await getNextEdit(nextEditProvider, doc.id);
 			assert(firstSuggestion.result?.edit);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, CACHE_DELAY_MS);
 
 			// Show → triggers speculative request; wait for it to complete and cache
 			nextEditProvider.handleShown(firstSuggestion);
@@ -1445,16 +1468,8 @@ describe('NextEditProvider speculative requests', () => {
 			doc.applyEdit(firstSuggestion.result.edit.toEdit());
 
 			// Next getNextEdit hits the cache path (speculative result already cached).
-			// With enforceCacheDelay=true, it should use speculativeRequestDelay (0ms),
-			// NOT the normal cacheDelay (5000ms).
-			const context: NESInlineCompletionContext = {
-				triggerKind: 1,
-				selectedCompletionInfo: undefined,
-				requestUuid: generateUuid(),
-				requestIssuedDateTime: Date.now(),
-				earliestShownDateTime: Date.now(),
-				enforceCacheDelay: true,
-			};
+			// It should use speculativeRequestDelay (0ms), NOT the normal cacheDelay (5000ms).
+			const context = createInlineContext();
 			const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 			const telemetryBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, undefined);
 			const start = Date.now();

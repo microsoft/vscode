@@ -20,7 +20,7 @@ import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/b
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
 const fileResource = URI.parse('inmemory://model/agent-feedback-widget.ts');
@@ -114,6 +114,7 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
@@ -284,6 +285,7 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
@@ -292,6 +294,10 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return resourceUri.toString() === fileResource.toString() ? { resource: sessionResource } as ISession : undefined;
+		}
+
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 
 		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {

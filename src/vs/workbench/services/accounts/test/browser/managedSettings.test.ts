@@ -17,6 +17,17 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('preserves an empty telemetry block and explicit identity leaves', () => {
+		assert.deepStrictEqual({
+			empty: adaptManagedSettings({ telemetry: {} }),
+			denied: adaptManagedSettings({ telemetry: { capture: { identity: false } } }),
+			allowed: adaptManagedSettings({ telemetry: { capture: { identity: true } } }),
+		}, {
+			empty: { managedSettings: { telemetry: '{}' } },
+			denied: { managedSettings: { 'telemetry.capture.identity': false } },
+			allowed: { managedSettings: { 'telemetry.capture.identity': true } },
+		});
+	});
 	test('appends client identity to the request url', () => {
 		assert.deepStrictEqual({
 			withRuntime: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', {
@@ -43,6 +54,15 @@ suite('adaptManagedSettings', () => {
 			managedSettings: {
 				'permissions.disableBypassPermissionsMode': 'disable',
 			},
+		});
+	});
+
+	test('marks permission rules as active when they are retained only in the raw response', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			permissions: { deny: ['Shell'] },
+		}), {
+			managedSettings: {},
+			managedSettingsActive: true,
 		});
 	});
 
@@ -281,7 +301,7 @@ suite('adaptManagedSettings', () => {
 		} as IManagedSettingsResponse, msg => warnings.push(msg));
 		assert.deepStrictEqual(
 			{ result, warned: warnings.length, mentionsRepo: warnings.some(w => w.includes('requires "repo"')) },
-			{ result: { managedSettings: {} }, warned: 1, mentionsRepo: true }
+			{ result: { managedSettings: {}, managedSettingsActive: true }, warned: 1, mentionsRepo: true }
 		);
 	});
 
@@ -290,6 +310,7 @@ suite('adaptManagedSettings', () => {
 			extraKnownMarketplaces: ['https://plugins.acme.com'] as unknown as IManagedSettingsResponse['extraKnownMarketplaces'],
 		} as IManagedSettingsResponse), {
 			managedSettings: {},
+			managedSettingsActive: true,
 		});
 	});
 
