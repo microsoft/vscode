@@ -13,6 +13,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { realTimeApi } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -139,9 +140,9 @@ suite('ChatPetWidget', () => {
 		};
 	}
 
-	async function waitForPetAnimation(condition: () => boolean, message: string): Promise<void> {
+	async function waitForPetAnimation(condition: () => boolean, message: string, tick: () => Promise<void> = () => timeout(20)): Promise<void> {
 		for (let attempt = 0; attempt < 150 && !condition(); attempt++) {
-			await timeout(20);
+			await tick();
 		}
 		assert.ok(condition(), message);
 	}
@@ -651,52 +652,66 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('teleports to the top of the movement area and falls onto the new input', async () => {
-		const { root, widget, button, overlay, effect, firstHost, firstParent, secondHost, setReducedMotion } = createHostTransitionHarness(true);
-		widget.setHost(secondHost);
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-		const source = button.getBoundingClientRect();
-		const { top: targetTop } = firstParent.getBoundingClientRect();
-		const context = effect.getContext('2d');
-		assert.ok(context);
-		const drawImage = sinon.spy(context, 'drawImage');
-		setReducedMotion(false);
-		widget.setHost(firstHost);
-		await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the teleport must wait for the destination layout');
-		const departure = { left: effect.getBoundingClientRect().left, top: effect.getBoundingClientRect().top, hidden: button.classList.contains('hidden') };
-		await waitForPetAnimation(() => effect.getBoundingClientRect().top === root.getBoundingClientRect().top && !effect.classList.contains('hidden'), 'the respawn effect must appear at the top of the movement area');
-		const respawn = { top: effect.getBoundingClientRect().top, aboveInput: effect.getBoundingClientRect().bottom < targetTop };
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the respawn must lead into falling onto the input');
-		const duringFall = {
-			state: button.dataset.state,
-			effectHidden: effect.classList.contains('hidden'),
-			aboveInput: button.getBoundingClientRect().bottom < targetTop,
-			tabIndex: button.tabIndex,
-		};
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new input');
-		const frames = drawImage.getCalls().map(call => call.args[1] / 96)
-			.filter((frame, index, allFrames) => index === 0 || frame !== allFrames[index - 1]);
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		let widget: ChatPetWidget | undefined;
+		try {
+			const harness = createHostTransitionHarness(true);
+			widget = harness.widget;
+			const { root, button, overlay, effect, firstHost, firstParent, secondHost, setReducedMotion } = harness;
+			// Sprite frames need deterministic time; image loading, layout and the fall use the real browser.
+			const tick = async () => {
+				await clock.tickAsync(20);
+				await new Promise<void>(resolve => realTimeApi.setTimeout(resolve, 20));
+			};
+			widget.setHost(secondHost);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const source = button.getBoundingClientRect();
+			const { top: targetTop } = firstParent.getBoundingClientRect();
+			const context = effect.getContext('2d');
+			assert.ok(context);
+			const drawImage = sinon.spy(context, 'drawImage');
+			setReducedMotion(false);
+			widget.setHost(firstHost);
+			await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the teleport must wait for the destination layout', tick);
+			const departure = { left: effect.getBoundingClientRect().left, top: effect.getBoundingClientRect().top, hidden: button.classList.contains('hidden') };
+			await waitForPetAnimation(() => effect.getBoundingClientRect().top === root.getBoundingClientRect().top && !effect.classList.contains('hidden'), 'the respawn effect must appear at the top of the movement area', tick);
+			const respawn = { top: effect.getBoundingClientRect().top, aboveInput: effect.getBoundingClientRect().bottom < targetTop };
+			await waitForPetAnimation(() => button.classList.contains('falling'), 'the respawn must lead into falling onto the input', tick);
+			const duringFall = {
+				state: button.dataset.state,
+				effectHidden: effect.classList.contains('hidden'),
+				aboveInput: button.getBoundingClientRect().bottom < targetTop,
+				tabIndex: button.tabIndex,
+			};
+			await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new input', tick);
+			const frames = drawImage.getCalls().map(call => call.args[1] / 96)
+				.filter((frame, index, allFrames) => index === 0 || frame !== allFrames[index - 1]);
 
-		assert.deepStrictEqual({
-			departure,
-			respawn,
-			duringFall,
-			frames,
-			attached: overlay.parentElement === firstParent,
-			landed: button.getBoundingClientRect().bottom,
-			effectHidden: effect.classList.contains('hidden'),
-			buttonHidden: button.classList.contains('hidden'),
-			tabIndex: button.tabIndex,
-		}, {
-			departure: { left: source.left, top: source.top, hidden: true },
-			respawn: { top: root.getBoundingClientRect().top, aboveInput: true },
-			duringFall: { state: 'falling', effectHidden: true, aboveInput: true, tabIndex: -1 },
-			frames: [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5],
-			attached: true,
-			landed: targetTop,
-			effectHidden: true,
-			buttonHidden: false,
-			tabIndex: 0,
-		});
+			assert.deepStrictEqual({
+				departure,
+				respawn,
+				duringFall,
+				frames,
+				attached: overlay.parentElement === firstParent,
+				landed: button.getBoundingClientRect().bottom,
+				effectHidden: effect.classList.contains('hidden'),
+				buttonHidden: button.classList.contains('hidden'),
+				tabIndex: button.tabIndex,
+			}, {
+				departure: { left: source.left, top: source.top, hidden: true },
+				respawn: { top: root.getBoundingClientRect().top, aboveInput: true },
+				duringFall: { state: 'falling', effectHidden: true, aboveInput: true, tabIndex: -1 },
+				frames: [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5],
+				attached: true,
+				landed: targetTop,
+				effectHidden: true,
+				buttonHidden: false,
+				tabIndex: 0,
+			});
+		} finally {
+			widget?.dispose();
+			clock.restore();
+		}
 	});
 
 	test('retries a failed respawn image on the next teleport', async () => {
