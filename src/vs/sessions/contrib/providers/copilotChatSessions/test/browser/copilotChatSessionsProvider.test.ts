@@ -1767,6 +1767,25 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	}
 
+	for (const multiChatEnabled of [false, true]) {
+		test(`cloud session stays external until refreshed metadata reports it as adopted (multi-chat: ${multiChatEnabled})`, () => {
+			const cloudResource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+			const cliResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-2' });
+			const metadata = { owner: 'microsoft', name: 'vscode' };
+			model.addSession(createMockAgentSession(cloudResource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { ...metadata, external: true } }));
+			model.addSession(createMockAgentSession(cliResource, { createdAt: 2, metadata: { repositoryPath: '/test/repo', external: true } }));
+
+			const provider = createProvider(disposables, model, { multiChatEnabled });
+			const cloudSession = provider.getSessions().find(session => extUri.isEqual(session.resource, cloudResource))!;
+			const cliSession = provider.getSessions().find(session => extUri.isEqual(session.resource, cliResource))!;
+			const observed: (boolean | undefined)[] = [];
+			disposables.add(autorun(reader => observed.push(cloudSession.isExternal?.read(reader))));
+			model.replaceSession(createMockAgentSession(cloudResource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata }));
+
+			assert.deepStrictEqual({ cloud: observed, cli: cliSession.isExternal?.get() }, { cloud: [true, false], cli: false });
+		});
+	}
+
 	test('cloud session refreshes linked issue artifacts and pill references atomically and removes stale links', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
 		const metadata = { owner: 'microsoft', name: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/336399' };
