@@ -1031,6 +1031,7 @@ export interface IMcpWorkbenchService {
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;
 	getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined>;
+	getMcpServerFromAgentFinder(name: string, version: string, token?: CancellationToken): Promise<IWorkbenchMcpServer | undefined>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;

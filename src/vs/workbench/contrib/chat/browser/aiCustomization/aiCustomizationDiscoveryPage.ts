@@ -317,22 +317,27 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 				templateData.stats.removeAttribute('aria-label');
 			}
 			const state = this.getInstallState(element.resource);
+			const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 			const installError = this.getInstallError(element.resource);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
 			button.label = state.kind === 'installed'
 				? localize('customizationDiscovery.installed', "Installed")
 				: state.kind === 'installing'
 					? localize('customizationDiscovery.installing', "Installing...")
-					: installError
-						? localize('customizationDiscovery.retryInstall', "Retry Install")
-						: localize('customizationDiscovery.install', "Install");
-			button.enabled = state.kind === 'available';
-			button.setAriaLabel(state.kind === 'unavailable'
-				? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
-				: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
+					: setupUrl
+						? localize('customizationDiscovery.viewSetup', "View Setup")
+						: installError
+							? localize('customizationDiscovery.retryInstall', "Retry Install")
+							: localize('customizationDiscovery.install', "Install");
+			button.enabled = state.kind === 'available' || !!setupUrl;
+			button.setAriaLabel(setupUrl
+				? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", element.resource.displayName)
+				: state.kind === 'unavailable'
+					? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", element.resource.displayName, state.message)
+					: localize('customizationDiscovery.installLabel', "{0} {1}", button.label, element.resource.displayName));
 			button.element.setAttribute('aria-busy', String(state.kind === 'installing'));
 			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
-			templateData.elementDisposables.add(button.onDidClick(() => this.onInstall(element.resource)));
+			templateData.elementDisposables.add(button.onDidClick(() => setupUrl ? this.onOpen(setupUrl) : this.onInstall(element.resource)));
 			if (state.kind === 'unavailable' || installError) {
 				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
 			}
@@ -1313,6 +1318,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
 		const actions = DOM.append(card, $('.customization-discovery-card-actions'));
 		const state = this.getInstallState(item);
+		const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 		const installError = this.installErrors.get(getCustomizationMarketplaceResourceKey(item));
 		const install = this.browseDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, small: true }));
 		install.label = state.kind === 'installed'
@@ -1321,15 +1327,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				? localize('customizationDiscovery.uninstalling', "Uninstalling...")
 				: state.kind === 'installing'
 					? localize('customizationDiscovery.installing', "Installing...")
-					: installError
-						? localize('customizationDiscovery.retryInstall', "Retry Install")
-						: localize('customizationDiscovery.install', "Install");
-		install.enabled = state.kind === 'available';
-		install.setAriaLabel(state.kind === 'unavailable'
-			? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
-			: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
+					: setupUrl
+						? localize('customizationDiscovery.viewSetup', "View Setup")
+						: installError
+							? localize('customizationDiscovery.retryInstall', "Retry Install")
+							: localize('customizationDiscovery.install', "Install");
+		install.enabled = state.kind === 'available' || !!setupUrl;
+		install.setAriaLabel(setupUrl
+			? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", item.displayName)
+			: state.kind === 'unavailable'
+				? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
+				: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
 		install.element.setAttribute('aria-busy', String(state.kind === 'installing'));
-		this.browseDisposables.add(install.onDidClick(() => void this.install(item)));
+		this.browseDisposables.add(install.onDidClick(() => setupUrl ? void this.openExternal(setupUrl) : void this.install(item)));
 		if (state.kind === 'unavailable' || installError) {
 			this.browseDisposables.add(this.hoverService.setupDelayedHover(install.element, { content: state.kind === 'unavailable' ? state.message : installError! }));
 		}
@@ -1573,7 +1583,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),
 			...installed.map(item => `${item.name}\n${[getTypeLabel(item.type), item.sourceLabel, localize('customizationDiscovery.installed', "Installed")].filter(Boolean).join(' · ')}\n${item.description}`),
-			...available.map(item => `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceSourceLabel(item.sourceId)}\n${item.description}`),
+			...available.map(item => {
+				const state = this.getInstallState(item);
+				return `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceSourceLabel(item.sourceId)}\n${item.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
+			}),
 		].filter(Boolean).join('\n\n');
 	}
 
