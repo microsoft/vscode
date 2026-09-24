@@ -11,6 +11,7 @@ import { getChatFindTextParts } from './chatFindContent.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget/annotations.js';
 import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
+import { getChatRequestText } from '../../chatRequestText.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
 export const MAX_FIND_MATCHES = 9999;
@@ -60,8 +61,12 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 	const segments: IChatFindSegment[] = [];
 	for (const item of items) {
 		if (isRequestVM(item)) {
-			if (item.messageText && item.messageText.trim().length > 0) {
-				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text: item.messageText });
+			// Index the text the row actually displays: a request rendered as a
+			// widget (an Agent Merge summary) keeps its own text out of the DOM,
+			// where a match could not be revealed.
+			const text = getChatRequestText(item);
+			if (text && text.trim().length > 0) {
+				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text });
 			}
 		} else if (isResponseVM(item)) {
 			// A filtered response renders no content at all, so row-level text starts at 0.

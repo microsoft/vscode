@@ -501,6 +501,12 @@ export class HoverService extends Disposable implements IHoverService {
 		this.doHideHover();
 	}
 
+	getStickyHover(targetElement: HTMLElement): IHoverWidget | undefined {
+		return this._hoverStack.find(({ options }) => options.persistence?.sticky && (isHTMLElement(options.target)
+			? options.target === targetElement
+			: options.target.targetElements.includes(targetElement)))?.hover;
+	}
+
 	private doHideHover(): void {
 		// Pop and dispose the topmost hover
 		const length = this._hoverStack.length;
@@ -718,7 +724,10 @@ export class HoverService extends Disposable implements IHoverService {
 			},
 			update: async (newContent, hoverOptions) => {
 				content = newContent;
-				await hoverWidget?.update(content, undefined, hoverOptions);
+				// Keep the options for the next time the hover is shown, so an updated
+				// tooltip does not keep rendering the actions it was created with.
+				options = hoverOptions;
+				await hoverWidget?.update(content, undefined, options);
 			},
 			dispose: () => {
 				this._managedHovers.delete(targetElement);

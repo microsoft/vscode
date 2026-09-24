@@ -24,8 +24,9 @@ export function deepFreeze<T>(obj: T): T {
 		return obj;
 	}
 	const stack: any[] = [obj];
-	while (stack.length > 0) {
-		const obj = stack.shift();
+	for (let index = 0; index < stack.length; index++) {
+		const obj = stack[index];
+		stack[index] = undefined;
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
@@ -168,14 +169,18 @@ export function equals(one: any, other: any): boolean {
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen = new Set<any>();
-	return JSON.stringify(obj, (key, value) => {
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.has(value)) {
-				return '[Circular]';
-			} else {
-				seen.add(value);
+	// Track only current ancestors so shared sibling references are serialized in full.
+	const ancestors: unknown[] = [];
+	return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
+		if (typeof value === 'object' && value !== null) {
+			// `this` is the object holding `key`, pop the subtrees that are already done
+			while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+				ancestors.pop();
 			}
+			if (ancestors.includes(value)) {
+				return '[Circular]';
+			}
+			ancestors.push(value);
 		}
 		if (typeof value === 'bigint') {
 			return `[BigInt ${value.toString()}]`;

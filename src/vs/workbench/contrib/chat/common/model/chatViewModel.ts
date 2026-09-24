@@ -90,12 +90,13 @@ export interface IChatViewModel {
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
+	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
-	setEditing(editing: IChatRequestViewModel): void;
+	setEditing(editing: IChatRequestViewModel | undefined): void;
 }
 
 export interface IChatRequestViewModel {
@@ -114,6 +115,7 @@ export interface IChatRequestViewModel {
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isHiddenFromTranscript: boolean;
+	readonly isRequestHiddenFromTranscript: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
@@ -122,12 +124,14 @@ export interface IChatRequestViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
+	readonly modelConfiguration?: IChatRequestModel['modelConfiguration'];
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
 	readonly systemInitiatedLabel?: string;
 	readonly origin?: IChatRequestModel['origin'];
 }
@@ -153,6 +157,9 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
+	isActive?: boolean;
+	/** Whether a change to this content is worth announcing to screen readers, e.g. a blocking state rather than a rotating phrase. */
+	announce?: boolean;
 }
 
 
@@ -258,6 +265,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _onDidChange = this._register(new Emitter<IChatViewModelChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly _onDidChangeEditing = this._register(new Emitter<void>());
+	readonly onDidChangeEditing = this._onDidChangeEditing.event;
+
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
 	private _inputPlaceholder: string | undefined = undefined;
@@ -346,7 +356,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
 		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
-			if (item.isHiddenFromTranscript || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
+			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
 			}
 			return true;
@@ -355,7 +365,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isHiddenFromTranscript);
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isRequestHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
@@ -391,11 +401,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	setEditing(editing: IChatRequestViewModel | undefined): void {
-		if (this.editing && editing && this.editing.id === editing.id) {
-			return; // already editing this request
+		if (this._editing?.id === editing?.id) {
+			return;
 		}
 
 		this._editing = editing;
+		this._onDidChangeEditing.fire();
 	}
 
 	override dispose() {
@@ -473,6 +484,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isHiddenFromTranscript;
 	}
 
+	get isRequestHiddenFromTranscript() {
+		return this._model.isRequestHiddenFromTranscript;
+	}
+
 	get shouldBeBlocked() {
 		return this._model.shouldBeBlocked;
 	}
@@ -493,6 +508,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get modelId() {
 		return this._model.modelId;
+	}
+
+	get modelConfiguration() {
+		return this._model.modelConfiguration;
 	}
 
 	get resolvedModelId() {
@@ -518,6 +537,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get isSystemInitiated() {
 		return this._model.isSystemInitiated;
+	}
+
+	get requestSource() {
+		return this._model.requestSource;
 	}
 
 	get systemInitiatedLabel() {

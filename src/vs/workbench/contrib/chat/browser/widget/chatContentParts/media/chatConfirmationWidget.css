@@ -16,12 +16,6 @@
 	margin-bottom: 16px;
 }
 
-.chat-confirmation-widget + .chat-tool-approval-message {
-	margin: -12px 6px 16px;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-s);
-}
-
 .chat-confirmation-widget-message {
 	-webkit-user-select: text;
 	user-select: text;
@@ -78,13 +72,8 @@
 	margin: 0 !important;
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error {
+.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error-compact {
 	color: var(--vscode-errorForeground) !important;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title .chat-confirmation-widget-expando {
-	display: flex;
-	align-items: center;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.monaco-button {
@@ -98,9 +87,9 @@
 }
 
 .chat-confirmation-widget-message h3 {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 4px 0 8px;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown p a {
@@ -108,8 +97,8 @@
 }
 
 .chat-confirmation-widget-title small {
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
 	opacity: 0.7;
 
 	&::before {
@@ -288,8 +277,8 @@
 	.chat-title {
 		flex: 1 1 auto;
 		min-width: 0;
-		font-size: var(--vscode-agents-fontSize-heading3);
-		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		font-size: var(--vscode-fontSize-heading3);
+		font-weight: var(--vscode-fontWeight-semiBold);
 		overflow-wrap: anywhere;
 	}
 
@@ -362,7 +351,7 @@
 		flex: 1;
 		min-width: 0;
 		color: var(--vscode-descriptionForeground);
-		font-size: var(--vscode-agents-fontSize-label1);
+		font-size: var(--vscode-fontSize-label1);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -405,8 +394,8 @@
 		display: inline-flex;
 		gap: 4px;
 		margin-left: 6px;
-		font-size: var(--vscode-agents-fontSize-label2);
-		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-semiBold);
 		flex-shrink: 0;
 	}
 

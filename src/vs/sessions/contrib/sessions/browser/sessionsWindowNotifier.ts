@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableResourceMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorunDelta } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatNotificationKind, getChatNotificationDedupeKey } from '../../../../workbench/contrib/chat/common/chatNotification.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export class SessionsWindowNotifier extends Disposable implements IWorkbenchContribution {
@@ -29,6 +34,9 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IHostService private readonly _hostService: IHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ISessionComparisonService private readonly _sessionComparisonService: ISessionComparisonService,
 	) {
 		super();
 
@@ -47,25 +55,58 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		}));
 	}
 
+	/**
+	 * Delay before a completed session is announced, to swallow the brief idle
+	 * gap between a turn ending and the next queued turn starting. A method
+	 * rather than a field so tests can override it before `_trackSession` runs
+	 * during construction.
+	 */
+	protected _getCompletedNotificationDelay(): number {
+		return 1_500;
+	}
+
+	/**
+	 * Delay before any toast from this window, which by definition is not showing
+	 * the session, so that a window showing it notifies first.
+	 */
+	protected _getBackgroundNotificationDelay(): number {
+		return 250;
+	}
+
 	private _trackSession(session: ISession): void {
-		this._statusListeners.set(session.sessionId, autorunDelta(session.status, ({ lastValue, newValue }) => {
+		const store = new DisposableStore();
+		const completedNotificationScheduler = store.add(new RunOnceScheduler(() => void this._notify(session, SessionStatus.Completed), this._getCompletedNotificationDelay()));
+		store.add(autorunDelta(session.status, ({ lastValue, newValue }) => {
 			if (lastValue === undefined || lastValue === newValue) {
 				return;
 			}
 
 			this._clearNotification(session);
-			if (newValue === SessionStatus.NeedsInput || newValue === SessionStatus.Completed || newValue === SessionStatus.Error) {
+			if (newValue === SessionStatus.Completed) {
+				completedNotificationScheduler.schedule();
+			} else {
+				completedNotificationScheduler.cancel();
+			}
+			if (newValue === SessionStatus.NeedsInput || newValue === SessionStatus.Error) {
 				void this._notify(session, newValue);
 			}
 		}));
+		this._statusListeners.set(session.sessionId, store);
 	}
 
 	private async _notify(session: ISession, status: SessionStatus): Promise<void> {
+		if (session.status.get() !== status) {
+			return;
+		}
 		const setting = status === SessionStatus.NeedsInput
 			? ChatConfiguration.NotifyWindowOnConfirmation
 			: ChatConfiguration.NotifyWindowOnResponseReceived;
 		const mode = this._configurationService.getValue<ChatNotificationMode>(setting);
-		if (mode === ChatNotificationMode.Off || (mode !== ChatNotificationMode.Always && this._hostService.hasFocus)) {
+		const notifyForInactivePane = this._shouldNotifyForInactivePane(session, status, mode);
+		if (this._isCoveredByChatNotifier(session, status) && !notifyForInactivePane) {
+			return;
+		}
+		if (mode === ChatNotificationMode.Off || (mode !== ChatNotificationMode.Always && this._hostService.hasFocus && !notifyForInactivePane)) {
 			return;
 		}
 
@@ -73,6 +114,16 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		this._activeNotifications.set(session.resource, toDisposable(() => cts.dispose(true)));
 
 		try {
+			// This notifier only ever runs for a session this window does not display,
+			// so it always yields to a window that does. Without the delay it would win
+			// native deduplication and the toast would open the wrong window.
+			await timeout(this._getBackgroundNotificationDelay());
+			const notifyForInactivePane = this._shouldNotifyForInactivePane(session, status, mode);
+			if (cts.token.isCancellationRequested || session.status.get() !== status
+				|| this._isCoveredByChatNotifier(session, status) && !notifyForInactivePane
+				|| mode !== ChatNotificationMode.Always && this._hostService.hasFocus && !notifyForInactivePane) {
+				return;
+			}
 			if (!this._hostService.hasFocus) {
 				await this._hostService.focus(mainWindow, { mode: FocusMode.Notify });
 			}
@@ -84,17 +135,41 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 				title: this._sanitizeOSToastText(localize('sessions.notification.title', "Session: {0}", session.title.get())),
 				body: this._sanitizeOSToastText(this._getNotificationBody(session, status)),
 				actions: [localize('sessions.notification.openSession', "Open Session")],
+				dedupeKey: getChatNotificationDedupeKey(session.resource, status === SessionStatus.NeedsInput ? ChatNotificationKind.NeedsInput : ChatNotificationKind.Idle),
 			}, cts.token);
 
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(mainWindow, { mode: FocusMode.Force });
-				await this._sessionsService.openSession(session.resource);
+				await this._sessionsService.openSession(session.resource, { source: 'notification' });
 			}
 		} finally {
 			if (!cts.token.isCancellationRequested) {
 				this._clearNotification(session);
 			}
 		}
+	}
+
+	private _isCoveredByChatNotifier(session: ISession, status: SessionStatus): boolean {
+		const model = this._chatService.getSession(session.resource);
+		if (status === SessionStatus.NeedsInput) {
+			return !!model?.requestNeedsInput.get();
+		}
+		return !!model || !!this._chatWidgetService.getWidgetBySessionResource(session.resource);
+	}
+
+	private _shouldNotifyForInactivePane(session: ISession, status: SessionStatus, mode: ChatNotificationMode): boolean {
+		if (status !== SessionStatus.NeedsInput || mode !== ChatNotificationMode.WindowNotFocused || !this._hostService.hasFocus) {
+			return false;
+		}
+		const visibleSessions = this._sessionsService.visibleSessions.get();
+		const activeSession = this._sessionsService.activeSession.get();
+		const comparison = this._sessionComparisonService.getComparisonForSession(session.resource);
+		return visibleSessions.length > 1
+			&& visibleSessions.some(candidate => candidate?.sessionId === session.sessionId)
+			&& activeSession?.sessionId !== session.sessionId
+			&& !!comparison
+			&& !!activeSession
+			&& this._sessionComparisonService.getComparisonForSession(activeSession.resource)?.id === comparison.id;
 	}
 
 	private _getNotificationBody(session: ISession, status: SessionStatus): string {

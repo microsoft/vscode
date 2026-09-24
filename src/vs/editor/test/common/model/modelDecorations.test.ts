@@ -113,6 +113,26 @@ suite('Editor Model - Model Decorations', () => {
 		lineHasNoDecorations(thisModel, 5);
 	});
 
+	test('injected text width must be finite and non-negative', () => {
+		const widths = [NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1, 0, 1];
+		const decorationIds = thisModel.deltaDecorations([], widths.map(widthInEm => ({
+			range: new Range(1, 1, 1, 1),
+			options: {
+				description: 'test',
+				after: { content: 'x', widthInEm }
+			}
+		})));
+
+		assert.deepStrictEqual(decorationIds.map(id => thisModel.getDecorationOptions(id)?.after?.widthInEm), [
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			0,
+			1
+		]);
+	});
+
 	test('line decoration', () => {
 		addDecoration(thisModel, 1, 1, 1, 14, 'myType');
 		lineHasDecoration(thisModel, 1, 1, 14, 'myType');

@@ -3,65 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/issueHover.css';
-
-import { $, append } from '../../../../base/browser/dom.js';
-import { safeIntl } from '../../../../base/common/date.js';
-import { localize } from '../../../../nls.js';
-import { IGitHubIssue } from '../common/types.js';
-
-const issueDateFormatter = safeIntl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+import { createIssueResourceHover, getIssueResourceStatus, type IGitHubIssueHoverModel, type IGitHubResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
+import { GitHubIssueStateReason, type IGitHubIssue } from '../common/types.js';
 
 export interface IIssueHoverData {
 	readonly owner: string;
 	readonly repo: string;
 	readonly number: number;
 	readonly repositoryHref: string;
-	readonly issue: IGitHubIssue | undefined;
+	readonly referenceHref: string;
+	readonly issue: IGitHubIssue;
+	readonly density: 'default' | 'compact';
 	readonly onDidClickRepository?: () => void;
+	readonly onDidClickReference?: () => void;
+}
+
+export type IIssueHover = IGitHubResourceHover;
+
+export function createIssueHover(data: IIssueHoverData): IIssueHover {
+	return createIssueResourceHover({ ...data, issue: toIssueHoverModel(data.issue) });
 }
 
 export function createIssueHoverElement(data: IIssueHoverData): HTMLElement {
-	const hoverElement = $('.sessions-issue-hover');
-
-	const header = append(hoverElement, $('.sessions-issue-hover-header'));
-	const repositoryLink = document.createElement('a');
-	repositoryLink.className = 'sessions-issue-hover-repository';
-	append(header, repositoryLink);
-	repositoryLink.href = data.repositoryHref;
-	repositoryLink.textContent = `${data.owner}/${data.repo}#${data.number}`;
-	repositoryLink.title = repositoryLink.textContent;
-	if (data.onDidClickRepository) {
-		repositoryLink.onclick = event => {
-			event.preventDefault();
-			event.stopPropagation();
-			data.onDidClickRepository?.();
-		};
-	}
-
-	const date = formatIssueDate(data.issue?.createdAt);
-	if (date) {
-		append(header, $('span.sessions-issue-hover-date', undefined, localize('agentSessions.issueHover.onDate', "on {0}", date)));
-	}
-
-	append(hoverElement, $('.sessions-issue-hover-title', undefined, data.issue?.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number)));
-
-	const body = data.issue?.body.trim() || localize('agentSessions.issueHover.bodyFallback', "No description provided.");
-	const description = append(hoverElement, $('.sessions-issue-hover-description'));
-	append(description, $('.sessions-issue-hover-description-content', undefined, body));
-
-	return hoverElement;
+	return createIssueHover(data).element;
 }
 
-function formatIssueDate(value: string | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
+/** The issue's display state, used both for the hover's status pill and its accessible description. */
+export function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {
+	return getIssueResourceStatus(toIssueHoverModel(issue));
+}
 
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return undefined;
-	}
-
-	return issueDateFormatter.value.format(date);
+function toIssueHoverModel(issue: IGitHubIssue): IGitHubIssueHoverModel {
+	return {
+		...issue,
+		stateReason: issue.stateReason === GitHubIssueStateReason.NotPlanned
+			? 'not_planned'
+			: issue.stateReason === GitHubIssueStateReason.Duplicate
+				? 'duplicate'
+				: issue.stateReason === GitHubIssueStateReason.Completed
+					? 'completed'
+					: undefined,
+	};
 }

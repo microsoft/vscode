@@ -1,17 +1,12 @@
 # Agent Host sessions provider
 
-> **Specification change gate:** Do not update this document for provider bug
-> fixes, metadata additions, races, or transport behavior. Update it only when
-> provider ownership, identity, or the shared Agent Host lifecycle changes.
+> **Specification change gate:** Do not update this document for provider bug fixes, metadata additions, races, or transport behavior. Update it only when provider ownership, identity, or the shared Agent Host lifecycle changes.
 
 ## Scope
 
-The Agent Host provider family adapts Agent Host Protocol sessions into the
-provider-neutral Sessions model. The shared implementation supports local and
-remote hosts; this document covers the shared base and local registration.
+The Agent Host provider family adapts Agent Host Protocol sessions into the provider-neutral Sessions model. The shared implementation supports local and remote hosts; this document covers the shared base and local registration.
 
-Remote connection-specific behavior is specified in
-[REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md).
+Remote connection-specific behavior is specified in [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md).
 
 ## Implementations
 
@@ -21,32 +16,41 @@ Remote connection-specific behavior is specified in
 | `LocalAgentHostSessionsProvider` | Local provider backed by `IAgentHostService` |
 | `RemoteAgentHostSessionsProvider` | Per-connection remote specialization |
 
-The shared base owns session adaptation, draft creation, catalog publication,
-request routing, and provider operations. Concrete providers own connection
-lifetime and environment-specific capabilities.
+The shared base owns session adaptation, draft creation, catalog publication, request routing, and provider operations. Concrete providers own connection lifetime and environment-specific capabilities.
 
 ## Extended contract
 
-Agent Host providers implement `IAgentHostSessionsProvider`, which extends
-`ISessionsProvider` with:
+Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISessionsProvider` with:
 
 - optional remote connection state and connect/disconnect operations;
 - observable host-declared session configuration;
-- configuration mutation and completion APIs.
+- observable Agent Merge state for committed sessions;
+- configuration mutation and completion APIs;
+- optional local-draft Dev Container availability and selection.
 
-Consumers use the extended type guard rather than matching provider IDs.
-Provider-neutral features continue to depend on `ISessionsProvider`.
+Consumers use the extended type guard rather than matching provider IDs. Provider-neutral features continue to depend on `ISessionsProvider`.
+
+## Dev Container handoff
+
+The desktop-only Dev Container target is local draft state rather than host-declared session configuration. Before the first request, the local provider starts or reuses the container Agent Host, trusts the mapped workspace only after the source folder passes trust, and replaces the local draft with an equivalent draft owned by the dynamic remote provider. Compatible configuration, model, and custom-agent selections transfer to the replacement.
 
 ## Registration
 
-`LocalAgentHostContribution` registers the local provider only when the Agent
-Host runtime is available for the current environment. Agent discovery
-populates session types dynamically from host root state.
+`LocalAgentHostContribution` registers the local provider only when the Agent Host runtime is available for the current environment. Agent discovery populates session types dynamically from host root state.
 
-The contribution also registers the content and working-directory adapters
-needed by advertised session types. Runtime startup and shutdown rebind or
-dispose connection-scoped listeners; consumers must not assume registration
-means the backend has finished discovery.
+The contribution also registers the content and working-directory adapters needed by advertised session types. Runtime startup and shutdown rebind or dispose connection-scoped listeners; consumers must not assume registration means the backend has finished discovery.
+
+## Automations
+
+The cross-provider ownership, routing, persistence, and run-lifecycle contract is specified in [AUTOMATIONS.md](../../../AUTOMATIONS.md).
+
+Within that contract, Agent Host providers expose the host's `ahp-automations://` channel when negotiated capabilities include Automations. `AgentHostAutomationStore` projects AHP state and maps host session resources into the local or remote Sessions resource scheme. `ReconnectableAgentHostAutomationStore` owns connection and capability transitions. The Agent Host owns execution, scheduling, and recovery without a renderer activation handshake; this provider owns only adaptation and connection-specific identity. Disconnected or unsupported hosts cannot fall back to a browser store or executor.
+
+Imported prompts retain Automation provenance through `MessageKind.Automation`. The projection converts editor-qualified model identifiers to provider-native `ModelSelection.id` values at the AHP boundary while preserving the editor identity exposed to Sessions. The provider also mirrors `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` into host configuration; disabling Automations removes new run authority without deleting definitions or terminating sessions already running.
+
+`AutomationDefinition.session` is authoritative for host-owned model, custom-agent, and provider configuration. The projection removes target-owned working directory, isolation, and branch values from the editor-facing template and restores them only at the AHP boundary. Unknown provider values remain opaque and survive same-target edits.
+
+The host-owned executor creates run sessions from this template. The Automation editor's configuration draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved, without dispatching an Automation prompt. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
 
 ## Identity
 
@@ -59,14 +63,11 @@ The local provider uses:
 | Quick chats | Supported while the provider is available |
 | Session types | Dynamically derived from advertised agents |
 
-Agent provider names form logical session-type identifiers. Resource URI
-schemes remain the routing identity for content and model providers. Consumers
-must not derive one identifier by parsing another.
+Agent provider names form logical session-type identifiers. Resource URI schemes remain the routing identity for content and model providers. Consumers must not derive one identifier by parsing another.
 
 ## Session adaptation
 
-`AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent
-Host session. It:
+`AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:
 
 - preserves provider resource identity;
 - projects host metadata into observables;
@@ -74,23 +75,25 @@ Host session. It:
 - derives capabilities from the advertised agent and live host state;
 - updates observable state without replacing the facade when identity is stable.
 
-The provider cache owns adapter identity. Catalog notifications describe
-membership; adapter observables describe mutable state.
+The provider cache owns adapter identity. Catalog notifications describe membership; adapter observables describe mutable state.
 
-Provider-specific metadata such as pull-request provenance, changesets, agent
-configuration, and external visibility is translated inside this provider.
-Shared Sessions code consumes only provider-neutral fields and capabilities.
+Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-Agent-recorded artifacts are persisted with the session and projected through
-`ISession.artifacts`. Pull request and issue artifacts that shared GitHub
-surfaces can represent are promoted into the existing GitHub metadata without
-duplicating them. Customizations used or read by the agent are derived per chat
-and projected through `IChat.customizations`.
+Selectable Agent Host changesets have one catalogue owner for each scope. The default chat exists from initial draft creation and owns repository-preparation changes before provider materialization. After materialization, the session continues publishing its cumulative Session Changes entry while each chat owns its repository and turn catalogue. The client projects the session-owned Session Changes entry into every chat catalogue, so all chats share the same cumulative summary while retaining chat-scoped Branch, Uncommitted, This Turn, and Compare entries.
+
+Session workflow operations such as pull-request creation and Agent Merge are advertised by Branch Changes sourced from the default chat. Changesets from other scopes, along with Uncommitted, This Turn, and Compare entries, keep those operations filtered out.
+
+Chat catalogues with the same normalized effective working directories reference one session-scoped folder Branch Changes resource using the `ahp-folder-changeset:` scheme. The resource belongs to the folder/worktree scope rather than to a particular chat, so the default chat and matching peers advertise the same stable URI while chats in different folders or worktrees advertise different URIs. A multi-root workspace forms one composite scope, including when its folders contain multiple Git repositories, while distinct worktree paths remain separate scopes even when they come from the same repository. The selected base branch affects the diff computed for the resource but not its identity. The Agent Host resolves a representative chat as the folder scope's computation and persistence context, allowing matching chats to share branch computation, review state, monitoring, and picker content without making that chat the resource owner.
+
+The containing session persists the latest Git state for each normalized effective-working-directory scope. Matching chats reuse that state when their catalogues are first published after restore, while separate sessions retain independent snapshots and live Git discovery remains authoritative.
+
+The compact session summary covers every chat workspace without copying chat-owned selectable catalogues onto the session. Folder isolation computes one Session Changes aggregate over the ordered union of session and chat roots. Worktree isolation combines one ready Branch Changes state per unique workspace scope, deduplicating files that overlap between multi-root scopes. Scopes known not to contain a Git repository are skipped. An incomplete restored scope or a transient Git lookup/diff failure preserves the last persisted complete summary until every Git-backed contributing state is ready.
+
+Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them for presentation (dedicated pill vs. reference collection) only, not for removability. Shared GitHub surfaces resolve recorded pull requests and issues independently of workspace availability; the provider also promotes matching entries into repository-scoped GitHub metadata without assigning unrelated links to that repository. Promoted entries retain their stable recorded-reference ID regardless of `isArtifact`, and presentation uses that ID for session-only removal; a git-/session-discovered GitHub association that was never recorded through `add_artifact_or_reference` has no recorded-reference ID and stays non-removable, even if it reappears after a recorded duplicate is removed. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
 ## Draft and send lifecycle
 
-`NewSession` represents an untitled draft before the backend session is
-committed.
+`NewSession` represents an untitled draft before the backend session is committed.
 
 ```text
 create draft
@@ -100,49 +103,67 @@ create draft
     -> publish or replace the committed session facade
 ```
 
-The first send waits for tracked draft configuration. Cancellation disposes the
-draft. Later configuration changes are scoped to the committed session and do
-not recreate the entire facade.
+The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
 
-Existing-session requests route by the provider resource and chat resource.
-Host notifications update adapters and catalog membership reactively.
+Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. Agent Host providers advertise Automation configuration support, restore the initial template before configuration resolution, and capture it asynchronously after pending resolution. Capture rechecks draft identity, omits transient, permission-grant, target-owned, and host-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
+
+Existing-session requests route by the provider resource and chat resource. Host notifications update adapters and catalog membership reactively.
 
 ## Persistence and discovery
 
-Startup metadata may seed lightweight session facades before a live connection
-finishes discovery. Live host state remains authoritative and upgrades or
-replaces cached state through the normal catalog lifecycle.
+Startup metadata may seed lightweight session facades before a live connection finishes discovery. Live host state remains authoritative and upgrades or replaces cached state through the normal catalog lifecycle.
 
-External sessions remain provider-owned domain objects. Visibility and
-interactivity fields determine whether shared Sessions surfaces present them;
-shared code does not infer visibility from Agent Host URI formats.
+The provider remembers isolation per workspace after the first request is accepted. A new draft for that workspace inherits the choice from its last started session; a workspace without a remembered choice falls back to `sessions.useWorktree`. Explicitly removing a workspace from the workspace picker forgets its isolation preference; generic recent-workspace updates do not. Draft-only changes, rejected requests, quick chats, and Automation drafts do not update this workspace preference.
 
-Host-owned background activities remain independent of client visibility. Agent
-Merge monitoring prevents an enabled session from idle eviction while work is
-active, resumes eligible sessions after host startup, and releases that
-retention when monitoring ends.
+An Agent Host session may own additional detached worktrees for repositories beyond its primary workspace. The host persists each worktree's opaque handle, checkout path, and source repository root with the session. Archive, unarchive, automatic-deletion eligibility, and permanent deletion apply to every owned worktree; deleting session data resolves repository cleanup against source roots before removing the checkouts.
+
+Before assigning an additional repository or folder to a chat, the host prepares its effective working directory. Folder isolation uses the requested directory directly. Worktree isolation resolves the primary repository through Git, reuses a session-owned checkout unless a fresh worktree is requested, or creates and claims a detached worktree. Before expanding the aggregate session workspace, the host pins chats that still inherit the complete workspace to their previous effective directories. The preparation operation returns the effective directory for the caller to assign explicitly to the target chat; tool argument parsing and relationship semantics remain separate from this lifecycle contract.
+
+External sessions remain provider-owned domain objects. Visibility and interactivity fields determine whether shared Sessions surfaces present them; shared code does not infer visibility from Agent Host URI formats.
+
+Host-owned background activities remain independent of client visibility. Agent Merge monitoring prevents an enabled session from idle eviction while work is active, resumes eligible sessions after host startup, and releases that retention when monitoring ends.
+
+### Host session catalog
+
+The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and catalog. Each row contains a small indexed registry and synchronization envelope plus one bounded, versioned payload for list-visible session and chat metadata. The payload's structural validator is also its TypeScript type authority and normalizes all data before canonical serialization and hashing.
+
+The row has two different ownership contracts. Registry identity and provenance (`session_uri`, provider, start time, external state, and registration source) remain authoritative. The list payload is a derived, rebuildable aggregate: central session/chat identity, provider state, and member-chat metadata can reproduce its canonical bytes and hash. Ordinary session-list reads use this stored aggregate rather than opening every member-chat database.
+
+Peer-chat membership and routing data are authoritative in the central `session_chat_catalogs` and `session_chats` tables. The default chat is implicit in session identity; ordered peer rows retain their URI, provider backing, origin, and inherited-turn identity. A chat database owns its conversation content and chat-local metadata, including its durable provider backing and title. Central chat rows and the list payload retain only the copies needed to enumerate, route, and present the containing session.
+
+During the downgrade-compatibility window, a revisioned participant mirrors central peer membership into the legacy `peerChats` session-metadata value. Current runtime reads remain central. A startup/restore importer may read that legacy value to incorporate chats created by an older build; after import, central membership wins and the compatibility mirror is regenerated. Failed mirror writes do not roll back central authority and remain unacknowledged for retry.
+
+Catalog persistence is legacy-first during the compatibility window: one per-session transaction updates downgrade-compatible metadata and a durable pending catalog snapshot before the host-wide catalog is updated. Catalog updates are serialized per session, guarded by session incarnation and source revision, and acknowledged only after the central transaction succeeds. Background reconciliation replays interrupted writes and detects metadata written by older builds. A central monotonic dirty marker lets periodic passes skip clean rows before opening their per-session databases. A persisted verification version marks every payload dirty once when compatibility rules change, so writes made by older builds that do not know about the marker are rechecked without repeating the scan on every startup. Repair clears only the marker it observed; a concurrent mutation leaves the row dirty for another pass. Because provider state has no complete change signal, an infrequent safety sweep advances a persisted cursor through bounded clean-row samples; ordinary periodic passes remain central-only.
+
+The per-session snapshot retains the canonical payload only while the central write is pending. Exact acknowledgement promotes its hash to the compact receipt and clears the pending payload/hash, so synchronized sessions do not permanently store a third copy of their list metadata.
+
+`sessions_v2` is independent of the predecessor `sessions` registry. The current-version importer unions existing v2 identities, optional predecessor registry rows, and provider discovery by session URI, then writes complete rows directly to v2. Payload-versioned per-provider markers record successful current enumeration without changing predecessor migration markers. Partial imports resume per session; durable exclusions make permanently ineligible candidates terminal and revivable by later discovery.
+
+Normal current-runtime mutations are authoritative in v2 and atomically mirror identity/provenance into `sessions` during the compatibility window so an intermediate build can see newly-created sessions. Direct migration remains v2-only. On returning from an intermediate build, the importer reconciles legacy-only additions and resolved legacy identity changes; legacy-row absence alone is never interpreted as deletion. Shared tombstones are the durable cross-version delete signal.
+
+An upsert atomically replaces the verified payload and its synchronization envelope while preserving the registered identity. It is guarded by the session incarnation and source revision. Concurrent first writers converge on the winning incarnation through a serialized retry. Older builds continue to read the mirrored predecessor metadata; no retained central generation is required.
+
+The indexed envelope also carries payload-derived top-level eligibility. Chat-backing sessions therefore remain hidden after restart without decoding their payload or opening their per-session database. For worktree sessions, both legacy metadata and the central payload derive the displayed project from the persisted repository root rather than the worktree checkout.
+
+Session listing resolves each registered session independently from its verified current-version payload. A missing, outdated, or malformed payload falls back to the legacy/provider source for that row and schedules reconciliation. A valid chat-backing envelope remains authoritative and never falls back into the top-level session list.
+
+The verified payload's ordered chat identities, titles, and interactivity are projected into the session facade during listing without opening the per-session database. Observing a peer chat's transient details acquires the existing session-state subscription; the subscription reconciles volatile status and activity onto the same stable chat facades and follows the observer lifetime before returning to the existing idle-release policy.
 
 ## Local and remote boundary
 
-The local provider owns local runtime availability and local workspace access.
-Remote providers own:
+The local provider owns local runtime availability and local workspace access. Remote providers own:
 
 - connection establishment and recovery;
 - remote filesystem browsing;
 - remote authentication transport;
 - per-host routing identity.
 
-Behavior shared by both belongs in the base provider. Connection policy stays
-in the remote contribution.
+Behavior shared by both belongs in the base provider. Connection policy stays in the remote contribution.
 
 ## Testing
 
-Focused tests live under `test/browser/*.test.ts` beside this provider. Tests
-own concrete behavior, hydration races, metadata translation, and regressions;
-this document owns only stable provider boundaries.
+Focused tests live under `test/browser/*.test.ts` beside this provider. Tests own concrete behavior, hydration races, metadata translation, and regressions; this document owns only stable provider boundaries.
 
 ## Change policy
 
-Update this specification only when provider ownership, the extended contract,
-identity rules, or the draft/catalog lifecycle changes. Do not append feature
-walkthroughs, race analyses, test-file inventories, or incident narratives.
+Update this specification only when provider ownership, the extended contract, identity rules, or the draft/catalog lifecycle changes. Do not append feature walkthroughs, race analyses, test-file inventories, or incident narratives.

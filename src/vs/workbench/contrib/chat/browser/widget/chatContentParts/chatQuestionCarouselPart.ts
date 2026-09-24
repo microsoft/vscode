@@ -16,7 +16,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
-import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -38,10 +38,12 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
-import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
+import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
 import { ChatCardListbox } from '../chatCardListbox.js';
 import './media/chatQuestionCarousel.css';
@@ -64,8 +66,13 @@ class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
 		private readonly onDidChangeHeight: () => void,
 		hoverService: IHoverService,
 		configurationService: IConfigurationService,
+		telemetryService: ITelemetryService,
 	) {
-		super(title, context, undefined, hoverService, configurationService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'questionCarousel';
 	}
 
 	protected override init(): HTMLElement {
@@ -75,7 +82,7 @@ class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
 			const labelElement = this._collapseButton.labelElement;
 			labelElement.textContent = '';
 			const icon = dom.$('span.chat-question-summary-answer-icon');
-			icon.classList.add(...ThemeIcon.asClassNameArray(this.answerIcon));
+			icon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(this.answerIcon)));
 			icon.setAttribute('aria-hidden', 'true');
 			const value = dom.$('span.chat-question-summary-answer-value');
 			value.textContent = this.value;
@@ -149,6 +156,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _interactiveUIStore: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 	private readonly _inChatQuestionCarouselContextKey: IContextKey<boolean>;
 	private readonly _chatQuestionCarouselHasTerminalContextKey: IContextKey<boolean>;
+	private readonly _markdownRenderer: ChatContentMarkdownRenderer;
 	private _validationMessageElement: HTMLElement | undefined;
 	private _currentValidationError: string | undefined;
 	private _focusTerminalButtonContainer: HTMLElement | undefined;
@@ -157,17 +165,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		public readonly carousel: IChatQuestionCarousel,
 		private readonly _context: IChatContentPartRenderContext,
 		private readonly _options: IChatQuestionCarouselOptions,
-		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
 
+		this._markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 		this.domNode = dom.$(`.chat-question-carousel-container.${CHAT_CARD_LARGE_CLASS}`);
 		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
 		this.domNode.id = generateUuid();
@@ -787,7 +797,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this.carousel.message && this._currentIndex === 0) {
 			const messageMd = isMarkdownString(this.carousel.message) ? MarkdownString.lift(this.carousel.message) : new MarkdownString(this.carousel.message);
 			const carouselMessage = dom.$('.chat-question-carousel-message');
-			const renderedMessage = questionRenderStore.add(this._markdownRendererService.render(messageMd, getChatMarkdownRenderOptions()));
+			const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
 			carouselMessage.appendChild(renderedMessage.element);
 			headerRow.appendChild(carouselMessage);
 		}
@@ -803,7 +813,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const md = isMarkdownString(questionText)
 				? MarkdownString.lift({ ...questionText, value: suffixed })
 				: new MarkdownString(suffixed);
-			const rendered = questionRenderStore.add(this._markdownRendererService.render(md, getChatMarkdownRenderOptions()));
+			const rendered = questionRenderStore.add(this._markdownRenderer.render(md));
 			title.appendChild(rendered.element);
 			titleRow.appendChild(title);
 		}
@@ -842,7 +852,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);
 			const detailedMessageEl = dom.$('.chat-question-detailed-message');
-			const renderedDetailedMessage = questionRenderStore.add(this._markdownRendererService.render(detailedMd, getChatMarkdownRenderOptions()));
+			const renderedDetailedMessage = questionRenderStore.add(this._markdownRenderer.render(detailedMd));
 			detailedMessageEl.appendChild(renderedDetailedMessage.element);
 			inputContainer.appendChild(detailedMessageEl);
 		}
@@ -1723,12 +1733,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				answerTitle,
 				answerPrefix,
 				answerValue,
-				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.comment),
+				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.commentCompact),
 				collapsibleContext,
 				question.options?.length ? () => this.renderConversationOptions(question, answer) : undefined,
 				() => this._onDidChangeHeight.fire(),
 				this._hoverService,
 				this._configurationService,
+				this._telemetryService,
 			));
 			answerPart.domNode.classList.add('chat-question-answer-collapsible');
 			decision.appendChild(answerPart.domNode);

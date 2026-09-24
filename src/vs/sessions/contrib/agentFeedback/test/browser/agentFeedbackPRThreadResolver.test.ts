@@ -22,7 +22,7 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 	const file = URI.file('/workspace/a.ts');
 
 	let onDidChangeFeedback: Emitter<IAgentFeedbackChangeEvent>;
-	let resolvedThreads: string[];
+	let resolvedThreads: { threadId: string; prNumber: number | undefined }[];
 
 	function pr(id: string, state: AgentFeedbackState, threadId: string | undefined = `thread-${id}`): IAgentFeedback {
 		return {
@@ -33,6 +33,7 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 			sessionResource: session,
 			kind: AgentFeedbackKind.PRReview,
 			sourcePRReviewCommentId: threadId,
+			sourcePullRequest: { owner: 'owner', repo: 'repo', number: 42 },
 			state,
 		};
 	}
@@ -49,8 +50,8 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
 		};
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
-			override async resolvePRReviewThread(_sessionResource: URI, threadId: string): Promise<void> {
-				resolvedThreads.push(threadId);
+			override async resolvePRReviewThread(_sessionResource: URI, threadId: string, pullRequest?: { readonly owner: string; readonly repo: string; readonly number: number }): Promise<void> {
+				resolvedThreads.push({ threadId, prNumber: pullRequest?.number });
 			}
 		};
 
@@ -64,14 +65,14 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 		fire(pr('1', AgentFeedbackState.Submitted));
 		fire(pr('1', AgentFeedbackState.Resolved));
 
-		assert.deepStrictEqual(resolvedThreads, ['thread-1']);
+		assert.deepStrictEqual(resolvedThreads, [{ threadId: 'thread-1', prNumber: 42 }]);
 	});
 
 	test('resolves the GitHub thread when a submitted PR comment is deleted', () => {
 		fire(pr('1', AgentFeedbackState.Submitted));
 		fire(); // deleted
 
-		assert.deepStrictEqual(resolvedThreads, ['thread-1']);
+		assert.deepStrictEqual(resolvedThreads, [{ threadId: 'thread-1', prNumber: 42 }]);
 	});
 
 	test('does not resolve when an already-resolved PR comment is first observed (history replay)', () => {
@@ -108,6 +109,6 @@ suite('AgentFeedbackPRThreadResolverContribution', () => {
 		fire(pr('1', AgentFeedbackState.Resolved));
 		fire(); // deleted after resolve
 
-		assert.deepStrictEqual(resolvedThreads, ['thread-1']);
+		assert.deepStrictEqual(resolvedThreads, [{ threadId: 'thread-1', prNumber: 42 }]);
 	});
 });

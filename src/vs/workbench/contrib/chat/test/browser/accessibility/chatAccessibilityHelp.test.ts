@@ -5,11 +5,176 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents the sandbox policy command and report link', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
+	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
+		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
+				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
+				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
+				preserve: help.includes('An existing draft in the Agents Window is kept'),
+				ignore: help.includes('Ignore turns off future invitations'),
+				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
+			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+		});
+	}
+
+	test('documents accepting the selected confirmation primary action', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			primaryAction: help.includes('activates the primary button of the selected confirmation'),
+			disabled: help.includes('Disabled actions cannot be accepted'),
+			keybinding: help.includes('<keybinding:workbench.action.chat.acceptTool>'),
+		}, { primaryAction: true, disabled: true, keybinding: true });
+	});
+
+	test('documents finished sections and subagent progress without duplicate shimmer', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			finished: help.includes('Finished thinking and tool-call sections stop showing activity'),
+			subagentTail: help.includes('omitted when subagent pills are the last visible content'),
+			parentTail: help.includes('appears after other content while the response remains in progress'),
+		}, { finished: true, subagentTail: true, parentTail: true });
+	});
+
+	test('describes the single Test App action and remembered retesting only in the Agents Window', () => {
+		const keybindings = new MockKeybindingService();
+		const sessionsHelp = getAccessibilityHelpText('agentView', keybindings, true, true);
+		const editorHelp = getAccessibilityHelpText('agentView', keybindings, true, false);
+		assert.deepStrictEqual([
+			sessionsHelp.includes('Test App appears to the right of the status pills above the chat input'),
+			sessionsHelp.includes('Retest App whenever it reappears, including after restarting VS Code in the same profile'),
+			sessionsHelp.includes('testing was requested, not that tests passed'),
+			sessionsHelp.includes('App Testing Options'),
+			sessionsHelp.includes('Subagent'),
+			editorHelp.includes('Test App'),
+			editorHelp.includes('Retest App'),
+		], [true, true, true, false, false, false, false]);
+	});
+
+	test('documents collapsing the model controls when Auto is enabled', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			collapsed: help.includes('turning Auto on collapses the provider tabs, search, and model list'),
+			preferences: help.includes('Auto and its preferences remain available'),
+			restored: help.includes('Turn Auto off to restore the model controls and the previous model selection'),
+			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
+		}, { collapsed: true, preferences: true, restored: true, reducedMotion: true });
+	});
+
+	test('documents model details and activating Auto through Optimize for', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			details: help.includes('selected model\'s details open beside the list'),
+			immediatePreview: help.includes('updates the details immediately without selecting a model'),
+			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
+			mutedPreferences: help.includes('They look muted while off but remain interactive'),
+			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
+		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
+	});
+
+	test('documents keyboard search in the model picker', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			typing: help.includes('Type while the model list is focused to search across all providers'),
+			navigation: help.includes('Up and Down Arrow to navigate results'),
+			selection: help.includes('Enter to select a model, and Escape to close the picker'),
+			editing: help.includes('Left and Right Arrow move the text cursor'),
+		}, { typing: true, navigation: true, selection: true, editing: true });
+	});
+
+	test('documents stationary model configuration and pinning with explicit dismissal', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
+			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
+			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
+			pinning: help.includes('Pinning or unpinning moves the model in the list without moving its details or keyboard focus'),
+			dismissal: help.includes('Escape again to close the picker'),
+		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
+	});
+
+	test('documents stable pricing expansion and keyboard scrolling', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			expansion: help.includes('Pricing Details expands in place without moving the model\'s controls'),
+			scrolling: help.includes('use Page Up or Page Down while the model details have focus to scroll'),
+			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
+		}, { expansion: true, scrolling: true, reducedMotion: true });
+	});
+
+	test('documents the archive suggestion only while it is shown', () => {
+		const keybindingService = new MockKeybindingService();
+		const shown = getAccessibilityHelpText('agentView', keybindingService, true, false, false, true, true);
+		const hidden = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			shown: shown.includes('An archive suggestion appears'),
+			hidden: hidden.includes('An archive suggestion appears'),
+			keyboard: shown.includes('Tab or Shift+Tab to reach Archive, Configure Automatic Cleanup, or Dismiss Archive Suggestion, then press Enter or Space'),
+			cleanupSettings: shown.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
+			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
+			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
+			focus: shown.includes('Escape while it is focused, returns to the chat input'),
+			focusRemainingTasks: shown.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			retained: shown.includes('The session is not deleted'),
+			agentRecovery: shown.includes('Ask your agent to find it'),
+			recovery: shown.includes('"Archived" section of the sessions list. You can unarchive it anytime'),
+			worktree: shown.includes('worktree created for the session, if any, will be deleted. You can recreate it by unarchiving the session'),
+		}, {
+			shown: true,
+			hidden: false,
+			keyboard: true,
+			cleanupSettings: true,
+			disclosure: true,
+			disclosureKeyboard: true,
+			focus: true,
+			focusRemainingTasks: true,
+			retained: true,
+			agentRecovery: true,
+			recovery: true,
+			worktree: true,
+		});
+	});
+
+	test('describes read-only thinking previews and keyboard expansion', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			readOnlyPreview: help.includes('In read-only chats, thinking details preview while streaming and collapse when finished'),
+			settingOverride: help.includes('regardless of your thinking-style setting'),
+			keyboardExpansion: help.includes('Focus a thinking header and press Enter or Space to expand or collapse its details'),
+		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
+	});
+
+	test('uses the configured Mark as Done wording for nudge help', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, true, ChatSessionArchiveActionWording.MarkAsDone);
+		assert.deepStrictEqual({
+			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done, Configure Automatic Cleanup, or Dismiss Mark as Done Suggestion'),
+			cleanupSettings: help.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
+			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
+			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			retained: help.includes('The session is not deleted'),
+			agentRecovery: help.includes('Ask your agent to find it'),
+			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),
+			worktree: help.includes('worktree created for the session, if any, will be deleted. You can recreate it by restoring the session'),
+			archiveDisclosure: help.includes('What Does "Archive" Do?'),
+		}, { keyboard: true, cleanupSettings: true, disclosure: true, focusRemainingTasks: true, retained: true, agentRecovery: true, recovery: true, worktree: true, archiveDisclosure: false });
+	});
 
 	test('only describes inline attachment references when supported', () => {
 		const keybindingService = {
@@ -25,14 +190,14 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('describes long pasted text attachments', () => {
+	test('describes long pasted text attachments regardless of line count', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
 
 		assert.deepStrictEqual({
-			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
-			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text, including single-line text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text, including single-line text'),
 		}, {
 			agentView: true,
 			inlineChat: true,
@@ -48,10 +213,11 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Reset Size') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
 			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petBouncing: helpText.includes('Pointer collisions are ignored for half a second after a drag release') && helpText.includes('while the pet is falling, move the pointer into it to bounce it upward') && helpText.includes('Sideways and upward travel do not start the bounce counter') && helpText.includes('counter beside the pet tracks consecutive bounces and remains for up to five seconds after landing') && helpText.includes('until the pet next reacts or interacts') && helpText.includes('at least twenty bounces triggers confetti unless reduced motion is enabled') && helpText.includes('press Enter or Space to bounce it upward'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
 			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
 		}, {
@@ -61,6 +227,7 @@ suite('Chat Accessibility Help', () => {
 			petMovement: true,
 			petHopping: true,
 			petThrowing: true,
+			petBouncing: true,
 			petRevival: true,
 			petScale: true,
 		});
@@ -114,6 +281,60 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents full terminal output in chat surfaces that render terminal tools', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'Open Full Output (Read-Only) action';
+		const agentViewText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: agentViewText.includes(expectedText),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
+			previewClick: agentViewText.includes('click the output preview'),
+			outputEnter: agentViewText.includes('focus the output region and press Enter'),
+			readonly: agentViewText.includes('read-only editor'),
+			accessibleView: agentViewText.includes('terminal output Accessible View'),
+		}, {
+			panelChat: true,
+			quickChat: true,
+			agentView: true,
+			inlineChat: false,
+			editsView: false,
+			previewClick: true,
+			outputEnter: true,
+			readonly: true,
+			accessibleView: true,
+		});
+	});
+
+	test('documents session status pill keyboard interaction', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
+			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
+			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
+			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			pullRequestFilter: true,
+			filterPersistence: true,
+			filterRecovery: true,
+			agentQuickChat: false,
+			quickChat: false,
+			inlineChat: false,
+		});
+	});
+
 	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -131,6 +352,31 @@ suite('Chat Accessibility Help', () => {
 			editsView: true,
 			quickChat: false,
 			inlineChat: false,
+		});
+	});
+
+	test('documents session rename where the focused-chat keybinding is enabled', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const keybinding = `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(keybinding),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(keybinding),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(keybinding),
+			afterFirstRequest: getAccessibilityHelpText('agentView', keybindingService, true).includes('Agent Host sessions can be renamed after sending the first request'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(keybinding),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(keybinding),
+			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes(keybinding),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			afterFirstRequest: true,
+			quickChat: false,
+			inlineChat: false,
+			sessionsWindow: false,
 		});
 	});
 });
