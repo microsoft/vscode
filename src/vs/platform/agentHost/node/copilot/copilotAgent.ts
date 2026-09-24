@@ -252,7 +252,7 @@ async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilot
 		const prebuildsUri = URI.joinPath(packageUri, 'prebuilds', platformPackage);
 		const runtimePath = URI.joinPath(prebuildsUri, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime').fsPath;
 		const nativePath = URI.joinPath(prebuildsUri, 'runtime.node').fsPath;
-		const sdkPath = URI.joinPath(packageUri, 'sdk', 'index.js').fsPath;
+		const sdkPath = URI.joinPath(packageUri, 'copilot-sdk', 'index.js').fsPath;
 		tried.push(`${runtimePath} with ${nativePath} and ${sdkPath}`);
 		const [runtimeExists, nativeExists, sdkExists] = await Promise.all([
 			fileExists(runtimePath),
