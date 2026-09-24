@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -27,12 +27,12 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
@@ -108,7 +108,7 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		}];
 
-		function createHarness() {
+		function createHarness(changeKind = ChangesetKind.Branch, streamingChanges?: IObservable<readonly ISessionFileChange[] | undefined>) {
 			const isActiveSession = observableValue('isActiveSession', false);
 			const subscription = createMutableSubscription<ChangesetState | undefined>(undefined);
 			let acquired = 0;
@@ -132,10 +132,12 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				mapDiffUri: (resource, options) => options?.contentRef ? resource.with({ scheme: 'readonly-content' }) : resource,
 			}, isActiveSession, [{
-				label: 'Branch Changes',
-				changeKind: ChangesetKind.Branch,
-				uriTemplate: 'changeset/branch',
+				label: 'Changes',
+				changeKind,
+				uriTemplate: `changeset/${changeKind}`,
+				streamingChanges,
 			}])[0];
 			disposables.add(autorun(reader => changeset.changes.read(reader)));
 
@@ -148,6 +150,8 @@ suite('AgentHostSessionChangesets', () => {
 					acquired,
 					released,
 				}),
+				modifiedUris: () => changeset.changes.get().map(change => change.modifiedUri?.toString()),
+				changes: () => changeset.changes.get(),
 			};
 		}
 
@@ -195,6 +199,132 @@ suite('AgentHostSessionChangesets', () => {
 				empty: { changes: [], loading: true, acquired: 1, released: 0 },
 				ready: { changes: [], loading: false, acquired: 1, released: 0 },
 			});
+		});
+
+		test('uses edit-tracking snapshots for Session and Chat Changes but keeps Branch Changes editable', () => {
+			const branch = createHarness(ChangesetKind.Branch);
+			const session = createHarness(ChangesetKind.Session);
+			const files: ChangesetState['files'] = [{
+				id: 'file:///repo/a.ts',
+				edit: {
+					before: { uri: 'file:///repo/a.ts', content: { uri: 'session-db:///before/a.ts' } },
+					after: { uri: 'file:///repo/a.ts', content: { uri: 'session-db:///after/a.ts' } },
+				},
+			}];
+
+			for (const harness of [branch, session]) {
+				harness.isActiveSession.set(true, undefined);
+				harness.subscription.set({ status: ChangesetStatus.Ready, files });
+			}
+
+			assert.deepStrictEqual({
+				branch: branch.modifiedUris(),
+				sessionOrChat: session.modifiedUris(),
+			}, {
+				branch: ['file:///repo/a.ts'],
+				sessionOrChat: ['readonly-content:/after/a.ts'],
+			});
+		});
+
+		test('streams the active turn over Session Changes until the authoritative snapshot catches up', () => {
+			const streamingChanges = observableValue<readonly ISessionFileChange[] | undefined>('streamingChanges', undefined);
+			const harness = createHarness(ChangesetKind.Session, streamingChanges);
+			const changesetFile = (afterAuthority: string, added: number, removed: number): ChangesetFile => ({
+				id: 'file:///repo/a.ts',
+				edit: {
+					before: { uri: 'file:///repo/a.ts', content: { uri: 'session-db://baseline/a.ts' } },
+					after: { uri: 'file:///repo/a.ts', content: { uri: `session-db://${afterAuthority}/a.ts` } },
+					diff: { added, removed },
+				},
+			});
+			const describe = () => harness.changes().map(change => ({
+				uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+				original: change.originalUri?.toString(),
+				modified: change.modifiedUri?.toString(),
+				insertions: change.insertions,
+				deletions: change.deletions,
+			}));
+
+			harness.isActiveSession.set(true, undefined);
+			harness.subscription.set({ status: ChangesetStatus.Ready, files: [changesetFile('before-stream', 5, 2)] });
+			streamingChanges.set([{
+				uri: URI.file('/repo/a.ts'),
+				originalUri: URI.parse('readonly-content://turn-before/repo/a.ts'),
+				modifiedUri: URI.parse('readonly-content://live/repo/a.ts'),
+				insertions: 2,
+				deletions: 1,
+			} satisfies IChatSessionFileChange2], undefined);
+			const streaming = describe();
+			streamingChanges.set(undefined, undefined);
+			harness.subscription.set({ status: ChangesetStatus.Recomputing, files: [changesetFile('before-stream', 5, 2)] });
+			const recomputing = describe();
+			harness.subscription.set({ status: ChangesetStatus.Ready, files: [changesetFile('final', 7, 3)] });
+
+			assert.deepStrictEqual({
+				streaming,
+				recomputing,
+				ready: describe(),
+			}, {
+				streaming: [{
+					uri: 'file:///repo/a.ts',
+					original: 'readonly-content://baseline/a.ts',
+					modified: 'readonly-content://live/repo/a.ts',
+					insertions: 5,
+					deletions: 2,
+				}],
+				recomputing: [{
+					uri: 'file:///repo/a.ts',
+					original: 'readonly-content://baseline/a.ts',
+					modified: 'readonly-content://live/repo/a.ts',
+					insertions: 5,
+					deletions: 2,
+				}],
+				ready: [{
+					uri: 'file:///repo/a.ts',
+					original: 'readonly-content://baseline/a.ts',
+					modified: 'readonly-content://final/a.ts',
+					insertions: 7,
+					deletions: 3,
+				}],
+			});
+		});
+
+		test('streaming Session Changes removes session-created files deleted in the active turn', () => {
+			const streamingChanges = observableValue<readonly ISessionFileChange[] | undefined>('streamingChanges', undefined);
+			const harness = createHarness(ChangesetKind.Session, streamingChanges);
+			harness.isActiveSession.set(true, undefined);
+			harness.subscription.set({
+				status: ChangesetStatus.Ready,
+				files: [{
+					id: 'file:///repo/created.ts',
+					edit: {
+						after: { uri: 'file:///repo/created.ts', content: { uri: 'session-db://created/created.ts' } },
+					},
+				}],
+			});
+			streamingChanges.set([{
+				uri: URI.file('/repo/created.ts'),
+				originalUri: URI.parse('readonly-content:/before-delete/created.ts'),
+				modifiedUri: undefined,
+				insertions: 0,
+				deletions: 3,
+			}, {
+				uri: URI.file('/repo/new.ts'),
+				originalUri: undefined,
+				modifiedUri: URI.parse('readonly-content:/after/new.ts'),
+				insertions: 4,
+				deletions: 0,
+			}] satisfies readonly IChatSessionFileChange2[], undefined);
+
+			assert.deepStrictEqual(harness.changes().map(change => ({
+				uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+				original: change.originalUri?.toString(),
+				modified: change.modifiedUri?.toString(),
+			})), [{
+				uri: 'file:///repo/new.ts',
+				original: undefined,
+				modified: 'readonly-content:/after/new.ts',
+			}]);
 		});
 	});
 
@@ -489,6 +619,73 @@ suite('AgentHostSessionChangesets', () => {
 			emptyCatalogue: ['session'],
 			emptyCatalogueResource: ['file:///session/changeset/session'],
 		});
+	});
+
+	test('projects current turn changes into Session Changes while the turn is active', () => {
+		const sessionUri = URI.parse('ahp-session:/session');
+		const chatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
+		const chatSubscription = createMutableSubscription({
+			...createChatState({
+				resource: chatUri.toString(),
+				title: 'Chat',
+				status: SessionStatus.InProgress,
+				modifiedAt: new Date(0).toISOString(),
+			}),
+			changesets: [],
+		});
+		const sessionSubscription = createMutableSubscription({
+			changesets: [{
+				label: 'Session Changes',
+				changeKind: ChangesetKind.Session,
+				uriTemplate: 'changeset/session',
+			}],
+		} as SessionState);
+		const changesetSubscription = createMutableSubscription<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [],
+		});
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = component === StateComponents.Chat
+					? chatSubscription
+					: component === StateComponents.Session
+						? sessionSubscription
+						: changesetSubscription;
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const currentTurnChanges = observableValue<readonly ISessionFileChange[] | undefined>('currentTurnChanges', [{
+			uri: URI.file('/repo/live.ts'),
+			originalUri: URI.parse('readonly-content:/before/live.ts'),
+			modifiedUri: URI.parse('readonly-content:/after/live.ts'),
+			insertions: 2,
+			deletions: 1,
+		} satisfies IChatSessionFileChange2]);
+		const projected = createChatChangesets(chatUri, {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		}, constObservable(true), currentTurnChanges);
+		let changes: readonly ISessionFileChange[] | undefined;
+		disposables.add(autorun(reader => {
+			changes = projected.read(reader)?.find(changeset => changeset.id === SESSION_CHANGES_CHANGESET_ID)?.changes.read(reader);
+		}));
+
+		assert.deepStrictEqual(changes?.map(change => ({
+			uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+			original: change.originalUri?.toString(),
+			modified: change.modifiedUri?.toString(),
+		})), [{
+			uri: 'file:///repo/live.ts',
+			original: 'readonly-content:/before/live.ts',
+			modified: 'readonly-content:/after/live.ts',
+		}]);
 	});
 
 	test('projects legacy Session and turn changes into every chat', () => {

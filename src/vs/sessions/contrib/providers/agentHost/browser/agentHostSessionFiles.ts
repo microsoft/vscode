@@ -41,6 +41,8 @@ export interface IParsedFileEdit {
 	readonly beforeUri?: URI;
 	/** Before-content URI, used to render a diff for modified files. */
 	readonly beforeContentUri?: URI;
+	/** After-content URI, used to render the read-only modified side. */
+	readonly afterContentUri?: URI;
 	/** Lines added by this edit, from the protocol diff metadata (0 when absent). */
 	readonly insertions: number;
 	/** Lines removed by this edit, from the protocol diff metadata (0 when absent). */
@@ -334,6 +336,7 @@ function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: AgentHostUriMapper): IPa
 		afterUri: map(normalized.afterUri),
 		beforeUri: map(normalized.beforeUri),
 		beforeContentUri: mapContent(normalized.beforeContentUri),
+		afterContentUri: mapContent(normalized.afterContentUri),
 		insertions: fileEdit.diff?.added ?? 0,
 		deletions: fileEdit.diff?.removed ?? 0,
 	};
@@ -386,24 +389,25 @@ export function reduceTurnChanges(
 		return result;
 	};
 
-	const setCreated = (uri: URI, insertions: number, deletions: number): void => {
+	const setCreated = (uri: URI, modifiedUri: URI, insertions: number, deletions: number): void => {
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
 			existing.created = true;
-			existing.modifiedUri = uri;
+			existing.modifiedUri = modifiedUri;
 			existing.originalUri = undefined;
 			existing.insertions += insertions;
 			existing.deletions += deletions;
 			return;
 		}
-		byUri.set(key, { uri, modifiedUri: uri, originalUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: true, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri, originalUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: true, insertions, deletions });
 	};
 
-	const setModified = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+	const setModified = (uri: URI, modifiedUri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
+			existing.modifiedUri = modifiedUri;
 			existing.insertions += insertions;
 			existing.deletions += deletions;
 			if (!existing.created) {
@@ -412,7 +416,7 @@ export function reduceTurnChanges(
 			}
 			return;
 		}
-		byUri.set(key, { uri, modifiedUri: uri, originalUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri, originalUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
 	};
 
 	const setDeleted = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
@@ -430,12 +434,12 @@ export function reduceTurnChanges(
 		switch (edit.kind) {
 			case FileEditKind.Create:
 				if (edit.afterUri) {
-					setCreated(edit.afterUri, edit.insertions, edit.deletions);
+					setCreated(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.insertions, edit.deletions);
 				}
 				break;
 			case FileEditKind.Edit:
 				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
+					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
 				}
 				break;
 			case FileEditKind.Delete:
@@ -448,7 +452,7 @@ export function reduceTurnChanges(
 					byUri.delete(getComparisonKey(edit.beforeUri));
 				}
 				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
+					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
 				}
 				break;
 		}

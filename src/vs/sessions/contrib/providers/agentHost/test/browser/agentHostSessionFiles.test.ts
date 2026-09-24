@@ -88,12 +88,13 @@ function deleteEdit(uri: string, diff?: { added?: number; removed?: number }): o
 	return { type: ToolResultContentType.FileEdit, before: { uri, content: { uri: `${uri}.before` } }, diff };
 }
 
-function parsedEdit(kind: FileEditKind, uris: { after?: string; before?: string; beforeContent?: string }, diff?: { insertions?: number; deletions?: number }): IParsedFileEdit {
+function parsedEdit(kind: FileEditKind, uris: { after?: string; before?: string; beforeContent?: string; afterContent?: string }, diff?: { insertions?: number; deletions?: number }): IParsedFileEdit {
 	return {
 		kind,
 		afterUri: uris.after ? URI.file(uris.after) : undefined,
 		beforeUri: uris.before ? URI.file(uris.before) : undefined,
 		beforeContentUri: uris.beforeContent ? URI.file(uris.beforeContent) : undefined,
+		afterContentUri: uris.afterContent ? URI.file(uris.afterContent) : undefined,
 		insertions: diff?.insertions ?? 0,
 		deletions: diff?.deletions ?? 0,
 	};
@@ -188,23 +189,27 @@ suite('agentHostSessionFiles', () => {
 		const parsed = parseResponseParts(parts);
 
 		assert.deepStrictEqual(
-			parsed.map(e => ({ kind: e.kind, uri: (e.afterUri ?? e.beforeUri)?.toString() })),
+			parsed.map(e => ({
+				kind: e.kind,
+				uri: (e.afterUri ?? e.beforeUri)?.toString(),
+				afterContent: e.afterContentUri?.toString(),
+			})),
 			[
-				{ kind: FileEditKind.Create, uri: 'file:///created.txt' },
-				{ kind: FileEditKind.Edit, uri: 'file:///edited.txt' },
-				{ kind: FileEditKind.Delete, uri: 'file:///deleted.txt' },
+				{ kind: FileEditKind.Create, uri: 'file:///created.txt', afterContent: 'file:///created.txt.after' },
+				{ kind: FileEditKind.Edit, uri: 'file:///edited.txt', afterContent: 'file:///edited.txt.after' },
+				{ kind: FileEditKind.Delete, uri: 'file:///deleted.txt', afterContent: undefined },
 			],
 		);
 	});
 
-	test('reduceTurnChanges collapses repeated edits per file and aggregates diff stats', () => {
+	test('reduceTurnChanges uses the latest after-content snapshots and aggregates repeated edits', () => {
 		const edits: IParsedFileEdit[] = [
 			// created then edited → one created change, summed diffs, no original side
-			parsedEdit(FileEditKind.Create, { after: '/repo/new.ts' }, { insertions: 10 }),
-			parsedEdit(FileEditKind.Edit, { after: '/repo/new.ts', beforeContent: '/repo/new.ts.before' }, { insertions: 3, deletions: 1 }),
+			parsedEdit(FileEditKind.Create, { after: '/repo/new.ts', afterContent: '/snapshots/new.ts.created' }, { insertions: 10 }),
+			parsedEdit(FileEditKind.Edit, { after: '/repo/new.ts', beforeContent: '/repo/new.ts.before', afterContent: '/snapshots/new.ts.edited' }, { insertions: 3, deletions: 1 }),
 			// pre-existing file edited twice → one modified change keeping the first original
-			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before' }, { insertions: 2, deletions: 4 }),
-			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before2' }, { insertions: 1 }),
+			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before', afterContent: '/snapshots/existing.ts.first' }, { insertions: 2, deletions: 4 }),
+			parsedEdit(FileEditKind.Edit, { after: '/repo/existing.ts', beforeContent: '/repo/existing.ts.before2', afterContent: '/snapshots/existing.ts.last' }, { insertions: 1 }),
 			// pre-existing file deleted → surfaced as a deletion (no modified side)
 			parsedEdit(FileEditKind.Delete, { before: '/repo/gone.ts', beforeContent: '/repo/gone.ts.before' }, { deletions: 8 }),
 		];
@@ -219,8 +224,8 @@ suite('agentHostSessionFiles', () => {
 		}));
 
 		assert.deepStrictEqual(changes, [
-			{ uri: '/repo/new.ts', modified: '/repo/new.ts', original: undefined, isOutsideWorkspace: false, insertions: 13, deletions: 1 },
-			{ uri: '/repo/existing.ts', modified: '/repo/existing.ts', original: '/repo/existing.ts.before', isOutsideWorkspace: false, insertions: 3, deletions: 4 },
+			{ uri: '/repo/new.ts', modified: '/snapshots/new.ts.edited', original: undefined, isOutsideWorkspace: false, insertions: 13, deletions: 1 },
+			{ uri: '/repo/existing.ts', modified: '/snapshots/existing.ts.last', original: '/repo/existing.ts.before', isOutsideWorkspace: false, insertions: 3, deletions: 4 },
 			{ uri: '/repo/gone.ts', modified: undefined, original: '/repo/gone.ts.before', isOutsideWorkspace: false, insertions: 0, deletions: 8 },
 		]);
 	});
