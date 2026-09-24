@@ -26,6 +26,15 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+/**
+ * Values of {@link ChatConfiguration.OnboardingExperience}. The setting is expected to be
+ * driven by an ExP treatment, so new values must remain backwards compatible.
+ */
+export enum ChatOnboardingExperience {
+	None = 'none',
+	Spotlight = 'spotlight',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -109,6 +118,7 @@ export enum ChatConfiguration {
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
 	HarnessSwitchFeedbackSurveyEnabled = 'chat.harnessSwitchFeedbackSurvey.enabled',
+	OnboardingExperience = 'chat.onboarding.experience',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',

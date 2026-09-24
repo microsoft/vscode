@@ -55,6 +55,11 @@ export class EditorChatUsage {
 		this.storageService.store(`${storagePrefix}lastMessageDate`, Math.max(this.getNumber('lastMessageDate'), timestamp), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 	}
 
+	/** Number of chat messages sent from editor windows, across profiles and applications. */
+	getMessageCount(): number {
+		return this.getNumber('messages');
+	}
+
 	private getNumber(key: string): number {
 		return this.storageService.getNumber(`${storagePrefix}${key}`, StorageScope.APPLICATION_SHARED, 0);
 	}
@@ -71,7 +76,7 @@ export class EditorChatUsage {
 				sessionsByProvider[provider] = count;
 			}
 		}
-		const messages = this.getNumber('messages');
+		const messages = this.getMessageCount();
 		return {
 			editorSessionsByProvider: JSON.stringify(sessionsByProvider),
 			editorMessages: messages,
