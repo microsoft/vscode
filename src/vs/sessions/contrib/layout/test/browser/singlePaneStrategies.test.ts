@@ -12,6 +12,7 @@ import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
+import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -131,6 +132,47 @@ suite('SinglePane layout strategies', () => {
 		assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
 			nowVisible: true,
 			calls: [{ hidden: false, part: Parts.AUXILIARYBAR_PART }],
+		});
+	});
+
+	test('Existing Session hides Files Details after initial restoration settles with a pull request editor', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		state.isRestoringSessionLayout = true;
+		const session = makeSession(URI.parse('session:/existing'), { isCreated: true });
+		const pullRequestEditor = Object.create(WebviewInput.prototype) as WebviewInput;
+		Object.defineProperties(pullRequestEditor, {
+			viewType: { value: 'mainThreadWebview-PullRequestOverview' },
+			providerId: { value: 'PullRequestOverview' },
+		});
+		harness.activeGroupEditors.push(pullRequestEditor);
+		harness.activeEditorInput = pullRequestEditor;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		activate(session);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel(),
+		));
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.setPartHiddenCalls.length = 0;
+
+		state.isRestoringSessionLayout = false;
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
 		});
 	});
 
@@ -490,6 +532,35 @@ suite('SinglePane layout strategies', () => {
 		}, {
 			editorVisible: true,
 			auxiliaryBarVisible: true,
+			visibilityChanges: [],
+		});
+	});
+
+	test('Existing Session does not reveal the side pane when a tiled session changes selection', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherSession = makeSession(URI.parse('session:/other'));
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.sessionGridLayoutObs.set('grid', undefined);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel()
+		));
+
+		harness.visibleSessionsObs.set([session, otherSession], undefined);
+		harness.activeSessionObs.set(session, undefined);
+		harness.activeSessionObs.set(otherSession, undefined);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 			visibilityChanges: [],
 		});
 	});

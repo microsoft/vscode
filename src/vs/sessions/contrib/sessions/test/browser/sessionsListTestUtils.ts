@@ -27,6 +27,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
@@ -46,6 +47,8 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
 	readonly archived: ISession[] = [];
+	readonly cancelled: ISession[] = [];
+	readonly imported: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
@@ -59,6 +62,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override getSessions(): ISession[] {
 		return this.sessions;
+	}
+
+	override getSession(resource: URI): ISession | undefined {
+		return this.sessions.find(session => session.resource.toString() === resource.toString());
 	}
 
 	override async markRead(session: ISession): Promise<void> {
@@ -80,9 +87,18 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.archived.push(session);
 	}
 
-	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
+	override async cancelCurrentRequest(session: ISession): Promise<void> {
+		this.cancelled.push(session);
+	}
+
+	override async importSession(session: ISession): Promise<void> {
+		this.imported.push(session);
+	}
+
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		this.deletedChats.push({ session, chatResource });
 		this.deleteChatOptions.push(options);
+		return true;
 	}
 
 	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
@@ -99,6 +115,7 @@ export interface ITestSession {
 	readonly status: ISettableObservable<SessionStatus, void>;
 	readonly isArchived: ISettableObservable<boolean, void>;
 	readonly isRead: ISettableObservable<boolean, void>;
+	readonly isExternal: ISettableObservable<boolean, void>;
 }
 
 export interface ITestSessionOptions {
@@ -108,6 +125,7 @@ export interface ITestSessionOptions {
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
+	readonly isExternal?: boolean;
 	readonly changesSummary?: ISessionChangesSummary;
 }
 
@@ -120,9 +138,12 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = resource.with({ fragment: 'main' });
 		override readonly status = status;
+		override readonly changes = constObservable([]);
+		override readonly changesets = constObservable([]);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
+	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
@@ -144,21 +165,20 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		title: constObservable(title),
 		updatedAt: constObservable(now),
 		status,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		changesSummary: constObservable(options.changesSummary),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
 		isArchived,
 		isRead,
+		isExternal,
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
 	};
-	return { session, capabilities, status, isArchived, isRead };
+	return { session, capabilities, status, isArchived, isRead, isExternal };
 }
 
 export function createSession(title: string, resourceId: string = title): ITestSession {
@@ -170,6 +190,10 @@ export interface IListHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly managementService: TestSessionsManagementService;
 	readonly commandService: TestCommandService;
+	readonly deletedGroupIds: string[];
+	readonly cancelledComparisonIds: string[];
+	readonly archivedComparisonIds: string[];
+	readonly addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
 	createContainer(width?: number, height?: number): HTMLElement;
@@ -185,6 +209,7 @@ export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	readonly comparisons?: readonly ISessionComparison[];
 }
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
@@ -199,6 +224,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const groups = options.groups ?? [];
 	const memberships = options.memberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const comparisons = options.comparisons ?? [];
+	const deletedGroupIds: string[] = [];
+	const cancelledComparisonIds: string[] = [];
+	const archivedComparisonIds: string[] = [];
+	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
 	const sortChanges: ISortChangeRecord[] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
@@ -210,6 +240,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
+		override unpinSessions(): void { }
 		override migrateLegacyReadState(): void { }
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
@@ -231,6 +262,30 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
 		override getSessionIdsInGroup(groupId: string) {
 			return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
+		}
+		override deleteGroup(groupId: string): void {
+			deletedGroupIds.push(groupId);
+		}
+		override addToGroup(sessionId: string, groupId: string): void;
+		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;
+		override addToGroup(sessionIds: string | Iterable<string>, groupId: string): void {
+			addedToGroups.push({ groupId, sessionIds: typeof sessionIds === 'string' ? [sessionIds] : [...sessionIds] });
+		}
+	});
+	instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+		override readonly comparisons = constObservable(comparisons);
+		override getComparison(comparisonId: string) { return comparisons.find(comparison => comparison.id === comparisonId); }
+		override getComparisonForSession(resource: URI) {
+			return comparisons.find(comparison => comparison.participants.some(participant => participant.sessionResource?.toString() === resource.toString()));
+		}
+		override cancelComparison(comparisonId: string): void {
+			cancelledComparisonIds.push(comparisonId);
+		}
+		override canRetryJudge(): boolean {
+			return false;
+		}
+		override archiveComparison(comparisonId: string): void {
+			archivedComparisonIds.push(comparisonId);
 		}
 	});
 	instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
@@ -280,5 +335,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, sortChanges, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, createContainer };
 }

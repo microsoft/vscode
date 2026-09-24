@@ -80,6 +80,25 @@
 	display: flex;
 }
 
+.experimental-new-session-composer .new-session-workspace-picker-container {
+	margin-top: var(--vscode-spacing-size40);
+	margin-bottom: 0;
+}
+
+.experimental-new-session-composer .new-session-quick-chat-header {
+	justify-content: flex-end;
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container,
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
+	width: 100%;
+	margin: 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	background-color: transparent;
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
 .new-chat-widget-content {
 	width: 100%;
 	max-width: 800px;
@@ -87,6 +106,27 @@
 	flex-direction: column;
 	align-items: stretch;
 	align-self: center;
+}
+
+.new-session-contextual-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	align-self: center;
+	margin-bottom: var(--vscode-spacing-size400);
+	text-align: center;
+}
+
+.new-session-contextual-message[hidden] {
+	display: none;
+}
+
+.new-session-contextual-message-title {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.4;
+	margin: 0;
 }
 
 /* Flex centering shares attachment growth above and below the midpoint. Offset
@@ -113,6 +153,10 @@
 	display: flex;
 }
 
+.new-chat-widget-container.revealed .experimental-new-session-composer .new-chat-bottom-container.empty {
+	display: none;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
 	overflow: hidden;
 }
@@ -125,7 +169,7 @@
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
+.new-chat-widget-container .new-chat-repo-config-container {
 	display: flex;
 	align-items: center;
 	gap: 2px;
@@ -133,7 +177,7 @@
 	overflow: hidden;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
+.new-chat-widget-container .new-chat-repo-config-container {
 	.monaco-action-bar .actions-container {
 		gap: 0;
 	}
@@ -164,12 +208,12 @@
 	}
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container.has-no-actions {
+.new-chat-widget-container .new-chat-repo-config-container.has-no-actions {
 	display: none;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] {
+.new-chat-widget-container .new-chat-repo-config-container:hover,
+.new-chat-widget-container .new-chat-repo-config-container[data-picker-open='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -182,7 +226,7 @@
  * and switch to compact form before their labels would truncate. */
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > *,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container > *,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container > * {
+.new-chat-widget-container .new-chat-repo-config-container > * {
 	min-width: 0;
 	overflow: hidden;
 }
@@ -200,7 +244,8 @@
 	min-width: 0;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator {
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator,
+.experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator {
 	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
 	height: var(--vscode-spacing-size120);
 	margin: 0 !important;
@@ -255,7 +300,8 @@
 }
 
 /* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container,
+.experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .actions-container {
 	gap: 2px;
 }
 
@@ -271,6 +317,14 @@
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 	background-color: var(--session-view-background);
+}
+
+.experimental-new-session-composer .new-chat-repo-config-container .action-label:not(.separator) {
+	background-color: transparent;
+}
+
+.experimental-new-session-composer .new-chat-repo-config-container .codicon::before {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-bottom-container .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
@@ -379,6 +433,40 @@
 	padding: 0;
 }
 
+.experimental-new-session-composer .sessions-workspace-category-picker {
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker > .sessions-chat-session-type-picker {
+	margin-left: auto;
+}
+
+.new-chat-repository-controls-host {
+	display: contents;
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
+	min-height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size40);
+	background-color: transparent;
+	border-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:hover,
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	background-image: none;
+	border-color: transparent;
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .sessions-workspace-category-picker-label {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
@@ -393,7 +481,7 @@
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size60);
 	min-height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 	background-color: var(--session-view-background);
@@ -422,11 +510,15 @@
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .codicon {
-	font-size: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
+	display: none;
 }
 
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
@@ -441,8 +533,20 @@
 	margin-right: var(--vscode-spacing-sizeNone);
 }
 
-.sessions-workspace-category-picker .sessions-chat-dropdown-label {
+.sessions-workspace-category-picker > .sessions-chat-picker-slot .sessions-chat-dropdown-label {
 	margin-left: 0;
+}
+
+.sessions-workspace-category-picker .new-chat-repo-config-container .action-label > .codicon:not(.monaco-checkbox) {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-repo-config-container .action-label:not(.separator) {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .sessions-workspace-category-picker:empty {

@@ -74,18 +74,18 @@ Shared base class that handles:
 
 1. **Format detection** — recognizes strict Agent Plugins v1 by its root schema, then falls back to the Copilot, Claude, and Open Plugin path conventions.
 2. **Content reading** — reads commands, skills, agents, hooks, and MCP server definitions from the filesystem.
-3. **File watching** — watches plugin directories for changes and re-reads contents on a 200 ms debounced scheduler.
+3. **File watching** — by default, watches plugin directories for changes and re-reads their contents. Sources that own atomic replacement of plugin directories can opt out and rebuild entries from discovery-level events instead.
 4. **Observable propagation** — sets the `plugins` observable on each refresh cycle.
 
 Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs exist.
 
 ### Discovery Implementations
 
-**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes.
+**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Redundant paths into the Copilot CLI-owned cache are ignored; committed CLI installations are owned by `CopilotCliAgentPluginDiscovery`.
 
 **MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
 
-**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). Watches the deepest existing ancestor (down to the install root) and each marketplace bucket non-recursively so the first-ever install is detected without a reload.
+**CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. CLI-owned plugins are not removable through VS Code because install, update, and uninstall are transactions coordinated by the CLI's cross-process lock and state writer.
 
 ### Plugin Formats
 

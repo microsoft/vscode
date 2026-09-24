@@ -17,6 +17,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
@@ -121,9 +122,6 @@ export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.ex
 
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
-
-/** Configuration key selecting compact artifact-tool prompt wording. */
-export const ArtifactToolsCompactPromptsSettingId = 'chat.artifactTools.compactPrompts';
 
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
@@ -262,38 +260,17 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 	return defaultEnabled;
 }
 
-/**
- * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool. Supported values are:
- *
- *  - `'off'` (the default): sandboxing is explicitly disabled for the SDK shell
- *    path \u2014 commands run unsandboxed.
- *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
- *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
- *    Outbound network is blocked.
- *
- * Unrestricted outbound network is controlled separately by
- * `chat.agent.sandbox.allowNetwork`.
- */
+/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxEnabled} for both terminal implementations. */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
-/**
- * Configuration key that controls the sandbox mode for the Copilot SDK's
- * built-in shell tool on Windows. This is independent of
- * {@link AgentHostSdkSandboxEnabledSettingId} so Windows support can be rolled
- * out separately. Supported values are `'off'` and `'on'`; the default is
- * `'off'`.
- */
+/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxWindowsEnabled} for both terminal implementations. */
 export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
 
 export type AgentHostCopilotSandboxSettingId =
 	| AgentSandboxSettingId.AgentSandboxEnabled
-	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
-	| typeof AgentHostSdkSandboxEnabledSettingId
-	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
+	| AgentSandboxSettingId.AgentSandboxWindowsEnabled;
 
 export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
-	// TODO: Check Agent Host-specific sandbox settings once they are enabled for users.
 	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
@@ -824,6 +801,8 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Permanently adopts an external session without sending a message. */
+	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
@@ -1132,9 +1111,13 @@ export interface IAgentConnection {
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	// ---- Session lifecycle --------------------------------------------------
+	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
+	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the VS Code session import capability advertised by initialize. */
+	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;

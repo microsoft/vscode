@@ -92,6 +92,7 @@ export enum ChatConfiguration {
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	PersistentProgress = 'chat.experimental.persistentProgress',
+	PersistentProgressVerbosity = 'chat.experimental.persistentProgressVerbosity',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -138,6 +139,7 @@ export enum ChatConfiguration {
 	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
+	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -150,6 +152,7 @@ export enum ChatConfiguration {
 }
 
 export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
+export const DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS = 5;
 
 /**
  * The "kind" of agents for custom agents.
@@ -249,6 +252,11 @@ export enum ChatProgressAnimation {
 	Orbit = 'orbit',
 	Accordion = 'accordion',
 	Dial = 'dial',
+}
+
+export enum ChatProgressVerbosity {
+	Verbose = 'verbose',
+	Compact = 'compact',
 }
 
 export enum CollapsedToolsDisplayMode {

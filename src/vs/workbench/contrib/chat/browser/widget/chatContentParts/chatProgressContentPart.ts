@@ -11,6 +11,7 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { stripIcons } from '../../../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -31,6 +32,8 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { Link } from '../../../../../../platform/opener/browser/link.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -40,9 +43,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly persistentProgress: boolean;
 	private useShimmer = false;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly renderedOrigin = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _fileWidgetStore = this._register(new DisposableStore());
 	protected currentContent: IMarkdownString;
 	protected progressIconElement: HTMLElement | undefined;
+	private readonly progressId: string | undefined;
+	private readonly progressAction: IChatContentPartRenderContext['progressMessageAction'];
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
@@ -60,6 +66,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	) {
 		super();
 		this.currentContent = progress.content;
+		this.progressId = hasKey(progress, { kind: true }) && progress.kind === 'progressMessage' ? progress.id : undefined;
+		this.progressAction = context.progressMessageAction;
 		this.persistentProgress = !!context.suppressProgressShimmer;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
@@ -92,6 +100,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		if (this.useShimmer) {
 			syncShimmerPhase(this.applyShimmer(result.element));
 		}
+		this.renderToolOrigin(result.element);
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, progressIcon, tooltip));
@@ -101,6 +110,47 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			this.domNode.classList.add('shimmer-progress');
 		}
 		this.renderedMessage.value = result;
+		if (this.progressAction && this.showSpinner && (!this.persistentProgress || isWorkingProgress)) {
+			const detail = append(this.domNode, $('span.chat-progress-action'));
+			append(detail, $('span', { 'aria-hidden': 'true' }, '\u00b7 '));
+			const link = this._register(instantiationService.createInstance(Link, detail, { label: '', href: '#' }, {
+				opener: () => this.progressAction?.get()?.run(),
+			}));
+			this._register(autorun(reader => {
+				const action = this.progressAction!.read(reader);
+				detail.hidden = !action;
+				if (action) {
+					link.link = { label: action.label, href: '#' };
+				}
+			}));
+		}
+	}
+
+	tryUpdateProgress(progress: IChatProgressMessage, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		if (!this.progressAction?.get() || !this.progressId || progress.id !== this.progressId
+			|| followingContent.some(part => part.kind !== 'progressMessage') || this.isHidden
+			|| shouldShowSpinner(followingContent, element) !== this.showSpinner) {
+			return false;
+		}
+		if (this.showSpinner && progress.content.value !== this.currentContent.value
+			&& this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(stripIcons(renderAsPlaintext(progress.content)));
+		}
+		this.updateMessage(progress.content);
+		return true;
+	}
+
+	private renderToolOrigin(messageElement: HTMLElement): void {
+		this.renderedOrigin.clear();
+		const originMessage = this.toolInvocation?.originMessage;
+		if (!originMessage) {
+			return;
+		}
+		this.renderedOrigin.value = this.chatContentMarkdownRenderer.render(
+			typeof originMessage === 'string' ? new MarkdownString().appendText(originMessage) : originMessage
+		);
+		messageElement.classList.add('chat-progress-with-origin');
+		append(messageElement, $('small.chat-progress-origin', undefined, this.renderedOrigin.value.element));
 	}
 
 	/**
@@ -172,9 +222,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.persistentProgress) {
-			this.currentContent = content;
-		}
+		this.currentContent = content;
 		// Render the new message
 		const previousElement = this.renderedMessage.value?.element;
 		const result = this.chatContentMarkdownRenderer.render(content);
@@ -185,6 +233,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		if (this.persistentProgress && this.useShimmer) {
 			syncShimmerPhase(this.applyShimmer(result.element));
 		}
+		this.renderToolOrigin(result.element);
 
 		// Replace the old message container with the new one
 		if (previousElement?.parentElement) {

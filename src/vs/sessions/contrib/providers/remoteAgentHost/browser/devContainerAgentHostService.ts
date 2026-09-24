@@ -394,7 +394,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const provider = store.add(this._createProvider({
 			address,
 			name,
-			devContainerSourceWorkspace: workspaceUri,
+			devContainerSourceWorkspaceUri: workspaceUri,
 			devContainerWorktreeScope: getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)

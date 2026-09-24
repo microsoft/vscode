@@ -77,6 +77,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	focusWorkspacePicker(): void {
+		// no-op by default
+	}
+
+	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
@@ -167,10 +175,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it occupies the first group in the chat grid.
-	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 * Notifies the view of its position and whether the chat grid is split.
+	 * Session-scoped UI can use this to avoid repeating across split groups and adapt its layout.
 	 */
-	setPrimary(_primary: boolean): void {
+	setPrimary(_primary: boolean, _split = false): void {
 		// no-op by default
 	}
 

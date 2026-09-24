@@ -96,7 +96,7 @@
 	}
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain > .chat-used-context-list.chat-thinking-collapsible {
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain .chat-used-context-list.chat-thinking-collapsible {
 	margin-left: 0;
 	padding: 0;
 	overflow: visible;
@@ -125,7 +125,8 @@
 
 		> .chat-tool-invocation-part,
 		> .chat-codeblock-pill-container,
-		> .chat-markdown-part.rendered-markdown {
+		> .chat-markdown-part.rendered-markdown,
+		> .chat-used-context {
 			padding-block: 0;
 		}
 
@@ -141,32 +142,75 @@
 	}
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-persistent-reasoning {
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-tool-chain-collapsible:not(.chat-tool-chain-preview)) {
 	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		box-sizing: border-box;
 		left: var(--chat-persistent-rail-left);
-		width: calc(var(--vscode-spacing-size120) - var(--vscode-codiconFontSize-compact) / 2 + var(--vscode-strokeThickness) / 2);
-		height: calc(var(--vscode-spacing-size60) + var(--vscode-chat-font-size-body-s) * 0.75 + var(--vscode-strokeThickness) / 2);
+		width: var(--chat-persistent-hook-width);
+		height: calc(var(--chat-persistent-nested-gap) + var(--vscode-chat-font-size-body-s) * 0.75 + var(--vscode-strokeThickness) / 2);
 		border-width: var(--vscode-strokeThickness);
 		border-bottom-left-radius: var(--vscode-cornerRadius-medium);
 		pointer-events: none;
 	}
 
+	&.chat-tool-chain-collapsible {
+		> .chat-used-context-label::after {
+			height: calc(var(--chat-persistent-nested-gap) + var(--vscode-chat-font-size-body-m) * 0.75 + var(--vscode-strokeThickness) / 2);
+		}
+
+		.chat-used-context-list.chat-thinking-collapsible {
+			padding-top: var(--chat-persistent-nested-gap);
+		}
+	}
+
 	.chat-used-context-list.chat-thinking-collapsible {
-		margin-left: var(--vscode-spacing-size120);
+		margin-left: var(--chat-persistent-nested-indent);
 		padding-inline: 0;
 
 		> .chat-thinking-item.markdown-content {
-			--chat-chain-icon-top: calc(var(--chat-persistent-icon-top) + var(--vscode-spacing-size60));
-			padding-block: var(--vscode-spacing-size60);
+			--chat-chain-icon-top: calc(var(--chat-persistent-icon-top) + var(--chat-persistent-nested-gap));
+			padding-block: var(--chat-persistent-nested-gap);
 		}
+	}
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-collapsible > .chat-used-context-label {
+	transition: none;
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-preview {
+	min-height: 1.5em;
+
+	> .chat-used-context-label {
+		position: absolute;
+		inset-inline: 0;
+		top: 0;
+		visibility: hidden;
+	}
+
+	&.chat-used-context-collapsed > .chat-used-context-label {
+		visibility: visible;
+		transition: visibility 0s linear 180ms;
+	}
+}
+
+.monaco-reduce-motion .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-preview.chat-used-context-collapsed > .chat-used-context-label {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-preview.chat-used-context-collapsed > .chat-used-context-label:not(.monaco-enable-motion *) {
+		transition: none;
 	}
 }
 
 .interactive-session .interactive-response.chat-persistent-progress > .value {
 	--chat-persistent-item-gap: var(--vscode-spacing-size160);
+	--chat-persistent-nested-indent: var(--vscode-spacing-size160);
+	--chat-persistent-nested-gap: var(--vscode-spacing-size60);
 	--chat-persistent-icon-top: calc((var(--vscode-chat-font-size-body-m) * 1.5 - var(--vscode-codiconFontSize-compact)) / 2);
 	--chat-persistent-rail-left: calc(var(--vscode-codiconFontSize-compact) * 0.7 - var(--vscode-strokeThickness) / 2);
+	--chat-persistent-hook-width: calc(var(--chat-persistent-nested-indent) - var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-spacing-size40) + var(--vscode-strokeThickness) / 2);
 }
 
 /* The row container class keeps these ahead of the legacy `.interactive-item-container .value > …`
@@ -194,6 +238,8 @@
 	}
 
 	> .chat-persistent-reasoning,
+	> .chat-tool-chain-collapsible,
+	.chat-tool-chain .chat-thinking-tool-wrapper > .chat-used-context,
 	.chat-tool-call-with-icon :is(.chat-terminal-thinking-collapsible, .chat-confirmation-widget-collapsible) {
 		gap: 0;
 
@@ -212,7 +258,7 @@
 		}
 	}
 
-	> .chat-persistent-reasoning > .chat-used-context-label .monaco-button.monaco-icon-button {
+	> :is(.chat-persistent-reasoning, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button {
 		margin-left: calc(-1 * var(--vscode-spacing-size20));
 		gap: 0;
 	}
@@ -250,7 +296,7 @@
 	}
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box.chat-persistent-reasoning > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon.codicon-thinking {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools) {
 	display: inline-flex;
 	width: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
@@ -258,7 +304,7 @@
 
 /* Reserve the tool text gutter without shifting the leading icons. */
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
-.interactive-session .interactive-response .value .chat-thinking-box.chat-persistent-reasoning > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon.codicon-thinking {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
 }
 

@@ -151,7 +151,7 @@ class TestSessionsProvidersService extends Disposable implements ISessionsProvid
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly id: string;
-	override readonly devContainerSourceWorkspace: URI | undefined;
+	override get devContainerSourceWorkspace(): URI | undefined { return this.config.devContainerSourceWorkspaceUri; }
 	readonly sessionsChangedEmitter = new Emitter<ISessionChangeEvent>();
 	override readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
 	readonly testSession = new class extends mock<ISession>() { }();
@@ -164,7 +164,6 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
 		this.id = `agenthost-${agentHostAuthority(config.address)}`;
-		this.devContainerSourceWorkspace = config.devContainerSourceWorkspace;
 	}
 
 	override setConnection(connection: IAgentConnection, defaultDirectory?: string): void {

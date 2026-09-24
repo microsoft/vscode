@@ -3396,6 +3396,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-item-container .progress-container > .chat-progress-action {
+	flex-shrink: 0;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
 .interactive-item-container .progress-container {
 	display: flex;
 	/* Keep the icon on the first line: a wrapped message must not drag it down
@@ -3438,6 +3445,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.rendered-markdown.progress-step {
 		white-space: normal;
 
+		&.chat-progress-with-origin {
+			min-width: 0;
+			overflow-wrap: anywhere;
+
+			> p {
+				display: inline;
+			}
+		}
+
+		.chat-progress-origin {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-body2);
+			font-weight: var(--vscode-fontWeight-regular);
+			opacity: 0.7;
+
+			&::before {
+				content: ' \2013  ';
+			}
+
+			.rendered-markdown,
+			p {
+				display: inline;
+			}
+		}
+
 		& > p {
 			color: var(--vscode-descriptionForeground);
 			font-size: var(--vscode-chat-font-size-body-s);
@@ -3477,6 +3509,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		animation: chat-thinking-shimmer 2s linear infinite;
 		will-change: background-position;
 	}
+}
+
+.hc-black .interactive-item-container .progress-container .progress-step .chat-progress-origin,
+.hc-light .interactive-item-container .progress-container .progress-step .chat-progress-origin {
+	opacity: 1;
 }
 
 .interactive-item-container .progress-container > .chat-working-progress-icon-stable {
@@ -3569,59 +3606,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 	padding: 0;
 	color: var(--vscode-textLink-foreground);
-}
-
-.chat-attached-context-hover {
-	padding: 0 6px;
-}
-
-.chat-attached-context-hover .chat-attached-context-image-container {
-	padding: 6px 0 4px;
-	height: auto;
-	width: 100%;
-	display: block;
-}
-
-.chat-attached-context-hover .chat-attached-context-image-container.clickable {
-	cursor: pointer;
-}
-
-.chat-attached-context-hover .chat-attached-context-image-container.clickable:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.chat-attached-context-hover .chat-attached-context-image-container .chat-attached-context-image {
-	width: 100%;
-	height: 100%;
-	object-fit: contain;
-	display: block;
-	max-height: 350px;
-	max-width: 100%;
-	min-width: 200px;
-	min-height: 200px;
-
-}
-
-.chat-attached-context-hover .chat-attached-context-url {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-	margin-top: 4px;
-	padding: 2px 0;
-	width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	max-width: 100%;
-	display: block;
-}
-
-.chat-attached-context-hover .chat-attached-context-url-separator {
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
-	left: 0;
-	right: 0;
-	position: absolute;
-	margin-top: 2px;
 }
 
 /* Element hover (DevTools-style) */

@@ -25,10 +25,12 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHo
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -53,6 +55,7 @@ import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessi
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -125,8 +128,11 @@ export interface IWorkspacePickerNoWorkspaceOption {
 export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
-	readonly tooltip?: string;
+	readonly tooltip?: string | (() => string);
+	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	readonly icon?: ThemeIcon;
+	readonly contextViewLayer?: number;
+	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -434,6 +440,8 @@ export class WorkspacePicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
@@ -561,6 +569,17 @@ export class WorkspacePicker extends Disposable {
 		return slot;
 	}
 
+	/**
+	 * Renders another trigger without replacing the primary picker controls.
+	 */
+	renderAdditionalTrigger(container: HTMLElement, options: IWorkspacePickerTrigger): IDisposable {
+		const disposables = new DisposableStore();
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
+		disposables.add({ dispose: () => slot.remove() });
+		disposables.add(this._addTrigger(slot, options));
+		return disposables;
+	}
+
 	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
@@ -625,7 +644,26 @@ export class WorkspacePicker extends Disposable {
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
-			triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+			if (options.focusCommand) {
+				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
+				registerPickerKeybindingPresentation(
+					triggerDisposables,
+					trigger,
+					tooltip,
+					options.focusCommand.id,
+					options.focusCommand.when,
+					options.focusCommand.enabled,
+					this.commandService,
+					this.contextMenuService,
+					this.hoverService,
+					this.keybindingService,
+				);
+			} else {
+				const tooltip = options.tooltip;
+				triggerDisposables.add(typeof tooltip === 'function'
+					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
+					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
+			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.
@@ -845,6 +883,7 @@ export class WorkspacePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 			},
 			this._buildListOptions(items, undefined),
+			this._triggerOptions.get(triggerElement)?.contextViewLayer,
 		);
 	}
 
@@ -884,6 +923,7 @@ export class WorkspacePicker extends Disposable {
 			delegate,
 			accessibilityProvider,
 			width: TABBED_PICKER_WIDTH,
+			contextViewLayer: this._triggerOptions.get(triggerElement)?.contextViewLayer,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
 		});
 	}
@@ -1828,7 +1868,10 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		const noWorkspaceOption = this._getNoWorkspaceOption();
-		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
+		const hideNoWorkspaceOption = this._activeTriggerElement
+			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
+			: false;
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true || hideNoWorkspaceOption) {
 			return items;
 		}
 
