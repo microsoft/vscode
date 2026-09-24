@@ -393,6 +393,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		onCancel?: () => void;
 	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
+	private readonly transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>(this, undefined);
 	private transcriptProgressActive = false;
 	private readonly transcriptProgressActiveContext: IContextKey<boolean>;
 	private transcriptContext: HTMLElement | undefined;
@@ -1520,7 +1521,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void }): void {
+	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
@@ -1551,17 +1552,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.transcriptProgress.part.domNode.classList.toggle('show-checkmarks', options?.complete === true);
 		this.transcriptProgress.detail.hidden = !message || !options?.detail;
 		this.transcriptProgress.status.setAttribute('aria-label', ariaLabel ?? '');
-		this.transcriptProgress.container.hidden = message === undefined;
+		this.transcriptProgress.container.hidden = message === undefined || !!options?.inTranscript;
+		this.transcriptProgressAction.set(message && options?.inTranscript ? options.detail : undefined, undefined);
 		this.transcriptProgress.onDetail = message ? options?.detail?.run : undefined;
 		const wasPreparing = this.isTranscriptProgressActive;
 		this.transcriptProgress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
 		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
 		if (wasPreparing !== this.isTranscriptProgressActive) {
 			this.input.setInputEnabled(!this.isTranscriptProgressActive);
+			this._readOnlyContextKey.set(this._readOnly || this.isTranscriptProgressActive);
+			this._applyRendererEditable(!this._readOnly);
 		}
 		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 		this.updateChatViewVisibility();
+		this._layoutListForInputHeight();
 	}
 
 	get isTranscriptProgressActive(): boolean {
@@ -2076,7 +2081,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setReadOnly(readOnly: boolean): void {
 		const wasReadOnly = this._readOnly;
 		this._readOnly = readOnly;
-		this._readOnlyContextKey.set(readOnly);
+		this._readOnlyContextKey.set(readOnly || this.isTranscriptProgressActive);
 		if (readOnly) {
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
@@ -2105,7 +2110,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly, readOnly: this._readOnly });
+		const readOnly = this._readOnly || this.isTranscriptProgressActive;
+		this.listWidget?.updateRendererOptions({ editable: editable && !readOnly, readOnly });
 	}
 
 	/**
@@ -2178,7 +2184,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: { ...options, readOnly: this._readOnly },
+				rendererOptions: { ...options, readOnly: this._readOnly, progressMessageAction: this.transcriptProgressAction },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2255,7 +2261,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	startEditing(requestId: string): void {
-		if (this._readOnly) {
+		if (this._readOnly || this.isTranscriptProgressActive) {
 			return;
 		}
 

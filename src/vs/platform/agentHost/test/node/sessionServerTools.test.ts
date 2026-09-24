@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -1666,6 +1666,30 @@ suite('SessionServerTools', () => {
 			title: 'Other Folder',
 		}, URI.parse('copilot:/s1')), /does not support chat working directories/);
 		assert.strictEqual(createdChat, false);
+	});
+
+	test('create_session with currentSession rejects a workspace from a quick chat', async () => {
+		let preparedFolder = false;
+		let createdChat = false;
+		const accessor = createAccessor({
+			getSession: async session => session.toString() === 'copilot:/s1'
+				? { ...sessionMeta('s1', SessionStatus.InProgress, workspace), _meta: withSessionWorkspaceless(undefined, true) }
+				: undefined,
+			prepareChatWorkingDirectory: async (_session, directory) => {
+				preparedFolder = true;
+				return prepared(directory);
+			},
+			onCreateChat: () => { createdChat = true; },
+		});
+
+		await assert.rejects(applyCreateSessionTool(accessor, {
+			relationship: 'currentSession',
+			workspace: 'file:///workspace/other',
+			prompt: 'do it there',
+			title: 'Other Folder',
+		}, URI.parse('copilot:/s1')), /Use set_workspace to attach a workspace to the quick chat first/);
+
+		assert.deepStrictEqual({ preparedFolder, createdChat }, { preparedFolder: false, createdChat: false });
 	});
 
 	test('create_session without a relationship creates a chat in the current session', async () => {

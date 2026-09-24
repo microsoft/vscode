@@ -438,6 +438,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().removeSessionArtifact(session, artifactId);
 	}
 
+	importSession(session: URI): Promise<void> {
+		return this._requireClient().importSession(session);
+	}
+
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
 		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}
