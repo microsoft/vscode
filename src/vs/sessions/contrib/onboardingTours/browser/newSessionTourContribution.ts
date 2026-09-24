@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -33,12 +33,13 @@ const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';
  * still visible in the sessions grid (so we don't interrupt a session the user
  * immediately closed or navigated away from). Pressing the pulsing button opens
  * the new-session view and flips the tour's trigger signal. The onboarding
- * engine handles showing the tour at most once.
+ * engine gates the pulse on the tour's experiment and handles showing the tour
+ * at most once.
  *
  * The `onboarding.developerMode` setting bypasses the session-count gate so the
  * tour can be triggered on demand for testing.
  */
-class NewSessionTourContribution extends Disposable implements IWorkbenchContribution {
+export class NewSessionTourContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.onboardingTours.newSessionTour';
 
@@ -88,20 +89,23 @@ class NewSessionTourContribution extends Disposable implements IWorkbenchContrib
 		// Wait, then only trigger if the user is still looking at this session in
 		// the grid. A new request restarts the timer for the latest session.
 		this._pendingCheck.value = disposableTimeout(() => {
-			const stillVisible = this.sessionsService.visibleSessions.get().some(s => s?.sessionId === session.sessionId);
-			if (stillVisible) {
-				this._startNewSessionButtonPulse();
-			}
+			this._pendingCheck.value = autorun(reader => {
+				// Retry on assignment resolution, not when navigating back to a previously hidden session.
+				const stillVisible = this.sessionsService.visibleSessions.read(undefined).some(s => s?.sessionId === session.sessionId);
+				if (stillVisible) {
+					this._startNewSessionButtonPulse(reader);
+				}
+			});
 		}, NewSessionTourContribution.VISIBILITY_DELAY_MS);
 	}
 
-	private _startNewSessionButtonPulse(): void {
+	private _startNewSessionButtonPulse(reader: IReader): void {
 		if (this._pulse.value || this._trigger.get() || this.onboardingScenarioService.hasBeenShown(NEW_SESSION_TOUR_ID)) {
 			return;
 		}
 
 		const target = findOnboardingTarget(mainWindow, NEW_SESSION_BUTTON_TARGET);
-		if (!target) {
+		if (!target || !this.onboardingScenarioService.shouldShowNudge(NEW_SESSION_TOUR_ID, reader)) {
 			return;
 		}
 

@@ -47,6 +47,7 @@ steps:
         compile-extension:html-language-features-server `
         compile-extension:ipynb `
         compile-extension:notebook-renderers `
+        compile-extension:json-language-features-client `
         compile-extension:json-language-features-server `
         compile-extension:markdown-language-features `
         compile-extension-media `
@@ -130,12 +131,30 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
+        displayName: Prepare WSL Dev Container smoke tests
+        timeoutInMinutes: 15
+
     - powershell: |
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
+        ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+          VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
+          VSCODE_SMOKE_TEST_WSL_DISTRO: $(WSL_SMOKE_DISTRO)
+          VSCODE_SMOKE_TEST_WSL_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
+        displayName: Clean up WSL Dev Container smoke tests
+        condition: and(always(), ne(variables['WSL_SMOKE_ROOT'], ''))
+        timeoutInMinutes: 5
+        env:
+          WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+          WSL_SMOKE_ROOT: $(WSL_SMOKE_ROOT)
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --web --tracing --headless
@@ -182,4 +201,4 @@ steps:
         }
     displayName: Kill lingering test processes
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: always()

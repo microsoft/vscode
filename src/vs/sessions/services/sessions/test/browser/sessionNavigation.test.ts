@@ -22,10 +22,12 @@ import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
 	changes: constObservable([]),
+	changesets: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	modelSource: constObservable(undefined),
@@ -41,11 +43,13 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 	return {
 		resource: URI.parse(`test:///chat-${id}`),
 		createdAt: new Date(),
+		workspace: constObservable(undefined),
 		title: constObservable(`Chat ${id}`),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
 		checkpoints: constObservable(undefined),
 		changes: constObservable([]),
+		changesets: constObservable([]),
 		modelId: constObservable(undefined),
 		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
@@ -70,8 +74,6 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		title: constObservable(`Session ${id}`),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -156,6 +158,7 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
+	getInFlightNewSessionRequest(): undefined { return undefined; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
 
@@ -174,6 +177,10 @@ class MockSessionStore implements ISessionsManagementService {
 				return { session, chat };
 			}
 		}
+		return undefined;
+	}
+
+	getSessionContextReference(_resource: URI): string | undefined {
 		return undefined;
 	}
 
@@ -240,6 +247,7 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -247,7 +255,7 @@ class MockSessionStore implements ISessionsManagementService {
 	markAllRead(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSessions(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
-	deleteChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
+	deleteChat(_session: ISession, _chatUri: URI): Promise<boolean> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 	removeSessionArtifact(_session: ISession, _artifactId: string): Promise<void> { throw new Error('not implemented'); }

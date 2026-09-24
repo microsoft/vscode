@@ -46,14 +46,14 @@ import { ChatViewFactory } from './chatView.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
@@ -64,6 +64,11 @@ import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRE
 import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
+import { FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
@@ -224,6 +229,56 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
+
+class FocusNewSessionWorkspacePickerAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
+			title: localize2('sessions.focusNewSessionWorkspacePicker', "Focus Workspace Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
+				primary: FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusWorkspacePicker();
+	}
+}
+
+registerAction2(FocusNewSessionWorkspacePickerAction);
+
+class FocusNewSessionHarnessPickerAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID,
+			title: localize2('sessions.focusNewSessionHarnessPicker', "Focus Harness Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN,
+				primary: FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusHarnessPicker();
+	}
+}
+
+registerAction2(FocusNewSessionHarnessPickerAction);
 
 class SetChatBackgroundAction extends Action2 {
 
@@ -394,15 +449,24 @@ registerSingleton(ISessionArchiveNudgeService, SessionArchiveNudgeService, Insta
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
+AccessibleViewRegistry.register(new SessionComparisonAccessibleView());
 
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask with /btw, Quote, and Copy when selecting assistant response text in the Agents Window."),
+		},
 		[SESSION_ARCHIVE_NUDGE_SETTING]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session when all of its GitHub pull request artifacts have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
+			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session when all GitHub pull requests associated with the session have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -411,6 +475,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			deprecationMessage: localize('chat.agentSessions.consolidatedRemoteWorkspaces.deprecated', "Deprecated. Use the unified workspace picker setting instead."),
+		},
+		[COMPARE_AGENTS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Run and Compare Agents action is shown in eligible new-session agent pickers."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "When enabled, hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
+			tags: ['experimental'],
 		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
@@ -423,6 +502,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
+		},
+		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether new and running session composers use the experimental input control layout and groups new-session workspace, repository, and harness controls in a footer. This setting only applies when the unified workspace picker is enabled."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: {
 			type: 'string',

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -15,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -22,7 +24,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agen
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { MessageKind, SessionLifecycle, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -33,12 +35,15 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
@@ -47,11 +52,16 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IObservable, autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../../base/common/resources.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -242,16 +252,21 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
+	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
+	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+		override registerResolver() { return Disposable.None; }
+	}());
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService());
 	instantiationService.stub(INotificationService, { error: () => { } });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: overrides?.workspaceTrusted ?? true }; }
+		override async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> { await overrides?.setUrisTrust?.(uris, trusted); }
 	});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
@@ -265,6 +280,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		openSession: async () => overrides?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
+		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
@@ -277,6 +293,13 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}));
 	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(ILabelService, overrides?.labelService ?? new MockLabelService());
+	instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	});
+	instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
+		onDidChangeRecentWorkspaces: Event.None,
+		onDidRemoveRecentWorkspaces: Event.None,
+	}));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
@@ -308,6 +331,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 		defaultChangesetKind: overrides?.defaultChangesetKind,
 		devContainerWorktreeScope: overrides?.devContainerWorktreeScope,
+		resolveDevContainerWorktreeConnection: overrides?.resolveDevContainerWorktreeConnection,
 		readOnlyWhenDisconnected: overrides?.readOnlyWhenDisconnected,
 	};
 
@@ -392,7 +416,59 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.label, 'My Host');
 		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.strictEqual(provider.sessionTypes[0].id, CopilotCLISessionType.id);
-		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot [My Host]');
+		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
+	});
+
+	test('setLabel refreshes provider and workspace labels and notifies picker consumers', () => {
+		const provider = createProvider(disposables, connection, { noConnection: true, isWebPlatform: false });
+		provider.seedSessions([createSession('renamed-host', {
+			project: { uri: URI.parse('https://github.com/owner/repo'), displayName: 'owner/repo' },
+		})]);
+		const session = provider.getSessions()[0];
+		const labels: string[] = [];
+		disposables.add(provider.onDidChangeSessionTypes(() => labels.push(provider.label)));
+
+		provider.setLabel('Renamed Host');
+		provider.setLabel('Renamed Host');
+		const renamed = {
+			label: provider.label,
+			description: provider.browseActions[0].description,
+			workspace: session.workspace.get()?.label,
+		};
+		provider.setLabel('');
+
+		assert.deepStrictEqual({
+			renamed,
+			fallback: provider.label,
+			fallbackDescription: provider.browseActions[0].description,
+			fallbackWorkspace: session.workspace.get()?.label,
+			labels,
+			sameSession: provider.getSessions()[0] === session,
+		}, {
+			renamed: { label: 'Renamed Host', description: 'Renamed Host', workspace: 'owner/repo [Renamed Host]' },
+			fallback: 'localhost:4321',
+			fallbackDescription: 'localhost:4321',
+			fallbackWorkspace: 'owner/repo [localhost:4321]',
+			labels: ['Renamed Host', 'localhost:4321'],
+			sameSession: true,
+		});
+	});
+
+	test('creates workspace-less quick chats on the remote provider', () => {
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		const session = provider.createQuickChat(provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			supportsQuickChats: provider.supportsQuickChats,
+			providerId: session.providerId,
+			workspace: session.workspace.get(),
+			isQuickChat: session.isQuickChat?.get(),
+		}, {
+			supportsQuickChats: true,
+			providerId: provider.id,
+			workspace: undefined,
+			isQuickChat: true,
+		});
 	});
 
 	test('registers provider-owned session resolution policy', () => {
@@ -429,8 +505,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(changes, 1);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: CopilotCLISessionType.id, label: 'Copilot [My Host]' },
-			{ id: 'openai', label: 'OpenAI [My Host]' },
+			{ id: CopilotCLISessionType.id, label: 'Copilot' },
+			{ id: 'openai', label: 'OpenAI' },
 		]);
 	});
 
@@ -908,6 +984,276 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(remaining.find((s) => s.title.get() === 'To Delete'), undefined);
 	});
 
+	test('only offers Dev Containers for its own non-container workspaces', async () => {
+		const probed: string[] = [];
+		const availability = disposables.add(new Emitter<void>());
+		const service = new class extends mock<IDevContainerAgentHostService>() {
+			override readonly onDidChangeAvailability = availability.event;
+			override async isAvailable(workspace: URI): Promise<boolean> {
+				probed.push(workspace.toString());
+				return true;
+			}
+		}();
+		const providersService = new class extends mock<ISessionsProvidersService>() { }();
+		const trustRequestService = new class extends mock<IWorkspaceTrustRequestService>() { }();
+		const provider = createProvider(disposables, connection);
+		provider.initializeDevContainerSupport(service, providersService, trustRequestService);
+		const container = createProvider(disposables, new MockAgentConnection(), { devContainerWorktreeScope: 'source-workspace' });
+		container.initializeDevContainerSupport(service, providersService, trustRequestService);
+		const workspace = toAgentHostUri(URI.file('/workspace'), agentHostAuthority('localhost:4321'));
+		let changes = 0;
+		disposables.add(provider.onDidChangeDevContainerAvailability(() => changes++));
+		provider.initializeDevContainerSupport(service, providersService, trustRequestService);
+		availability.fire();
+
+		assert.deepStrictEqual({
+			local: await provider.isDevContainerWorkspaceAvailable(URI.file('/workspace')),
+			otherHost: await provider.isDevContainerWorkspaceAvailable(toAgentHostUri(URI.file('/workspace'), 'other-host')),
+			own: await provider.isDevContainerWorkspaceAvailable(workspace),
+			nested: await container.isDevContainerWorkspaceAvailable(workspace),
+			probed,
+			changes,
+		}, { local: false, otherHost: false, own: true, nested: false, probed: [workspace.toString()], changes: 1 });
+	});
+
+	test('resolves Dev Container availability for drafts created before support is wired', async () => {
+		const provider = createProvider(disposables, connection);
+		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('localhost:4321')), provider.sessionTypes[0].id);
+		await timeout(0);
+		provider.initializeDevContainerSupport(
+			new class extends mock<IDevContainerAgentHostService>() {
+				override readonly onDidChangeAvailability = Event.None;
+				override async isAvailable(): Promise<boolean> { return true; }
+			}(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IWorkspaceTrustRequestService>() { }(),
+		);
+		provider.preferDevContainer(draft.sessionId);
+		await timeout(0);
+		assert.deepStrictEqual({ available: provider.isDevContainerAvailable(draft.sessionId), enabled: provider.isDevContainerEnabled(draft.sessionId) }, { available: true, enabled: true });
+	});
+
+	for (const [address, useWorktree] of [['ssh:test-host', true], ['ssh:test-host', false], ['tunnel:test-host', true], ['tunnel:test-host', false], ['wsl:Ubuntu', true], ['wsl:Ubuntu', false]] as const) {
+		test(`prepares a Dev Container ${useWorktree ? 'worktree' : 'folder'} on ${address} and carries its draft into the container`, async () => {
+			const events: string[] = [];
+			const handle = '00000000-0000-4000-8000-000000000001';
+			const hostConnection = new class extends MockAgentConnection {
+				override readonly initializeResult = constObservable({
+					protocolVersion: '1', serverSeq: 0, snapshots: [],
+					automations: { create: {}, schedules: {}, runCancellation: {} },
+					_meta: getAgentHostExtensionInitializeResultMeta(),
+				});
+				override async createDetachedWorktree(session: URI, prompt: string) {
+					events.push(`create:${AgentSession.provider(session)}:${prompt}`);
+					return { handle, worktree: URI.file('/worktrees/prepared') };
+				}
+				override async claimDetachedWorktree(actualHandle: string): Promise<void> { events.push(`claim:${actualHandle}`); }
+				override async deleteDetachedWorktree(actualHandle: string): Promise<void> { events.push(`delete:${actualHandle}`); }
+			}();
+			hostConnection.resolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						isolation: { type: 'string', title: 'Isolation' },
+						mode: { type: 'string', title: 'Mode' },
+						sourceOnly: { type: 'string', title: 'Source Only' },
+					}
+				},
+				values: { isolation: useWorktree ? 'worktree' : 'folder', mode: 'interactive', sourceOnly: 'source' },
+			};
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(DevContainerWorktreeEnabledSettingId, true);
+			const provider = createProvider(disposables, hostConnection, {
+				address,
+				configurationService,
+				setUrisTrust: async uris => { events.push(...uris.map(uri => `trust:${uri.toString()}`)); },
+			});
+			const targetWorkspace = toAgentHostUri(URI.file('/workspaces/project'), 'container');
+			const targetAgent: AgentCustomization = {
+				type: CustomizationType.Agent, id: 'reviewer', name: 'Reviewer', uri: 'file:///workspaces/project/.github/agents/reviewer.agent.md',
+			};
+			const targetProvider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly id = 'agenthost-container';
+				override readonly onDidChangeSessionConfig = Event.None;
+				override getSessionTypes() { return [...provider.sessionTypes]; }
+				override createNewSession(_workspace: URI, _sessionType: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+					events.push(`metadata:${JSON.stringify(options?.metadata)}`);
+					return replacement;
+				}
+				override deleteNewSession(sessionId: string): void { events.push(`discard:${sessionId}`); }
+				override isSessionConfigResolving() { return constObservable(false); }
+				override getSessionConfig(): ResolveSessionConfigResult {
+					return {
+						schema: {
+							type: 'object', properties: {
+								isolation: { type: 'string', title: 'Isolation' }, mode: { type: 'string', title: 'Mode' },
+							}
+						}, values: {}
+					};
+				}
+				override async setSessionConfigValue(_session: string, property: string, value: unknown): Promise<void> { events.push(`config:${property}:${value}`); }
+				override getCustomAgents(): readonly AgentCustomization[] { return [targetAgent]; }
+				override setAgent(_sessionId: string, agent: { uri: string; name: string } | undefined): void { events.push(`agent:${agent?.uri}`); }
+			}();
+			provider.initializeDevContainerSupport(
+				new class extends mock<IDevContainerAgentHostService>() {
+					override readonly onDidChangeAvailability = Event.None;
+					override async isAvailable(): Promise<boolean> { return true; }
+					override async connect(workspace: URI) {
+						events.push(`connect:${workspace.toString()}`);
+						return { providerId: targetProvider.id, workspaceUri: targetWorkspace, release: async () => { events.push('release'); } };
+					}
+				}(),
+				upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => targetProvider as unknown as T }),
+				new class extends mock<IWorkspaceTrustRequestService>() {
+					override async requestResourcesTrust(options: { uri: URI }): Promise<boolean> { events.push(`requestTrust:${options.uri.toString()}`); return true; }
+				}(),
+			);
+			const workspace = toAgentHostUri(URI.file('/project'), agentHostAuthority(address));
+			const draft = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+			provider.preferDevContainer(draft.sessionId);
+			await waitForSessionConfig(provider, draft.sessionId, config => config?.values.mode === 'interactive' && provider.isDevContainerEnabled(draft.sessionId));
+			provider.setAgent(draft.sessionId, { uri: 'file:///project/.github/agents/reviewer.agent.md', name: 'Reviewer' });
+			const replacement: ISession = { ...draft, sessionId: 'container:replacement', providerId: targetProvider.id };
+			const request = disposables.add(provider.startNewSessionRequest(draft.sessionId));
+			assert.strictEqual(draft.description.get()?.value, 'Starting&nbsp;Dev&nbsp;Container');
+			const prepared = await provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it');
+			request.dispose();
+			provider.deleteNewSession(draft.sessionId);
+			provider.clearConnection();
+			await prepared.discard?.();
+
+			const worktreeUri = toAgentHostUri(URI.file('/worktrees/prepared'), agentHostAuthority(address));
+			assert.deepStrictEqual({
+				replacement: prepared.session.sessionId,
+				available: provider.isDevContainerAvailable(draft.sessionId),
+				enabled: provider.isDevContainerEnabled(draft.sessionId),
+				events,
+			}, {
+				replacement: replacement.sessionId, available: false, enabled: false,
+				events: [
+					`requestTrust:${workspace.toString()}`,
+					...useWorktree ? ['create:copilotcli:Fix it', `trust:${worktreeUri.toString()}`] : [],
+					`connect:${(useWorktree ? worktreeUri : workspace).toString()}`,
+					`trust:${targetWorkspace.toString()}`,
+					`metadata:${useWorktree ? JSON.stringify({ 'vscode.devContainerWorktree': { version: 1, handle } }) : undefined}`,
+					...useWorktree ? [`claim:${handle}`] : [],
+					'config:isolation:folder',
+					'config:mode:interactive',
+					`agent:${targetAgent.uri}`,
+					'discard:container:replacement',
+					...useWorktree ? [`delete:${handle}`] : [],
+					'release',
+				],
+			});
+		});
+	}
+
+	test('does not prepare a remote Dev Container when source workspace trust is denied', async () => {
+		const provider = createProvider(disposables, connection);
+		let connects = 0;
+		provider.initializeDevContainerSupport(
+			new class extends mock<IDevContainerAgentHostService>() {
+				override readonly onDidChangeAvailability = Event.None;
+				override async isAvailable(): Promise<boolean> { return true; }
+				override async connect(): Promise<never> { connects++; throw new Error('Unexpected connection'); }
+			}(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> { return false; }
+			}(),
+		);
+		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('localhost:4321')), provider.sessionTypes[0].id);
+		provider.preferDevContainer(draft.sessionId);
+		await timeout(0);
+
+		await assert.rejects(provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it'), WorkspaceNotTrustedError);
+		assert.strictEqual(connects, 0);
+	});
+
+	for (const address of ['ssh:test-host', 'tunnel:test-host', 'wsl:Ubuntu']) {
+		test(`waits for preferred Dev Container availability before preparing a request on ${address}`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const events: string[] = [];
+			const provider = createProvider(disposables, connection, { address });
+			provider.initializeDevContainerSupport(
+				new class extends mock<IDevContainerAgentHostService>() {
+					override readonly onDidChangeAvailability = Event.None;
+					override isAvailable(): Promise<boolean> { return availability.p; }
+				}(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IWorkspaceTrustRequestService>() {
+					override async requestResourcesTrust(): Promise<boolean> {
+						events.push('container trust');
+						return false;
+					}
+				}(),
+			);
+			const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority(address)), provider.sessionTypes[0].id);
+			provider.preferDevContainer(draft.sessionId);
+			const preparation = provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Fix it').then(
+				() => events.push('host request'),
+				error => {
+					assert.ok(error instanceof WorkspaceNotTrustedError);
+					events.push('trust declined');
+				},
+			);
+			await timeout(0);
+			events.push('availability resolved');
+			availability.complete(true);
+			await preparation;
+
+			assert.deepStrictEqual(events, ['availability resolved', 'container trust', 'trust declined']);
+		});
+	}
+
+	test('cancels preparation while preferred Dev Container availability is pending', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const provider = createProvider(disposables, connection);
+		provider.initializeDevContainerSupport(
+			new class extends mock<IDevContainerAgentHostService>() {
+				override readonly onDidChangeAvailability = Event.None;
+				override isAvailable(): Promise<boolean> { return availability.p; }
+			}(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IWorkspaceTrustRequestService>() { }(),
+		);
+		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('localhost:4321')), provider.sessionTypes[0].id);
+		provider.preferDevContainer(draft.sessionId);
+		const preparation = provider.prepareNewSession(draft.sessionId, cancellation.token, 'Fix it');
+		cancellation.cancel();
+
+		await assert.rejects(preparation, /Canceled/);
+		availability.complete(false);
+	});
+
+	test('releases a remote Dev Container when cancellation arrives during connection', async () => {
+		connection.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
+		const provider = createProvider(disposables, connection);
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let releases = 0;
+		provider.initializeDevContainerSupport(
+			new class extends mock<IDevContainerAgentHostService>() {
+				override readonly onDidChangeAvailability = Event.None;
+				override async isAvailable(): Promise<boolean> { return true; }
+				override async connect() {
+					cancellation.cancel();
+					return { providerId: 'container', workspaceUri: URI.file('/workspace'), release: async () => { releases++; } };
+				}
+			}(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> { return true; }
+			}(),
+		);
+		const draft = provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('localhost:4321')), provider.sessionTypes[0].id);
+		provider.preferDevContainer(draft.sessionId);
+		await timeout(0);
+
+		await assert.rejects(provider.prepareNewSession(draft.sessionId, cancellation.token, 'Fix it'), /Canceled/);
+		assert.strictEqual(releases, 1);
+	});
+
 	test('delegates Dev Container worktree lifecycle by handle from session metadata', async () => {
 		const handle = '00000000-0000-4000-8000-000000000001';
 		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle } };
@@ -967,6 +1313,42 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await deleted.p;
 
 		assert.strictEqual(deleted.isSettled, true);
+	});
+
+	test('routes container worktree lifecycle and reconciliation to its source remote connection', async () => {
+		class RefreshableRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			refresh(): Promise<void> { return this._refreshSessions(); }
+		}
+		const handle = '00000000-0000-4000-8000-000000000001';
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle } };
+		const operations: string[] = [];
+		const upstream = new class extends mock<IAgentConnection>() {
+			override async setDetachedWorktreeArchived(actualHandle: string, archived: boolean): Promise<void> { operations.push(`${archived ? 'archive' : 'unarchive'}:${actualHandle}`); }
+			override async deleteDetachedWorktree(actualHandle: string): Promise<void> { operations.push(`delete:${actualHandle}`); }
+			override async reconcileDetachedWorktrees(scope: string, handles: readonly string[]): Promise<void> { operations.push(`reconcile:${scope}:${handles.join(',')}`); }
+		}();
+		const scope = toAgentHostUri(URI.file('/project'), 'ssh-source').toString();
+		const provider = createProvider(disposables, connection, {
+			ctor: RefreshableRemoteAgentHostSessionsProvider,
+			devContainerWorktreeScope: scope,
+			resolveDevContainerWorktreeConnection: async () => upstream,
+		}) as RefreshableRemoteAgentHostSessionsProvider;
+		await provider.refresh();
+		operations.length = 0;
+		connection.addSession(createSession('container-session', { _meta: metadata }));
+		await provider.refresh();
+		const session = provider.getSessions()[0];
+		await provider.archiveSession(session.sessionId);
+		await provider.unarchiveSession(session.sessionId);
+		await provider.deleteSession(session.sessionId);
+		await provider.refresh();
+		assert.deepStrictEqual(operations, [
+			`reconcile:${scope}:${handle}`,
+			`archive:${handle}`,
+			`unarchive:${handle}`,
+			`delete:${handle}`,
+			`reconcile:${scope}:`,
+		]);
 	});
 
 	test('deletes a detached Dev Container worktree when its draft provider disconnects', async () => {
@@ -1029,6 +1411,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 			}(),
 		}) as RefreshableRemoteAgentHostSessionsProvider;
+		// Complete the empty listing before adding a session; overlapping refreshes supersede it.
+		await provider.refresh();
 		const session = createSession('temporarily-unlisted', { _meta: metadata });
 		connection.addSession(session);
 		await provider.refresh();
@@ -1041,6 +1425,68 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			{ scope: 'file:///workspace', activeHandles: [handle] },
 			{ scope: 'file:///workspace', activeHandles: [] },
 		]);
+	});
+
+	test('does not reconcile detached worktrees from a superseded session listing', async () => {
+		class RefreshableRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			refresh(): Promise<void> { return this._refreshSessions(); }
+		}
+		const pending = new DeferredPromise<IAgentSessionMetadata[]>();
+		const handle = '00000000-0000-4000-8000-000000000001';
+		const session = createSession('current-worktree', { _meta: { 'vscode.devContainerWorktree': { version: 1, handle } } });
+		let lists = 0;
+		connection.listSessions = async () => ++lists === 1 ? pending.p : [session];
+		const reconciliations: (readonly string[])[] = [];
+		const provider = createProvider(disposables, connection, {
+			ctor: RefreshableRemoteAgentHostSessionsProvider,
+			devContainerWorktreeScope: 'file:///workspace',
+			localAgentHostService: new class extends mock<IAgentHostService>() {
+				override async reconcileDetachedWorktrees(_scope: string, activeHandles: readonly string[]): Promise<void> {
+					reconciliations.push(activeHandles);
+				}
+			}(),
+		}) as RefreshableRemoteAgentHostSessionsProvider;
+		await provider.refresh();
+		await pending.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ lists, reconciliations, sessions: provider.getSessions().length }, {
+			lists: 2, reconciliations: [[handle]], sessions: 1,
+		});
+	});
+
+	test('does not reconcile stale worktree handles after reconnecting the source host', async () => {
+		class RefreshableRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			refresh(): Promise<void> { return this._refreshSessions(); }
+		}
+		const firstHandle = '00000000-0000-4000-8000-000000000001';
+		const secondHandle = '00000000-0000-4000-8000-000000000002';
+		const pendingConnection = new DeferredPromise<IAgentConnection>();
+		let delayNextConnection = false;
+		const reconciliations: (readonly string[])[] = [];
+		const upstream = new class extends mock<IAgentConnection>() {
+			override async reconcileDetachedWorktrees(_scope: string, handles: readonly string[]): Promise<void> { reconciliations.push(handles); }
+		}();
+		const provider = createProvider(disposables, connection, {
+			ctor: RefreshableRemoteAgentHostSessionsProvider,
+			devContainerWorktreeScope: 'remote-workspace',
+			resolveDevContainerWorktreeConnection: () => {
+				if (delayNextConnection) {
+					delayNextConnection = false;
+					return pendingConnection.p;
+				}
+				return Promise.resolve(upstream);
+			},
+		}) as RefreshableRemoteAgentHostSessionsProvider;
+		await provider.refresh();
+		reconciliations.length = 0;
+		delayNextConnection = true;
+		connection.addSession(createSession('container', { _meta: { 'vscode.devContainerWorktree': { version: 1, handle: firstHandle } } }));
+		await provider.refresh();
+		connection.addSession(createSession('container', { _meta: { 'vscode.devContainerWorktree': { version: 1, handle: secondHandle } } }));
+		await provider.refresh();
+		await pendingConnection.complete(upstream);
+		assert.deepStrictEqual(reconciliations, [[secondHandle]]);
 	});
 
 	// ---- Rename -------
@@ -1425,16 +1871,25 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.workspace.get(), undefined);
 	}));
 
-	test('registers remote SDK session state homes from artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('maps remote artifact and reference files and registers their SDK session state homes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const metadata = createSession('ahp-session', {
 			summary: 'Remote Session',
-			_meta: withSessionArtifacts(undefined, [{
-				id: 'artifact',
-				type: SessionArtifactType.File,
-				label: 'Plan',
-				isArtifact: true,
-				uri: 'file:///home/remote/.copilot/session-state/sdk-session/files/plan.md',
-			}])
+			_meta: withSessionArtifacts(undefined, [
+				{
+					id: 'artifact',
+					type: SessionArtifactType.File,
+					label: 'Plan',
+					isArtifact: true,
+					uri: 'file:///home/remote/.copilot/session-state/sdk-session/files/plan.md',
+				},
+				{
+					id: 'reference',
+					type: SessionArtifactType.File,
+					label: 'Input',
+					isArtifact: false,
+					uri: 'file:///home/remote/.copilot/session-state/sdk-session/files/input.md',
+				},
+			])
 		});
 		connection.addSession(metadata);
 		const labelService = new MockLabelService();
@@ -1442,13 +1897,20 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.getSessions();
 		await timeout(0);
 
+		const session = provider.getSessions().find(session => session.title.get() === 'Remote Session');
 		const root = URI.file('/home/remote/.copilot/session-state/sdk-session');
 		const resource = toAgentHostUri(URI.joinPath(root, 'files/plan.md'), agentHostAuthority('localhost:4321'));
+		const referenceResource = toAgentHostUri(URI.joinPath(root, 'files/input.md'), agentHostAuthority('localhost:4321'));
 		const providerLabel = provider.sessionTypes.find(type => type.id === CopilotCLISessionType.id)?.label;
 		assert.deepStrictEqual({
+			resources: Object.fromEntries(session?.artifacts?.get().map(artifact => [artifact.id, artifact.uri?.toString()]) ?? []),
 			home: labelService.getUriHome(resource)?.path,
 			label: labelService.getUriLabel(resource),
 		}, {
+			resources: {
+				reference: referenceResource.toString(),
+				artifact: resource.toString(),
+			},
 			home: root.path,
 			label: `${providerLabel}/Remote Session/files/plan.md`,
 		});
@@ -1699,7 +2161,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	test('re-subscribes to session state after a subscribe that failed because the host had no such session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A failed pre-creation subscribe must remain retryable so later session state, including changesets, can arrive.
+		// A failed pre-creation subscribe must remain retryable so later session state can arrive.
 		connection.addSession(createSession('late-1', { summary: 'Created after we asked' }));
 		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		const backendUri = AgentSession.uri('copilotcli', 'late-1').toString();
@@ -1718,7 +2180,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' }],
 		} as unknown as SessionState);
 		provider.getSessionByResource(session.resource);
 		await timeout(0);
@@ -1726,45 +2187,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			afterFailedSubscribe,
 			afterRetry: connection.sessionSubscribeCounts.get(backendUri),
-			changesets: provider.getSessions()[0].changesets.get()?.map(c => c.id),
 		}, {
 			afterFailedSubscribe: 1,
 			afterRetry: 2,
-			changesets: ['branch'],
-		});
-	}));
-
-	test('a configured defaultChangesetKind reaches the session adapter', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const gitBackedCatalogue = [
-			{ label: 'Session Changes', uriTemplate: 'changeset/session', changeKind: 'session' },
-			{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: 'branch' },
-		];
-		const defaultChangesetIds = async (defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']) => {
-			const localConnection = disposables.add(new MockAgentConnection());
-			localConnection.addSession(createSession('changeset-default-1', { summary: 'Changeset default' }));
-			const provider = createProvider(disposables, localConnection, { defaultChangesetKind });
-			provider.getSessions();
-			await timeout(0);
-			localConnection.setSessionState('changeset-default-1', 'copilotcli', {
-				provider: 'copilotcli', title: 'Changeset default', status: ProtocolSessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready,
-				activeClients: [],
-				chats: [],
-				changesets: gitBackedCatalogue,
-			} as unknown as SessionState);
-			const session = provider.getSessions()[0];
-			provider.getSessionByResource(session.resource);
-			await timeout(0);
-			return provider.getSessions()[0].changesets.get()
-				?.map(c => `${c.id}${c.isDefault.get() ? '*' : ''}`);
-		};
-
-		assert.deepStrictEqual({
-			configured: await defaultChangesetIds(ChangesetKind.Session),
-			unconfigured: await defaultChangesetIds(),
-		}, {
-			configured: ['session*', 'branch'],
-			unconfigured: ['session', 'branch*'],
 		});
 	}));
 
@@ -1793,6 +2218,27 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			title: 'Authoritative',
 		});
 	}));
+
+	test('seedSessions keeps existing remote metadata unless discovery refresh is requested', () => {
+		const provider = createProvider(disposables, connection, { noConnection: true, omitHostFromWorkspaceLabel: true });
+		provider.seedSessions([createSession('seeded-1', {
+			summary: 'Original',
+			project: { uri: URI.parse('https://github.com/owner/original'), displayName: 'owner/original' },
+		})]);
+		const session = provider.getSessions()[0];
+		provider.seedSessions([createSession('seeded-1', {
+			summary: 'Changed',
+			modifiedTime: 4000,
+			project: { uri: URI.parse('https://github.com/owner/changed'), displayName: 'owner/changed' },
+		})]);
+
+		assert.deepStrictEqual({
+			title: session.title.get(),
+			modifiedTime: session.updatedAt.get().getTime(),
+			project: session.workspace.get()?.label,
+			sameSession: provider.getSessions()[0] === session,
+		}, { title: 'Original', modifiedTime: 2000, project: 'owner/original', sameSession: true });
+	});
 
 	test('non-web: omitHostFromWorkspaceLabel drops the [host] suffix so sessions group by repository', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
@@ -1835,6 +2281,604 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+});
+
+suite('CloudSandboxSessionsProvider discovery metadata', () => {
+	const disposables = new DisposableStore();
+	const originalProject = { uri: URI.parse('https://github.com/owner/original'), displayName: 'owner/original' };
+	const metadata = createSession('discovered-session', {
+		provider: 'copilot',
+		summary: 'Original task',
+		project: originalProject,
+	});
+	const replacementProject = { uri: URI.parse('https://github.com/owner/replacement'), displayName: 'owner/replacement' };
+	const backendResource = AgentSession.uri('ahp-session', 'discovered-session');
+	let connection: MockAgentConnection;
+
+	setup(() => {
+		connection = disposables.add(new MockAgentConnection());
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSandboxProvider(storageService?: IStorageService): CloudSandboxSessionsProvider {
+		return createProvider(disposables, connection, {
+			address: 'cloudsandbox:discovery-test',
+			ctor: CloudSandboxSessionsProvider,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			omitHostFromWorkspaceLabel: true,
+			noConnection: true,
+			storageService,
+		}) as CloudSandboxSessionsProvider;
+	}
+
+	function seed(provider: RemoteAgentHostSessionsProvider, changes?: Partial<IAgentSessionMetadata>): void {
+		provider.seedSessions([{ ...metadata, ...changes }], { updateExisting: true });
+	}
+
+	function snapshot(session: ISession) {
+		return {
+			title: session.title.get(),
+			modifiedTime: session.updatedAt.get().getTime(),
+			project: session.workspace.get()?.label,
+		};
+	}
+
+	test('discovery refreshes a provisional session without publishing or replacing it', () => {
+		const provider = createSandboxProvider();
+		provider.seedProvisionalSession(metadata);
+		const seeded = provider.getCachedSession('discovered-session');
+		seed(provider, { summary: 'Discovered task', modifiedTime: 4000, project: replacementProject });
+		const listedBeforePublish = provider.getSessions().length;
+		provider.publishWithheldSession('discovered-session');
+		const session = provider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			...snapshot(session),
+			listedBeforePublish,
+			sameSession: session === seeded,
+		}, {
+			title: 'Discovered task',
+			modifiedTime: 4000,
+			project: 'owner/replacement',
+			listedBeforePublish: 0,
+			sameSession: true,
+		});
+	});
+
+	test('repeated discovery refreshes titles and modified times without replacing the session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		seed(provider);
+		const session = provider.getSessions()[0];
+		await timeout(0);
+		const events: { added: number; changed: boolean; removed: number }[] = [];
+		disposables.add(provider.onDidChangeSessions(event => events.push({
+			added: event.added.length,
+			changed: event.changed.length === 1 && event.changed[0] === session,
+			removed: event.removed.length,
+		})));
+
+		seed(provider, { summary: 'Renamed task', modifiedTime: 4000 });
+		await timeout(0);
+		seed(provider, { summary: 'Latest task', modifiedTime: 5000 });
+		await timeout(0);
+		seed(provider, { summary: 'Latest task', modifiedTime: 5000, project: { ...originalProject, uri: URI.parse(originalProject.uri.toString()) } });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			...snapshot(session),
+			sameSession: provider.getSessions()[0] === session,
+			createdAt: session.createdAt.getTime(),
+			status: session.status.get(),
+			events,
+		}, {
+			title: 'Latest task',
+			modifiedTime: 5000,
+			project: 'owner/original',
+			sameSession: true,
+			createdAt: 1000,
+			status: SessionStatus.Completed,
+			events: [
+				{ added: 0, changed: true, removed: 0 },
+				{ added: 0, changed: true, removed: 0 },
+			],
+		});
+	}));
+
+	test('repository replacement and removal survive reload and can be discovered again', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		let provider = createSandboxProvider(storageService);
+		seed(provider);
+		const projects: (string | undefined)[] = [];
+		const identities: boolean[] = [];
+		for (const project of [replacementProject, undefined, originalProject]) {
+			const session = provider.getSessions()[0];
+			seed(provider, { project });
+			projects.push(session.workspace.get()?.label);
+			identities.push(provider.getSessions()[0] === session);
+			await storageService.flush();
+			provider.dispose();
+			provider = createSandboxProvider(storageService);
+			projects.push(provider.getSessions()[0].workspace.get()?.label);
+		}
+
+		assert.deepStrictEqual({ projects, identities }, {
+			projects: [
+				'owner/replacement', 'owner/replacement',
+				undefined, undefined,
+				'owner/original', 'owner/original',
+			],
+			identities: [true, true, true],
+		});
+	});
+
+	test('restored provider summaries pick up later discovery changes and persist their baseline', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const first = createSandboxProvider(storageService);
+		first.seedSessions([metadata]);
+		await storageService.flush();
+		first.dispose();
+
+		const restored = createSandboxProvider(storageService);
+		const session = restored.getSessions()[0];
+		seed(restored);
+		seed(restored, { summary: 'Renamed after restoration', modifiedTime: 4000, project: replacementProject });
+		const afterDiscovery = snapshot(session);
+		const sameSession = restored.getSessions()[0] === session;
+		await storageService.flush();
+		restored.dispose();
+
+		const restoredAgain = createSandboxProvider(storageService);
+		const beforeNextDiscovery = snapshot(restoredAgain.getSessions()[0]);
+		seed(restoredAgain, { summary: 'Latest discovery', modifiedTime: 5000, project: undefined });
+
+		assert.deepStrictEqual({
+			afterDiscovery,
+			beforeNextDiscovery,
+			afterNextDiscovery: snapshot(restoredAgain.getSessions()[0]),
+			sameSession,
+		}, {
+			afterDiscovery: { title: 'Renamed after restoration', modifiedTime: 4000, project: 'owner/replacement' },
+			beforeNextDiscovery: { title: 'Renamed after restoration', modifiedTime: 4000, project: 'owner/replacement' },
+			afterNextDiscovery: { title: 'Latest discovery', modifiedTime: 5000, project: undefined },
+			sameSession: true,
+		});
+	});
+
+	test('refreshes cached activity alongside discovery-owned fields without accepting an older result', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const first = createSandboxProvider(storageService);
+		seed(first, { status: ProtocolSessionStatus.InputNeeded });
+		await storageService.flush();
+		first.dispose();
+
+		const restored = createSandboxProvider(storageService);
+		const session = restored.getSessions()[0];
+		seed(restored, { summary: 'Updated task', modifiedTime: 4000, project: replacementProject, status: ProtocolSessionStatus.InputNeeded });
+		const afterRestoration = { ...snapshot(session), status: session.status.get() };
+		seed(restored, { summary: 'Finished task', modifiedTime: 5000, project: undefined, status: ProtocolSessionStatus.Idle });
+		seed(restored, { summary: 'Older task', modifiedTime: 3000, status: ProtocolSessionStatus.InputNeeded });
+
+		assert.deepStrictEqual({ afterRestoration, afterCompletion: { ...snapshot(session), status: session.status.get() } }, {
+			afterRestoration: { title: 'Updated task', modifiedTime: 4000, project: 'owner/replacement', status: SessionStatus.NeedsInput },
+			afterCompletion: { title: 'Finished task', modifiedTime: 5000, project: undefined, status: SessionStatus.Completed },
+		});
+	});
+
+	for (const discoveredFirst of [false, true]) {
+		test(`discovery preserves host metadata ${discoveredFirst ? 'after a seeded session connects' : 'when the host was discovered first'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const provider = createSandboxProvider(storageService);
+			if (discoveredFirst) {
+				seed(provider);
+			}
+			const hostMetadata = {
+				...metadata,
+				session: backendResource,
+				summary: 'Host title',
+				modifiedTime: 9000,
+				project: { uri: URI.parse('file:///workspaces/host-repo'), displayName: 'Host repository' },
+				workingDirectories: [URI.parse('file:///workspaces/host-repo')],
+				status: ProtocolSessionStatus.InProgress,
+			};
+			connection.addSession(hostMetadata);
+			provider.setConnection(connection);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			seed(provider, { summary: 'Stale discovery', modifiedTime: 3000, project: replacementProject });
+			const connected = { ...snapshot(session), status: session.status.get() };
+			provider.clearConnection();
+			seed(provider, hostMetadata);
+			seed(provider, { summary: 'Another stale discovery', modifiedTime: 4000, project: undefined });
+			const disconnected = snapshot(session);
+			const sameSession = provider.getSessions()[0] === session;
+			await storageService.flush();
+			provider.dispose();
+
+			const restored = createSandboxProvider(storageService);
+			seed(restored, { summary: 'Discovery after reload', modifiedTime: 5000, project: replacementProject });
+
+			assert.deepStrictEqual({
+				connected,
+				disconnected,
+				restored: snapshot(restored.getSessions()[0]),
+				sameSession,
+			}, {
+				connected: { title: 'Host title', modifiedTime: 9000, project: 'Host repository', status: SessionStatus.InProgress },
+				disconnected: { title: 'Host title', modifiedTime: 9000, project: 'Host repository' },
+				restored: { title: 'Host title', modifiedTime: 9000, project: 'Host repository' },
+				sameSession: true,
+			});
+		}));
+	}
+
+	test('updates untouched discovery fields while preserving a host title and live status', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		seed(provider);
+		const session = provider.getSessions()[0];
+		connection.addSession({ ...metadata, session: backendResource, summary: 'Host title', status: ProtocolSessionStatus.InProgress });
+		provider.setConnection(connection);
+		await timeout(0);
+		seed(provider, { summary: 'Discovery title', modifiedTime: 4000, project: replacementProject });
+
+		assert.deepStrictEqual({
+			...snapshot(session),
+			status: session.status.get(),
+			sameSession: provider.getSessions()[0] === session,
+		}, {
+			title: 'Host title',
+			modifiedTime: 4000,
+			project: 'owner/replacement',
+			status: SessionStatus.InProgress,
+			sameSession: true,
+		});
+	}));
+
+	test('does not replace a project cleared by the host or its real working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		seed(provider);
+		const session = provider.getSessions()[0];
+		connection.addSession({
+			...metadata,
+			session: backendResource,
+			project: undefined,
+			workingDirectories: [URI.parse('file:///workspaces/host-directory')],
+		});
+		provider.setConnection(connection);
+		await timeout(0);
+		seed(provider, { summary: 'Discovery title', modifiedTime: 4000, project: replacementProject });
+
+		assert.deepStrictEqual(snapshot(session), {
+			title: 'Discovery title',
+			modifiedTime: 4000,
+			project: 'host-directory',
+		});
+	}));
+});
+
+suite('CloudSandboxSessionsProvider discovery status', () => {
+	const disposables = new DisposableStore();
+	let connection: MockAgentConnection;
+
+	setup(() => {
+		connection = disposables.add(new MockAgentConnection());
+	});
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function sandbox(storageService?: IStorageService): RemoteAgentHostSessionsProvider {
+		return createProvider(disposables, connection, {
+			address: 'cloudsandbox:status-test',
+			ctor: CloudSandboxSessionsProvider,
+			noConnection: true,
+			readOnlyWhenDisconnected: true,
+			storageService,
+		});
+	}
+
+	test('fresh discovery replaces a cached activity placeholder without changing user flags', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const metadata = createSession('discovered', {
+			summary: 'Cached title',
+			modifiedTime: 1_000,
+			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+			workingDirectory: URI.file('/remote/project'),
+		});
+		const first = sandbox(storage);
+		first.seedSessions([metadata]);
+		await first.archiveSession(first.getSessions()[0].sessionId);
+		await storage.flush();
+		first.dispose();
+
+		const restored = sandbox(storage);
+		restored.seedSessions([{
+			...metadata,
+			summary: 'Fresh title',
+			modifiedTime: 900,
+			workingDirectories: undefined,
+			status: ProtocolSessionStatus.InputNeeded,
+		}]);
+		const session = restored.getSessions()[0];
+		assert.deepStrictEqual({
+			status: session.status.get(),
+			chatStatus: session.mainChat.get().status.get(),
+			title: session.title.get(),
+			isRead: session.isRead.get(),
+			isArchived: session.isArchived.get(),
+			updatedAt: session.updatedAt.get().getTime(),
+			directory: session.workspace.get()?.folders[0].workingDirectory.path,
+		}, {
+			status: SessionStatus.NeedsInput,
+			chatStatus: SessionStatus.NeedsInput,
+			title: 'Cached title',
+			isRead: true,
+			isArchived: true,
+			updatedAt: 1_000,
+			directory: '/remote/project',
+		});
+	}));
+
+	test('rediscovery clears input needed when the source reports a finished turn', () => {
+		const provider = sandbox();
+		const metadata = createSession('discovered', { modifiedTime: 1_000, status: ProtocolSessionStatus.InputNeeded });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const statuses = [session.mainChat.get().status.get()];
+		provider.seedSessions([{ ...metadata, modifiedTime: 2_000, status: ProtocolSessionStatus.Idle }]);
+		statuses.push(session.mainChat.get().status.get());
+		provider.seedSessions([metadata]);
+		statuses.push(session.mainChat.get().status.get());
+		assert.deepStrictEqual(statuses, [SessionStatus.NeedsInput, SessionStatus.Completed, SessionStatus.Completed]);
+	});
+
+	test('connection availability does not change the last reported sandbox activity', () => {
+		const provider = sandbox();
+		provider.seedSessions([createSession('question', { status: ProtocolSessionStatus.InputNeeded })]);
+		const session = provider.getSessions()[0];
+		const chat = session.mainChat.get();
+		const states = [
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connected,
+			RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+		].map(status => {
+			provider.setConnectionStatus(status);
+			return { status: chat.status.get(), interactivity: chat.interactivity.get() };
+		});
+		assert.deepStrictEqual(states, [
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly },
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.Full },
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly },
+		]);
+	});
+
+	test('discovery with no activity does not manufacture completion', () => {
+		const provider = sandbox();
+		const metadata = createSession('question', { modifiedTime: 1_000, status: ProtocolSessionStatus.InputNeeded });
+		provider.seedSessions([metadata]);
+		provider.seedSessions([{ ...metadata, status: undefined, modifiedTime: 2_000 }]);
+		assert.deepStrictEqual(provider.getSessions().map(session => session.mainChat.get().status.get()), [SessionStatus.NeedsInput]);
+	});
+
+	test('discovery cannot replace a host status, including after disconnection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = sandbox();
+		const metadata = createSession('discovered', { modifiedTime: 1_000, status: ProtocolSessionStatus.InputNeeded });
+		provider.seedSessions([metadata]);
+		connection.addSession({ ...metadata, status: ProtocolSessionStatus.Idle });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.status.get();
+		provider.clearConnection();
+		provider.seedSessions([{ ...metadata, modifiedTime: 2_000 }]);
+		assert.deepStrictEqual({ before, after: session.status.get() }, {
+			before: SessionStatus.Completed,
+			after: SessionStatus.Completed,
+		});
+	}));
+});
+
+suite('CloudSandboxSessionsProvider archiving', () => {
+	const disposables = new DisposableStore();
+	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' });
+	const backendResource = AgentSession.uri('ahp-session', 'sandbox-session');
+	let connection: MockAgentConnection;
+
+	setup(() => {
+		connection = disposables.add(new MockAgentConnection());
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void> }): RemoteAgentHostSessionsProvider {
+		return createProvider(disposables, connection, {
+			address: 'cloudsandbox:archive-test',
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			ctor: CloudSandboxSessionsProvider,
+			noConnection: true,
+			...overrides,
+		});
+	}
+
+	test('archives and unarchives without connecting or dispatching host actions', async () => {
+		let connectCalls = 0;
+		const provider = createSandboxProvider({ connectOnDemand: async () => { connectCalls++; } });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const archivedStates: boolean[] = [];
+		disposables.add(autorun(reader => archivedStates.push(session.isArchived.read(reader))));
+
+		await provider.archiveSession(session.sessionId);
+		await provider.unarchiveSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			archivedStates,
+			connectCalls,
+			hostActions: connection.dispatchedActions,
+		}, {
+			archivedStates: [false, true, false],
+			connectCalls: 0,
+			hostActions: [],
+		});
+	});
+
+	test('restores local archive and unarchive choices through rediscovery and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createSandboxProvider({ storageService });
+		provider.seedSessions([metadata]);
+		await provider.archiveSession(provider.getSessions()[0].sessionId);
+		await storageService.flush();
+		provider.dispose();
+
+		const restored = createSandboxProvider({ storageService });
+		const unarchivedMetadata = { ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle };
+		restored.seedSessions([unarchivedMetadata]);
+		connection.addSession(unarchivedMetadata);
+		restored.setConnection(connection);
+		await timeout(0);
+		const archived = restored.getSessions()[0].isArchived.get();
+		await restored.unarchiveSession(restored.getSessions()[0].sessionId);
+		await storageService.flush();
+		restored.dispose();
+
+		const restoredAgain = createSandboxProvider({ storageService });
+		const archivedMetadata = { ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived };
+		restoredAgain.seedSessions([archivedMetadata]);
+		connection.addSession(archivedMetadata);
+		restoredAgain.setConnection(connection);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived,
+			unarchived: restoredAgain.getSessions()[0].isArchived.get(),
+		}, {
+			archived: true,
+			unarchived: false,
+		});
+	}));
+
+	for (const isArchived of [true, false]) {
+		test(`keeps a local ${isArchived ? 'archive' : 'unarchive'} choice through host updates and reconnect`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createSandboxProvider();
+			provider.seedSessions([metadata]);
+			const session = provider.getSessions()[0];
+			if (isArchived) {
+				await provider.archiveSession(session.sessionId);
+			} else {
+				await provider.unarchiveSession(session.sessionId);
+			}
+			const hostStatus = ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsRead | (isArchived ? 0 : ProtocolSessionStatus.IsArchived);
+			connection.addSession({ ...metadata, session: backendResource, status: hostStatus });
+			provider.setConnection(connection);
+			await timeout(0);
+			const afterListing = session.isArchived.get();
+
+			connection.fireAction({
+				channel: backendResource.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: !isArchived },
+				serverSeq: 1,
+				origin: undefined,
+			});
+			const afterAction = session.isArchived.get();
+
+			connection.fireNotification({
+				channel: 'ahp-root://',
+				type: NotificationType.SessionSummaryChanged,
+				session: backendResource.toString(),
+				changes: { status: hostStatus, title: 'Updated Title' },
+			});
+			const afterSummary = {
+				isArchived: session.isArchived.get(),
+				title: session.title.get(),
+				status: session.status.get(),
+				isRead: session.isRead.get(),
+			};
+
+			await provider.archiveSession(session.sessionId);
+			const afterConnectedArchive = session.isArchived.get();
+			await provider.unarchiveSession(session.sessionId);
+			const afterConnectedUnarchive = session.isArchived.get();
+			if (isArchived) {
+				await provider.archiveSession(session.sessionId);
+			}
+
+			provider.clearConnection();
+			provider.setConnection(connection);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterListing,
+				afterAction,
+				afterSummary,
+				afterConnectedArchive,
+				afterConnectedUnarchive,
+				afterReconnect: provider.getSessions()[0].isArchived.get(),
+				archiveActions: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionIsArchivedChanged),
+			}, {
+				afterListing: isArchived,
+				afterAction: isArchived,
+				afterSummary: { isArchived, title: 'Updated Title', status: SessionStatus.InProgress, isRead: true },
+				afterConnectedArchive: true,
+				afterConnectedUnarchive: false,
+				afterReconnect: isArchived,
+				archiveActions: [],
+			});
+		}));
+	}
+
+	test('initializes archive state from metadata and preserves it on host updates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		connection.addSession({ ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.isArchived.get();
+
+		connection.fireNotification({
+			channel: 'ahp-root://',
+			type: NotificationType.SessionSummaryChanged,
+			session: backendResource.toString(),
+			changes: { status: ProtocolSessionStatus.Idle },
+		});
+
+		assert.deepStrictEqual({ before, after: session.isArchived.get() }, { before: true, after: true });
+	}));
+
+	test('rejects archiving or unarchiving an unknown session', async () => {
+		const provider = createSandboxProvider();
+		await assert.rejects(() => provider.archiveSession('missing'), /Sandbox session not found/);
+		await assert.rejects(() => provider.unarchiveSession('missing'), /Sandbox session not found/);
+	});
+
+	test('other remote providers still dispatch archive changes to the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('remote-session'));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.archiveSession(session.sessionId);
+		const archived = session.isArchived.get();
+		await provider.unarchiveSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			archived,
+			unarchived: session.isArchived.get(),
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			archived: true,
+			unarchived: false,
+			actions: [
+				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } },
+				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
+			],
+		});
+	}));
 });
 
 suite('CloudSandboxSessionsProvider provisional sessions', () => {

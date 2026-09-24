@@ -15,16 +15,17 @@ import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult 
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
+import { getBootstrapEntryPointsForTarget, type BuildTarget } from '../lib/esbuild.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
-import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
+import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
-import { copyResources, type BuildTarget } from './resources.ts';
+import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
+import { compileStandaloneFiles } from './standalone.ts';
 
 const globAsync = promisify(glob);
 
@@ -65,7 +66,7 @@ const OUT_DIR = 'out';
 const OUT_VSCODE_DIR = 'out-vscode';
 
 // ============================================================================
-// Entry Points (from build/buildfile.ts)
+// Entry Points
 // ============================================================================
 
 // Extension host bundles are excluded from private field mangling because they
@@ -116,12 +117,6 @@ const codeEntryPoints = [
 	'vs/sessions/electron-browser/sessions',
 ];
 
-// Web entry points (used in server-web and vscode-web)
-const webEntryPoints = [
-	'vs/workbench/workbench.web.main.internal',
-	'vs/code/browser/workbench/workbench',
-];
-
 // Additional web-only entry points (CDN build only, not in server-web)
 const sessionsWebEntryPoint = 'vs/sessions/sessions.web.main.internal';
 const webOnlyEntryPoints = [
@@ -141,19 +136,6 @@ const serverEntryPoints = [
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
-];
-
-// Bootstrap files per target
-const bootstrapEntryPointsDesktop = [
-	'main',
-	'cli',
-	'bootstrap-fork',
-];
-
-const bootstrapEntryPointsServer = [
-	'server-main',
-	'server-cli',
-	'bootstrap-fork',
 ];
 
 /**
@@ -176,7 +158,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 			return [
 				...serverEntryPoints,
 				...workerEntryPoints,
-				...webEntryPoints,
+				'vs/code/browser/workbench/workbench', // Includes workbench.web.main.internal.
 				...keyboardMapEntryPoints,
 			];
 		case 'web':
@@ -186,23 +168,6 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
-		default:
-			throw new Error(`Unknown target: ${target}`);
-	}
-}
-
-/**
- * Get bootstrap entry points for a build target.
- */
-function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
-	switch (target) {
-		case 'desktop':
-			return bootstrapEntryPointsDesktop;
-		case 'server':
-		case 'server-web':
-			return bootstrapEntryPointsServer;
-		case 'web':
-			return []; // Web has no bootstrap files (served by external server)
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -224,7 +189,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set(); // Server has no UI
 		case 'server-web':
 			return new Set([
-				'vs/workbench/workbench.web.main.internal',
 				'vs/code/browser/workbench/workbench',
 			]);
 		case 'web':
@@ -300,51 +264,6 @@ function readISODate(outDir: string): string {
 	} catch {
 		return getGitCommitDate();
 	}
-}
-
-/**
- * Standalone TypeScript files that need to be compiled separately (not bundled).
- * These run in special contexts (e.g., Electron preload) where bundling isn't appropriate.
- * Only needed for desktop target.
- */
-const desktopStandaloneFiles = [
-	'vs/base/parts/sandbox/electron-browser/preload.ts',
-	'vs/base/parts/sandbox/electron-browser/preload-aux.ts',
-	'vs/platform/browserView/electron-browser/preload-browserView.ts',
-];
-
-async function compileStandaloneFiles(outDir: string, doMinify: boolean, target: BuildTarget): Promise<void> {
-	// Only desktop needs preload scripts
-	if (target !== 'desktop') {
-		return;
-	}
-
-	console.log(`[standalone] Compiling ${desktopStandaloneFiles.length} standalone files...`);
-
-	const banner = `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/`;
-
-	await Promise.all(desktopStandaloneFiles.map(async (file) => {
-		const entryPath = path.join(REPO_ROOT, SRC_DIR, file);
-		const outPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
-
-		await esbuild.build({
-			entryPoints: [entryPath],
-			outfile: outPath,
-			bundle: false, // Don't bundle - these are standalone scripts
-			format: 'cjs', // CommonJS for Electron preload
-			platform: 'node',
-			target: ['es2024'],
-			sourcemap: 'linked',
-			sourcesContent: false,
-			minify: doMinify,
-			banner: { js: banner },
-			logLevel: 'warning',
-		});
-	}));
-
-	console.log(`[standalone] Done`);
 }
 
 /**
@@ -601,11 +520,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
 	for (const entry of bootstrapEntryPoints) {
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entry}.ts`);
-		if (!fs.existsSync(entryPath)) {
-			console.log(`[bundle] Skipping ${entry} (not found)`);
-			continue;
-		}
-
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
@@ -762,12 +676,13 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	await copyResources(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
-	await compileStandaloneFiles(outDir, doMinify, target);
+	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
-			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
+			outDir: path.join(outDir, devTunnelsWebOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${devTunnelsWebOutDir}` : undefined,
 		});
 	}
 
@@ -782,14 +697,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 // ============================================================================
 
 async function watch(): Promise<void> {
-	if (!useEsbuildTranspile) {
-		console.log('Starting transpilation...');
-		console.log('Finished transpilation with 0 errors after 0 ms');
-		console.log('[watch] esbuild transpile disabled (useEsbuildTranspile=false). Keeping process alive as no-op.');
-		await new Promise(() => { }); // keep alive
-		return;
-	}
-
 	console.log('Starting transpilation...');
 
 	const outDir = OUT_DIR;

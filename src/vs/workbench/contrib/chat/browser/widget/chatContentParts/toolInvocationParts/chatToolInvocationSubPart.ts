@@ -19,6 +19,12 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 
 	public abstract codeblocks: IChatCodeBlockInfo[];
 
+	protected primaryAction?: () => void;
+
+	public acceptConfirmation(): void {
+		this.primaryAction?.();
+	}
+
 	private readonly _codeBlocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
 
 	public get codeblocksPartId() {

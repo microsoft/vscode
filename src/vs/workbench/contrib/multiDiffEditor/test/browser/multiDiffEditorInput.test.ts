@@ -49,7 +49,7 @@ suite('MultiDiffEditorInput', () => {
 			false,
 			new class extends mock<ITextModelService>() { }(),
 			new class extends mock<ITextResourceConfigurationService>() { }(),
-			new class extends mock<IInstantiationService>() { }(),
+			createCodeEditorServices(disposables),
 			sourceResolverService,
 			textFileService,
 		));

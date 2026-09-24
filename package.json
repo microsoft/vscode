@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.139.0",
-  "distro": "9edcf676f14a3185aebf09cedb58013c8348e31d",
+  "version": "1.140.0",
+  "distro": "3aa454bd18297929658b6d2118303535b690573c",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -80,14 +80,9 @@
     "eslint": "node --max-old-space-size=8192 build/eslint.ts",
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
-    "compile-build": "npm run gulp compile-build-with-mangling",
     "compile-extensions-build": "npm run gulp compile-extensions-build",
-    "minify-vscode": "npm run gulp minify-vscode",
-    "minify-vscode-reh": "npm run gulp minify-vscode-reh",
-    "minify-vscode-reh-web": "npm run gulp minify-vscode-reh-web",
     "hygiene": "npm run gulp hygiene",
     "core-ci": "npm run gulp core-ci",
-    "extensions-ci": "npm run gulp extensions-ci",
     "perf": "node scripts/code-perf.js",
     "perf:css": "node .github/skills/auto-perf-optimize/scripts/workbench-css-performance.mts",
     "perf:chat": "node scripts/chat-simulation/test-chat-perf-regression.js",
@@ -97,13 +92,14 @@
     "update-build-ts-version": "npm install -D typescript@npm:@typescript/typescript6@^6.0.2 && npm install -D @typescript/native@npm:typescript@next && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-webpack-plugin-0.1.0.tgz --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
     "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/packages/webpack-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
-    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
+    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next",
+    "setup-feed": "npm install --global @microsoft/artifacts-npm-credprovider --registry https://pkgs.dev.azure.com/artifacts-public/PublicTools/_packaging/AzureArtifacts/npm/registry/ && npm config set registry https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/",
+    "reauth-feed": "artifacts-npm-credprovider --force"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.84-5",
-    "@github/copilot-sdk": "1.0.13",
+    "@github/copilot-sdk": "1.0.15-preview.2",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -114,7 +110,7 @@
     "@microsoft/mxc-sdk": "0.8.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-39",
+    "@vscode/codicons": "^0.0.46-40",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -182,7 +178,6 @@
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
     "@types/eslint": "^9.6.1",
-    "@types/gulp-svgmin": "^1.2.1",
     "@types/http-proxy-agent": "^2.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/kerberos": "^1.1.2",
@@ -207,7 +202,7 @@
     "@vscode/component-explorer-cli": "^0.2.1-143",
     "@vscode/gulp-electron": "^1.43.0",
     "@vscode/l10n-dev": "0.0.35",
-    "@vscode/telemetry-extractor": "^1.20.4",
+    "@vscode/telemetry-extractor": "^1.20.5",
     "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.4.0",
     "@vscode/test-web": "^0.0.81",
@@ -242,7 +237,6 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
-    "gulp-svgmin": "^4.1.0",
     "husky": "^0.13.1",
     "innosetup": "^6.4.1",
     "istanbul-lib-coverage": "^3.2.0",
@@ -262,7 +256,6 @@
     "os-browserify": "^0.3.0",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
-    "pump": "^1.0.1",
     "rcedit": "^1.1.0",
     "rimraf": "^2.2.8",
     "sinon": "^12.0.1",
@@ -283,6 +276,7 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
+    "koffi": "3.2.1",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },
@@ -301,7 +295,7 @@
     "cpu-features": false,
     "foundry-local-sdk@1.2.3": true,
     "kerberos@2.1.1": true,
-    "koffi@3.1.2": false,
+    "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,
@@ -326,5 +320,6 @@
     "husky": false,
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
-  }
+  },
+  "copilotRuntimeVersion": "1.0.89-1"
 }

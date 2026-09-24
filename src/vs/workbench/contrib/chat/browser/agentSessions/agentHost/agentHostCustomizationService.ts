@@ -335,12 +335,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
-		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
 		try {
+			await target.startMcpServer(server.id);
 			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
-				mcpServerId: scopedServerId,
+				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
 				mcpServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,

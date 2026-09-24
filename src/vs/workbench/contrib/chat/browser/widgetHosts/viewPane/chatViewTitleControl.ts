@@ -11,6 +11,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -23,6 +24,7 @@ import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js'
 
 export interface IChatViewTitleDelegate {
 	focusChat(): void;
+	getInputUri(): URI | undefined;
 }
 
 export class ChatViewTitleControl extends Disposable {
@@ -160,7 +162,8 @@ export class ChatViewTitleControl extends Disposable {
 
 		const context = this.model && {
 			$mid: MarshalledId.ChatViewContext,
-			sessionResource: this.model.sessionResource
+			sessionResource: this.model.sessionResource,
+			inputUri: this.delegate.getInputUri(),
 		} satisfies IChatViewTitleActionContext;
 
 		if (this.navigationToolbar) {

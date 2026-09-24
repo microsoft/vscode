@@ -6,6 +6,7 @@
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
@@ -26,6 +27,16 @@ import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './model
 export function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
 	return !!currentSemver && semver.gte(currentSemver, required);
+}
+
+/** Whether the model's catalogue entry names a minimum VS Code version this build does not meet. */
+export function requiresNewerVSCode(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	controlModels: IStringDictionary<IModelControlEntry>,
+	currentVSCodeVersion: string,
+): boolean {
+	const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
+	return !!entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion);
 }
 
 function getUpdateHoverContent(updateState: StateType): MarkdownString {
