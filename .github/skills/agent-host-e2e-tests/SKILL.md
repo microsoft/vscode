@@ -1,6 +1,6 @@
 ---
 name: agent-host-e2e-tests
-description: Use when writing, recording, updating, validating, or troubleshooting the agent host end-to-end tests under src/vs/platform/agentHost/test/node/e2e (black-box tests that drive the whole agent host over the AHP protocol, using a CapiReplayProxy record/replay system for Claude/Copilot/Codex). Covers adding a cross-provider test, re-recording fixtures after an SDK bump, cross-platform Azure validation, gating non-deterministic or platform-specific tests, and diagnosing replay cache misses.
+description: Use when writing, recording, updating, validating, or troubleshooting Agent Host end-to-end and real-provider integration tests under src/vs/platform/agentHost/test/node/e2e and providerIntegration. Covers adding a cross-provider test, re-recording fixtures after an SDK bump, required cross-platform Azure validation, gating non-deterministic or platform-specific tests, and diagnosing replay cache misses.
 ---
 
 # Agent host end-to-end tests
@@ -19,6 +19,7 @@ It documents the mental model, the fixture format, every config flag, and a symp
 4. **Never hand-write or hand-edit fixture contents** (especially not secrets/paths). Fixtures are always produced by recording; normalization/redaction is the proxy's job.
 5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
 6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. For suspected product bugs, begin with a self-contained explanation in complete sentences of what the user is trying to do, what fails, and the likely user impact; define feature-specific terms instead of relying on test names or implementation details. Record symptoms, not speculative root causes.
+7. **Always verify new end-to-end tests in Azure DevOps.** Every new Agent Host E2E or real-provider integration test must pass a focused build from VS Code pipeline definition `111` before merge. Local runs and GitHub pull-request CI are useful signals, but neither substitutes for the Azure build because its packaged Electron path and runner environments differ.
 
 ## Workflow A — Add a cross-provider test
 
@@ -60,7 +61,7 @@ Always add a comment explaining *why* the gate exists. Also add or update the co
 
 ## Workflow D — Cross-platform Azure validation
 
-New Agent Host E2E tests are not ready to merge after local replay alone. Push the branch, open or update a draft PR, then use the `azure-pipelines` skill to validate the real packaged Electron integration-test path.
+New Agent Host E2E and real-provider integration tests are not ready to merge after local or GitHub pull-request CI alone. Push the branch, open or update a draft PR, then use the `azure-pipelines` skill to validate the real packaged Electron integration-test path.
 
 1. Queue VS Code pipeline definition `111` with `VSCODE_BUILD_TYPE=CI`; enable Windows, Linux, and macOS x64 while disabling publishing, release, Web, ARM, Alpine, and Snap artifacts. The `azure-pipelines` skill contains the canonical command.
 2. Monitor jobs as they finish. Inspect a failed platform's Electron integration-test task immediately rather than waiting for unrelated stages to complete.
