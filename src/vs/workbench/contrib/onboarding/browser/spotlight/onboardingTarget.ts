@@ -140,9 +140,6 @@ export function findOnboardingTarget(targetWindow: Window, id: string, scope?: s
 }
 
 function matchesScope(target: HTMLElement, scope: string | undefined): boolean {
-	if (scope === undefined) {
-		return true;
-	}
 	const registeredScope = onboardingTargetRegistrations.get(target)?.options.scope;
 	return (typeof registeredScope === 'function' ? registeredScope() : registeredScope) === scope;
 }
