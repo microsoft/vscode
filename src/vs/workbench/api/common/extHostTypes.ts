@@ -115,7 +115,7 @@ export class ResolvedAuthority {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
-		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
+		if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {

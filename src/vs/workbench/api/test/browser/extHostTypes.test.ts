@@ -781,6 +781,17 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
 	});
 
+	test('ResolvedAuthority port validation', () => {
+		assert.throws(() => new types.ResolvedAuthority('localhost', -1));
+		assert.throws(() => new types.ResolvedAuthority('localhost', 0));
+		assert.throws(() => new types.ResolvedAuthority('localhost', 65536));
+		assert.throws(() => new types.ResolvedAuthority('localhost', 1.5));
+		assert.throws(() => new types.ResolvedAuthority('localhost', NaN));
+
+		assert.strictEqual(new types.ResolvedAuthority('localhost', 1).port, 1);
+		assert.strictEqual(new types.ResolvedAuthority('localhost', 65535).port, 65535);
+	});
+
 	test('runtime stable, type-def changed', function () {
 		// see https://github.com/microsoft/vscode/issues/231938
 		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
