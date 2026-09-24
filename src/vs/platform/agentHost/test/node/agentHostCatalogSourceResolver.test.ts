@@ -10,11 +10,11 @@ import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js'
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, ChatOriginKind, SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_ORIGIN_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 
 const session = URI.parse('agenthost:catalog-source');
@@ -105,6 +105,31 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('persists session origin and retains it when subsequent snapshots omit it', async () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const initial = await createResolver({}).buildCatalogSyncRequest(session, { ...sourceState(), origin }, {}, false);
+		const refreshed = await createResolver(initial.legacyMetadata).buildCatalogSyncRequest(session, sourceState(), {}, false);
+		const reconciled = await createResolver(initial.legacyMetadata).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			initial: initial.data.origin,
+			persisted: initial.legacyMetadata[SESSION_ORIGIN_KEY],
+			refreshed: refreshed.data.origin,
+			reconciled: reconciled.data.origin,
+		}, {
+			initial: origin,
+			persisted: JSON.stringify(origin),
+			refreshed: origin,
+			reconciled: origin,
+		});
+	});
+
+	test('rejects malformed persisted session origin rather than overwriting it', async () => {
+		for (const value of ['invalid json', JSON.stringify({ kind: 'automation', automation: 'ahp-automation:/review' })]) {
+			await assert.rejects(createResolver({ [SESSION_ORIGIN_KEY]: value }).buildCatalogSyncRequest(session, sourceState(), {}, true));
+		}
+	});
 
 	test('consumes the provided database reference and propagates metadata read failures', async () => {
 		const absent = new AgentHostCatalogSourceResolver({

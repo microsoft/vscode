@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { ChatInteractivity } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
@@ -112,6 +112,13 @@ suite('AgentHostCatalogListReader', () => {
 		};
 		return database;
 	}
+
+	test('retains session origin in catalog-only listings', async () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const result = await new AgentHostCatalogListReader(createDatabase({ ...data, origin })).read(registered);
+		assert.ok(result.eligible);
+		assert.deepStrictEqual(result.metadata.origin, origin);
+	});
 
 	test('converts a verified catalog payload into complete list metadata and chats', async () => {
 		const result = await new AgentHostCatalogListReader(createDatabase()).read(registered);

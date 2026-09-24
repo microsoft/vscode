@@ -953,6 +953,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 		defaultChat: undefined,
 	};
 	if (summary.activity !== undefined) { state.activity = summary.activity; }
+	if (summary.origin !== undefined) { state.origin = summary.origin; }
 	if (summary.project !== undefined) { state.project = summary.project; }
 	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
 	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }

@@ -28,6 +28,7 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -1961,14 +1962,16 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
 	});
 
-	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
+	test('listSessions carries session origin independently of ordered lightweight chats', async () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Session Summary',
+			origin,
 			chats: [
 				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
 				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
@@ -1983,9 +1986,11 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (response as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual({
+			origin: result.items[0].origin,
 			chats: result.items[0].chats,
 			defaultChat: result.items[0].defaultChat,
 		}, {
+			origin,
 			chats: [
 				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
 				{ resource: peerChat.toString(), title: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },

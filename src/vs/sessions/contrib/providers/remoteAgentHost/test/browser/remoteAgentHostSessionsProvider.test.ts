@@ -24,7 +24,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agen
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationType, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, MessageKind, SessionLifecycle, SessionOriginKind, type AgentCustomization, type AgentInfo, type AutomationState, type RootState, type SessionConfigState, type SessionOrigin, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -239,12 +239,13 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; origin?: SessionOrigin; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		origin: opts?.origin,
 		status: opts?.status,
 		project: opts?.project,
 		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
@@ -1773,6 +1774,29 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			},
 		});
 	}));
+
+	for (const address of ['localhost:4321', 'devcontainer:container']) {
+		test(`retains automation session origin in the offline cache for ${address}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+			connection.addSession(createSession('automation', { origin }));
+			connection.addSession(createSession('ordinary'));
+			const provider = createProvider(disposables, connection, { address, storageService, readOnlyWhenDisconnected: address.startsWith('devcontainer:') });
+			provider.getSessions();
+			await timeout(0);
+			const live = provider.getSessions().map(session => session.isAutomation?.get());
+			await storageService.flush();
+
+			const restored = createProvider(disposables, new MockAgentConnection(), { address, storageService, noConnection: true, readOnlyWhenDisconnected: address.startsWith('devcontainer:') });
+			assert.deepStrictEqual({
+				live,
+				offline: restored.getSessions().map(session => session.isAutomation?.get()),
+			}, {
+				live: [true, false],
+				offline: [true, false],
+			});
+		}));
+	}
 
 	test('setConnection after unpublishCachedSessions restores cached sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('restore-me', { summary: 'Restore Me' }));

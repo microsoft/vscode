@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
+import { SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
@@ -102,6 +103,24 @@ function encode(data: AgentHostCatalogData = createData()) {
 
 suite('AgentHostCatalogProjection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round-trips session origin independently of chat origin', () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const result = decodeAgentHostCatalogPayload(encode({ ...createData(), origin }).payload);
+		assert.ok(result.ok);
+		assert.deepStrictEqual(result.value.data.origin, origin);
+	});
+
+	test('rejects invalid session origins', () => {
+		for (const origin of [
+			{ kind: 'user', automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' },
+			{ kind: 'automation', automation: 'ahp-automation:/review' },
+			{ kind: 'automation', automation: 'not a URI', run: 'ahp-automation-run:/run' },
+		]) {
+			const result = decodeAgentHostCatalogPayload(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: { ...createData(), origin } }));
+			assert.strictEqual(result.ok, false);
+		}
+	});
 
 	test('derives the data type from validators and round trips canonical payload and hash', () => {
 		const typedData: AgentHostCatalogData = createData();

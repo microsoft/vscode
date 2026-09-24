@@ -204,6 +204,7 @@ class SessionSummaryNotifier extends Disposable {
 		if (current.title !== lastNotified.title) { changes.title = current.title; }
 		if (current.status !== lastNotified.status) { changes.status = current.status; }
 		if (current.activity !== lastNotified.activity) { changes.activity = current.activity ?? null; }
+		if (!equals(current.origin, lastNotified.origin)) { changes.origin = current.origin; }
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
@@ -480,6 +481,7 @@ export class AgentHostStateManager extends Disposable {
 			modifiedAt: entry.modifiedAt,
 		};
 		if (state.activity !== undefined) { summary.activity = state.activity; }
+		if (state.origin !== undefined) { summary.origin = state.origin; }
 		if (entry.project !== undefined) { summary.project = entry.project; }
 		if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 		if (state.annotations !== undefined) { summary.annotations = state.annotations; }
@@ -515,6 +517,7 @@ export class AgentHostStateManager extends Disposable {
 		return a.title === b.title
 			&& a.status === b.status
 			&& a.activity === b.activity
+			&& a.origin === b.origin
 			&& a.project === b.project
 			&& a.workingDirectories === b.workingDirectories
 			&& a.annotations === b.annotations
@@ -962,12 +965,16 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Publishes refreshed catalog metadata without materializing a conversation or changing its read state. */
-	updateSurfacedSessionMetadata(session: string, metadata: Pick<SessionSummary, 'title' | 'modifiedAt' | 'project' | 'workingDirectories' | '_meta'>): void {
+	updateSurfacedSessionMetadata(session: string, metadata: Pick<SessionSummary, 'title' | 'modifiedAt' | 'origin' | 'project' | 'workingDirectories' | '_meta'>): void {
 		const announced = this._summaryNotifier.getAnnounced(session);
 		if (this._sessionStates.has(session) || !announced) {
 			return;
 		}
+		if (announced.origin && !metadata.origin) {
+			metadata = { ...metadata, origin: announced.origin };
+		}
 		if (announced.title === metadata.title && announced.modifiedAt === metadata.modifiedAt
+			&& equals(announced.origin, metadata.origin)
 			&& equals(announced.project, metadata.project) && equals(announced.workingDirectories, metadata.workingDirectories)
 			&& equals(announced._meta, metadata._meta)) {
 			return;
@@ -1087,6 +1094,7 @@ export class AgentHostStateManager extends Disposable {
 			title: current.title || listed.title,
 			status: current.status,
 			activity: current.activity,
+			origin: current.origin ?? listed.origin,
 			modifiedAt: current.modifiedAt,
 			project: current.project ?? listed.project,
 			workingDirectories: current.workingDirectories ?? listed.workingDirectories,

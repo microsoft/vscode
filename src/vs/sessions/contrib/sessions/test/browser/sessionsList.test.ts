@@ -2507,6 +2507,60 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('automation session visibility', () => {
+		test('omits active automation sessions from the main list but keeps history rows openable', () => {
+			const base = createTestSession('Automation').session;
+			const automationSession: IActiveSession = {
+				...base,
+				isAutomation: constObservable(true),
+				activeChat: base.mainChat,
+				sticky: constObservable(false),
+				isCreated: constObservable(true),
+				openChats: base.chats,
+				closedChats: constObservable([]),
+				lastClosedChat: undefined,
+				visibleChatTabs: base.chats,
+				shouldShowChatTabs: constObservable(false),
+			};
+			const sessions = [automationSession, createTestSession('Ordinary').session];
+			const harness = createListHarness(disposables, sessions, instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(automationSession);
+					override readonly visibleSessions = constObservable([automationSession]);
+				});
+			});
+			const mainContainer = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, mainContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const opened: string[] = [];
+			const historyContainer = harness.createContainer();
+			const history = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, historyContainer, {
+				showSessionHover: false,
+				onSessionOpen: resource => opened.push(resource.toString()),
+			}));
+			history.setSessions([automationSession]);
+			history.layout(300, 400);
+			const row = historyContainer.querySelector<HTMLElement>('.monaco-list-row');
+			assert.ok(row);
+			row.click();
+
+			assert.deepStrictEqual({
+				main: [...mainContainer.querySelectorAll('.session-title')].map(element => element.textContent),
+				history: [...historyContainer.querySelectorAll('.session-title')].map(element => element.textContent),
+				opened,
+			}, {
+				main: ['Ordinary'],
+				history: ['Automation'],
+				opened: [automationSession.resource.toString()],
+			});
+		});
+	});
+
 	suite('session row spacing', () => {
 		test('reserves spacing only in the main sessions list', () => {
 			const sessions = [
