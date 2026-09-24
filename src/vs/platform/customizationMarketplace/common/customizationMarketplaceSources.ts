@@ -22,11 +22,13 @@ export const CustomizationMarketplaceSources = {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+		requiresMarketplaceVisibility: true,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
-	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
+	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
+		(!source.requiresMarketplaceVisibility || configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true));
 }
 
 export function getVisibleCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
@@ -51,7 +53,8 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	const store = new DisposableStore();
 	const cancellation = store.add(new CancellationTokenSource(token));
 	store.add(configurationService.onDidChangeConfiguration(event => {
-		if (sources.some(source => event.affectsConfiguration(source.enablementSetting)) &&
+		if ((sources.some(source => event.affectsConfiguration(source.enablementSetting)) ||
+			sources.some(source => source.requiresMarketplaceVisibility) && event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) &&
 			!equals(sourceIds, getSourceIds())) {
 			cancellation.cancel();
 		}

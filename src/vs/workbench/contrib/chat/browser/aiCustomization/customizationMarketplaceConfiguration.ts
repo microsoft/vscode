@@ -17,7 +17,7 @@ export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 		type: 'boolean',
 		tags: ['experimental'],
-		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins. Source enablement is independent of whether Discover is shown; disabling this setting prevents the feed from being initialized or queried."),
+		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins when Marketplace is shown. If Marketplace or this setting is disabled, the GitHub Feed is not queried."),
 		default: true,
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
