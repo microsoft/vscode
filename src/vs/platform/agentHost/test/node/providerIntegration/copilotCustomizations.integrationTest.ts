@@ -11,7 +11,7 @@
 
 import assert from 'assert';
 import { CopilotClient } from '@github/copilot-sdk';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -217,7 +217,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		await runWorkspaceAndPluginCustomizationsTest();
 	});
 
-	test('SDK-installed plugin reaches the client as a plugin customization', async function () {
+	test('SDK-installed plugin reaches the client and runs plugin hooks', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
 		await runSdkInstalledPluginCustomizationsTest();
 	});
@@ -707,12 +707,16 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const workspaceDir = await createWorkspace('ahp-customizations-sdk-plugin-workspace-mock-');
 		const pluginSourceDir = await createWorkspace('ahp-customizations-sdk-plugin-source-mock-', false);
 		const pluginHomeDir = await createWorkspace('ahp-customizations-sdk-plugin-home-mock-', false);
+		const hookLog = join(pluginHomeDir, 'session-start-hook.log');
+		const hookScript = join(pluginSourceDir, 'record-hook.cjs');
 		await Promise.all([
 			mkdir(join(pluginSourceDir, '.plugin'), { recursive: true }),
 			mkdir(join(pluginSourceDir, 'agents'), { recursive: true }),
 			mkdir(join(pluginSourceDir, 'skills', 'installed-skill'), { recursive: true }),
 			mkdir(join(pluginSourceDir, 'rules'), { recursive: true }),
+			mkdir(join(pluginSourceDir, 'hooks'), { recursive: true }),
 		]);
+		const hookCommand = [process.execPath, hookScript, hookLog].map(value => JSON.stringify(value)).join(' ');
 		await Promise.all([
 			writeFile(join(pluginSourceDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'SDK Installed Plugin', version: '1.0.0' }, undefined, 2)),
 			writeFile(join(pluginSourceDir, 'agents', 'installed.agent.md'), [
@@ -730,6 +734,25 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				'Use the installed skill.',
 			].join('\n')),
 			writeFile(join(pluginSourceDir, 'rules', 'installed.instructions.md'), 'Prefer SDK-installed plugin defaults.'),
+			writeFile(hookScript, [
+				'const fs = require("fs");',
+				'const [log] = process.argv.slice(2);',
+				'let input = "";',
+				'process.stdin.setEncoding("utf8");',
+				'process.stdin.on("data", chunk => input += chunk);',
+				'process.stdin.on("end", () => fs.appendFileSync(log, `${input}\\n`));',
+			].join('\n')),
+			writeFile(join(pluginSourceDir, 'hooks', 'hooks.json'), JSON.stringify({
+				hooks: {
+					SessionStart: [{
+						hooks: [{
+							type: 'command',
+							command: hookCommand,
+							env: { ELECTRON_RUN_AS_NODE: '1' },
+						}],
+					}],
+				},
+			})),
 		]);
 
 		client.close();
@@ -781,9 +804,20 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				pluginDirectories: [],
 				children: [
 					{ type: CustomizationType.Agent, name: 'Installed Agent' },
+					{ type: CustomizationType.Hook, name: 'hooks.json' },
 					{ type: CustomizationType.Rule, name: 'installed' },
 					{ type: CustomizationType.Skill, name: 'installed-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
+			});
+			await waitForAssert(async () => {
+				const inputs = (await readFile(hookLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { source?: string });
+				assert.deepStrictEqual({
+					count: inputs.length,
+					allHaveSources: inputs.every(input => typeof input.source === 'string'),
+				}, {
+					count: 1,
+					allHaveSources: true,
+				});
 			});
 		} finally {
 			if (consumerSessionUri) {
