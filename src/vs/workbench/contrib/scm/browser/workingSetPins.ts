@@ -3,10 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../base/common/async.js';
 import type { GroupIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import type { EditorInput } from '../../../common/editor/editorInput.js';
 import type { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import type { IEditorService } from '../../../services/editor/common/editorService.js';
+
+/**
+ * SCM working sets share the editor layout, even across repositories. Keep all
+ * transitions in one queue so a second branch switch cannot apply another
+ * working set while the first switch is still restoring pinned editors.
+ */
+export class SCMWorkingSetRestoreQueue {
+	private readonly sequencer = new Sequencer();
+
+	queue<T>(restore: () => Promise<T>): Promise<T> {
+		return this.sequencer.queue(restore);
+	}
+}
 
 interface IPinnedEditor {
 	readonly groupId: GroupIdentifier;
@@ -54,7 +68,7 @@ export async function applyWorkingSetWithPinnedEditors(
 	for (const group of editorGroupsService.groups) {
 		for (const editor of group.editors.filter(editor => group.isSticky(editor))) {
 			if (!pinnedEditors.some(pinned => matchesPinnedEditor(editor, pinned))) {
-				await group.closeEditor(editor);
+				await group.closeEditor(editor, { preserveFocus: true });
 			}
 		}
 	}
