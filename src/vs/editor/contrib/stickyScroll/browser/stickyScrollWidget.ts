@@ -147,7 +147,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const previousLineNumbers = this._lineNumbers;
 		this._lineNumbers = data.lineNumbers;
 		this._lastLineRelativePosition = data.lastLineRelativePosition;
-		const rebuildFromIndex = this._findIndexToRebuildFrom(previousLineNumbers, this._lineNumbers, rebuildFromIndexCandidate);
+		const innerScopes = this._editor.getOption(EditorOption.stickyScroll).scopePreference === 'innerScopes';
+		const indexCandidate = innerScopes ? 0 : rebuildFromIndexCandidate;
+		const rebuildFromIndex = this._findIndexToRebuildFrom(previousLineNumbers, this._lineNumbers, indexCandidate);
 		this._renderRootNode(this._lineNumbers, this._lastLineRelativePosition, foldingModel, rebuildFromIndex);
 		this._state = state;
 	}
