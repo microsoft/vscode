@@ -12,8 +12,11 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { DEFAULT_PLUGIN_MARKETPLACE, parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
+import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
+
+const defaultMarketplaceId = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!.canonicalId;
 
 export function getPluginMarketplaceIdentifier(plugin: IMarketplacePlugin): string {
 	return JSON.stringify([plugin.marketplaceReference.canonicalId, plugin.name, plugin.sourceDescriptor, plugin.version]);
@@ -75,7 +78,7 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 		}
 		const entries = continuation?.entries ?? plugins.flatMap(plugin => {
 			const mediaType = getPluginMediaType(plugin);
-			if (!mediaType ||
+			if (plugin.marketplaceReference.canonicalId === defaultMarketplaceId || !mediaType ||
 				(this.marketplaceService.isStrictMarketplacePolicyActive() && !this.marketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) ||
 				(options.mediaType && mediaType !== options.mediaType) ||
 				(query && ![plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(query)))) {

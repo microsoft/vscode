@@ -18,15 +18,15 @@ export const enum CustomizationMarketplaceConfiguration {
 }
 
 export const CustomizationMarketplaceSources = {
-	AgentFinderPublicFeed: {
-		id: 'agentFinder',
-		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
-		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
-	},
 	PluginMarketplaces: {
 		id: 'pluginMarketplaces',
 		displayName: localize('customizationMarketplace.pluginMarketplaces', "Configured Plugin Marketplaces"),
 		enablementSetting: CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled,
+	},
+	AgentFinderPublicFeed: {
+		id: 'agentFinder',
+		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
+		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 

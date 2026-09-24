@@ -111,7 +111,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			items: page.items.map(item => [item.sourceId, item.displayName]),
 			publicCalls, pluginCalls,
 		}, {
-			sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.PluginMarketplaces.id],
+			sources: [CustomizationMarketplaceSources.PluginMarketplaces.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
 			items: [['pluginMarketplaces', 'Review']],
 			publicCalls: 0, pluginCalls: 1,
 		});
@@ -151,15 +151,23 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
 			}]
 		});
-		await pluginResult.complete([]);
+		const reference = parseMarketplaceReference('owner/catalog')!;
+		await pluginResult.complete([{
+			name: 'Plugin', description: 'Plugin from configured marketplace', version: '1', source: 'plugin',
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugin' },
+			marketplace: reference.displayLabel, marketplaceReference: reference, marketplaceType: MarketplaceType.Copilot,
+		}]);
 		const page = await pending;
 		const selected = await service.query({ sourceIds: [CustomizationMarketplaceSources.PluginMarketplaces.id] }, CancellationToken.None);
+		const search = await service.query({ query: 'plugin', pageSize: 2 }, CancellationToken.None);
 		assert.deepStrictEqual({
 			started, page: page.items.map(item => item.sourceId),
-			selected: selected.items, calls,
+			selected: selected.items.map(item => item.sourceId),
+			search: search.items.map(item => item.sourceId), calls,
 		}, {
-			started: ['public', 'plugin'], page: ['agentFinder'],
-			selected: [], calls: ['public', 'plugin', 'plugin'],
+			started: ['plugin', 'public'], page: ['pluginMarketplaces', 'agentFinder'],
+			selected: ['pluginMarketplaces'], search: ['pluginMarketplaces', 'agentFinder'],
+			calls: ['plugin', 'public', 'plugin', 'plugin', 'public'],
 		});
 	});
 });

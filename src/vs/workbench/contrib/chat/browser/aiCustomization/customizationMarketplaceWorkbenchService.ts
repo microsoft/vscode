@@ -48,6 +48,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	) {
 		super();
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.PluginMarketplaces.id, () => this._register(instantiationService.createInstance(PluginCustomizationMarketplaceProvider))),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => ({
 				id: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
 				query: async (options, token) => {
@@ -60,7 +61,6 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 					};
 				},
 			})),
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.PluginMarketplaces.id, () => this._register(instantiationService.createInstance(PluginCustomizationMarketplaceProvider))),
 		]));
 	}
 

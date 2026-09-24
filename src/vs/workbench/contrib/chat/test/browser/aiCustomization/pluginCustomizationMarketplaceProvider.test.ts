@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { getPluginMarketplaceIdentifier, PluginCustomizationMarketplaceProvider } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 import { IFetchMarketplacePluginsOptions, IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('PluginCustomizationMarketplaceProvider', () => {
@@ -60,6 +61,30 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			total: 2,
 			calls: 1,
 		});
+	});
+
+	test('omits the built-in Awesome Copilot marketplace but keeps configured marketplace entries', async () => {
+		const builtIn = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
+		const service = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override async fetchMarketplacePlugins() {
+				return [
+					{ ...plugin, name: 'Built-in', marketplace: builtIn.displayLabel, marketplaceReference: builtIn },
+					plugin,
+				];
+			}
+		}();
+		const provider = createProvider(service);
+		const browse = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		const search = await provider.query({ query: 'built-in' }, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: browse.items.map(item => item.displayName),
+			total: browse.total,
+			nextCursor: browse.nextCursor,
+			searchItems: search.items,
+			searchTotal: search.total,
+		}, { items: ['Review'], total: 1, nextCursor: undefined, searchItems: [], searchTotal: 0 });
 	});
 
 	test('omits unsupported Cursor-format entries before pagination and totals', async () => {
