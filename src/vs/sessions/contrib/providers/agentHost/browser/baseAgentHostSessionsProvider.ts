@@ -3214,8 +3214,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
 	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
-	protected readonly _onDidChangeDraftSessions = this._register(new Emitter<void>());
-	readonly onDidChangeDraftSessions = this._onDidChangeDraftSessions.event;
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -3312,10 +3310,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._newSessions.get(sessionId);
 	}
 
-	getDraftSessions(): readonly ISession[] {
-		return [...this._newSessions.values()].map(session => session.session);
-	}
-
 	private _getBackendSessionUri(sessionId: string): URI | undefined {
 		const rawId = this._rawIdFromChatId(sessionId);
 		if (!rawId) {
@@ -3336,18 +3330,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * connection drops and the composed-but-unsent drafts can no longer commit.
 	 */
 	protected _disposeAllNewSessions(): void {
-		for (const sessionId of this._newSessions.keys()) {
+		const sessionIds = [...this._newSessions.keys()];
+		for (const sessionId of sessionIds) {
 			this._onNewSessionAbandoned(sessionId, 'providerDisposed');
 		}
 		this._newSessions.clearAndDisposeAll();
-		this._onDidChangeDraftSessions.fire();
+		for (const sessionId of sessionIds) {
+			this._onDidChangeSessionConfig.fire(sessionId);
+		}
 	}
 
 	deleteNewSession(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
 			this._onNewSessionAbandoned(sessionId, 'discarded');
 			this._newSessions.deleteAndDispose(sessionId);
-			this._onDidChangeDraftSessions.fire();
+			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 	}
 
@@ -4163,7 +4160,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw err;
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
-		this._onDidChangeDraftSessions.fire();
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
@@ -5004,7 +5000,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (this._newSessions.has(sessionId)) {
 			this._onNewSessionAbandoned(sessionId, 'discarded');
 			this._newSessions.deleteAndDispose(sessionId);
-			this._onDidChangeDraftSessions.fire();
+			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 	}
 
@@ -5987,7 +5983,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				newSession.graduate();
 				if (this._newSessions.get(newSession.sessionId) === newSession) {
 					this._newSessions.deleteAndDispose(newSession.sessionId);
-					this._onDidChangeDraftSessions.fire();
+					this._onDidChangeSessionConfig.fire(newSession.sessionId);
 				}
 				// Clear the pending session before firing the replace event so
 				// that any synchronous listener calling getSessions() sees only
@@ -6012,7 +6008,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (this._newSessions.get(newSession.sessionId) === newSession) {
 			this._onNewSessionAbandoned(newSession.sessionId, 'sendFailed');
 			this._newSessions.deleteAndDispose(newSession.sessionId);
-			this._onDidChangeDraftSessions.fire();
+			this._onDidChangeSessionConfig.fire(newSession.sessionId);
 		}
 		this._onDidChangeSessions.fire({ added: [], removed: [skeleton], changed: [] });
 		throw new Error(localize('sessionNotCommitted', "Agent host session was not committed."));

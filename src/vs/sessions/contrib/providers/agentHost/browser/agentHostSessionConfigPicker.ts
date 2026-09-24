@@ -72,7 +72,7 @@ import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/con
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type ISession, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
@@ -1569,6 +1569,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 	private readonly _repositoryMenuItems = this._register(new DisposableStore());
 	private readonly _repositoryPropertyRegistrations = this._register(new DisposableMap<string>());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private readonly _repositoryConfigSessionIds = new Map<string, Set<string>>();
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -1598,6 +1599,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
 			for (const provider of e.removed) {
 				this._providerListeners.deleteAndDispose(provider.id);
+				this._repositoryConfigSessionIds.delete(provider.id);
 			}
 			this._watchProviders(e.added, actionViewItemService);
 			this._refreshRepositoryMenuItems(actionViewItemService);
@@ -1679,15 +1681,23 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				continue;
 			}
 			const store = new DisposableStore();
-			store.add(provider.onDidChangeSessionConfig(() => this._refreshRepositoryMenuItems(actionViewItemService)));
-			store.add(provider.onDidChangeDraftSessions(() => this._refreshRepositoryMenuItems(actionViewItemService)));
+			const sessionIds = new Set<string>();
+			this._repositoryConfigSessionIds.set(provider.id, sessionIds);
+			store.add(provider.onDidChangeSessionConfig(sessionId => {
+				if (provider.getSessionConfig(sessionId)) {
+					sessionIds.add(sessionId);
+				} else {
+					sessionIds.delete(sessionId);
+				}
+				this._refreshRepositoryMenuItems(actionViewItemService);
+			}));
 			this._providerListeners.set(provider.id, store);
 		}
 	}
 
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		const sessions = new Map<string, ISession>();
+		const sessions = new Map<string, { readonly sessionId: string; readonly providerId: string }>();
 		for (const session of this._sessionsService.visibleSessions.get()) {
 			if (session) {
 				sessions.set(session.sessionId, session);
@@ -1697,11 +1707,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		if (activeSession) {
 			sessions.set(activeSession.sessionId, activeSession);
 		}
-		for (const provider of this._sessionsProvidersService.getProviders()) {
-			if (isAgentHostProvider(provider)) {
-				for (const session of provider.getDraftSessions()) {
-					sessions.set(session.sessionId, session);
-				}
+		for (const [providerId, sessionIds] of this._repositoryConfigSessionIds) {
+			for (const sessionId of sessionIds) {
+				sessions.set(sessionId, { sessionId, providerId });
 			}
 		}
 		for (const session of sessions.values()) {

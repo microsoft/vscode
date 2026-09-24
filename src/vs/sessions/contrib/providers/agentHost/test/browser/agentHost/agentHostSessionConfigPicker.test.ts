@@ -142,11 +142,9 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'onDidChangeDraftSessions' | 'getDraftSessions' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerEnabled'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string>;
-	readonly onDidChangeDraftSessions = Event.None;
-	draftSessions: readonly ISession[] = [];
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
 	readonly resolving = observableValue<boolean>('resolving', false);
 	isNew = true;
@@ -167,7 +165,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 
 	getSessionConfig(): ResolveSessionConfigResult | undefined { return this.config; }
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
-	getDraftSessions(): readonly ISession[] { return this.draftSessions; }
+	fireSessionConfigChanged(sessionId: string): void { this._emitter.fire(sessionId); }
 	isSessionConfigResolving() { return this.resolving; }
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
 		this.setSessionConfigValueCalls++;
@@ -358,7 +356,6 @@ function setupServices(
 		override readonly activeChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	provider.draftSessions = [activeSession];
 	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
 }
 
@@ -436,6 +433,7 @@ suite('Agent Host Session Config Picker', () => {
 			override readonly visibleSessions = constObservable([undefined]);
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+		services.provider.fireSessionConfigChanged(services.activeSession.sessionId);
 
 		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)

@@ -171,7 +171,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// authentication settling below) reconciles them.
 		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
 
-		const onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
+		const onDidChangeResourceLabelHomes = this._onDidChangeSessionsImmediately;
 		const updateResourceLabelHomes = () => {
 			const homes = this.getResourceLabelHomes();
 			const userHome = pathService.userHome({ preferLocal: true });
