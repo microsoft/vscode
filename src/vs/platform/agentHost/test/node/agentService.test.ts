@@ -42,7 +42,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -2348,6 +2348,9 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		const sessionFolder = URI.file('/workspace/one').toString();
+		let expectedMeta: SessionSummaryMeta | undefined = withSessionExternal({ [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot }, false);
+		expectedMeta = withWorkingDirectoryKey(expectedMeta, URI.file('/workspace/one').toString());
+		expectedMeta = withWorkingDirectoryScopeId(expectedMeta, [URI.file('/workspace/one').toString()]);
 		assert.deepStrictEqual({
 			state: getStateManager(localService).getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
@@ -2355,7 +2358,7 @@ suite('AgentService (node dispatcher)', () => {
 			overridden: readSessionMultiRootMetadata(getStateManager(localService).getSessionState(overridden.toString())?._meta),
 		}, {
 			// The client's single GitHub state seeds the session folder.
-			state: withSessionExternal({ [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot }, false),
+			state: expectedMeta,
 			persisted: JSON.stringify(override),
 			github,
 			overridden: override,
@@ -3844,8 +3847,19 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				confirmed: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				workingDirectoryKeys: Object.fromEntries(readWorkingDirectoryKeys(getStateManager(svc).getSessionState(session.toString())?._meta)),
+				workingDirectoryScopeIds: Object.fromEntries(readWorkingDirectoryScopeIds(getStateManager(svc).getSessionState(session.toString())?._meta)),
 			}, {
 				confirmed: [primary.toString(), secondary.toString()],
+				workingDirectoryKeys: {
+					[primary.toString()]: getWorkingDirectoryKey(primary.toString()),
+					[secondary.toString()]: getWorkingDirectoryKey(secondary.toString()),
+					[added.toString()]: getWorkingDirectoryKey(added.toString()),
+				},
+				workingDirectoryScopeIds: {
+					[JSON.stringify([primary.toString(), secondary.toString()])]: getWorkingDirectoryScopeId([primary.toString(), secondary.toString()]),
+					[JSON.stringify([primary.toString(), secondary.toString(), added.toString()])]: getWorkingDirectoryScopeId([primary.toString(), secondary.toString(), added.toString()]),
+				},
 			});
 		});
 
@@ -4912,6 +4926,8 @@ suite('AgentService (node dispatcher)', () => {
 				defaultChat: getStateManager(svc).getChatState(defaultChat.toString())?.workingDirectories,
 				existingPeer: getStateManager(svc).getChatState(existingPeer.toString())?.workingDirectories,
 				addedPeer: getStateManager(svc).getChatState(addedPeer.toString())?.workingDirectories,
+				workingDirectoryKeys: Object.fromEntries(readWorkingDirectoryKeys(getStateManager(svc).getSessionState(session.toString())?._meta)),
+				workingDirectoryScopeIds: Object.fromEntries(readWorkingDirectoryScopeIds(getStateManager(svc).getSessionState(session.toString())?._meta)),
 				persistedDefaultChat: await perSession.database(defaultChat).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
 				persistedExistingPeer: await perSession.database(existingPeer).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
 				persistedPeers: JSON.parse(await perSession.database(session).getMetadata(PEER_CHATS_METADATA_KEY) ?? '[]') as IPersistedPeerChat[],
@@ -4921,6 +4937,15 @@ suite('AgentService (node dispatcher)', () => {
 				defaultChat: [primary.toString()],
 				existingPeer: [primary.toString()],
 				addedPeer: [added.toString()],
+				workingDirectoryKeys: {
+					[primary.toString()]: getWorkingDirectoryKey(primary.toString()),
+					[added.toString()]: getWorkingDirectoryKey(added.toString()),
+				},
+				workingDirectoryScopeIds: {
+					[JSON.stringify([primary.toString()])]: getWorkingDirectoryScopeId([primary.toString()]),
+					[JSON.stringify([primary.toString(), added.toString()])]: getWorkingDirectoryScopeId([primary.toString(), added.toString()]),
+					[JSON.stringify([added.toString()])]: getWorkingDirectoryScopeId([added.toString()]),
+				},
 				persistedDefaultChat: JSON.stringify([primary.toString()]),
 				persistedExistingPeer: JSON.stringify([primary.toString()]),
 				persistedPeers: [
@@ -13250,7 +13275,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withSessionExternal({ git: gitState }, false),
+				withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]),
 			);
 		});
 

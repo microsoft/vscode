@@ -37,7 +37,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -442,6 +442,24 @@ function withChatWorkingDirectories(sessionWorkingDirectories: readonly string[]
 		}
 	}
 	return result;
+}
+
+function withPublishedWorkingDirectoryIdentities(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[] | undefined, chats: readonly { readonly workingDirectories?: readonly string[] }[] | undefined): SessionSummaryMeta | undefined {
+	let next = meta;
+	const publishScope = (scope: readonly string[] | undefined) => {
+		if (!scope?.length) {
+			return;
+		}
+		next = withWorkingDirectoryScopeId(next, scope);
+		for (const directory of scope) {
+			next = withWorkingDirectoryKey(next, directory);
+		}
+	};
+	publishScope(workingDirectories);
+	for (const chat of chats ?? []) {
+		publishScope(chat.workingDirectories);
+	}
+	return next;
 }
 
 function reconcileWorkingDirectories(requested: readonly URI[] | undefined, resolved: readonly URI[] | undefined): string[] | undefined {
@@ -4380,6 +4398,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (folderPickerDecision) {
 			this._stateManager.setSessionMeta(session.toString(), withSessionFolderPickerDecision(this._stateManager.getSessionState(session.toString())?._meta, folderPickerDecision));
 		}
+		this._publishWorkingDirectoryIdentities(session.toString());
 		// Seeded config bypasses `onDidChangeSessionConfig`, so index a session
 		// created with Agent Merge already enabled.
 		this._syncAgentMergeIndex(session, undefined, sessionConfig);
@@ -4632,6 +4651,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 					...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
 				});
+				this._publishWorkingDirectoryIdentities(sessionKey);
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
 				if (existingIndex < 0) {
@@ -5277,6 +5297,7 @@ export class AgentService extends Disposable implements IAgentService {
 		_meta = !config?.workingDirectories
 			? withSessionWorkspaceless(_meta, true)
 			: _meta;
+		_meta = withPublishedWorkingDirectoryIdentities(_meta, workingDirectories, undefined);
 		return {
 			resource: session.toString(),
 			provider: provider.id,
@@ -5366,9 +5387,10 @@ export class AgentService extends Disposable implements IAgentService {
 			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
 			: undefined;
 		// The session folder's GitHub state moves with its checkout.
-		const summaryMeta = workingDirectoryReplacement
+		let summaryMeta = workingDirectoryReplacement
 			? withReplacedFolderGitHubState(materializedMeta, workingDirectoryReplacement.directory, workingDirectoryReplacement.replacement)
 			: materializedMeta;
+		summaryMeta = withPublishedWorkingDirectoryIdentities(summaryMeta, workingDirectories, state.chats);
 		const summary: SessionSummary = {
 			...currentSummary,
 			...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
@@ -5403,6 +5425,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...workingDirectoryReplacement,
 			});
 		}
+		this._publishWorkingDirectoryIdentities(sessionKey);
 		const gitHubState = readSessionGitHubState(summary._meta, materializedWorkingDirectory);
 		if (gitHubState) {
 			void this._gitStateService.setSessionGitHubState(sessionKey, gitHubState);
@@ -6999,7 +7022,26 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(`[AgentService] Failed to apply Automation configuration: ${toErrorMessage(error)}`);
 			});
 		}
+		if (action.type === ActionType.SessionWorkingDirectorySet
+			|| action.type === ActionType.SessionWorkingDirectoryRemoved
+			|| action.type === ActionType.SessionChatAdded
+			|| action.type === ActionType.SessionChatUpdated
+			|| action.type === ActionType.ChatWorkingDirectorySet
+			|| action.type === ActionType.ChatWorkingDirectoryRemoved) {
+			this._publishWorkingDirectoryIdentities(sessionChannel);
+		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn);
+	}
+
+	private _publishWorkingDirectoryIdentities(sessionChannel: string): void {
+		const state = this._stateManager.getSessionState(sessionChannel);
+		if (!state) {
+			return;
+		}
+		const nextMeta = withPublishedWorkingDirectoryIdentities(state._meta, this._stateManager.getSessionSummary(sessionChannel)?.workingDirectories ?? state.workingDirectories, state.chats);
+		if (!equals(state._meta, nextMeta)) {
+			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
+		}
 	}
 	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
 		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);
@@ -7856,6 +7898,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let restoredMeta = (sessionMetadata || providerMeta) ? { ...(providerMeta ?? {}), ...(sessionMetadata ?? {}) } : undefined;
 		restoredMeta = withSessionMultiRootMetadata(restoredMeta, readSessionMultiRootMetadata(sessionMetadata));
 		restoredMeta = withSessionExternal(restoredMeta, external);
+		const centralChatCatalog = await this._readCentralChatCatalog(session) ?? cachedChatCatalog;
 		const restoredChats = cachedChatCatalog?.map(chat => ({
 			resource: chat.uri,
 			title: chat.title ?? '',
@@ -7863,6 +7906,8 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		}));
 		const restoredDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default')?.uri;
+		const workingDirectories = withChatWorkingDirectories(meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
+		restoredMeta = withPublishedWorkingDirectoryIdentities(restoredMeta, workingDirectories, centralChatCatalog);
 		const summary: SessionSummary = {
 			resource: sessionStr,
 			provider: agent.id,
@@ -7872,7 +7917,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
-			workingDirectories: withChatWorkingDirectories(meta.workingDirectories?.map(d => d.toString()), await this._readCentralChatCatalog(session) ?? cachedChatCatalog),
+			workingDirectories,
 			...(restoredChats !== undefined ? { chats: restoredChats } : {}),
 			...(restoredDefaultChat !== undefined ? { defaultChat: restoredDefaultChat } : {}),
 			_meta: restoredMeta,

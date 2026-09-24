@@ -6601,13 +6601,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(sessionUri, 'peer-1');
 			const loadingChat = buildChatUri(sessionUri, 'peer-2');
+			let meta: SessionState['_meta'] = undefined;
+			meta = withWorkingDirectoryKey(meta, primaryDirectory.toString());
+			meta = withWorkingDirectoryKey(meta, peerDirectory.toString());
 			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('multi-agent-merge', 'copilotcli', {
 				...makeState([
 					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
 					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
 					// Its folder is not among the session's yet, so its workspace is still unknown.
 					makeChatSummary(loadingChat, 'Loading', ProtocolSessionStatus.Idle, [URI.file('/workspace-loading').toString()]),
-				], { defaultChat }),
+				], { defaultChat, meta, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }),
 				config: { schema: { type: 'object', properties: {} }, values },
 			});
 			// Written by an earlier version, so it describes the session folder.
@@ -6725,10 +6728,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(sessionUri, 'peer-1');
 			const configValues = { [SessionConfigKey.AgentMergeFolders]: { [peerDirectory.toString()]: { enabled: true, chat: peerChat } } };
+			let meta: SessionState['_meta'] = undefined;
+			meta = withWorkingDirectoryKey(meta, primaryDirectory.toString());
+			meta = withWorkingDirectoryKey(meta, peerDirectory.toString());
 			agentHost.setSessionState('multi-agent-merge-hydration', 'copilotcli', makeState([
 				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
 				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
-			], { defaultChat, configValues, workingDirectories: [primaryDirectory.toString()] }));
+			], { defaultChat, configValues, meta, workingDirectories: [primaryDirectory.toString()] }));
 			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
 			assert.ok(peer);
 			const observed: Array<boolean | undefined> = [];
@@ -6739,7 +6745,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.setSessionState('multi-agent-merge-hydration', 'copilotcli', makeState([
 				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
 				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
-			], { defaultChat, configValues, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }));
+			], { defaultChat, configValues, meta, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }));
 
 			assert.deepStrictEqual(observed, [undefined, true]);
 		});
