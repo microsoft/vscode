@@ -106,7 +106,7 @@ jobs:
           path: test/componentFixtures/playwright/test-results/
 
       - name: Capture screenshots
-        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
+        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json --label screenshot
 
       - name: Check fixture errors
         id: fixture_errors
