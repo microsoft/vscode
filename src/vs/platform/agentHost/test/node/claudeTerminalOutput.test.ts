@@ -38,13 +38,13 @@ const NOTICE = [
 	'</persisted-output>',
 ].join('\n');
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, database = new TestSessionDatabase()) {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, database = new TestSessionDatabase(), sessionDataService = createSessionDataService(database), logService = new NullLogService()) {
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 	const services = new ServiceCollection(
-		[ILogService, new NullLogService()],
+		[ILogService, logService],
 		[IFileService, fileService],
-		[ISessionDataService, createSessionDataService(database)],
+		[ISessionDataService, sessionDataService],
 	);
 	const outputs = disposables.add(new InstantiationService(services)).createInstance(ClaudeTerminalOutputs);
 	return { outputs, database, fileService };
@@ -143,6 +143,7 @@ suite('ClaudeTerminalOutputs', () => {
 			{ name: 'backgrounded command', message: bashResult({ ...saved, backgroundTaskId: 'bash_1' }), toolName: 'Bash' },
 			{ name: 'subagent command', message: bashResult(saved, 'toolu_task'), toolName: 'Bash' },
 			{ name: 'other tool', message: bashResult(saved), toolName: 'Read' },
+			{ name: 'native PowerShell tool', message: bashResult(saved), toolName: 'PowerShell' },
 			{ name: 'missing file', message: bashResult({ ...saved, persistedOutputPath: '/claude/tool-results/missing.txt' }), toolName: 'Bash' },
 			{ name: 'cancelled turn', message: bashResult(saved), toolName: 'Bash', signal: AbortSignal.abort() },
 		];
@@ -175,6 +176,107 @@ suite('ClaudeTerminalOutputs', () => {
 			staged: state.takeTerminalOutput(TOOL_CALL_ID),
 			stored: await database.getTerminalOutputSize(TOOL_CALL_ID),
 		}, { staged: undefined, stored: undefined });
+	});
+
+	test('discards mapper state without recreating a deleted session database', async () => {
+		const database = new TestSessionDatabase();
+		const baseSessionDataService = createSessionDataService(database);
+		let databaseCreateCalls = 0;
+		const sessionDataService: ISessionDataService = {
+			...baseSessionDataService,
+			openDatabase: resource => {
+				databaseCreateCalls++;
+				return baseSessionDataService.openDatabase(resource);
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const { outputs } = createHarness(disposables, database, sessionDataService);
+		const state = toolState('Bash');
+		state.cacheTerminalOutput(TOOL_CALL_ID, {
+			type: ToolResultContentType.Terminal,
+			resource: buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, TOOL_CALL_ID),
+			title: 'Run shell command',
+			isPty: false,
+		});
+
+		await outputs.discard(CHAT, TOOL_CALL_ID, state);
+
+		assert.deepStrictEqual({
+			staged: state.takeTerminalOutput(TOOL_CALL_ID),
+			tracked: state.toolCalls.lookup(TOOL_CALL_ID),
+			databaseCreateCalls,
+		}, { staged: undefined, tracked: undefined, databaseCreateCalls: 0 });
+	});
+
+	test('traces an unrecognized preview without losing retained output live or after restore', async () => {
+		const traces: string[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string): void {
+				traces.push(message);
+			}
+		}();
+		const { outputs, database, fileService } = createHarness(disposables, undefined, undefined, logService);
+		await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
+		const text = '<persisted-output>\nUnrecognized provider notice\n</persisted-output>';
+		const message = {
+			...makeUserToolResultMessage('sess-1', TOOL_CALL_ID, text),
+			tool_use_result: { persistedOutputPath: OUTPUT_PATH },
+		};
+		const state = toolState('Bash');
+		await outputs.capture(CHAT, CHAT, TURN_ID, message, state);
+		const live = state.takeTerminalOutput(TOOL_CALL_ID);
+		const restored = completedToolCall(TOOL_CALL_ID, 'Bash', text);
+		await outputs.restore(CHAT, CHAT, [{
+			id: TURN_ID,
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+			responseParts: [restored],
+			usage: undefined,
+			state: TurnState.Complete,
+		}]);
+
+		assert.deepStrictEqual({
+			stored: await database.getTerminalOutputSize(TOOL_CALL_ID),
+			liveResult: live?.result,
+			restored: restored.toolCall.status === ToolCallStatus.Completed ? restored.toolCall.content : undefined,
+			traces,
+		}, {
+			stored: VSBuffer.fromString(OUTPUT).byteLength,
+			liveResult: { exitCode: 0, truncated: true },
+			restored: [
+				{ type: ToolResultContentType.Text, text },
+				{ ...live, title: 'Bash' },
+			],
+			traces: [
+				`[Claude] Unrecognized persisted shell output preview for ${TOOL_CALL_ID}`,
+				`[Claude] Unrecognized persisted shell output preview for ${TOOL_CALL_ID}`,
+			],
+		});
+	});
+
+	test('logs a failed discard after clearing mapper state', async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}();
+		const database = new class extends TestSessionDatabase {
+			override async deleteTerminalOutput(): Promise<void> {
+				throw new Error('Cannot delete output');
+			}
+		}();
+		const { outputs } = createHarness(disposables, database, undefined, logService);
+		const state = toolState('Bash');
+
+		await outputs.discard(CHAT, TOOL_CALL_ID, state);
+
+		assert.deepStrictEqual({
+			tracked: state.toolCalls.lookup(TOOL_CALL_ID),
+			warnings,
+		}, {
+			tracked: undefined,
+			warnings: [`[Claude] Failed to discard retained shell output for ${TOOL_CALL_ID}`],
+		});
 	});
 
 	test('restores retained output only for completed terminal calls with stored output', async () => {

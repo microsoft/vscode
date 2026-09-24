@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { IReference } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore, type IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -14,8 +16,7 @@ import { parseChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, 
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
-// The SDK uses one generic command tool name for Bash, PowerShell, and other
-// executable invocations. BashOutput and KillBash are separate lifecycle tools.
+// Bash can invoke pwsh; Claude's separate native PowerShell tool is not handled here.
 const CLAUDE_SHELL_TOOL_NAME = 'Bash';
 
 /**
@@ -28,11 +29,8 @@ const PERSISTED_OUTPUT_NOTICE = /^<persisted-output>\n[^\n]*\n\nPreview \(first 
 type ToolResultParts = string | readonly { readonly type: string; readonly text?: unknown }[] | undefined;
 
 /**
- * Retains the complete output Claude saves for large shell results in the
- * owning chat's session database and exposes it as a non-PTY terminal resource.
- * The SDK names its shell tool `Bash`, including commands that invoke
- * PowerShell. Subscribers receive exited terminal state rebuilt from the
- * database, so no terminal is kept alive for completed output.
+ * Retains Claude's large Bash results in the owning chat's database and exposes
+ * them as exited non-PTY terminal resources without keeping a terminal alive.
  */
 export class ClaudeTerminalOutputs {
 
@@ -43,10 +41,8 @@ export class ClaudeTerminalOutputs {
 	) { }
 
 	/**
-	 * Stores the output Claude saved for a top-level shell result and stages its
-	 * terminal content on `state`, so the mapper publishes the content with the
-	 * completion. Callers must await this before mapping `message`; the returned
-	 * id lets them discard cancellation that races the final abort check.
+	 * Stages retained output before mapping the completion. Returns the tool ID
+	 * on success or cancellation so the caller can discard even a failed capture.
 	 */
 	async capture(storage: URI, chat: URI, turnId: string, message: Extract<SDKMessage, { type: 'user' }>, state: ClaudeMapperState, signal?: AbortSignal): Promise<string | undefined> {
 		const outputPath = getPersistedOutputPath(message.tool_use_result);
@@ -62,15 +58,23 @@ export class ClaudeTerminalOutputs {
 			return;
 		}
 		const title = toolCall.info?.displayName ?? getClaudeToolDisplayName(toolCall.toolName);
-		const terminal = buildTerminalContent(storage, chat, result.tool_use_id, title, getText(result.content), result.is_error !== true);
+		const terminal = buildTerminalContent(storage, chat, result.tool_use_id, title, getText(result.content), result.is_error !== true, this._logService);
 		if (!terminal) {
 			return;
 		}
+		if (signal?.aborted) {
+			return result.tool_use_id;
+		}
+		const lifetime = new DisposableStore();
+		const cancellation = lifetime.add(new CancellationTokenSource());
+		if (signal) {
+			lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel()));
+		}
 		let database: IReference<ISessionDatabase> | undefined;
 		try {
-			const output = await this._fileService.readFile(URI.file(outputPath), { limits: { size: MAX_TERMINAL_OUTPUT_BYTES } });
+			const output = await this._fileService.readFile(URI.file(outputPath), { limits: { size: MAX_TERMINAL_OUTPUT_BYTES } }, cancellation.token);
 			if (signal?.aborted) {
-				return;
+				return result.tool_use_id;
 			}
 			database = this._sessionDataService.openDatabase(storage);
 			// The output belongs to its turn so truncation removes it. Claude creates
@@ -79,15 +83,16 @@ export class ClaudeTerminalOutputs {
 			await database.object.storeTerminalOutput(turnId, result.tool_use_id, output.value.buffer);
 			if (signal?.aborted) {
 				await database.object.deleteTerminalOutput(result.tool_use_id);
-				return;
+				return result.tool_use_id;
 			}
 			state.cacheTerminalOutput(result.tool_use_id, terminal);
 			return result.tool_use_id;
 		} catch (error) {
 			this._logService.warn(`[Claude] Failed to retain shell output for ${result.tool_use_id}`, error);
-			return undefined;
+			return signal?.aborted ? result.tool_use_id : undefined;
 		} finally {
 			database?.dispose();
+			lifetime.dispose();
 		}
 	}
 
@@ -96,7 +101,10 @@ export class ClaudeTerminalOutputs {
 		state.completeToolCall(toolCallId);
 		let database: IReference<ISessionDatabase> | undefined;
 		try {
-			database = this._sessionDataService.openDatabase(storage);
+			database = await this._sessionDataService.tryOpenDatabase(storage);
+			if (!database) {
+				return;
+			}
 			await database.object.deleteTerminalOutput(toolCallId);
 		} catch (error) {
 			this._logService.warn(`[Claude] Failed to discard retained shell output for ${toolCallId}`, error);
@@ -125,7 +133,7 @@ export class ClaudeTerminalOutputs {
 					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) === undefined) {
 						continue;
 					}
-					const terminal = buildTerminalContent(storage, chat, toolCall.toolCallId, toolCall.displayName, getText(toolCall.content), toolCall.success);
+					const terminal = buildTerminalContent(storage, chat, toolCall.toolCallId, toolCall.displayName, getText(toolCall.content), toolCall.success, this._logService);
 					if (terminal) {
 						toolCall.content = [...(toolCall.content ?? []), terminal];
 					}
@@ -160,12 +168,15 @@ function getText(content: ToolResultParts): string | undefined {
 	return typeof text === 'string' ? text : undefined;
 }
 
-function buildTerminalContent(storage: URI, chat: URI, toolCallId: string, title: string, text: string | undefined, success: boolean): ToolResultTerminalContent | undefined {
+function buildTerminalContent(storage: URI, chat: URI, toolCallId: string, title: string, text: string | undefined, success: boolean, logService: ILogService): ToolResultTerminalContent | undefined {
 	const session = parseChatUri(chat)?.session;
 	if (!session) {
 		return undefined;
 	}
 	const preview = text === undefined ? undefined : PERSISTED_OUTPUT_NOTICE.exec(text)?.groups?.preview;
+	if (preview === undefined) {
+		logService.trace(`[Claude] Unrecognized persisted shell output preview for ${toolCallId}`);
+	}
 	return {
 		type: ToolResultContentType.Terminal,
 		resource: buildNonPtyShellTerminalUri(storage, session, chat, toolCallId),

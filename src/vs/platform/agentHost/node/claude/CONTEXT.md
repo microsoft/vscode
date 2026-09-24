@@ -61,13 +61,18 @@ via settings; the message stream is the canonical, non-bypassable signal.
 **Claude retained shell output** / `ClaudeTerminalOutputs`:
 Copies the complete output Claude saves for a large top-level shell result
 (`tool_use_result.persistedOutputPath`) into the chat's session database before
-the result is published, and attaches a non-PTY terminal resource to it. The
-SDK names this generic command tool `Bash`, including commands that invoke
-PowerShell. Output without `persistedOutputPath` stays exactly as Claude
-returned it. Restored transcripts carry only Claude's `<persisted-output>`
-notice, so the same resource is re-attached when the database has the output.
+the result is published, and attaches a non-PTY terminal resource to it. This
+handles the SDK's `Bash` tool, including commands that invoke `pwsh`, but not
+Claude's separate native `PowerShell` tool. Output without `persistedOutputPath`
+stays exactly as Claude returned it. Restored transcripts carry only Claude's
+`<persisted-output>` notice, so the same resource is re-attached when the database has the output.
 The agent service rebuilds exited terminal state from the database for
 subscribers; no terminal is kept alive.
+Cancellation interrupts the file read where supported and discards the staged
+content and mapper tracking before publication, even if capture fails. Cleanup
+does not create a missing database; database failures are logged. Unrecognized
+preview notices are traced without logging their contents, and the raw result
+and retained output remain available.
 
 ## Relationships
 
