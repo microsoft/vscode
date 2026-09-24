@@ -733,7 +733,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		const chats = getSessionListChats(element.session);
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
-		let hadFolderRow = !this.compact() && !!getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get());
+		let hadFolderRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -775,7 +775,14 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
 				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
-			if (hadFolderRow !== showFolderRow) {
+			if (hadFolderRow === undefined) {
+				hadFolderRow = showFolderRow;
+				// A row sized while offscreen reserved no folder row, since its
+				// workspace was not read then; correct it once it is rendered.
+				if (showFolderRow) {
+					template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
+				}
+			} else if (hadFolderRow !== showFolderRow) {
 				hadFolderRow = showFolderRow;
 				this._onDidChangeItemHeight.fire(element);
 			}

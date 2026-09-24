@@ -404,9 +404,11 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * The Agent Merge entry is advertised by the chat that owns the enabled folder.
  * It uses the chat-owned compare-turns URI template because the repair range
  * belongs to that chat, and remains available after Agent Merge is disabled.
+ * When chats share the folder, `resolveAgentMergeOwner` picks the one chat
+ * whose transcript the repairs run in.
  * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
@@ -444,7 +446,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 	const sessionUri = chat.session;
 	const isDefaultChat = buildDefaultChatUri(sessionUri) === ownerUri;
 	const gitState = readSessionGitState(state._meta);
-	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(state, isDefaultChat)
+	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(ownerUri, state, isDefaultChat, resolveAgentMergeOwner)
 		? [{
 			label: agentMergeChangesetLabel(),
 			description: agentMergeChangesetDescription(),
@@ -496,14 +498,16 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 	] satisfies Changeset[];
 }
 
-function shouldAdvertiseAgentMergeChangeset(state: ISessionWithDefaultChat, isDefaultChat: boolean): boolean {
+function shouldAdvertiseAgentMergeChangeset(ownerUri: URI, state: ISessionWithDefaultChat, isDefaultChat: boolean, resolveAgentMergeOwner: ((folderKey: string, recordedChat: URI | undefined) => URI | undefined) | undefined): boolean {
 	const folderKey = state.workingDirectories?.[0] ? getWorkingDirectoryKey(state.workingDirectories[0]) : undefined;
 	if (!isDefaultChat && folderKey === undefined) {
 		return false;
 	}
 	const sessionFolderKey = isDefaultChat ? folderKey : undefined;
-	if (readAgentMergeFolderState(state.config?.values, folderKey, sessionFolderKey)?.enabled === true
-		|| state.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID)) {
+	const folderState = readAgentMergeFolderState(state.config?.values, folderKey, sessionFolderKey);
+	const ownsEnabledFolder = folderState?.enabled === true
+		&& (folderKey === undefined || !resolveAgentMergeOwner || resolveAgentMergeOwner(folderKey, folderState.chat) === ownerUri);
+	if (ownsEnabledFolder || state.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID)) {
 		return true;
 	}
 

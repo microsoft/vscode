@@ -65,7 +65,7 @@ import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -437,7 +437,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				changesets: this._stateManager.getChatState(session)?.changesets,
 			}
 			: state;
-		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, catalogState, branchChangesetOwner));
+		const sessionUri = containingSessionUri(session);
+		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, catalogState, branchChangesetOwner,
+			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat)));
 	}
 
 	private _getBranchChangesetOwner(owner: ProtocolURI): ProtocolURI {

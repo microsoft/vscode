@@ -292,6 +292,28 @@ suite('changesetUri', () => {
 		);
 	});
 
+	test('advertises Agent Merge changes only on the owning chat when chats share the folder', () => {
+		const owner = buildChatUri(sessionUri, 'owner');
+		const other = buildChatUri(sessionUri, 'other');
+		const peerFolder = 'file:///work/peer';
+		const sharedState = state(undefined, [], undefined, [peerFolder], {
+			[SessionConfigKey.AgentMergeFolders]: { [peerFolder]: { enabled: true, chat: owner } },
+		});
+		const resolvedFor: [string, string | undefined][] = [];
+		const resolveOwner = (folderKey: string, recordedChat: string | undefined) => {
+			resolvedFor.push([folderKey, recordedChat]);
+			return owner;
+		};
+		const hasAgentMerge = (chat: string) => buildDefaultChangesetCatalog(chat, sharedState, chat, resolveOwner)
+			.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
+
+		assert.deepStrictEqual({ owner: hasAgentMerge(owner), other: hasAgentMerge(other), resolvedFor }, {
+			owner: true,
+			other: false,
+			resolvedFor: [[peerFolder, owner], [peerFolder, owner]],
+		});
+	});
+
 	test('advertises Agent Merge changes after enablement and preserves them across disable and restore', () => {
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
 		const peerChatUri = buildChatUri(sessionUri, 'peer');

@@ -457,9 +457,10 @@ export class SessionInputBanners extends Disposable {
 				await this._submitComments(state, this._queryFor(state, '/act-on-feedback'));
 				return;
 			}
-			const submitted = await this.feedbackService.submitFeedback(state.chatResource, {
+			const submitted = await this.feedbackService.submitFeedback(state.sessionResource, {
 				query: prompt,
 				feedbackIds: state.commentIds,
+				targetChat: state.chatResource,
 				onRequestAccepted: () => ciModel.markFixRequested(),
 			});
 			if (!submitted) {
@@ -496,9 +497,10 @@ export class SessionInputBanners extends Disposable {
 	}
 
 	private async _submitComments(state: IBaseBannerState, query: string): Promise<void> {
-		const submitted = await this.feedbackService.submitFeedback(state.chatResource, {
+		const submitted = await this.feedbackService.submitFeedback(state.sessionResource, {
 			query,
 			feedbackIds: state.commentIds,
+			targetChat: state.chatResource,
 		});
 		if (!submitted) {
 			this.logService.error('[SessionInputBanners] Failed to submit comments', state.chatResource.toString());

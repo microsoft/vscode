@@ -265,12 +265,15 @@ suite('SessionInputBanners', () => {
 
 		assert.deepStrictEqual({
 			submittedResource: submittedResource?.toString(),
+			targetChat: submitted?.targetChat?.toString(),
 			query: submitted?.query?.split('\n')[0],
 			feedbackIds: submitted?.feedbackIds,
 			fixRequested: ciModels.get(42)?.fixRequested.get(),
 			current: currentBanner(banners),
 		}, {
-			submittedResource: mainChat.resource.toString(),
+			// The feedback belongs to the session; the request goes to the chat showing the pull request.
+			submittedResource: sessionResource.toString(),
+			targetChat: mainChat.resource.toString(),
 			query: '/fix-ci and /act-on-feedback for #42',
 			feedbackIds: ['pr-42-a', 'pr-42-b'],
 			fixRequested: true,

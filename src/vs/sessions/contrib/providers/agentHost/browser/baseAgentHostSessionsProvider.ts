@@ -539,6 +539,10 @@ function readCompatibleFolderGitHubState(meta: SessionMeta | undefined, workingD
 		return state;
 	}
 	const backendWorkingDirectory = fromAgentHostUri(workingDirectory).toString();
+	// A key the host published is authoritative: a folder differing only in case is another folder.
+	if (readWorkingDirectoryKeys(meta).has(backendWorkingDirectory)) {
+		return undefined;
+	}
 	const fallbackKey = findUniqueIgnorePathCaseKey(folders, backendWorkingDirectory);
 	return fallbackKey ? folders.get(fallbackKey) : undefined;
 }
@@ -4780,7 +4784,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const values = this._getAgentMergeValues(sessionId);
 		const state = readAgentMergeFolderState(values, folder.folderKey, folder.sessionFolderKey);
-		if (state || !folder.workingDirectory) {
+		// A key the host published is authoritative: a folder differing only in case is another folder.
+		if (state || !folder.workingDirectory || readWorkingDirectoryKeys(this._lastSessionStates.get(sessionId)?._meta).has(folder.workingDirectory)) {
 			return state;
 		}
 		const states = readAgentMergeFolderStates(values, folder.sessionFolderKey);

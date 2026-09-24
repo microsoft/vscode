@@ -3372,6 +3372,36 @@ suite('Sessions - SessionsList', () => {
 			};
 		}
 
+		test('reserves the folder row of a chat row that renders after it was sized offscreen', async () => {
+			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
+			const session = createMultiFolderSession([first, second], [undefined, ...Array.from({ length: 24 }, () => [second])]);
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			// Short viewport so the last chat rows are sized while offscreen.
+			list.layout(120, 400);
+			setSessionChatsExpanded(container, true);
+
+			list.layout(2000, 400);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			const peerRowHeights = [...container.querySelectorAll<HTMLElement>('.session-chat-item.has-folder-label')]
+				.map(item => parseInt(item.closest<HTMLElement>('.monaco-list-row')?.style.height ?? '0'));
+			const baseRowHeight = 30;
+			assert.deepStrictEqual({
+				rows: peerRowHeights.length,
+				shortRows: peerRowHeights.filter(height => height <= baseRowHeight).length,
+			}, {
+				rows: 24,
+				shortRows: 0,
+			});
+		});
+
 		test('shows the folder of a chat scoped to one project of a multi-project session', () => {
 			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
 			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };

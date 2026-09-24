@@ -40,6 +40,9 @@ interface IPendingTerminalOperation {
 	replaced: boolean;
 }
 
+/** The address of the local agent host, which runs on this machine; see {@link IAgentHostTerminalService.createTerminalForEntry}. */
+const LOCAL_AGENT_HOST_ADDRESS = '__local__';
+
 interface ITrackedTerminalScope {
 	readonly sessionId: string;
 	readonly key: string;
@@ -345,7 +348,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			existing = await this._filterTerminalsForScope(existing, key, agentHostAddress);
 		}
 		if (existing.length === 0) {
-			existing = await this._findTerminalsForKey(key, { excludeTracked: !!session });
+			// Only terminals on this session's backend, so a session never runs commands on another host.
+			existing = await this._filterTerminalsForScope(await this._findTerminalsForKey(key, { excludeTracked: !!session }), key, agentHostAddress);
 			if (session && this._isTerminalOperationCancelled(session, generation)) {
 				return [];
 			}
@@ -444,7 +448,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
-		return provider.remoteAddress ?? '__local__';
+		return provider.remoteAddress ?? LOCAL_AGENT_HOST_ADDRESS;
 	}
 
 	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = getActiveSessionTerminalInfo(session)): Promise<void> {
@@ -665,7 +669,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (trackedScope) {
 			return trackedScope.key === key && trackedScope.agentHostAddress === agentHostAddress;
 		}
-		if (agentHostAddress) {
+		// Terminals this contribution did not create, such as task and manually
+		// created terminals, match by the backend they run on and their cwd.
+		const instanceAgentHostAddress = this._agentHostTerminalService.getAgentHostAddress(instance);
+		if (instanceAgentHostAddress !== undefined) {
+			if (instanceAgentHostAddress !== agentHostAddress) {
+				return false;
+			}
+		} else if (instance.shellLaunchConfig.customPtyImplementation || (agentHostAddress !== undefined && agentHostAddress !== LOCAL_AGENT_HOST_ADDRESS)) {
+			// A terminal of an unknown backend, or a local terminal for a remote host.
 			return false;
 		}
 		try {
