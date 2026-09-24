@@ -3344,6 +3344,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _agentMergeSessionStateObservables = new Map<string, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
 	/** Number of observed Agent Merge state observables per session. */
 	private readonly _observedAgentMergeSessionStates = new Map<string, number>();
+	/** Every Agent Merge folder seen per session; see {@link _getAgentMergeValues}. */
+	private readonly _agentMergeFolders = new Map<string, Record<string, unknown>>();
 
 	/**
 	 * Idle-release timers paired with {@link _sessionStateSubscriptions}. Each
@@ -4648,8 +4650,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				nextValues[key] = runningConfig.values[key];
 			}
 		}
-		// Client-owned Agent Merge settings carry over; the host keeps its own state.
-		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeFolders]) {
+		// Agent Merge settings are kept as they are. The host carries them over
+		// itself, as it changes them too and this copy may not reflect that yet,
+		// so they are not sent.
+		const agentMergeKeys: readonly string[] = [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeFolders];
+		for (const key of agentMergeKeys) {
 			if (Object.hasOwn(runningConfig.values, key)) {
 				nextValues[key] = runningConfig.values[key];
 			}
@@ -4660,6 +4665,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (equals(nextValues, runningConfig.values)) {
 			return;
 		}
+		const replacement = Object.fromEntries(Object.entries(nextValues).filter(([key]) => !agentMergeKeys.includes(key)));
 
 		// Update local cache optimistically (full replace).
 		this._runningSessionConfigs.set(sessionId, {
@@ -4675,7 +4681,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const sessionUri = cached.backendUri;
 			const action = {
 				type: ActionType.SessionConfigChanged as const,
-				config: nextValues,
+				config: replacement,
 				replace: true,
 			};
 			connection.dispatch(sessionUri.toString(), action);
@@ -4684,14 +4690,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getAgentMergeSessionState(sessionId: string, chat?: URI): AgentMergeSessionState | undefined {
-		const values = this._lastSessionStates.get(sessionId)?.config?.values;
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!cached) {
-			return chat ? undefined : readAgentMergeSessionState(values);
+			return chat ? undefined : readAgentMergeSessionState(this._lastSessionStates.get(sessionId)?.config?.values);
 		}
 		const folder = cached.getAgentMergeFolder(chat);
-		return folder ? readAgentMergeFolderState(rekeyAgentMergeFolders(values, toAgentMergeFolderKey), folder.folderKey, folder.sessionFolderKey) : undefined;
+		return folder ? readAgentMergeFolderState(this._getAgentMergeValues(sessionId), folder.folderKey, folder.sessionFolderKey) : undefined;
+	}
+
+	/**
+	 * The session's config values with its Agent Merge folders keyed by
+	 * {@link toAgentMergeFolderKey}, including every folder seen so far: a
+	 * write of one folder is applied locally before the host merges it, so
+	 * until then the local config holds only that folder. The host never
+	 * removes a folder's settings, so earlier folders are still current.
+	 */
+	private _getAgentMergeValues(sessionId: string): Record<string, unknown> | undefined {
+		const values = rekeyAgentMergeFolders(this._lastSessionStates.get(sessionId)?.config?.values, toAgentMergeFolderKey);
+		const folders = this._agentMergeFolders.get(sessionId);
+		return values && folders ? { ...values, [SessionConfigKey.AgentMergeFolders]: folders } : values;
+	}
+
+	/** Records the Agent Merge folders of a session state; see {@link _getAgentMergeValues}. */
+	private _updateAgentMergeFolders(sessionId: string, state: SessionState): void {
+		const current = rekeyAgentMergeFolders(state.config?.values, toAgentMergeFolderKey)?.[SessionConfigKey.AgentMergeFolders] as Record<string, unknown> | undefined;
+		if (current) {
+			this._agentMergeFolders.set(sessionId, { ...this._agentMergeFolders.get(sessionId), ...current });
+		}
 	}
 
 	getAgentMergeClientStateObservable(sessionId: string, chat?: URI): IObservable<IAgentMergeClientState | undefined> {
@@ -4764,7 +4790,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// and keys it by the working directory. It records the chat that turned
 		// Agent Merge on.
 		const owningChat = (chat && this.getBackendChatResource(chat)?.toString())
-			?? readAgentMergeFolderState(rekeyAgentMergeFolders(values, toAgentMergeFolderKey), folder.folderKey, folder.sessionFolderKey)?.chat;
+			?? readAgentMergeFolderState(this._getAgentMergeValues(sessionId), folder.folderKey, folder.sessionFolderKey)?.chat;
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.AgentMergeFolders]: { [folder.workingDirectory]: { ...clientState, ...(owningChat ? { chat: owningChat } : {}) } } },
@@ -6307,11 +6333,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
-		this._lastSessionStates.set(sessionId, state);
 		// Any folder's Agent Merge settings, including those written by earlier versions.
-		const agentMergeSettings = (values: Record<string, unknown> | undefined) => [...readAgentMergeFolderStates(values, '').entries()]
+		const agentMergeSettings = () => [...readAgentMergeFolderStates(this._getAgentMergeValues(sessionId), '').entries()]
 			.map(([key, folderState]) => ({ key, enabled: folderState.enabled, overrides: folderState.overrides }));
-		if (!structuralEquals(agentMergeSettings(previous?.config?.values), agentMergeSettings(state.config?.values))) {
+		const previousAgentMergeSettings = agentMergeSettings();
+		this._lastSessionStates.set(sessionId, state);
+		this._updateAgentMergeFolders(sessionId, state);
+		if (!structuralEquals(previousAgentMergeSettings, agentMergeSettings())) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
 		}
 		// Only fire when the inputs to `getCustomAgents` actually change.
@@ -6951,6 +6979,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._agentMergeSessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateObservables.delete(stateOwner.sessionId);
 		this._observedAgentMergeSessionStates.delete(stateOwner.sessionId);
+		this._agentMergeFolders.delete(stateOwner.sessionId);
 		this._lastSessionStates.delete(stateOwner.sessionId);
 		return cached;
 	}

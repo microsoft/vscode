@@ -816,6 +816,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitEnvelope(e => {
 			if (isAhpChatChannel(e.channel) && (e.action.type === ActionType.ChatTurnComplete || e.action.type === ActionType.ChatTurnCancelled || e.action.type === ActionType.ChatError)) {
 				this._flushAgentMergeNotices(e.channel);
+			} else if (e.action.type === ActionType.SessionChatRemoved) {
+				this._moveAgentMergeNotices(e.action.chat, buildDefaultChatUri(e.channel));
 			}
 		}));
 		// Archiving is terminal for Agent Merge, so the index is cleared from the
@@ -1608,6 +1610,18 @@ export class AgentService extends Disposable implements IAgentService {
 		this._pendingAgentMergeNotices.delete(chat);
 		for (const { kind, content } of pending) {
 			this._writeAgentMergeNotice(chat, kind, content);
+		}
+	}
+
+	/** Posts the notices that were waiting for a removed chat to another chat instead. */
+	private _moveAgentMergeNotices(from: string, to: string): void {
+		const pending = this._pendingAgentMergeNotices.get(from);
+		if (!pending) {
+			return;
+		}
+		this._pendingAgentMergeNotices.delete(from);
+		for (const { kind, content } of pending) {
+			this._postAgentMergeNotice(to, kind, content);
 		}
 	}
 
@@ -6689,6 +6703,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Carries host-written session config through a client replacement. A client
 	 * may legitimately replace its own config wholesale, but omitting a host-owned
 	 * key must not clear it, since that would reset Agent Merge authorization state.
+	 * The client's Agent Merge settings are carried too unless the replacement
+	 * sets them: the host changes them as well (a self-disable, a demoted merge
+	 * choice), which a client's copy may not reflect yet.
 	 */
 	private _withPreservedHostWrittenSessionConfig(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
 		const values = this._stateManager.getSessionState(session.toString())?.config?.values;
@@ -6696,7 +6713,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return action;
 		}
 		let preserved: Record<string, unknown> | undefined;
-		for (const key of HOST_WRITTEN_SESSION_CONFIG_KEYS) {
+		const clientAgentMergeKeys = [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeFolders].filter(key => !Object.hasOwn(action.config, key));
+		for (const key of [...HOST_WRITTEN_SESSION_CONFIG_KEYS, ...clientAgentMergeKeys]) {
 			if (Object.hasOwn(values, key)) {
 				preserved ??= {};
 				preserved[key] = values[key];
