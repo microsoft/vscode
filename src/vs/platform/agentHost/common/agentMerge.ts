@@ -482,9 +482,15 @@ export function agentMergeMergePullRequestDemotedNotice(): string {
 	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
 }
 
-export function readAgentMergeSessionState(values: Record<string, unknown> | undefined): AgentMergeSessionState | undefined {
-	// Settings of earlier versions describe the session folder and take
-	// precedence while enabled, as in `readAgentMergeFolderStates`.
+export function readAgentMergeSessionState(values: Record<string, unknown> | undefined, sessionFolderKey?: string): AgentMergeSessionState | undefined {
+	if (sessionFolderKey !== undefined) {
+		const folderState = readAgentMergeFolderState(values, sessionFolderKey, sessionFolderKey);
+		if (folderState) {
+			const { chat, ...state } = folderState;
+			return state;
+		}
+	}
+	// Compatibility for callers that only have a single session-folder entry.
 	const legacy = values?.[SessionConfigKey.AgentMerge];
 	const firstFolderState = isRecord(legacy) && legacy.enabled === true ? undefined : readFirstAgentMergeFolderState(values);
 	if (firstFolderState) {

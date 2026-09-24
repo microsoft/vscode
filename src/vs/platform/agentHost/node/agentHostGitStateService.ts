@@ -491,7 +491,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		// Update session state manager
-		const nextMeta = withSessionSourceControlState(withFolderGitHubState(currentMeta, folder.folderKey, nextState), nextSourceControlState);
+		const nextMeta = withSessionSourceControlState(withFolderGitHubState(currentMeta, folder.folderKey, nextState, folder.workingDirectory), nextSourceControlState);
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 		this._onDidChangeSessionGitHubState.fire(sessionKey);
 
@@ -590,7 +590,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		const scopeId = getWorkingDirectoryScopeId(scope.workingDirectories);
 		const currentMeta = this._stateManager.getSessionState(scope.sessionUri)?._meta;
-		this._stateManager.setSessionMeta(scope.sessionUri, withFolderScopeGitState(currentMeta, scopeId, gitState));
+		this._stateManager.setSessionMeta(scope.sessionUri, withFolderScopeGitState(currentMeta, scopeId, gitState, scope.workingDirectories));
 		await this._gitStateSaves.queue(scope.sessionUri, async () => {
 			const gitData = readSessionGitData(this._stateManager.getSessionState(scope.sessionUri)?._meta);
 			await this._saveSessionState(scope.sessionUri, META_GIT_DATA_STATE, JSON.stringify(Object.fromEntries(gitData)));

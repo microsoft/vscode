@@ -27,7 +27,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -6385,7 +6385,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return { resource, title, status, modifiedAt: new Date(0).toISOString(), workingDirectories: workingDirectories ? [...workingDirectories] : undefined };
 		}
 
-		function makeState(chats: ChatSummary[], opts?: { sessionTitle?: string; defaultChat?: string }): SessionState {
+		function makeState(chats: ChatSummary[], opts?: { sessionTitle?: string; defaultChat?: string; configValues?: Record<string, unknown>; meta?: SessionState['_meta']; workingDirectories?: readonly string[] }): SessionState {
 			return {
 				provider: 'copilotcli',
 				title: opts?.sessionTitle ?? 'Session',
@@ -6393,6 +6393,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [],
 				chats,
+				...(opts?.workingDirectories ? { workingDirectories: [...opts.workingDirectories] } : {}),
+				...(opts?.meta ? { _meta: opts.meta } : {}),
+				...(opts?.configValues ? { config: { schema: { type: 'object', properties: {} }, values: opts.configValues } } : {}),
 				...(opts?.defaultChat ? { defaultChat: opts.defaultChat } : {}),
 			};
 		}
@@ -6649,6 +6652,128 @@ suite('LocalAgentHostSessionsProvider', () => {
 				loadingWrite: 'rejected',
 				after: { session: false, mainChat: false, peerChat: true, peerChatObservable: true, loadingChat: undefined },
 				peerChatWhileAnotherFolderIsWritten: true,
+			});
+		});
+
+		test('uses host-published folder keys and scope ids for mixed-case remote paths', () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/work/MyRepo');
+			const peerDirectory = URI.file('/work/API');
+			const session = setupMultiChatSession(provider, 'multi-host-keys', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-host-keys').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const primaryKey = primaryDirectory.toString();
+			const peerFolderKey = peerDirectory.toString().toLowerCase();
+			const peerScopeId = 'host-scope-api';
+			let meta: SessionState['_meta'] = {
+				githubData: { [primaryKey]: { owner: 'octo', repo: 'MyRepo' }, [peerFolderKey]: { owner: 'octo', repo: 'api' } },
+				gitData: { [peerScopeId]: { branchName: 'feature/api', hasGitRemote: true } },
+			};
+			meta = withWorkingDirectoryKey(meta, primaryDirectory.toString(), primaryKey);
+			meta = withWorkingDirectoryKey(meta, peerDirectory.toString(), peerFolderKey);
+			meta = withWorkingDirectoryScopeId(meta, [peerDirectory.toString()], peerScopeId);
+
+			agentHost.setSessionState('multi-host-keys', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+			], { defaultChat, meta }));
+
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.deepStrictEqual({
+				sessionRepository: session.workspace.get()?.folders[0].gitRepository?.gitHubInfo.get(),
+				peerRepository: peer?.workspace.get()?.folders[0].gitRepository?.gitHubInfo.get(),
+				peerBranch: peer?.workspace.get()?.folders[0].gitRepository?.branchName,
+			}, {
+				sessionRepository: {
+					owner: 'octo',
+					repo: 'MyRepo',
+					pullRequest: undefined,
+					pullRequests: undefined,
+					issues: undefined,
+				},
+				peerRepository: {
+					owner: 'octo',
+					repo: 'api',
+					pullRequest: undefined,
+					pullRequests: undefined,
+					issues: undefined,
+				},
+				peerBranch: 'feature/api',
+			});
+		});
+
+		test('main chat keeps the session workspace identity for the session folder', () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const session = setupMultiChatSession(provider, 'main-chat-workspace-identity', [primaryDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'main-chat-workspace-identity').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('main-chat-workspace-identity', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+			], { defaultChat, workingDirectories: [primaryDirectory.toString()] }));
+
+			assert.strictEqual(session.mainChat.get().workspace.get(), session.workspace.get());
+		});
+
+		test('Agent Merge observable updates when a peer chat folder hydrates', () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const session = setupMultiChatSession(provider, 'multi-agent-merge-hydration', [primaryDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-agent-merge-hydration').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const configValues = { [SessionConfigKey.AgentMergeFolders]: { [peerDirectory.toString()]: { enabled: true, chat: peerChat } } };
+			agentHost.setSessionState('multi-agent-merge-hydration', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+			], { defaultChat, configValues, workingDirectories: [primaryDirectory.toString()] }));
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.ok(peer);
+			const observed: Array<boolean | undefined> = [];
+			disposables.add(autorun(reader => {
+				observed.push(provider.getAgentMergeClientStateObservable(session.sessionId, peer.resource).read(reader)?.enabled);
+			}));
+
+			agentHost.setSessionState('multi-agent-merge-hydration', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+			], { defaultChat, configValues, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }));
+
+			assert.deepStrictEqual(observed, [undefined, true]);
+		});
+
+		test('Agent Merge writes legacy session-folder state and rejects peer folders on older hosts', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const session = setupMultiChatSession(provider, 'multi-agent-merge-legacy', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-agent-merge-legacy').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('multi-agent-merge-legacy', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+			], { defaultChat, workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()] }));
+			const mainChat = session.mainChat.get();
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			assert.ok(peer);
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, mainChat.resource);
+			const peerWrite = await provider.setAgentMergeEnabled(session.sessionId, true, peer.resource).then(() => 'written', () => 'rejected');
+
+			assert.deepStrictEqual({
+				writes: agentHost.dispatchedActions.slice(dispatchCount).map(({ channel, action }) => ({ channel, action })),
+				peerWrite,
+			}, {
+				writes: [{
+					channel: sessionUri,
+					action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMerge]: { enabled: true } } },
+				}],
+				peerWrite: 'rejected',
 			});
 		});
 

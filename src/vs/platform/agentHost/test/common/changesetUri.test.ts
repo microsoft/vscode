@@ -54,7 +54,7 @@ suite('changesetUri', () => {
 		};
 	}
 
-	function state(agentMergeEnabled?: boolean, turns: Turn[] = [], changesets?: ISessionWithDefaultChat['changesets']): ISessionWithDefaultChat {
+	function state(agentMergeEnabled?: boolean, turns: Turn[] = [], changesets?: ISessionWithDefaultChat['changesets'], workingDirectories?: readonly string[], configValues?: Record<string, unknown>): ISessionWithDefaultChat {
 		return {
 			provider: 'copilot',
 			title: 'Test',
@@ -62,12 +62,13 @@ suite('changesetUri', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
+			...(workingDirectories ? { workingDirectories: [...workingDirectories] } : {}),
 			turns,
 			changesets,
-			...(agentMergeEnabled === undefined ? {} : {
+			...(agentMergeEnabled === undefined && configValues === undefined ? {} : {
 				config: {
 					schema: { type: 'object', properties: {} },
-					values: { [SessionConfigKey.AgentMerge]: { enabled: agentMergeEnabled } },
+					values: configValues ?? { [SessionConfigKey.AgentMerge]: { enabled: agentMergeEnabled } },
 				},
 			}),
 		};
@@ -294,7 +295,11 @@ suite('changesetUri', () => {
 	test('advertises Agent Merge changes after enablement and preserves them across disable and restore', () => {
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		const peerFolder = 'file:///work/peer';
 		const enabledCatalog = buildDefaultChangesetCatalog(defaultChatUri, state(true));
+		const peerEnabledCatalog = buildDefaultChangesetCatalog(peerChatUri, state(undefined, [], undefined, [peerFolder], {
+			[SessionConfigKey.AgentMergeFolders]: { [peerFolder]: { enabled: true } },
+		}));
 		const enabledNotice = turn('notice', MessageKind.SystemNotification);
 		enabledNotice.responseParts.push({
 			kind: ResponsePartKind.SystemNotification,
@@ -307,7 +312,7 @@ suite('changesetUri', () => {
 
 		assert.deepStrictEqual({
 			session: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(true))),
-			peerChat: findAgentMerge(buildDefaultChangesetCatalog(peerChatUri, state(true))),
+			peerChat: findAgentMerge(peerEnabledCatalog),
 			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state())),
 			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(false))),
 			enabled: findAgentMerge(enabledCatalog),
@@ -316,31 +321,36 @@ suite('changesetUri', () => {
 			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(undefined, [enabledNotice]))),
 		}, {
 			session: undefined,
-			peerChat: undefined,
+			peerChat: {
+				label: 'Agent Merge Changes',
+				description: 'Show changes made by Agent Merge since the last user message',
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(peerChatUri),
+				changeKind: AGENT_MERGE_CHANGESET_ID,
+			},
 			neverEnabled: undefined,
 			configuredWhileDisabled: undefined,
 			enabled: {
 				label: 'Agent Merge Changes',
 				description: 'Show changes made by Agent Merge since the last user message',
-				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			disabledAfterEnable: {
 				label: 'Agent Merge Changes',
 				description: 'Show changes made by Agent Merge since the last user message',
-				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			restoredFromRepairTurn: {
 				label: 'Agent Merge Changes',
 				description: 'Show changes made by Agent Merge since the last user message',
-				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			restoredFromEnabledNotice: {
 				label: 'Agent Merge Changes',
 				description: 'Show changes made by Agent Merge since the last user message',
-				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 		});
