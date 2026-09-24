@@ -339,7 +339,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			// For static changesets, that are persisted to the database, the
 			// cached state will be sent over the wire while the changeset is
 			// being computed.
-			return changesetState.status === ChangesetStatus.Computing;
+			return changesetState.status === ChangesetStatus.Computing ||
+				changesetState.status === ChangesetStatus.Recomputing;
 		});
 
 		const mapDiffUri = this._options.mapDiffUri;

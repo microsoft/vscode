@@ -64,15 +64,6 @@ suite('CustomizationMarketplaceSources', () => {
 				await assert.rejects(query, isCancellationError);
 			}
 
-			test('source picker never queries a different enabled source', async () => {
-				const configuration = createConfiguration(['first', 'second']);
-				const calls: ICustomizationMarketplaceRequest[] = [];
-				await queryEnabledCustomizationMarketplaceSources(configuration, sources, { sourceIds: ['second'] }, CancellationToken.None, async request => {
-					calls.push(request);
-					return { items: [] };
-				});
-				assert.deepStrictEqual(calls, [{ sourceIds: ['second'] }]);
-			});
 			assert.deepStrictEqual({
 				enabled: getEnabledCustomizationMarketplaceSources(configuration, sources).map(source => source.id),
 				calls,
@@ -86,6 +77,16 @@ suite('CustomizationMarketplaceSources', () => {
 			});
 		});
 	}
+
+	test('source picker never queries a different enabled source', async () => {
+		const configuration = createConfiguration(['first', 'second']);
+		const calls: ICustomizationMarketplaceRequest[] = [];
+		await queryEnabledCustomizationMarketplaceSources(configuration, sources, { sourceIds: ['second'] }, CancellationToken.None, async request => {
+			calls.push(request);
+			return { items: [] };
+		});
+		assert.deepStrictEqual(calls, [{ sourceIds: ['second'] }]);
+	});
 
 	test('does not query a disabled source explicitly selected by the caller', async () => {
 		const configuration = createConfiguration(['first']);

@@ -281,6 +281,34 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents full terminal output in chat surfaces that render terminal tools', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'Open Full Output (Read-Only) action';
+		const agentViewText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: agentViewText.includes(expectedText),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
+			previewClick: agentViewText.includes('click the output preview'),
+			outputEnter: agentViewText.includes('focus the output region and press Enter'),
+			readonly: agentViewText.includes('read-only editor'),
+			accessibleView: agentViewText.includes('terminal output Accessible View'),
+		}, {
+			panelChat: true,
+			quickChat: true,
+			agentView: true,
+			inlineChat: false,
+			editsView: false,
+			previewClick: true,
+			outputEnter: true,
+			readonly: true,
+			accessibleView: true,
+		});
+	});
+
 	test('documents session status pill keyboard interaction', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

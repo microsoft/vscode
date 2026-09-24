@@ -10,6 +10,7 @@ import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
+import { getRepositoryRootFromWorktree } from '../../platform/agentHost/common/worktreePaths.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
@@ -107,9 +108,10 @@ export type IFolderGitHubInfoResolver = (workingDirectory: URI) => IObservable<I
  *
  * Pass `getFolderGitHubInfo` to have each folder report its own repository and
  * pull request information instead of what the session workspace carries.
+ * Pass `gitState` to project the chat scope's branch state onto its primary folder.
  */
-export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver): ISessionWorkspace | undefined {
-	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo)) {
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver, gitState?: ISessionGitState): ISessionWorkspace | undefined {
+	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo && !gitState)) {
 		return sessionWorkspace;
 	}
 
@@ -119,8 +121,9 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 		if (!folder) {
 			return undefined;
 		}
+		const folderWithGitState = folders.length === 0 && gitState ? withFolderGitState(folder, gitState) : folder;
 		const gitHubInfo = getFolderGitHubInfo?.(folder.workingDirectory);
-		folders.push(gitHubInfo && folder.gitRepository?.gitHubInfo !== gitHubInfo ? withFolderGitHubInfo(folder, gitHubInfo) : folder);
+		folders.push(gitHubInfo && folderWithGitState.gitRepository?.gitHubInfo !== gitHubInfo ? withFolderGitHubInfo(folderWithGitState, gitHubInfo) : folderWithGitState);
 	}
 
 	if (folders.length === 0) {
@@ -137,6 +140,30 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
 		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
 		folders,
+	};
+}
+
+function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
+	const repository = folder.gitRepository ?? {
+		uri: folder.root,
+		workTreeUri: undefined,
+		baseBranchName: undefined,
+		gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined),
+	};
+	return {
+		...folder,
+		gitRepository: {
+			...repository,
+			isRepository: constObservable(true),
+			branchName: gitState.branchName,
+			baseBranchName: gitState.baseBranchName,
+			hasGitRemote: gitState.hasGitRemote,
+			hasGitHubRemote: gitState.hasGitHubRemote,
+			upstreamBranchName: gitState.upstreamBranchName,
+			incomingChanges: gitState.incomingChanges,
+			outgoingChanges: gitState.outgoingChanges,
+			uncommittedChanges: gitState.uncommittedChanges,
+		},
 	};
 }
 
@@ -165,13 +192,22 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
-	// state / project association. Additional directories are emitted as plain
-	// peer folders — per-folder git state is owned by the deferred git track and
-	// is not populated here.
+	// state / project association. Additional directories carry no per-folder
+	// git state; a VS Code-created worktree reports its repository as the
+	// folder's project, so a chat working in it shows that project.
 	const primary = workingDirectories?.[0];
 	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const name = basename(dir) || dir.path;
-		return { root: dir, workingDirectory: dir, name, description: options.description };
+		const repositoryRoot = getRepositoryRootFromWorktree(dir);
+		const root = repositoryRoot ?? dir;
+		return {
+			root,
+			workingDirectory: dir,
+			name: basename(root) || root.path,
+			description: options.description,
+			...(repositoryRoot ? {
+				gitRepository: { uri: repositoryRoot, workTreeUri: dir, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
+			} : {}),
+		};
 	});
 
 	if (project) {

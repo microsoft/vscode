@@ -12,13 +12,13 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
-import { META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMigratedSessionGitHubState, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, SESSION_META_GITHUB_DATA_KEY, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withFolderScopeGitState, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMigratedSessionGitHubState, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, SESSION_META_GITHUB_DATA_KEY, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
@@ -436,11 +436,12 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('keeps chat Git state separate from the containing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('persists chat Git state by folder scope separately from the containing session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		const chat = buildChatUri(SESSION, 'peer');
 		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'session-main' };
 		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		const scopeId = getWorkingDirectoryScopeId(['file:///chat']);
 		seedSession(h.stateManager, {
 			workingDirectory: WORKING_DIRECTORY,
 			gitState: sessionGitState,
@@ -451,6 +452,7 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResult(chatGitState);
 		await h.service.refreshSessionGitState(chat, undefined);
 		const afterRefresh = h.service.getSessionGitState(chat);
+		const persistedAfterRefresh = await h.db.getMetadata(META_GIT_DATA_STATE);
 		h.setGitResult(undefined);
 		await h.service.refreshSessionGitState(chat, undefined);
 
@@ -459,15 +461,71 @@ suite('AgentHostGitStateService', () => {
 			afterRefresh,
 			afterUnavailable: h.service.getSessionGitState(chat),
 			sessionGitState: h.service.getSessionGitState(SESSION),
+			scopedState: readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId),
+			persistedAfterRefresh: persistedAfterRefresh ? JSON.parse(persistedAfterRefresh) : undefined,
+			persistedAfterUnavailable: JSON.parse((await h.db.getMetadata(META_GIT_DATA_STATE))!),
 			runEvents: h.runEvents,
 		}, {
 			before: undefined,
 			afterRefresh: chatGitState,
 			afterUnavailable: undefined,
 			sessionGitState,
+			scopedState: undefined,
+			persistedAfterRefresh: { [scopeId]: chatGitState },
+			persistedAfterUnavailable: {},
 			runEvents: [chat, chat],
 		});
 	}));
+
+	test('reads restored folder-scoped Git state before refreshing a peer chat', () => {
+		const h = createHarness();
+		const chat = buildChatUri(SESSION, 'peer');
+		const sameFolderChat = buildChatUri(SESSION, 'same-folder-peer');
+		const otherFolderChat = buildChatUri(SESSION, 'other-folder-peer');
+		const cachedGitState: ISessionGitState = { branchName: 'cached-feature', baseBranchName: 'main' };
+		const scopeId = getWorkingDirectoryScopeId(['file:///chat']);
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.stateManager.addChat(SESSION, chat, { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, sameFolderChat, { workingDirectories: ['file:///chat'] });
+		h.stateManager.addChat(SESSION, otherFolderChat, { workingDirectories: ['file:///other'] });
+		h.stateManager.setSessionMeta(SESSION, withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId, cachedGitState));
+
+		assert.deepStrictEqual({
+			peer: h.service.getSessionGitState(chat),
+			sameFolderPeer: h.service.getSessionGitState(sameFolderChat),
+			otherFolderPeer: h.service.getSessionGitState(otherFolderChat),
+			session: h.service.getSessionGitState(SESSION),
+			gitCalls: h.gitCalls,
+		}, {
+			peer: cachedGitState,
+			sameFolderPeer: cachedGitState,
+			otherFolderPeer: undefined,
+			session: undefined,
+			gitCalls: [],
+		});
+	});
+
+	test('keeps the default chat on session Git state when a same-folder peer has scoped state', () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'main' };
+		const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'release' };
+		const scopeId = getWorkingDirectoryScopeId([WORKING_DIRECTORY]);
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: sessionGitState });
+		h.stateManager.addChat(SESSION, peer);
+		h.stateManager.setSessionMeta(SESSION, withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId, peerGitState));
+
+		assert.deepStrictEqual({
+			defaultChat: h.service.getSessionGitState(defaultChat),
+			peer: h.service.getSessionGitState(peer),
+			session: h.service.getSessionGitState(SESSION),
+		}, {
+			defaultChat: sessionGitState,
+			peer: peerGitState,
+			session: sessionGitState,
+		});
+	});
 
 	test('keeps separate GitHub state and pull requests for a chat in another folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();

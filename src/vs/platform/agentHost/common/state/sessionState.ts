@@ -1394,6 +1394,9 @@ export type SessionSummaryMeta = Record<string, unknown>;
  */
 export const SESSION_META_GIT_KEY = 'git';
 
+/** Reserved key for Git state keyed by normalized working-directory scope. */
+export const SESSION_META_GIT_DATA_KEY = 'gitData';
+
 /**
  * Reserved key under {@link SessionMeta} for a single {@link ISessionGitHubState}
  * describing the session folder. It is never written to session state: clients
@@ -1413,7 +1416,7 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
-/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+/** Reserved key for whether a provider-native session has not yet been adopted. */
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
@@ -1791,19 +1794,8 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 	};
 }
 
-/**
- * Reads the well-known git-state payload from {@link SessionMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at
- * the git key is not a plain object (e.g. an array or a primitive).
- * Individual fields with wrong types are silently dropped so partial state
- * still propagates.
- *
- * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
- * rather than its parent {@link SessionState}: the sessions provider stores and
- * reads a detached meta snapshot without retaining the owning state.
- */
-export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
-	const value = meta?.[SESSION_META_GIT_KEY];
+/** Parses a Git state payload, dropping fields with invalid types. */
+export function parseSessionGitState(value: unknown): ISessionGitState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
@@ -1839,6 +1831,11 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	return result;
 }
 
+/** Reads the well-known Git state payload from {@link SessionMeta}. */
+export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
+	return parseSessionGitState(meta?.[SESSION_META_GIT_KEY]);
+}
+
 /**
  * Whether a session's git state should be recomputed because it does not
  * describe a usable checkout.
@@ -1867,6 +1864,53 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 		next[SESSION_META_GIT_KEY] = gitState;
 	} else {
 		delete next[SESSION_META_GIT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Parses Git state keyed by normalized working-directory scope. */
+export function parseSessionGitData(value: unknown): ReadonlyMap<string, ISessionGitState> {
+	const states = new Map<string, ISessionGitState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+	for (const [scopeId, raw] of Object.entries(value)) {
+		const state = parseSessionGitState(raw);
+		if (state) {
+			states.set(scopeId, state);
+		}
+	}
+	return states;
+}
+
+/** Reads Git state keyed by normalized working-directory scope. */
+export function readSessionGitData(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitState> {
+	return parseSessionGitData(meta?.[SESSION_META_GIT_DATA_KEY]);
+}
+
+/** Reads the Git state recorded for one normalized working-directory scope. */
+export function readFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string): ISessionGitState | undefined {
+	return readSessionGitData(meta).get(scopeId);
+}
+
+/** Returns `meta` with the Git state for one normalized working-directory scope replaced. */
+export function withFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string, gitState: ISessionGitState | undefined): SessionSummaryMeta | undefined {
+	const scopes = new Map(readSessionGitData(meta));
+	if (gitState !== undefined) {
+		scopes.set(scopeId, gitState);
+	} else {
+		scopes.delete(scopeId);
+	}
+	return withSessionGitData(meta, scopes);
+}
+
+/** Returns `meta` with all normalized working-directory Git states replaced. */
+export function withSessionGitData(meta: SessionSummaryMeta | undefined, scopes: ReadonlyMap<string, ISessionGitState>): SessionSummaryMeta | undefined {
+	const next: SessionSummaryMeta = { ...meta };
+	if (scopes.size > 0) {
+		next[SESSION_META_GIT_DATA_KEY] = Object.fromEntries(scopes);
+	} else {
+		delete next[SESSION_META_GIT_DATA_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -2301,20 +2345,14 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Whether the session was first discovered in a provider-native catalog. */
+/** Whether a provider-native session has not yet been adopted by sending a user message. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
 }
 
-/** Returns a copy of `meta` with the external-session provenance marker updated. */
-export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
-	const next: { [key: string]: unknown } = { ...meta };
-	if (external) {
-		next[SESSION_META_EXTERNAL_KEY] = true;
-	} else {
-		delete next[SESSION_META_EXTERNAL_KEY];
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
+/** Writes an explicit external flag so clearing it survives serialization and metadata-only refreshes. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EXTERNAL_KEY]: external };
 }
 
 /**
