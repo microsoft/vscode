@@ -12,20 +12,21 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
-import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeSessionState, rekeyAgentMergeFolders } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -38,11 +39,10 @@ import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agen
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -231,6 +231,8 @@ interface ISerializedSessionMetadata {
 	readonly github?: ISessionGitHubState;
 	/** GitHub state of each session folder, keyed by working-directory key. */
 	readonly githubData?: Record<string, ISessionGitHubState>;
+	readonly workingDirectoryKeys?: Record<string, string>;
+	readonly workingDirectoryScopeIds?: Record<string, string>;
 	/**
 	 * Whether the session is a workspace-less quick chat. Persisted because the
 	 * adapter seeds its session-kind from this tag at construction (see
@@ -258,6 +260,8 @@ const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionS
 
 function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSessionDiscoveryMetadata): ISerializedSessionMetadata {
 	const gitHubData = readSessionGitHubData(meta._meta);
+	const workingDirectoryKeys = readWorkingDirectoryKeys(meta._meta);
+	const workingDirectoryScopeIds = readWorkingDirectoryScopeIds(meta._meta);
 	return {
 		session: meta.session.toString(),
 		startTime: meta.startTime,
@@ -275,6 +279,8 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		})),
 		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
+		workingDirectoryKeys: workingDirectoryKeys.size > 0 ? Object.fromEntries(workingDirectoryKeys) : undefined,
+		workingDirectoryScopeIds: workingDirectoryScopeIds.size > 0 ? Object.fromEntries(workingDirectoryScopeIds) : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		external: readSessionExternal(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
@@ -311,6 +317,19 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
+		for (const [workingDirectory, folderKey] of Object.entries(raw.workingDirectoryKeys ?? {})) {
+			_meta = withWorkingDirectoryKey(_meta, workingDirectory, folderKey);
+		}
+		for (const [scopeKey, scopeId] of Object.entries(raw.workingDirectoryScopeIds ?? {})) {
+			try {
+				const workingDirectories = JSON.parse(scopeKey);
+				if (Array.isArray(workingDirectories) && workingDirectories.every((directory): directory is string => typeof directory === 'string')) {
+					_meta = withWorkingDirectoryScopeId(_meta, workingDirectories, scopeId);
+				}
+			} catch {
+				continue;
+			}
+		}
 		if (raw.github && raw.workingDirectory) {
 			_meta = withMigratedSessionGitHubState(_meta, fromAgentHostUri(URI.parse(raw.workingDirectory)).toString(), raw.github);
 		}
@@ -494,22 +513,44 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 }
 
 /** The host keys folder state by backend working directory; client folders carry mapped URIs. */
-function toFolderGitHubKey(workingDirectory: URI): string {
-	return getWorkingDirectoryKey(fromAgentHostUri(workingDirectory).toString());
+function toFolderGitHubKey(meta: SessionMeta | undefined, workingDirectory: URI): string {
+	const backendWorkingDirectory = fromAgentHostUri(workingDirectory).toString();
+	return readWorkingDirectoryKey(meta, backendWorkingDirectory);
 }
 
-/**
- * The key a client matches Agent Merge folders by. The host derives its keys
- * with its own platform's path-case rules, which a client on another platform
- * cannot reproduce, so the client compares them ignoring path case.
- */
-function toAgentMergeFolderKey(workingDirectory: string): string {
-	return extUriIgnorePathCase.getComparisonKey(URI.parse(workingDirectory));
+function findUniqueIgnorePathCaseKey<T>(entries: ReadonlyMap<string, T>, workingDirectory: string): string | undefined {
+	const comparisonKey = extUriIgnorePathCase.getComparisonKey(URI.parse(workingDirectory));
+	let match: string | undefined;
+	for (const key of entries.keys()) {
+		if (extUriIgnorePathCase.getComparisonKey(URI.parse(key)) !== comparisonKey) {
+			continue;
+		}
+		if (match !== undefined) {
+			return undefined;
+		}
+		match = key;
+	}
+	return match;
+}
+
+function readCompatibleFolderGitHubState(meta: SessionMeta | undefined, workingDirectory: URI, folderKey: string): ISessionGitHubState | undefined {
+	const folders = readSessionGitHubData(meta);
+	const state = folders.get(folderKey);
+	if (state) {
+		return state;
+	}
+	const backendWorkingDirectory = fromAgentHostUri(workingDirectory).toString();
+	// A key the host published is authoritative: a folder differing only in case is another folder.
+	if (readWorkingDirectoryKeys(meta).has(backendWorkingDirectory)) {
+		return undefined;
+	}
+	const fallbackKey = findUniqueIgnorePathCaseKey(folders, backendWorkingDirectory);
+	return fallbackKey ? folders.get(fallbackKey) : undefined;
 }
 
 /** The folder a chat's Agent Merge settings belong to; see {@link AgentHostSessionAdapter.getAgentMergeFolder}. */
 interface IAgentMergeFolder {
-	/** Key of the folder, compared with {@link toAgentMergeFolderKey}. */
+	/** Host-authored key of the folder. */
 	readonly folderKey: string | undefined;
 	/** Key of the session folder, whose settings earlier versions stored in their own keys. */
 	readonly sessionFolderKey: string | undefined;
@@ -522,11 +563,12 @@ interface IAgentMergeFolder {
  * key `folderKey`. The session folder also falls back to the session's Git state
  * and recorded pull requests for its repository.
  */
-function toGitHubInfo(meta: SessionMeta | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
-	const state = readFolderGitHubState(meta, folderKey);
+function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
+	const state = workingDirectory && folderKey ? readCompatibleFolderGitHubState(meta, workingDirectory, folderKey) : readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
 	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
-	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
+	// Recorded links carry no folder, so only the session folder adopts them; other folders report only their own associations.
+	const { pullRequests: recordedPullRequests, issues: recordedIssues } = isSessionFolder ? partitionSessionArtifacts(meta) : { pullRequests: [], issues: [] };
 	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
 		.map(url => ({ url }));
 
@@ -1262,7 +1304,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual
 		}, reader => {
-			return toGitHubInfo(this._metaObs.read(reader), this._getSessionFolderKey(reader), true);
+			const workingDirectory = this._getSessionFolderWorkingDirectory(reader);
+			return toGitHubInfo(this._metaObs.read(reader), workingDirectory ? URI.parse(workingDirectory) : undefined, this._getSessionFolderKey(reader), true);
 		}));
 		this.completedStateIcon = derived(this, reader => {
 			const sourceControlState = readSessionSourceControlState(this._metaObs.read(reader));
@@ -1383,6 +1426,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const connection = this._options.getConnection();
 			return {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
+				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -2179,13 +2223,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	/** Working-directory key of the session folder, the main chat's first folder. */
 	private _getSessionFolderKey(reader: IReader): string | undefined {
+		const workingDirectory = this._getSessionFolderWorkingDirectory(reader);
+		return workingDirectory ? readWorkingDirectoryKey(this._metaObs.read(reader), workingDirectory) : undefined;
+	}
+
+	private _getSessionFolderWorkingDirectory(reader: IReader): string | undefined {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
 		const defaultChatWorkingDirectory = this._defaultChatWorkingDirectories.read(reader)?.[0];
-		const sessionWorkingDirectory = this._workingDirectories?.[0];
-		return defaultChatWorkingDirectory !== undefined
-			? getWorkingDirectoryKey(defaultChatWorkingDirectory)
-			: sessionWorkingDirectory ? toFolderGitHubKey(sessionWorkingDirectory) : undefined;
+		return defaultChatWorkingDirectory ?? (this._workingDirectories?.[0] ? fromAgentHostUri(this._workingDirectories[0]).toString() : undefined);
 	}
 
 	/**
@@ -2194,31 +2240,42 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * when omitted. `undefined` while a peer chat's folders are still loading,
 	 * so its settings are never mistaken for the session folder's.
 	 */
-	getAgentMergeFolder(chat: URI | undefined): IAgentMergeFolder | undefined {
-		const sessionWorkingDirectory = this._defaultChatWorkingDirectories.get()?.[0]
-			?? (this._workingDirectories?.[0] ? fromAgentHostUri(this._workingDirectories[0]).toString() : undefined);
-		const sessionFolderKey = sessionWorkingDirectory ? toAgentMergeFolderKey(sessionWorkingDirectory) : undefined;
+	getAgentMergeFolder(chat: URI | undefined, reader?: IReader): IAgentMergeFolder | undefined {
+		const meta = reader ? this._metaObs.read(reader) : this._metaObs.get();
+		const sessionWorkingDirectory = reader
+			? this._getSessionFolderWorkingDirectory(reader)
+			: this._defaultChatWorkingDirectories.get()?.[0] ?? (this._workingDirectories?.[0] ? fromAgentHostUri(this._workingDirectories[0]).toString() : undefined);
+		const sessionFolderKey = sessionWorkingDirectory ? readWorkingDirectoryKey(meta, sessionWorkingDirectory) : undefined;
 		if (!chat || isEqual(chat, this._defaultChat.resource)) {
 			return { folderKey: sessionFolderKey, sessionFolderKey, workingDirectory: sessionWorkingDirectory };
 		}
-		const folder = this._chatsObs.get().find(candidate => isEqual(candidate.resource, chat))?.workspace.get()?.folders[0];
+		const chats = reader ? this._chatsObs.read(reader) : this._chatsObs.get();
+		const chatAdapter = chats.find(candidate => isEqual(candidate.resource, chat));
+		const folder = (reader ? chatAdapter?.workspace.read(reader) : chatAdapter?.workspace.get())?.folders[0];
 		if (!folder) {
 			return undefined;
 		}
 		const workingDirectory = fromAgentHostUri(folder.workingDirectory).toString();
-		return { folderKey: toAgentMergeFolderKey(workingDirectory), sessionFolderKey, workingDirectory };
+		return { folderKey: readWorkingDirectoryKey(meta, workingDirectory), sessionFolderKey, workingDirectory };
 	}
 
 	/** Resolves the GitHub info each session folder reports from its own state. */
 	private _getFolderGitHubInfoResolver(reader: IReader): IFolderGitHubInfoResolver {
 		const sessionFolderKey = this._getSessionFolderKey(reader);
 		return workingDirectory => {
-			const folderKey = toFolderGitHubKey(workingDirectory);
+			const meta = this._metaObs.read(reader);
+			const folderKey = toFolderGitHubKey(meta, workingDirectory);
 			const isSessionFolder = folderKey === sessionFolderKey;
 			const cacheKey = `${folderKey}\u0001${isSessionFolder}`;
 			let gitHubInfo = this._folderGitHubInfos.get(cacheKey);
+			if (isSessionFolder) {
+				return this.gitHubInfo;
+			}
 			if (!gitHubInfo) {
-				gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({ equalsFn: isGitHubInfoEqual }, reader => toGitHubInfo(this._metaObs.read(reader), folderKey, isSessionFolder)));
+				gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({ equalsFn: isGitHubInfoEqual }, reader => {
+					const meta = this._metaObs.read(reader);
+					return toGitHubInfo(meta, workingDirectory, toFolderGitHubKey(meta, workingDirectory), isSessionFolder);
+				}));
 				this._folderGitHubInfos.set(cacheKey, gitHubInfo);
 			}
 			return gitHubInfo;
@@ -2227,11 +2284,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	private _getChatScopeGitState(reader: IReader, workingDirectories: readonly string[] | undefined): ISessionGitState | undefined {
 		return workingDirectories
-			? readFolderScopeGitState(this._metaObs.read(reader), getWorkingDirectoryScopeId(workingDirectories))
+			? readFolderScopeGitState(this._metaObs.read(reader), readWorkingDirectoryScopeId(this._metaObs.read(reader), workingDirectories))
 			: undefined;
 	}
 
-	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionFileChange[] | undefined> {
+	private _createChatCurrentTurnChangesObservable(chatUri: URI): IObservable<readonly ISessionTurnFileChange[] | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
 			this.isActiveSessionObs,
@@ -2437,6 +2494,7 @@ class NewSession extends Disposable {
 	private _configOperation: Promise<void> | undefined;
 	private _unresolvedConfigValues: Record<string, unknown> | undefined;
 	private readonly _explicitlySetConfigProperties = new Set<string>();
+	private _branchLoad: Promise<readonly SessionConfigValueItem[]> | undefined;
 
 	/**
 	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
@@ -2682,7 +2740,7 @@ class NewSession extends Disposable {
 		}
 
 		const gitState = readSessionGitState(meta);
-		const gitHubInfo = toGitHubInfo(meta, sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory), true);
+		const gitHubInfo = toGitHubInfo(meta, sessionWorkingDirectory === undefined ? undefined : URI.parse(sessionWorkingDirectory), sessionWorkingDirectory === undefined ? undefined : readWorkingDirectoryKey(meta, sessionWorkingDirectory), true);
 		if (!gitState && !gitHubInfo) {
 			return false;
 		}
@@ -2873,6 +2931,10 @@ class NewSession extends Disposable {
 			property,
 			query,
 		});
+	}
+
+	loadBranches(connection: IAgentConnection): Promise<readonly SessionConfigValueItem[]> {
+		return this._branchLoad ??= this.getConfigCompletions(connection, SessionConfigKey.Branch, undefined).then(result => result.items);
 	}
 
 	// -- Backend session lifecycle -------------------------------------------
@@ -3239,27 +3301,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * {@link _onDidReplaceSession}.
 	 */
 	protected _pendingSession: ISession | undefined;
-
-	/**
-	 * Raw ids of backend sessions that an in-flight {@link _waitForNewSession}
-	 * has already matched to its send, so a *concurrent* new-session send of
-	 * the same scheme does not resolve to the same committed session. Each
-	 * matched id is released by the owning send in its `finally`.
-	 */
-	private readonly _committingSessionRawIds = new Set<string>();
-
-	/**
-	 * Own raw ids ({@link chatResource} path) of currently in-flight
-	 * new-session sends. A send's committed backend session keeps the eager
-	 * id it was created with, so {@link _waitForNewSession} matches a send to
-	 * its OWN id first. The novelty fallback (for flows where the backend
-	 * assigns a different id) must then never latch onto *another* in-flight
-	 * send's own session — otherwise two concurrent same-scheme sends racing
-	 * in a shared download/materialize window would swap sessions (each
-	 * graduating onto the other's committed session). Populated at send start,
-	 * cleared in the send's `finally`.
-	 */
-	private readonly _inFlightNewSessionOwnIds = new Set<string>();
 
 	/**
 	 * In-flight new sessions — sessions being composed in the new-chat view
@@ -4225,6 +4266,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
+		if (newSession.workspaceUri) {
+			void newSession.loadBranches(connection).catch(error => {
+				if (this._getNewSession(newSession.sessionId) === newSession) {
+					this._logService.warn(`[${this.id}] Failed to load branches for ${newSession.sessionId}: ${error}`);
+				}
+			});
+		}
 
 		// Defense-in-depth: never eagerly spawn an agent backend in an
 		// untrusted folder. The interactive trust prompt lives at folder-pick
@@ -4710,28 +4758,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!cached) {
-			return chat ? undefined : readAgentMergeSessionState(this._lastSessionStates.get(sessionId)?.config?.values);
+			const legacy = chat ? undefined : readAgentMergeFolderState(this._lastSessionStates.get(sessionId)?.config?.values, undefined, undefined);
+			if (!legacy) {
+				return undefined;
+			}
+			const { chat: _chat, ...state } = legacy;
+			return state;
 		}
 		const folder = cached.getAgentMergeFolder(chat);
-		return folder ? readAgentMergeFolderState(this._getAgentMergeValues(sessionId), folder.folderKey, folder.sessionFolderKey) : undefined;
+		if (!folder) {
+			return undefined;
+		}
+		return this._getAgentMergeSessionState(sessionId, folder);
+	}
+
+	private _getAgentMergeSessionState(sessionId: string, folder: IAgentMergeFolder | undefined): AgentMergeSessionState | undefined {
+		if (!folder) {
+			return undefined;
+		}
+		const values = this._getAgentMergeValues(sessionId);
+		const state = readAgentMergeFolderState(values, folder.folderKey, folder.sessionFolderKey);
+		// A key the host published is authoritative: a folder differing only in case is another folder.
+		if (state || !folder.workingDirectory || readWorkingDirectoryKeys(this._lastSessionStates.get(sessionId)?._meta).has(folder.workingDirectory)) {
+			return state;
+		}
+		const states = readAgentMergeFolderStates(values, folder.sessionFolderKey);
+		const fallbackKey = findUniqueIgnorePathCaseKey(states, folder.workingDirectory);
+		return fallbackKey ? states.get(fallbackKey) : undefined;
 	}
 
 	/**
-	 * The session's config values with its Agent Merge folders keyed by
-	 * {@link toAgentMergeFolderKey}, including every folder seen so far: a
-	 * write of one folder is applied locally before the host merges it, so
-	 * until then the local config holds only that folder. The host never
-	 * removes a folder's settings, so earlier folders are still current.
+	 * The session's config values including every Agent Merge folder seen so far:
+	 * a write of one folder is applied locally before the host merges it, so
+	 * until then the local config holds only that folder. The host never removes
+	 * a folder's settings, so earlier folders are still current.
 	 */
 	private _getAgentMergeValues(sessionId: string): Record<string, unknown> | undefined {
-		const values = rekeyAgentMergeFolders(this._lastSessionStates.get(sessionId)?.config?.values, toAgentMergeFolderKey);
+		const values = this._lastSessionStates.get(sessionId)?.config?.values;
 		const folders = this._agentMergeFolders.get(sessionId);
 		return values && folders ? { ...values, [SessionConfigKey.AgentMergeFolders]: folders } : values;
 	}
 
 	/** Records the Agent Merge folders of a session state; see {@link _getAgentMergeValues}. */
 	private _updateAgentMergeFolders(sessionId: string, state: SessionState): void {
-		const current = rekeyAgentMergeFolders(state.config?.values, toAgentMergeFolderKey)?.[SessionConfigKey.AgentMergeFolders] as Record<string, unknown> | undefined;
+		const current = state.config?.values?.[SessionConfigKey.AgentMergeFolders] as Record<string, unknown> | undefined;
 		if (current) {
 			this._agentMergeFolders.set(sessionId, { ...this._agentMergeFolders.get(sessionId), ...current });
 		}
@@ -4760,8 +4830,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._scheduleAgentMergeSessionStateIdleRelease(sessionId);
 			});
 		};
-		const observable = observableFromEvent(this, observedEvent, () => {
-			const state = this.getAgentMergeSessionState(sessionId, chat);
+		const stateChanged = observableSignalFromEvent(this, observedEvent);
+		const observable = derivedOpts<IAgentMergeClientState | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
+			stateChanged.read(reader);
+			const rawId = this._rawIdFromChatId(sessionId);
+			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+			const state = cached
+				? this._getAgentMergeSessionState(sessionId, cached.getAgentMergeFolder(chat, reader))
+				: this.getAgentMergeSessionState(sessionId, chat);
 			return state ? { enabled: state.enabled, overrides: state.overrides } : undefined;
 		});
 		if (!byChat) {
@@ -4782,6 +4858,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await this._writeAgentMergeClientState(sessionId, current?.enabled ?? false, overrides, chat);
 	}
 
+	private _supportsPerFolderAgentMerge(sessionId: string, folder: IAgentMergeFolder): boolean {
+		return folder.workingDirectory !== undefined
+			&& readWorkingDirectoryKeys(this._lastSessionStates.get(sessionId)?._meta).has(folder.workingDirectory);
+	}
+
 	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined): Promise<void> {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -4795,6 +4876,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const values = this._lastSessionStates.get(sessionId)?.config?.values;
 		const clientState = { enabled, ...(overrides ? { overrides } : {}) };
+		if (!this._supportsPerFolderAgentMerge(sessionId, folder)) {
+			if (folder.folderKey !== folder.sessionFolderKey) {
+				throw new Error(`[${this.id}] This Agent Host does not support Agent Merge in peer chat folders`);
+			}
+			connection.dispatch(cached.backendUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AgentMerge]: clientState },
+			});
+			return;
+		}
 		// Settings written by earlier versions describe the session folder until the host migrates them.
 		if (folder.workingDirectory === undefined || (folder.folderKey === folder.sessionFolderKey && values?.[SessionConfigKey.AgentMerge] !== undefined)) {
 			connection.dispatch(cached.backendUri.toString(), {
@@ -4842,6 +4933,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		if (!newSession || !connection) {
 			return [];
+		}
+		if (property === SessionConfigKey.Branch && newSession.workspaceUri) {
+			return newSession.loadBranches(connection);
 		}
 		const result = await newSession.getConfigCompletions(connection, property, query);
 		return result.items;
@@ -5329,6 +5423,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async archiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, true);
+	}
+
+	async importSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection?.importSession || !supportsAgentHostSessionImport(connection.initializeResult.get())) {
+			throw new Error(localize('importSessionUnavailable', "Importing is unavailable for this session."));
+		}
+		if (cached.isExternal.get()) {
+			await connection.importSession(cached.backendUri);
+		}
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
@@ -5878,19 +5984,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			modelRef.dispose();
 		}
 
-		// Capture existing session keys before sending so we can detect the new
-		// backend session. Must be captured before sendRequest because the
-		// backend session may be created during the send and arrive via
-		// notification before sendRequest resolves.
-		this._ensureSessionCache();
-		const existingKeys = new Set(this._sessionCache.keys());
-		// The eagerly-created session may already be cached before first send.
-		// Treat that raw id as the session we are waiting for, not old state.
 		const newSessionRawId = chatResource.path.replace(/^\//, '');
-		existingKeys.delete(newSessionRawId);
-		// Publish this send's own id so concurrent same-scheme sends don't
-		// latch onto it via their novelty fallback (which would swap sessions).
-		this._inFlightNewSessionOwnIds.add(newSessionRawId);
 
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
@@ -5912,12 +6006,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
-		// Raw id claimed by _waitForNewSession for this send (released in finally).
-		let committedRawId: string | undefined;
 		try {
-			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme, newSessionRawId, newSession.cancellationToken);
+			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken);
 			if (committedSession) {
-				committedRawId = committedSession.resource.path.substring(1);
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
@@ -5949,13 +6040,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			// Connection lost or timeout — fall through to the failure cleanup.
 		} finally {
-			// Release the claim so unrelated future sends can match this
-			// session if needed; concurrent in-flight sends already captured
-			// their `existingKeys` and won't retroactively match it.
-			if (committedRawId !== undefined) {
-				this._committingSessionRawIds.delete(committedRawId);
-			}
-			this._inFlightNewSessionOwnIds.delete(newSessionRawId);
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
 			this._pendingSession = undefined;
@@ -6358,9 +6442,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previousAgentMergeSettings = agentMergeSettings();
 		this._lastSessionStates.set(sessionId, state);
 		this._updateAgentMergeFolders(sessionId, state);
-		if (!structuralEquals(previousAgentMergeSettings, agentMergeSettings())) {
-			this._onDidChangeAgentMergeSessionState.fire(sessionId);
-		}
+		const agentMergeSettingsChanged = !structuralEquals(previousAgentMergeSettings, agentMergeSettings());
 		// Only fire when the inputs to `getCustomAgents` actually change.
 		// `SessionState` updates fire for every turn-status / activity / meta
 		// change too — firing on all of them caused excessive picker
@@ -6376,6 +6458,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._applyChatCatalogFromState(sessionId, state);
 		if (rawId) {
 			this._chatCatalogLoading.get(rawId)?.set(false, undefined);
+		}
+		if (agentMergeSettingsChanged) {
+			this._onDidChangeAgentMergeSessionState.fire(sessionId);
 		}
 
 	}
@@ -6799,52 +6884,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 
 	/**
-	 * Resolve the freshly-committed backend session for an in-flight send.
-	 *
-	 * The local agent host runs a single provider whose session cache holds
-	 * **every** agent-host session type (codex, claude, copilot, …). A send
-	 * therefore has to identify *its own* new session by both novelty (a raw id
-	 * not present before the send) **and** type: `expectedScheme` is the
-	 * `chatResource` scheme (e.g. `agent-host-codex`), so a session of another
-	 * type that happens to appear mid-send — a slow codex send racing against a
-	 * restored claude session, say — is never mistaken for this send's commit.
+	 * Resolves the freshly committed backend session for an in-flight send.
+	 * A committed session preserves the draft URI, preventing unrelated sessions from replacing it.
 	 */
-	private async _waitForNewSession(existingKeys: Set<string>, expectedScheme: string, ownRawId: string, token: CancellationToken): Promise<ISession | undefined> {
-		// A candidate backend session commits THIS send when it is unclaimed,
-		// of the expected type, and either (a) carries this send's own id — the
-		// eager/committed id is preserved, so this is the exact match — or
-		// (b) is a novel session that is not another in-flight send's own
-		// session (the novelty fallback covers backends that assign a fresh
-		// id, without letting two concurrent same-scheme sends swap sessions).
-		const matches = (rawId: string, scheme: string): boolean => {
-			if (scheme !== expectedScheme || this._committingSessionRawIds.has(rawId)) {
-				return false;
-			}
-			if (rawId === ownRawId) {
-				return true;
-			}
-			return !existingKeys.has(rawId) && !this._inFlightNewSessionOwnIds.has(rawId);
-		};
+	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken): Promise<ISession | undefined> {
+		const matches = (session: ISession): boolean => session.resource.scheme === expectedScheme && session.resource.path.substring(1) === ownRawId;
 
 		await this._refreshSessions();
-		// Prefer this send's own id; fall back to any acceptable novel session.
-		const scan = (): ISession | undefined => {
-			let fallback: ISession | undefined;
-			for (const cached of this._sessionCache.values()) {
-				const rawId = cached.resource.path.substring(1);
-				if (!matches(rawId, cached.resource.scheme)) {
-					continue;
-				}
-				if (rawId === ownRawId) {
-					return cached;
-				}
-				fallback ??= cached;
-			}
-			return fallback;
-		};
-		const immediate = scan();
-		if (immediate) {
-			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
+		const immediate = this._sessionCache.get(ownRawId);
+		if (immediate && matches(immediate)) {
 			return immediate;
 		}
 
@@ -6852,12 +6900,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			const sessionPromise = new Promise<ISession | undefined>((resolve) => {
 				waitDisposables.add(this._onDidChangeSessionsImmediately(e => {
-					// Prefer this send's own id within the batch before falling
-					// back to an acceptable novel session.
-					const exact = e.added.find(s => s.resource.path.substring(1) === ownRawId && matches(ownRawId, s.resource.scheme));
-					const newSession = exact ?? e.added.find(s => matches(s.resource.path.substring(1), s.resource.scheme));
+					const newSession = e.added.find(matches);
 					if (newSession) {
-						this._committingSessionRawIds.add(newSession.resource.path.substring(1));
 						resolve(newSession);
 					}
 				}));

@@ -654,6 +654,32 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('routes external session import to the owning provider and propagates errors', async () => {
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test', isExternal: constObservable(true),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsImport: true }),
+		});
+		const calls: string[] = [];
+		let fail = false;
+		const provider = new class extends TestSessionsProvider {
+			override async importSession(sessionId: string): Promise<void> {
+				calls.push(sessionId);
+				if (fail) {
+					throw new Error('Import failed');
+				}
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await service.importSession(session);
+		fail = true;
+		await assert.rejects(() => service.importSession(session), /Import failed/);
+		await assert.rejects(() => service.importSession(stubSession({
+			sessionId: 'unsupported', providerId: 'test', isExternal: constObservable(true),
+		})), /not supported/);
+		await service.importSession(stubSession({ sessionId: 'owned', providerId: 'test' }));
+		assert.deepStrictEqual(calls, ['session', 'session']);
+	});
+
 	test('routes artifact removal to the owning provider and propagates errors', async () => {
 		const session = stubSession({
 			sessionId: 'session', providerId: 'test',
@@ -1181,6 +1207,51 @@ suite('SessionsManagementService', () => {
 		await view.openNewSession({ folderUri, toSide: true });
 		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId ?? null), ['active', 'new-draft']);
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'new-draft');
+	});
+
+	test('openNewSession requires Dev Container execution before activating the draft', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const newDraftSession = stubSession({
+			sessionId: 'new-draft',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const events: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override createNewSession(): ISession { return newDraftSession; }
+			preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void {
+				events.push(`require:${sessionId}:${options?.required}`);
+			}
+		}(newDraftSession);
+		const { view } = createSessionsManagementService(newDraftSession, disposables, provider);
+		disposables.add(autorun(reader => {
+			const session = view.activeSession.read(reader);
+			if (session) {
+				events.push(`activate:${session.sessionId}`);
+			}
+		}));
+
+		const result = await view.openNewSession({ folderUri, requireDevContainer: true });
+
+		assert.deepStrictEqual({
+			events,
+			result: result.session?.sessionId,
+			active: view.activeSession.get()?.sessionId,
+		}, {
+			events: ['require:new-draft:true', 'activate:new-draft'],
+			result: 'new-draft',
+			active: 'new-draft',
+		});
 	});
 
 	test('removing the active chat keeps the custom view open', async () => {
@@ -2519,15 +2590,20 @@ suite('SessionsManagementService', () => {
 		const send = service.sendNewChatRequest(session, { query: 'hi' });
 		await timeout(0);
 		const duringCreate = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		const inputDuringCreate = service.getInFlightNewSessionRequest(session.resource);
 		createChatBarrier.complete();
 		await send;
 
 		assert.deepStrictEqual({
 			duringCreate,
+			inputDuringCreate,
 			afterSend: service.getInFlightNewSessionRequests(),
+			inputAfterSend: service.getInFlightNewSessionRequest(session.resource),
 		}, {
 			duringCreate: ['s1'],
+			inputDuringCreate: { query: 'hi', attachedContext: undefined },
 			afterSend: [],
+			inputAfterSend: undefined,
 		});
 	});
 

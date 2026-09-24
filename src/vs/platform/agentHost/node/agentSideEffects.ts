@@ -250,7 +250,12 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
-		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
+		this._inputRequestTracker = new AgentHostInputRequestTracker(
+			this._telemetryReporter,
+			undefined,
+			(session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId),
+			(session, turnId) => this._turnTracker.getTelemetryContext(session, turnId),
+		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({

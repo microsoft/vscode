@@ -28,7 +28,7 @@ import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/re
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +55,33 @@ suite('SessionsChatAccessibilityHelp', () => {
 			content.split('\n').find(line => line.startsWith('Once you send a message to an external session')),
 			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external.',
 		);
+	});
+
+	test('describes External section keyboard actions only when the section is enabled', () => {
+		const snapshots = [true, false].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			const sectionHelp = content.split('\n').find(line => line.includes('External section above Archived'));
+			return {
+				filter: content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
+				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
+				section: sectionHelp !== undefined,
+				keyboard: sectionHelp?.includes('<keybinding:editor.action.showContextMenu>') ?? false,
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ filter: true, importAction: true, section: true, keyboard: true },
+			{ filter: true, importAction: true, section: false, keyboard: false },
+		]);
 	});
 
 	test('describes picker shortcuts only when the unified workspace picker is enabled', () => {
@@ -202,7 +229,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
-			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask with /btw opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
+			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
 		);
 	});
 

@@ -23,7 +23,7 @@ import { CopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 
 suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const githubToken = process.env.COPILOT_GITHUB_TOKEN;
 	const hasToken = !!githubToken;
@@ -35,7 +35,7 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 		// `globalThis.fetch` through `this._fetch(...)` throws
 		// "Illegal invocation" in the Electron renderer.
 		const boundFetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
-		return new CopilotApiService(boundFetch, new NullLogService(), productService, createTestGitHubEndpointService());
+		return disposables.add(new CopilotApiService(boundFetch, new NullLogService(), productService, createTestGitHubEndpointService()));
 	}
 
 	(hasToken ? test : test.skip)('answers a trivial arithmetic prompt', async function () {

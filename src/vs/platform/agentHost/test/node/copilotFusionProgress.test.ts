@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { CopilotFusionProgress } from '../../node/copilot/copilotFusionProgress.js';
+import { CopilotFusionProgress, formatFusionReviewContent } from '../../node/copilot/copilotFusionProgress.js';
 import { fusionTestData as data, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 
 suite('CopilotFusionProgress', () => {
@@ -50,18 +50,32 @@ suite('CopilotFusionProgress', () => {
 		const started = progress.accept(event('assistant.fusion_phase_started', data.started));
 		const phase = progress.accept(event('assistant.fusion_phase_completed', data.phaseCompleted));
 		const completed = progress.accept(event('session.fusion_completed', data.completed));
+		const degraded = new CopilotFusionProgress().accept(event('session.fusion_completed', { ...data.completed, outcome: 'degraded' }));
 		assert.deepStrictEqual({
 			activity: started?.activity,
 			progress: started?.phase && readToolCallMeta(started.phase.toolCall).progressMessage,
 			model: phase?.phase && readToolCallMeta(phase.phase.toolCall).fusionPhase?.model,
 			phaseContent: phase?.phase?.toolCall.status === 'completed' ? phase.phase.toolCall.content : undefined,
-			completedContent: completed?.part?.content,
+			completedPart: completed?.part,
+			degradedContent: degraded?.part?.content,
 		}, {
 			activity: 'Main pass running',
 			progress: 'Main pass running',
 			model: 'model-a',
 			phaseContent: [{ type: 'text', text: 'Main&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
-			completedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed\n\nDuration:&nbsp;2.3s' },
+			completedPart: undefined,
+			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
+		});
+	});
+
+	test('keeps an abnormal ending as a degraded row without a duration', () => {
+		const ended = new CopilotFusionProgress().accept(event('session.fusion_completed', { ...data.completed, outcome: 'failed' }));
+		assert.deepStrictEqual({
+			content: ended?.part?.content,
+			status: ended?.part && readAgentSystemNotificationMeta(ended.part).fusionStatus,
+		}, {
+			content: { markdown: 'HydraFusion&nbsp;workflow&nbsp;ended:&nbsp;failed' },
+			status: 'degraded',
 		});
 	});
 
@@ -153,6 +167,24 @@ suite('CopilotFusionProgress', () => {
 		}), terminalEvents.map(() => ({
 			duration: 1500, interruptedPhase: undefined, completedInterruption: undefined,
 		})));
+	});
+
+	test('renders critic and judge output as readable markdown and keeps unstructured text', () => {
+		assert.deepStrictEqual({
+			approved: formatFusionReviewContent(JSON.stringify({ assessment: 'approve', feedback: 'All 13 tests pass.', defect: null })),
+			revise: formatFusionReviewContent(JSON.stringify({ assessment: 'revise', feedback: 'Negative input is accepted.', defect: { target: 'parseDuration', evidence: '"-5s" returns -5000' } })),
+			judge: formatFusionReviewContent(JSON.stringify({ score: 3, rationale: 'Missing edge cases.' })),
+			text: formatFusionReviewContent('Looks right to me.'),
+			array: formatFusionReviewContent('[1, 2]'),
+			empty: formatFusionReviewContent('  '),
+		}, {
+			approved: '**Approved**\n\nAll 13 tests pass.',
+			revise: '**Changes requested**\n\nNegative input is accepted.\n\n**Issue:** parseDuration — "-5s" returns -5000',
+			judge: '**Score: 3/5**\n\nMissing edge cases.',
+			text: 'Looks right to me.',
+			array: '[1, 2]',
+			empty: undefined,
+		});
 	});
 
 });
