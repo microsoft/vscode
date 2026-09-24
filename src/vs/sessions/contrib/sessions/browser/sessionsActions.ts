@@ -855,7 +855,7 @@ registerAction2(class CloseChatAction extends Action2 {
 		super({
 			id: CLOSE_CHAT_COMMAND_ID,
 			title: localize2('closeActiveChat', "Close"),
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 			// Hidden from the palette because closing a chat requires either an
 			// explicit tab context or an active chat group.
 			f1: false,
