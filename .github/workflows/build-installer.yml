@@ -1,0 +1,55 @@
+name: Build JS Studio Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Install npm dependencies
+        run: npm ci --prefer-offline
+
+      - name: Compile sources
+        run: npm run compile
+
+      - name: Package VS Code Win32 x64
+        run: npm run gulp vscode-win32-x64
+
+      - name: Build Inno Setup User Installer (.exe)
+        run: npm run gulp vscode-win32-x64-user-setup
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JS-Studio-Windows-Installer
+          path: .build/win32-x64/user-setup/*.exe
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: .build/win32-x64/user-setup/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
