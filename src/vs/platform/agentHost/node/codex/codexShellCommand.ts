@@ -9,20 +9,21 @@
  * `/bin/zsh -lc 'touch ~/foo'`. That wrapper is noise in the chat UI and makes
  * Codex's terminal pills (and its approval / denial cards) look different from
  * Claude's (which surface the bare `touch ~/foo`). Peel off a leading
- * `<shell> -[l]c <script>` wrapper and return the inner script so both agents
- * render identically. Falls back to the raw command when it doesn't match the
- * wrapper shape.
+ * `<shell> -[l]c <script>` or PowerShell `-Command <script>` wrapper and return
+ * the inner script so both agents render identically. Falls back to the raw
+ * command when it doesn't match a supported wrapper shape.
  *
  * This is a display-only transform: callers must keep the raw command for any
  * identity/round-trip purpose (accept-for-session memo keys, re-sending the
  * exact action to the app-server, etc.).
  */
 export function unwrapShellInvocation(command: string): string {
-	const match = /^\s*\S*sh(?:\.exe)?\s+-[a-z]*c\s+([\s\S]+)$/i.exec(command);
-	if (!match) {
-		return command;
+	const shellMatch = /^\s*\S*sh(?:\.exe)?\s+-[a-z]*c\s+([\s\S]+)$/i.exec(command);
+	if (shellMatch) {
+		return unquoteShellArg(shellMatch[1].trim());
 	}
-	return unquoteShellArg(match[1].trim());
+	const powershellMatch = /^\s*(?:"[^"]*(?:powershell|pwsh)(?:\.exe)?"|'[^']*(?:powershell|pwsh)(?:\.exe)?'|\S*(?:powershell|pwsh)(?:\.exe)?)\s+(?:(?:-(?:NoLogo|NoProfile|NonInteractive|NoExit|Sta|Mta))\s+|(?:-ExecutionPolicy\s+\S+\s+))*-(?:Command|C)\s+([\s\S]+)$/i.exec(command);
+	return powershellMatch ? unquoteShellArg(powershellMatch[1].trim()) : command;
 }
 
 /**
