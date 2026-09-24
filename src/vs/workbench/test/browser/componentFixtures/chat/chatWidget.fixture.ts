@@ -26,7 +26,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -41,7 +41,7 @@ import { ILinkPresentationService } from '../../../../../platform/dataChannel/co
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
@@ -86,7 +86,7 @@ export interface IFixtureMessage {
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatGeneratedImageData; resultDetails?: IToolResultInputOutputDetails }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean }
@@ -115,6 +115,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	readonly defaultElementHeight?: number;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
@@ -160,6 +161,7 @@ export interface IChatWidgetFixtureOptions {
 	/** Product quality used to select Stable or Insiders product branding. */
 	readonly productQuality?: 'stable' | 'insider';
 	readonly thinkingStyle?: ThinkingDisplayMode;
+	readonly collapsedTools?: CollapsedToolsDisplayMode;
 	readonly collapseCompletedResponses?: boolean;
 	readonly terminalToolsInThinking?: boolean;
 	readonly simpleTerminalCollapsible?: boolean;
@@ -367,6 +369,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 	if (options.thinkingStyle !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle);
+	}
+	if (options.collapsedTools !== undefined) {
+		configService.setUserConfiguration('chat.agent.thinking.collapsedTools', options.collapsedTools);
 	}
 	if (options.collapseCompletedResponses !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, options.collapseCompletedResponses);
@@ -692,7 +697,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		listContainer,
 		{
 			currentChatMode: () => ChatModeKind.Agent,
-			defaultElementHeight: 120,
+			defaultElementHeight: options.defaultElementHeight ?? 120,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground,

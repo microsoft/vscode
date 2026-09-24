@@ -1220,6 +1220,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData, toolInvocation: ChatToolInvocation | undefined): void {
+		if (toolData.id === CopilotToolId.GenerateImage && !toolResult.toolResultError && this.toolResultHasImages(toolResult)) {
+			toolResult.toolSpecificData = { kind: 'generatedImage' };
+		}
 		if (!toolResult.toolResultDetails && (toolData.alwaysDisplayInputOutput || (this.toolResultHasImages(toolResult) && !this.toolResultMessageHasImageFileWidgets(toolResult, toolInvocation)))) {
 			toolResult.toolResultDetails = {
 				input: this.formatToolInput(dto),

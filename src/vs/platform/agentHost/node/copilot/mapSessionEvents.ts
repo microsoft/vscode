@@ -27,6 +27,7 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { readHostedImageToolCalls } from './copilotHostedImageTools.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -98,6 +99,14 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					type: ToolResultContentType.EmbeddedResource,
 					data: sdkContent.data,
 					contentType: sdkContent.mimeType,
+				});
+				break;
+			case 'resource_link':
+				content.push({
+					type: ToolResultContentType.Resource,
+					uri: sdkContent.uri,
+					contentType: sdkContent.mimeType,
+					sizeHint: sdkContent.size,
 				});
 				break;
 			case 'shell_exit': {
@@ -324,6 +333,7 @@ export async function mapSessionEvents(
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
+	const hostedImageToolCallIds = new Set<string>();
 
 	// The SDK tags events that originate from a sub-agent with an
 	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
@@ -645,11 +655,12 @@ export async function mapSessionEvents(
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const hostedImageToolCalls = e.agentId && !parentToolCallId ? [] : readHostedImageToolCalls(d);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
 				}
-				if (!content && !reasoningText && !hasToolRequests) {
+				if (!content && !reasoningText && !hasToolRequests && hostedImageToolCalls.length === 0) {
 					if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						touch(parentBuilder);
@@ -677,6 +688,12 @@ export async function mapSessionEvents(
 						id: generateUuid(),
 						content,
 					});
+				}
+				for (const toolCall of hostedImageToolCalls) {
+					if (!hostedImageToolCallIds.has(toolCall.toolCallId)) {
+						hostedImageToolCallIds.add(toolCall.toolCallId);
+						builder.responseParts.push({ kind: ResponsePartKind.ToolCall, toolCall });
+					}
 				}
 				if (!parentToolCallId && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;

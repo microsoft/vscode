@@ -59,7 +59,7 @@ export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
 
 const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
-const imageGenerationToolName = 'image_gen.imagegen';
+const imageGenerationToolNames = new Set(['image_gen.imagegen', 'image_generation']);
 
 function isAgentHostAskUserTool(toolName: string): boolean {
 	return agentHostAskUserToolNames.has(toolName);
@@ -1725,10 +1725,6 @@ function buildTerminalToolSpecificData(
 
 function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined, includeMcpOutput: boolean, connectionAuthority: string): IToolResultInputOutputDetails | undefined {
 	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
-	if (!toolInput) {
-		return undefined;
-	}
-
 	const output: IToolResultInputOutputDetails['output'] = [];
 	if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running) {
 		for (const block of tc.content ?? []) {
@@ -1751,12 +1747,16 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		}
 	}
 
-	if (output.length === 0 && errorString) {
+	if (output.length === 0 && errorString && (toolInput || imageGenerationToolNames.has(tc.toolName))) {
 		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
 	}
 
+	if (!toolInput && output.length === 0) {
+		return undefined;
+	}
+
 	return {
-		input: toolInput,
+		input: toolInput ?? '',
 		inputLanguage: 'json',
 		output,
 		isError,
@@ -1829,14 +1829,9 @@ function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string
 	}
 }
 
-/**
- * Wraps a tool-result resource URI (string) via {@link toAgentHostUri} so it
- * resolves through the agent host filesystem provider on the client. The
- * underlying helper has a fast-path that returns the URI unchanged when it's
- * already a local `file://` resource, so the wrap is safe for all cases.
- */
+/** Routes tool-result content references through `resourceRead`, without requiring filesystem resolution. */
 function wrapResourceUri(uri: string, connectionAuthority: string): URI {
-	return toAgentHostUri(URI.parse(uri), connectionAuthority);
+	return toAgentHostContentUri(URI.parse(uri), connectionAuthority);
 }
 
 function getToolErrorString(tc: ToolCallState): string | undefined {
@@ -1877,12 +1872,13 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 }
 
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
-	if (tc.status !== ToolCallStatus.Completed || !tc.success || tc.toolName !== imageGenerationToolName) {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success || !imageGenerationToolNames.has(tc.toolName)) {
 		return undefined;
 	}
-	const hasImage = tc.content?.some(block => block.type === ToolResultContentType.EmbeddedResource
-		&& block.contentType.startsWith('image/')
-		&& block.data.length > 0);
+	const hasImage = tc.content?.some(block =>
+		block.type === ToolResultContentType.EmbeddedResource
+			? block.contentType.startsWith('image/') && block.data.length > 0
+			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
 	return hasImage ? { kind: 'generatedImage' } : undefined;
 }
 
@@ -1949,6 +1945,19 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 	return { type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied };
 }
 
+function getImageGenerationTerminalMessage(tc: ToolCallState): string | undefined {
+	if (!imageGenerationToolNames.has(tc.toolName)) {
+		return undefined;
+	}
+	if (tc.status === ToolCallStatus.Cancelled) {
+		return localize('imageGenerationCancelled', "Image generation cancelled");
+	}
+	if (tc.status === ToolCallStatus.Completed && !tc.success) {
+		return localize('imageGenerationFailed', "Generated image failed");
+	}
+	return undefined;
+}
+
 /**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
@@ -1956,7 +1965,8 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
-	let invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
+	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
+	let invocationMsg = imageTerminalMessage ?? stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
@@ -2008,9 +2018,9 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		}
 	}
 
-	let pastTenseMsg = isSuccess
+	let pastTenseMsg = imageTerminalMessage ?? (isSuccess
 		? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
-		: invocationMsg;
+		: invocationMsg);
 	// Tools that render a bespoke, client-authored message override both the
 	// invocation and past-tense text here. Add new per-tool cases alongside.
 	if (isAddCommentTool(tc.toolName)) {
@@ -2908,6 +2918,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);
+	}
+	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
+	if (imageTerminalMessage) {
+		invocation.invocationMessage = imageTerminalMessage;
+		invocation.pastTenseMessage = imageTerminalMessage;
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// past-tense text here. Add new per-tool cases alongside this branch.

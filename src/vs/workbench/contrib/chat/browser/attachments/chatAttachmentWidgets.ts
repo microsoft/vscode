@@ -493,7 +493,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI | undefined,
 		attachment: IChatRequestVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline' },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -545,17 +545,21 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 
-		const imageElements = this._register(new MutableDisposable<IDisposable>());
-		const renderImageElements = (buffer: Uint8Array) => {
-			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true);
-			// createImageElements resets the label; restore the deletion hint after each render.
-			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
-		};
-		renderImageElements(imageData ?? new Uint8Array());
+		if (options.imagePresentation === 'inline' && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded && (!currentLanguageModel || modelSupportsVision(currentLanguageModel))) {
+			this._register(this.renderInlineImage(resource, attachment.name, fullName, imageData, ariaLabel));
+		} else {
+			const imageElements = this._register(new MutableDisposable<IDisposable>());
+			const renderImageElements = (buffer: Uint8Array) => {
+				imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true);
+				// createImageElements resets the label; restore the deletion hint after each render.
+				this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+			};
+			renderImageElements(imageData ?? new Uint8Array());
 
-		// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
-		if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
-			void this.loadImageBytes(resource, renderImageElements);
+			// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
+			if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
+				void this.loadImageBytes(resource, renderImageElements);
+			}
 		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
 
@@ -575,12 +579,71 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private async loadImageBytes(resource: URI, render: (buffer: Uint8Array) => void): Promise<void> {
+	private renderInlineImage(resource: URI | undefined, name: string, fullName: string, imageData: Uint8Array | undefined, ariaLabel: string): IDisposable {
+		const store = new DisposableStore();
+		const image = dom.$<HTMLImageElement>('img.chat-attached-context-pill-image', { alt: '' });
+		const status = dom.$('span.chat-attached-context-image-status', undefined, localize('chat.loadingImage', "Loading image..."));
+		const preview = dom.append(this.element, dom.$('.chat-attached-context-pill', undefined, image, status));
+		const hover = dom.$('.chat-attached-context-hover', { 'aria-label': ariaLabel }, dom.$('.chat-attached-context-url', undefined, fullName));
+		const imageUrl = store.add(new MutableDisposable<IDisposable>());
+		dom.hide(image);
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		this.element.setAttribute('aria-busy', 'true');
+		store.add(this.hoverService.setupDelayedHover(this.element, { ...commonHoverOptions, content: hover }));
+		store.add(toDisposable(() => {
+			image.removeAttribute('src');
+			preview.remove();
+		}));
+
+		const showError = (detail?: string) => {
+			if (store.isDisposed) {
+				return;
+			}
+			const message = localize('chat.imagePreviewLoadError', "Unable to load image: {0}", name);
+			this.element.classList.add('image-load-error');
+			this.element.setAttribute('aria-busy', 'false');
+			this.element.ariaLabel = this.appendDeletionHint(message);
+			status.textContent = message;
+			hover.textContent = detail ? localize('chat.imagePreviewLoadErrorDetails', "{0}\n{1}", message, detail) : message;
+			dom.hide(image);
+		};
+		store.add(dom.addDisposableListener(image, dom.EventType.LOAD, () => {
+			this.element.setAttribute('aria-busy', 'false');
+			status.remove();
+			dom.show(image);
+		}));
+		store.add(dom.addDisposableListener(image, dom.EventType.ERROR, () => showError()));
+
+		const render = (buffer: Uint8Array) => {
+			if (store.isDisposed) {
+				return;
+			}
+			if (!buffer.byteLength) {
+				showError();
+				return;
+			}
+			const url = URL.createObjectURL(new Blob([buffer as Uint8Array<ArrayBuffer>]));
+			imageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
+			image.src = url;
+		};
+		if (imageData) {
+			render(imageData);
+		} else if (resource) {
+			void this.loadImageBytes(resource, render, showError);
+		} else {
+			showError();
+		}
+		return store;
+	}
+
+	private async loadImageBytes(resource: URI, render: (buffer: Uint8Array) => void, onError?: (message: string) => void): Promise<void> {
 		let content: VSBuffer;
 		try {
 			content = (await this.fileService.readFile(resource)).value;
-		} catch {
-			// The file may no longer exist; keep the icon fallback that is already rendered.
+		} catch (error) {
+			if (!this._store.isDisposed) {
+				onError?.(toErrorMessage(error));
+			}
 			return;
 		}
 		if (this._store.isDisposed) {

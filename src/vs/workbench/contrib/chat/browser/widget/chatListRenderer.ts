@@ -134,7 +134,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { isAskQuestionsToolInvocation, isCarouselToolConfirmation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { isAskQuestionsToolInvocation, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { isToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
@@ -288,9 +288,9 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 	return index;
 }
 
-function isResponseOutcomeTool(part: IChatRendererContent): boolean {
+function isSessionCreatedOutcomeTool(part: IChatRendererContent): boolean {
 	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage');
+		&& part.toolSpecificData?.kind === 'sessionCreated';
 }
 
 function getSessionCreatedOutcomeLink(part: IChatRendererContent): string | undefined {
@@ -331,7 +331,7 @@ export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(conten
 
 	let movedToolCount = 0;
 	for (let index = 0; index < finalResponseStartIndex; index++) {
-		if (isResponseOutcomeTool(content[index])) {
+		if (isSessionCreatedOutcomeTool(content[index])) {
 			movedToolCount++;
 		}
 	}
@@ -343,7 +343,7 @@ export function isFinalResponseRendered(content: ReadonlyArray<IChatRendererCont
 }
 
 export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArray<IChatRendererContent>): IChatRendererContent[] {
-	const outcomeTools = content.filter(isResponseOutcomeTool);
+	const outcomeTools = content.filter(isSessionCreatedOutcomeTool);
 	if (outcomeTools.length === 0) {
 		return [...content];
 	}
@@ -368,7 +368,7 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 		return [...content];
 	}
 
-	const reordered = content.filter(part => !isResponseOutcomeTool(part));
+	const reordered = content.filter(part => !isSessionCreatedOutcomeTool(part));
 	let insertionIndex = finalResponseStartIndex;
 	while (reordered[insertionIndex]?.kind === 'markdownContent') {
 		insertionIndex++;
@@ -465,7 +465,7 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
 	return (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized')
-		|| (!toolInvocationHasMcpAppData(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
+		|| (!isImageGenerationToolInvocation(part) && !toolInvocationHasMcpAppData(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
 }
 
 export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number): number {
@@ -646,16 +646,6 @@ export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.Sta
 
 function toolInvocationHasMcpAppData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	return toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.mcpAppData;
-}
-
-function isGeneratedImageResultOwner(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, content: ReadonlyArray<IChatRendererContent>): boolean {
-	for (let index = content.length - 1; index >= 0; index--) {
-		const part = content[index];
-		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'generatedImage') {
-			return part.toolCallId === toolInvocation.toolCallId;
-		}
-	}
-	return false;
 }
 
 const forceVerboseLayoutTracing = false
@@ -2125,6 +2115,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return {
 					kind: 'working',
 					content: new MarkdownString().appendText(localize('persistentProgress.authenticationRequired', "Authentication required")),
+					isActive: true,
+					announce: true,
+				};
+			case 'imageGeneration':
+				return {
+					kind: 'working',
+					content: new MarkdownString().appendText(localize('persistentProgress.generatingImage', "Generating image")),
 					isActive: true,
 					announce: true,
 				};
@@ -3765,14 +3762,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
-			const promotesSubagent = (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
-				&& isParentSubagentTool(content) && !!this.getThinkingPartOwner(renderedPart);
+			const promotesStandaloneTool = (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
+				&& (isParentSubagentTool(content) || isImageGenerationToolInvocation(content)) && !!this.getThinkingPartOwner(renderedPart);
 			const groupsStandaloneTool = renderedPart instanceof ChatToolInvocationPart
 				&& this.isPersistentProgressEnabled()
 				&& this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.Verbose
 				&& this.shouldGroupToolInvocation(contentToRender, i, element);
 
-			if (promotesSubagent || groupsStandaloneTool || !renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
+			if (promotesStandaloneTool || groupsStandaloneTool || !renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
 				diff.push(content);
 			} else {
 				// null -> no change
@@ -3863,11 +3860,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
-		// Generated images are durable response outcomes. Keep them outside thinking from the
-		// moment the tool starts so completion can replace the compact progress rendering with
-		// the final image in place instead of leaving a materialized copy inside thinking.
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-			&& (part.toolId === 'image_gen.imagegen' || part.toolSpecificData?.kind === 'generatedImage')) {
+			&& isImageGenerationToolInvocation(part)) {
 			return false;
 		}
 
@@ -4538,17 +4532,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// A completed turn renders all generated images in one gallery. Keep the gallery on the
-		// final image tool call so multiple tool results cannot be split between the completed
-		// response disclosure and the durable response outcome.
-		if (context.element.isComplete
-			&& toolInvocation.toolSpecificData?.kind === 'generatedImage'
-			&& !isGeneratedImageResultOwner(toolInvocation, context.content)) {
-			return this.renderNoContent(other =>
-				(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-				&& other.toolCallId === toolInvocation.toolCallId);
-		}
-
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 
 		// Subagent tools are grouped into their own block, so unlike a tool that joins the parent's flow
@@ -4578,10 +4561,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 				if (context.suppressProgressShimmer && toolInvocation.kind === 'toolInvocation') {
 					let wasPending = false;
+					let wasGeneratingImage = false;
 					lazilyCreatedPart.addDisposable(autorun(reader => {
-						const isPending = isBlockingToolState(toolInvocation.state.read(reader).type);
-						if (isPending !== wasPending) {
+						const state = toolInvocation.state.read(reader);
+						const isPending = isBlockingToolState(state.type);
+						const isGeneratingImage = isImageGenerationToolInProgress(toolInvocation, state);
+						if (isPending !== wasPending || isGeneratingImage !== wasGeneratingImage) {
 							wasPending = isPending;
+							wasGeneratingImage = isGeneratingImage;
 							this.updateWorkingProgressForPendingConfirmations(templateData);
 						}
 					}));
@@ -5646,7 +5633,7 @@ export function endsWithCompletedQuestionInteraction(parts: readonly IChatRender
 		&& IChatToolInvocation.isComplete(lastPart);
 }
 
-export type PersistentProgressState = 'active' | 'question' | 'confirmation' | 'planReview' | 'authentication';
+export type PersistentProgressState = 'active' | 'question' | 'confirmation' | 'planReview' | 'authentication' | 'imageGeneration';
 
 /** Tool states that block the response on the user rather than on the model. */
 export function isBlockingToolState(state: IChatToolInvocation.StateKind): boolean {
@@ -5687,6 +5674,9 @@ export function getPersistentProgressState(parts: readonly IChatRendererContent[
 	if (parts.some(part => part.kind === 'mcpAuthenticationRequired' && !part.isUsed && part.servers.get().length > 0)
 		|| parts.some(part => part.kind === 'toolInvocation' && part.presentation !== 'hidden' && part.state.get().type === IChatToolInvocation.StateKind.WaitingForAuthentication)) {
 		return 'authentication';
+	}
+	if (getWorkingProgressRelevantParts(parts).some(part => part.kind === 'toolInvocation' && isImageGenerationToolInProgress(part))) {
+		return 'imageGeneration';
 	}
 	return 'active';
 }

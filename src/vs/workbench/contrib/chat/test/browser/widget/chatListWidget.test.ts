@@ -40,6 +40,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { CopilotToolId } from '../../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
@@ -278,6 +279,92 @@ suite('ChatListWidget', () => {
 		widget.setVisible(true);
 		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
+
+	suite('generated image preview retention', () => {
+		for (const toolId of [CopilotToolId.GenerateImage, 'image_generation', 'image_gen.imagegen']) {
+			for (const height of [300, 650]) {
+				test(`${toolId} preserves a loaded image while a follow-up starts and streams (height=${height})`, async () => {
+					const { model, container, widget } = createWidget({}, configuration => {
+						configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+					}, true);
+					container.style.height = `${height}px`;
+					container.classList.add('interactive-list');
+					const text = 'Generate a portrait image.';
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'thinking', value: 'Evaluating image generation skills', id: 'thinking' });
+					const tool = new ChatToolInvocation({
+						invocationMessage: 'Generating image',
+						pastTenseMessage: 'Generated image',
+					}, {
+						id: toolId,
+						displayName: 'Generate Image',
+						modelDescription: 'Generate Image',
+						source: ToolDataSource.Internal,
+					}, 'image', undefined, {}, {}, request.id);
+					const canvas = mainWindow.document.createElement('canvas');
+					canvas.width = 800;
+					canvas.height = 1200;
+					const imageData = canvas.toDataURL('image/png').split(',')[1];
+					model.acceptResponseProgress(request, tool);
+					await tool.didExecuteTool({
+						content: [],
+						toolSpecificData: { kind: 'generatedImage' },
+						toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+					});
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed: Generated the requested image.') });
+					request.response?.complete();
+					widget.refresh();
+					widget.layout(height, 500);
+					const imageSelector = '.chat-generated-image-result img';
+					const image = container.querySelector<HTMLImageElement>(imageSelector);
+					assert.ok(image);
+					await image.decode();
+					await waitForStableLayout(widget);
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const source = image.src;
+					const capture = () => ({
+						sameImage: container.querySelector(imageSelector) === image,
+						connected: image.isConnected,
+						sameSource: image.src === source,
+						loaded: image.complete && image.naturalWidth === 800,
+						busy: image.closest('.image-attachment')?.getAttribute('aria-busy'),
+					});
+					const states = [capture()];
+
+					const followupText = 'Thanks';
+					const followup = model.addRequest({
+						text: followupText,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, followupText.length), new Range(1, 1, 1, followupText.length + 1), followupText)],
+					}, { variables: [] }, 0);
+					widget.refresh();
+					widget.scrollToEnd();
+					states.push(capture());
+					await waitForStableLayout(widget);
+					states.push(capture());
+					model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('You are welcome.') });
+					widget.refresh();
+					await waitForStableLayout(widget);
+					states.push(capture());
+					followup.response?.complete();
+					widget.refresh();
+					await waitForStableLayout(widget);
+					states.push(capture());
+
+					assert.deepStrictEqual(states, Array.from({ length: 5 }, () => ({
+						sameImage: true,
+						connected: true,
+						sameSource: true,
+						loaded: true,
+						busy: 'false',
+					})));
+				});
+			}
+		}
+	});
 
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {

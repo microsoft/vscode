@@ -7,8 +7,9 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derivedOpts, IObservable } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, derivedOpts, IObservable, IReader } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -28,7 +29,8 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
-import { ChatGeneratedImageResultSubPart } from './chatGeneratedImageResultSubPart.js';
+import { ChatGeneratedImageResultSubPart, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
+import { ChatImageGenerationProgressPart } from './chatImageGenerationProgressPart.js';
 import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
@@ -44,7 +46,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
-import { isCarouselToolConfirmation } from './chatToolPartUtilities.js';
+import { isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -76,8 +78,8 @@ export function shouldRenderSessionCreatedResult(toolSpecificDataKind: string | 
 	return toolSpecificDataKind === 'sessionCreated' && isResponseComplete;
 }
 
-export function shouldRenderGeneratedImageResult(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
-	return toolSpecificDataKind === 'generatedImage' && isResponseComplete;
+export function shouldRenderGeneratedImageResult(toolSpecificDataKind: string | undefined, isToolComplete: boolean): boolean {
+	return toolSpecificDataKind === 'generatedImage' && isToolComplete;
 }
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
@@ -101,14 +103,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	public acceptConfirmation(): void {
 		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-			this.subPart.acceptConfirmation();
+			this.subPart?.acceptConfirmation();
 		}
 	}
 
-	private subPart!: BaseChatToolInvocationSubPart;
+	private subPart: BaseChatToolInvocationSubPart | undefined;
 	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
 	private readonly renderedSessionCreatedResult: boolean;
-	private readonly renderedGeneratedImageResult: boolean;
+	private renderedGeneratedImageResult: boolean;
+	private renderedLastGeneratedImageToolCallId: string | undefined;
+	private imageGenerationProgressSuppressed: boolean;
 
 	private readonly _onDidRemount = this._register(new Emitter<void>());
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -136,16 +140,17 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		);
 		this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(
 			toolInvocation.toolSpecificData?.kind,
-			isResponseVM(context.element) && context.element.isComplete,
+			IChatToolInvocation.isComplete(toolInvocation),
 		);
+		this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
+		this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
 
-		const toolIcon = context.suppressProgressShimmer ? dom.append(this.domNode, dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' })) : undefined;
-		this.domNode.classList.toggle('chat-tool-call-with-icon', !!toolIcon);
+		const toolIcon = context.suppressProgressShimmer ? dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' }) : undefined;
 
 		// Update the todo list service if this tool invocation contains todo data
 		if (toolInvocation.toolSpecificData?.kind === 'todoList') {
@@ -171,6 +176,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				const state = toolInvocation.state.read(reader);
 				const dataKind = toolInvocation.toolSpecificDataKind.read(reader);
 				const toolSpecificData = toolInvocation.toolSpecificData;
+				const imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress(reader);
 				const stateChanged = state.type !== previousState.type;
 				const dataKindChanged = dataKind !== previousDataKind;
 				const dataChanged = state !== previousState && toolSpecificData !== previousToolSpecificData;
@@ -180,7 +186,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				previousState = state;
 				previousDataKind = dataKind;
 				previousToolSpecificData = toolSpecificData;
-				if (stateChanged || dataKindChanged || dataChanged || confirmationMessagesChanged) {
+				if (stateChanged || dataKindChanged || dataChanged || confirmationMessagesChanged || imageGenerationProgressSuppressed !== this.imageGenerationProgressSuppressed) {
 					render();
 				}
 			}));
@@ -223,17 +229,28 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		this.domNode.appendChild(subPartDomNode);
 
 		const render = () => {
+			const wasHidden = this.domNode.style.display === 'none';
+			const wasGeneratingImage = this.subPart instanceof ChatImageGenerationProgressPart;
+			const isGeneratingImage = isImageGenerationToolInProgress(toolInvocation);
 			partStore.clear();
-			if (toolIcon) {
-				const registeredIcon = toolInvocation.toolSpecificData?.kind === 'search' ? Codicon.search
-					: toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
-				const icon = getToolInvocationIcon(toolInvocation.toolId, registeredIcon, undefined, toolInvocation.source);
-				toolIcon.className = 'chat-tool-call-icon';
-				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
-			}
-
-			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden || (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
+			this.subPart = undefined;
+			this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(toolInvocation.toolSpecificData?.kind, IChatToolInvocation.isComplete(toolInvocation));
+			this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
+			this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
+			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
+				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))
+				|| this.imageGenerationProgressSuppressed) {
+				if (this.imageGenerationProgressSuppressed) {
+					const emptyNode = dom.$('div');
+					subPartDomNode.replaceWith(emptyNode);
+					subPartDomNode = emptyNode;
+					toolIcon?.remove();
+					this.domNode.classList.remove('has-confirmation', 'chat-tool-call-with-icon');
+				}
 				dom.hide(this.domNode);
+				if (!wasHidden) {
+					this._onDidChangeHeight.fire();
+				}
 				return;
 			}
 
@@ -243,6 +260,29 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
+
+			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+			if (this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
+				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context));
+				this.subPart.domNode.appendChild(imageResult.domNode);
+				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			}
+
+			const showToolIcon = !!toolIcon && !(this.subPart instanceof ChatImageGenerationProgressPart);
+			this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
+			this.domNode.classList.toggle('chat-tool-call-with-icon', showToolIcon);
+			if (toolIcon && showToolIcon) {
+				const registeredIcon = toolInvocation.toolSpecificData?.kind === 'search' ? Codicon.search
+					: toolInvocation.icon ?? (isImageGenerationToolInvocation(toolInvocation) ? Codicon.fileMedia : toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
+				const icon = getToolInvocationIcon(toolInvocation.toolId, registeredIcon, undefined, toolInvocation.source);
+				toolIcon.className = 'chat-tool-call-icon';
+				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
+				if (!toolIcon.parentElement) {
+					this.domNode.prepend(toolIcon);
+				}
+			} else {
+				toolIcon?.remove();
+			}
 
 			// Add class when displaying a confirmation widget
 			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
@@ -255,8 +295,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.domNode.classList.toggle('has-confirmation', isConfirmation);
 
 			partStore.add(this.subPart.onNeedsRerender(render));
-			if (this.subPart instanceof ChatGeneratedImageResultSubPart) {
-				partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			if (wasHidden !== (this.domNode.style.display === 'none') || wasGeneratingImage !== isGeneratingImage) {
+				this._onDidChangeHeight.fire();
 			}
 		};
 
@@ -286,6 +326,28 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		render();
 	}
 
+	private shouldSuppressImageGenerationProgress(reader?: IReader): boolean {
+		if (this.toolInvocation.kind !== 'toolInvocation' || this.toolInvocation.otherClientToolCall
+			|| !isImageGenerationToolInProgress(this.toolInvocation, this.toolInvocation.state.read(reader))) {
+			return false;
+		}
+
+		const content = isResponseVM(this.context.element) ? this.context.element.response.value : this.context.content;
+		for (const part of content) {
+			if (part.kind !== 'toolInvocation') {
+				continue;
+			}
+			if (part.toolCallId === this.toolInvocation.toolCallId) {
+				break;
+			}
+			if (!part.otherClientToolCall && part.subAgentInvocationId === this.toolInvocation.subAgentInvocationId
+				&& isImageGenerationToolInvocation(part) && isImageGenerationToolInProgress(part, part.state.read(reader))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Transcript copies of a confirmation defer to the carousel above the input whenever it is enabled
 	 * for the tool and a chat widget exists to host it; only the carousel's own copy renders it.
@@ -306,6 +368,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
 			const state = this.toolInvocation.state.get();
+
+			if (isImageGenerationToolInProgress(this.toolInvocation, state)) {
+				return this.instantiationService.createInstance(ChatImageGenerationProgressPart, this.toolInvocation, !this.context.suppressProgressShimmer);
+			}
 
 			// Handle streaming state - show streaming progress
 			if (state.type === IChatToolInvocation.StateKind.Streaming) {
@@ -335,10 +401,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (this.renderedSessionCreatedResult && this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
 			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
-		}
-
-		if (this.renderedGeneratedImageResult && this.toolInvocation.toolSpecificData?.kind === 'generatedImage') {
-			return this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, this.toolInvocation, this.context);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'automationConfigured') {
@@ -377,17 +439,52 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (isToolResultInputOutputDetails(resultDetails)) {
+			let message = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
+			if (isImageGenerationToolInvocation(this.toolInvocation)) {
+				const confirmation = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
+				if (confirmation?.type !== ToolConfirmKind.Denied && confirmation?.type !== ToolConfirmKind.Skipped) {
+					if (resultDetails.isError) {
+						message = localize('imageGeneration.failed', "Generated image failed");
+					} else if (this.renderedGeneratedImageResult) {
+						message = localize('imageGeneration.generated', "Generated image");
+					}
+				}
+			}
 			return this.instantiationService.createInstance(
 				ChatInputOutputMarkdownProgressPart,
 				this.toolInvocation,
 				this.context,
 				this.codeBlockStartIndex,
-				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
+				message,
 				this.toolInvocation.originMessage,
 				resultDetails.input,
 				resultDetails.inputLanguage,
 				resultDetails.output,
 				!!resultDetails.isError,
+			);
+		}
+
+		if (isImageGenerationToolInvocation(this.toolInvocation)) {
+			const state = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.state.get() : undefined;
+			const input: unknown = this.toolInvocation.toolSpecificData?.kind === 'input'
+				? this.toolInvocation.toolSpecificData.rawInput
+				: IChatToolInvocation.getParameters(this.toolInvocation);
+			const confirmation = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
+			const cancelled = confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped;
+			const message = cancelled
+				? (state?.type === IChatToolInvocation.StateKind.Cancelled ? state.reasonMessage : undefined) ?? localize('imageGeneration.cancelled', "Image generation cancelled")
+				: this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
+			return this.instantiationService.createInstance(
+				ChatInputOutputMarkdownProgressPart,
+				this.toolInvocation,
+				this.context,
+				this.codeBlockStartIndex,
+				message,
+				this.toolInvocation.originMessage,
+				typeof input === 'string' ? input : JSON.stringify(input, null, 2) ?? '',
+				undefined,
+				undefined,
+				false,
 			);
 		}
 
@@ -437,6 +534,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		if (this.imageGenerationProgressSuppressed !== this.shouldSuppressImageGenerationProgress()) {
+			return false;
+		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
 			&& other.toolSpecificData?.kind === 'subagent'
 			&& !other.subAgentInvocationId) {
@@ -447,7 +547,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-			&& this.renderedGeneratedImageResult !== shouldRenderGeneratedImageResult(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
+			&& this.renderedGeneratedImageResult !== shouldRenderGeneratedImageResult(other.toolSpecificData?.kind, IChatToolInvocation.isComplete(other))) {
+			return false;
+		}
+		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+			&& this.renderedGeneratedImageResult
+			&& this.renderedLastGeneratedImageToolCallId !== (getLastGeneratedImageToolCallId(followingContent) ?? other.toolCallId)) {
 			return false;
 		}
 		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;

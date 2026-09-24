@@ -93,6 +93,14 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
+### Copilot hosted image tools
+
+Provider-hosted image generation is observed, not dispatched as a client function call. [copilotHostedImageTools.ts](node/copilot/copilotHostedImageTools.ts) normalizes the SDK's hosted progress and completed results for both live handling and history restoration. The harness emits existing AHP tool-call actions with the `image_generation` name, so the shared generated-image UI renders the output without a new protocol kind.
+
+Streamed SDK message IDs are tracked separately from the current markdown part, so opening a standalone image row cannot make the final assistant message repeat text that was already rendered.
+
+The runtime owns availability, authorization, provider replay, and durable image assets. Resource links must resolve through the host's `resourceRead`; an opaque SDK asset id alone is not a readable AHP resource. Hosted-call tracking is scoped to its owning chat/subagent, and completed-call deduplication retains only a bounded set of ids, never image bytes.
+
 ### Orchestrator layer
 
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.

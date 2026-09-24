@@ -3791,6 +3791,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inline-block;
 }
 
+.chat-attached-context-attachment .chat-attached-context-image-status {
+	color: var(--vscode-descriptionForeground);
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.chat-attached-context-attachment.image-load-error .chat-attached-context-image-status {
+	color: var(--vscode-errorForeground);
+}
+
 .chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 	text-decoration: line-through;
@@ -3851,39 +3861,57 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-generated-image-result {
-	margin: 8px 0 4px;
+	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
+
+	.chat-collapsible-io-resource-group {
+		width: fit-content;
+		max-width: 100%;
+		gap: var(--vscode-spacing-size80);
+	}
+
+	.chat-collapsible-io-resource-actions {
+		flex-shrink: 0;
+	}
 
 	.chat-collapsible-io-resource-items,
 	.chat-attached-context {
 		min-width: 0;
-		width: 100%;
+		max-width: 512px;
 	}
 
 	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
-		width: min(100%, 512px);
+		width: fit-content;
 		height: auto;
 		background: transparent;
+
+		&[aria-busy="true"]:not(:focus-visible),
+		&.image-load-error:not(:focus-visible) {
+			border-color: transparent;
+		}
 	}
 
 	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		min-width: 0;
+		width: auto;
 		height: auto;
 	}
 
 	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
 		display: block;
+		width: auto;
+		max-width: 100%;
 		height: auto;
-		max-height: min(60vh, 640px);
+		max-height: min(60vh, 400px);
 		object-fit: contain;
 	}
 
 	&.multiple .chat-attached-context {
-		max-width: 512px;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, auto));
 	}
 
 	&.multiple .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
-		flex: 1 1 calc(50% - 4px);
-		width: calc(50% - 4px);
-		max-width: 252px;
+		max-width: min(100%, 252px);
 	}
 }
 

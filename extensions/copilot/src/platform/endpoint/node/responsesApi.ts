@@ -19,7 +19,7 @@ import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, IGeneratedImage, IResponseDelta, OpenAiFunctionTool, OpenAiImageGenerationTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { APIErrorResponse, ChatCompletion, FilterReason, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -103,7 +103,10 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	}
 
 	// Build final tools array
-	const finalTools: Array<ResponsesFunctionTool | OpenAiToolSearchTool | ClientToolSearchTool> = [...functionTools];
+	const finalTools: Array<ResponsesFunctionTool | OpenAiToolSearchTool | ClientToolSearchTool | OpenAiImageGenerationTool> = [...functionTools];
+	if (options.modelCapabilities?.enableImageGeneration) {
+		finalTools.push({ type: 'image_generation', output_format: 'png' });
+	}
 	if (shouldDeferTools) {
 		// Client-executed tool search: the model emits tool_search_call, our ToolSearchTool
 		// handles the embeddings search, and we return tool_search_output with full definitions.
@@ -1156,6 +1159,29 @@ function mapResponsesApiError(err: OpenAI.Responses.ResponseError | null | undef
 	};
 }
 
+function getGeneratedImage(item: OpenAI.Responses.ResponseOutputItem.ImageGenerationCall): IGeneratedImage | undefined {
+	if (item.status !== 'completed' || !item.result) {
+		return undefined;
+	}
+	const format = 'output_format' in item ? item.output_format : undefined;
+	let mimeType: IGeneratedImage['mimeType'];
+	switch (format) {
+		case undefined:
+		case 'png':
+			mimeType = 'image/png';
+			break;
+		case 'jpeg':
+			mimeType = 'image/jpeg';
+			break;
+		case 'webp':
+			mimeType = 'image/webp';
+			break;
+		default:
+			throw new Error(l10n.t("Unsupported generated image format: {0}", String(format)));
+	}
+	return { data: item.result, mimeType };
+}
+
 export class OpenAIResponsesProcessor {
 	private textAccumulator: string = '';
 	private hasReceivedReasoningSummary = false;
@@ -1166,6 +1192,7 @@ export class OpenAIResponsesProcessor {
 	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
+	private readonly generatedImageOutputIndices = new Set<number>();
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1220,6 +1247,17 @@ export class OpenAIResponsesProcessor {
 				encrypted_content: item.encrypted_content,
 			}
 		});
+	}
+
+	private captureGeneratedImage(item: OpenAI.Responses.ResponseOutputItem.ImageGenerationCall, outputIndex: number, onProgress: (delta: IResponseDelta) => undefined): void {
+		if (this.generatedImageOutputIndices.has(outputIndex)) {
+			return;
+		}
+		const image = getGeneratedImage(item);
+		if (image) {
+			this.generatedImageOutputIndices.add(outputIndex);
+			onProgress({ text: '', generatedImages: [image] });
+		}
 	}
 
 	public push(chunk: OpenAI.Responses.ResponseStreamEvent, _onProgress: FinishedCallback): ChatCompletion | undefined {
@@ -1311,6 +1349,8 @@ export class OpenAIResponsesProcessor {
 						}],
 						phase: (chunk.item as ResponseOutputItemWithPhase).phase
 					});
+				} else if (chunk.item.type === 'image_generation_call') {
+					this.captureGeneratedImage(chunk.item, chunk.output_index, onProgress);
 				} else if (chunk.item.type.toString() === 'tool_search_call') {
 					const tsCall = chunk.item as unknown as ResponsesToolSearchCall;
 					if (tsCall.execution === 'client' && tsCall.call_id) {
@@ -1415,6 +1455,11 @@ export class OpenAIResponsesProcessor {
 					statefulMarker: chunk.response.id,
 					contextManagement: shouldEmitResolvedCompaction ? latestCompactionItem : undefined,
 				});
+				for (const [outputIndex, item] of capiChunk.response.output.entries()) {
+					if (item.type === 'image_generation_call') {
+						this.captureGeneratedImage(item, outputIndex, onProgress);
+					}
+				}
 				return {
 					blockFinished: true,
 					choiceIndex: 0,
@@ -1442,8 +1487,11 @@ export class OpenAIResponsesProcessor {
 						content: normalizedOutput.map((item): Raw.ChatCompletionContentPart | undefined => {
 							if (item.type === 'message') {
 								return { type: Raw.ChatCompletionContentPartKind.Text, text: item.content.map(c => c.type === 'output_text' ? c.text : c.refusal).join('') };
-							} else if (item.type === 'image_generation_call' && item.result) {
-								return { type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: item.result } };
+							} else if (item.type === 'image_generation_call') {
+								const image = getGeneratedImage(item);
+								if (image) {
+									return { type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: `data:${image.mimeType};base64,${image.data}` } };
+								}
 							}
 						}).filter(isDefined),
 					}
@@ -1526,8 +1574,11 @@ export class OpenAIResponsesProcessor {
 				content: output.map((item): Raw.ChatCompletionContentPart | undefined => {
 					if (item.type === 'message') {
 						return { type: Raw.ChatCompletionContentPartKind.Text, text: item.content.map(c => c.type === 'output_text' ? c.text : c.refusal).join('') };
-					} else if (item.type === 'image_generation_call' && item.result) {
-						return { type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: item.result } };
+					} else if (item.type === 'image_generation_call') {
+						const image = getGeneratedImage(item);
+						if (image) {
+							return { type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: `data:${image.mimeType};base64,${image.data}` } };
+						}
 					}
 				}).filter(isDefined),
 			},

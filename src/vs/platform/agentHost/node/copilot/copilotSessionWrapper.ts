@@ -167,6 +167,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMessage ??= this._sdkEvent('assistant.message');
 	}
 
+	private _onServerToolProgress: Event<SessionEventPayload<'assistant.server_tool_progress'>> | undefined;
+	get onServerToolProgress(): Event<SessionEventPayload<'assistant.server_tool_progress'>> {
+		return this._onServerToolProgress ??= this._sdkEvent('assistant.server_tool_progress');
+	}
+
 	private _onToolCallDelta: Event<SessionEventPayload<'assistant.tool_call_delta'>> | undefined;
 	get onToolCallDelta(): Event<SessionEventPayload<'assistant.tool_call_delta'>> {
 		return this._onToolCallDelta ??= this._sdkEvent('assistant.tool_call_delta');
