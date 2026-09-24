@@ -4538,7 +4538,12 @@ export class AgentService extends Disposable implements IAgentService {
 			if (this._stateManager.getChatOrigin(sourceChatKey)?.kind === ChatOriginKind.Tool) {
 				throw new Error(`[AgentService] createChat: cannot fork provider-spawned chat ${sourceChatKey}`);
 			}
-			const sourceWorkingDirectories = this._configurationService.getEffectiveWorkingDirectories(sourceChatKey);
+			// A chat scoped to some of the session's folders keeps that scope in its
+			// fork. A chat that inherits every session folder, or a provider without
+			// per-chat folders, leaves the fork inheriting them too.
+			const sourceWorkingDirectories = provider.getDescriptor().capabilities?.multipleWorkingDirectories
+				? this._stateManager.getChatState(sourceChatKey)?.workingDirectories
+				: undefined;
 			createOptions = {
 				...createOptions,
 				...(sourceWorkingDirectories !== undefined

@@ -5020,6 +5020,41 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('forked chats keep inheriting the session folders when the source inherits them or the provider has no per-chat folders', async () => {
+			class ForkingAgent extends MockAgent {
+				readonly createOptions = new Map<string, IAgentCreateChatOptions | undefined>();
+				override async createChat(_session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+					this.createOptions.set(chat.toString(), options);
+					return { providerData: `backing:${chat.path}` };
+				}
+			}
+			const forkOptions = async (capabilities: ConstructorParameters<typeof ForkingAgent>[1]) => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new ForkingAgent('copilot', capabilities));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/workspace/primary')] });
+				getStateManager(svc).seedDefaultChatTurns(session.toString(), [{
+					id: 'default-turn',
+					state: TurnState.Complete,
+					message: { text: 'default', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				}]);
+				const fork = URI.parse(buildChatUri(session, 'fork'));
+				await svc.createChat(session, fork, { fork: { source: URI.parse(buildDefaultChatUri(session)), turnId: 'default-turn' } });
+				return { provider: agent.createOptions.get(fork.toString())?.workingDirectories?.map(directory => directory.toString()), state: getStateManager(svc).getChatState(fork.toString())?.workingDirectories };
+			};
+
+			assert.deepStrictEqual({
+				inheritingSource: await forkOptions({ multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }),
+				withoutPerChatFolders: await forkOptions({ multipleChats: { fork: true } }),
+			}, {
+				// The provider is placed in the session's folders, as for any new chat; the fork itself stays unscoped.
+				inheritingSource: { provider: [URI.file('/workspace/primary').toString()], state: undefined },
+				withoutPerChatFolders: { provider: [URI.file('/workspace/primary').toString()], state: undefined },
+			});
+		});
+
 		test('create_session with currentSession gives the new chat its requested folder', async () => {
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
