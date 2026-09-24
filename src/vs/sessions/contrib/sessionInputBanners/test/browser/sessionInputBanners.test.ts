@@ -22,6 +22,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import type { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -111,6 +112,7 @@ suite('SessionInputBanners', () => {
 		];
 		const onDidChangeFeedback = store.add(new Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>());
 		let submitted: ISubmitFeedbackOptions | undefined;
+		let submittedResource: URI | undefined;
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = onDidChangeFeedback.event;
 			override getFeedback(): readonly IAgentFeedback[] { return feedbackItems; }
@@ -118,7 +120,8 @@ suite('SessionInputBanners', () => {
 				feedbackItems = feedbackItems.map(item => item.id === feedbackId ? { ...item, state: AgentFeedbackState.Accepted } : item);
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 			}
-			override async submitFeedback(_sessionResource: URI, options?: ISubmitFeedbackOptions): Promise<boolean> {
+			override async submitFeedback(sessionResource: URI, options?: ISubmitFeedbackOptions): Promise<boolean> {
+				submittedResource = sessionResource;
 				submitted = options;
 				options?.onRequestAccepted?.();
 				return true;
@@ -126,10 +129,16 @@ suite('SessionInputBanners', () => {
 			override revealFeedback(): Promise<void> { return Promise.resolve(); }
 		}();
 
-		const chatWidget = upcastPartial<IChatWidget>({});
+		const chatWidget = upcastPartial<IChatWidget>({
+			acceptInput: async () => upcastPartial<IChatResponseModel>({}),
+		});
+		const widgetLookups: URI[] = [];
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidAddWidget = Event.None;
-			override getWidgetBySessionResource(): IChatWidget { return chatWidget; }
+			override getWidgetBySessionResource(resource: URI): IChatWidget {
+				widgetLookups.push(resource);
+				return chatWidget;
+			}
 		}();
 		const storageService = store.add(new TestStorageService());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -196,6 +205,15 @@ suite('SessionInputBanners', () => {
 				startPollingCalls: 1,
 			},
 		});
+		banners.domNode.querySelector<HTMLElement>('.session-input-banner-action')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			fixTarget: widgetLookups.at(-1)?.toString(),
+			fixRequested: ciModels.get(38)?.fixRequested.get(),
+		}, {
+			fixTarget: secondaryChat.resource.toString(),
+			fixRequested: true,
+		});
 		activeChat.set(mainChat, undefined);
 
 		agentMergeState.set({ enabled: true }, undefined);
@@ -246,11 +264,13 @@ suite('SessionInputBanners', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
+			submittedResource: submittedResource?.toString(),
 			query: submitted?.query?.split('\n')[0],
 			feedbackIds: submitted?.feedbackIds,
 			fixRequested: ciModels.get(42)?.fixRequested.get(),
 			current: currentBanner(banners),
 		}, {
+			submittedResource: mainChat.resource.toString(),
 			query: '/fix-ci and /act-on-feedback for #42',
 			feedbackIds: ['pr-42-a', 'pr-42-b'],
 			fixRequested: true,

@@ -67,7 +67,7 @@ import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common
 import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
-import { getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
+import { getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -3386,20 +3386,28 @@ suite('Sessions - SessionsList', () => {
 				},
 			};
 			const worktreeSession = createMultiFolderSession([first, worktreeSecond], [undefined, [worktreeSecond]]);
+			const pendingMainWorktreeSession = {
+				...session,
+				worktreePending: constObservable(true),
+			};
 
 			const compact = renderSessionChatsList(session, undefined, false, true, true).container;
 			const regular = renderSessionChatsList(session, undefined, false, true, false).container;
 			const worktree = renderSessionChatsList(worktreeSession, undefined, false, true, false).container;
+			const pendingMainWorktree = renderSessionChatsList(pendingMainWorktreeSession, undefined, false, true, false).container;
 
 			assert.deepStrictEqual({
 				compact: summarizeFolderLabel(compact),
+				compactFolderRowDisplay: mainWindow.getComputedStyle(compact.querySelector<HTMLElement>('.session-chat-folder-row')!).display,
 				regular: {
 					...summarizeFolderLabel(regular),
 					height: regular.querySelector<HTMLElement>('.session-chat-item')?.closest<HTMLElement>('.monaco-list-row')?.style.height,
 				},
 				worktree: summarizeFolderLabel(worktree),
+				pendingMainWorktree: summarizeFolderLabel(pendingMainWorktree),
 			}, {
 				compact: { hasFolderLabel: true, folder: 'second', folderRow: '', folderIcon: undefined, ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+				compactFolderRowDisplay: 'none',
 				regular: {
 					hasFolderLabel: true,
 					folder: 'second',
@@ -3409,6 +3417,7 @@ suite('Sessions - SessionsList', () => {
 					height: '46px',
 				},
 				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 			});
 		});
 
@@ -3696,6 +3705,44 @@ suite('Sessions - SessionsList', () => {
 				folderRow: '',
 				folderIcon: undefined,
 				ariaLabel: 'Peer chat, chat, updated now, State: Completed',
+			});
+		});
+
+		test('peer chat hover ignores the session pending worktree flag', () => {
+			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+			const second: ISessionFolder = {
+				root: URI.file('/workspace/second'),
+				workingDirectory: URI.file('/workspace/second'),
+				name: 'second',
+				description: undefined,
+				gitRepository: {
+					uri: URI.file('/workspace/second'),
+					workTreeUri: undefined,
+					baseBranchName: 'main',
+					branchName: 'peer-work',
+					gitHubInfo: constObservable(undefined),
+				},
+			};
+			const session = {
+				...createMultiFolderSession([first, second], [undefined, [second]]),
+				worktreePending: constObservable(true),
+			};
+			const peerChat = session.chats.get()[1];
+			const data = getChatSummaryHoverData(
+				session,
+				peerChat,
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			);
+
+			assert.deepStrictEqual({
+				worktreePending: data.location?.worktreePending,
+				branch: data.location?.branch,
+			}, {
+				worktreePending: false,
+				branch: 'peer-work',
 			});
 		});
 

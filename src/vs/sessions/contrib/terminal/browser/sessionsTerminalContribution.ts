@@ -40,6 +40,12 @@ interface IPendingTerminalOperation {
 	replaced: boolean;
 }
 
+interface ITrackedTerminalScope {
+	readonly sessionId: string;
+	readonly key: string;
+	readonly agentHostAddress: string | undefined;
+}
+
 /**
  * Returns terminal info for the given session: worktree or repository path for
  * workspace-backed agent sessions. Returns `undefined` for sessions without a
@@ -96,8 +102,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	static readonly ID = 'workbench.contrib.sessionsTerminal';
 
 	private _activeKey: string | undefined;
+	private _activeAgentHostAddress: string | undefined;
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
+	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
 	private readonly _standaloneTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
@@ -193,6 +201,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				}
 				if (!preserveActiveTerminalState) {
 					this._activeKey = undefined;
+					this._activeAgentHostAddress = undefined;
 					this._activeSessionId = undefined;
 				}
 				return;
@@ -330,9 +339,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const key = cwd.fsPath.toLowerCase();
+		const agentHostAddress = this._getSessionAgentHostAddress(session);
 		let existing = session ? this._getTrackedTerminalsForSession(session.sessionId) : [];
 		if (requireCwdMatch && existing.length > 0) {
-			existing = await this._filterTerminalsForKey(existing, key);
+			existing = await this._filterTerminalsForScope(existing, key, agentHostAddress);
 		}
 		if (existing.length === 0) {
 			existing = await this._findTerminalsForKey(key, { excludeTracked: !!session });
@@ -365,7 +375,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		if (session) {
-			this._trackTerminalsForSession(session.sessionId, existing);
+			this._trackTerminalsForSession(session.sessionId, existing, { sessionId: session.sessionId, key, agentHostAddress });
 		}
 
 		if (focus) {
@@ -375,15 +385,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return existing;
 	}
 
-	private async _filterTerminalsForKey(instances: readonly ITerminalInstance[], key: string): Promise<ITerminalInstance[]> {
+	private async _filterTerminalsForScope(instances: readonly ITerminalInstance[], key: string, agentHostAddress: string | undefined): Promise<ITerminalInstance[]> {
 		const result: ITerminalInstance[] = [];
 		for (const instance of instances) {
-			try {
-				if ((await instance.getInitialCwd()).toLowerCase() === key) {
-					result.push(instance);
-				}
-			} catch {
-				// Ignore terminals whose cwd cannot be resolved.
+			if (await this._terminalMatchesScope(instance, key, agentHostAddress)) {
+				result.push(instance);
 			}
 		}
 		return result;
@@ -458,20 +464,22 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
 			const targetKey = targetPath.fsPath.toLowerCase();
-			if (this._activeKey === targetKey && this._activeSessionId === session.sessionId) {
+			const targetAgentHostAddress = this._getSessionAgentHostAddress(session);
+			if (this._activeKey === targetKey && this._activeAgentHostAddress === targetAgentHostAddress && this._activeSessionId === session.sessionId) {
 				return;
 			}
 			this._activeKey = targetKey;
+			this._activeAgentHostAddress = targetAgentHostAddress;
 			this._activeSessionId = session.sessionId;
 
 			const instances = await this._ensureTerminal(targetPath, false, session, generation, true);
 
 			// If the active session or key changed while we were awaiting, a newer
 			// call has taken over — skip the visibility update to avoid flicker.
-			if (this._activeKey !== targetKey || this._activeSessionId !== session.sessionId) {
+			if (this._activeKey !== targetKey || this._activeAgentHostAddress !== targetAgentHostAddress || this._activeSessionId !== session.sessionId) {
 				return;
 			}
-			await this._updateTerminalVisibility(session, targetKey, instances.map(instance => instance.instanceId));
+			await this._updateTerminalVisibility(session, targetKey, targetAgentHostAddress, instances.map(instance => instance.instanceId));
 		} finally {
 			this._endTerminalOperation(session.sessionId);
 		}
@@ -503,7 +511,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return result;
 	}
 
-	private _trackTerminalsForSession(sessionId: string, instances: readonly ITerminalInstance[]): void {
+	private _trackTerminalsForSession(sessionId: string, instances: readonly ITerminalInstance[], scope?: ITrackedTerminalScope): void {
 		if (instances.length === 0) {
 			return;
 		}
@@ -514,6 +522,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 		for (const instance of instances) {
 			terminalIds.add(instance.instanceId);
+			if (scope) {
+				this._trackedTerminalScopes.set(instance.instanceId, scope);
+			}
 		}
 	}
 
@@ -559,6 +570,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const terminals = this._getTrackedTerminalsForSession(sessionId);
 		for (const terminal of terminals) {
 			this._standaloneTerminalIds.add(terminal.instanceId);
+			this._trackedTerminalScopes.delete(terminal.instanceId);
 		}
 		if (terminals.length > 0) {
 			this._logService.trace(`[SessionsTerminal] Rehomed ${terminals.length} terminal(s) from session ${sessionId}`);
@@ -611,6 +623,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				const instance = this._terminalService.getInstanceFromId(instanceId);
 				if (!instance || instance.isDisposed) {
 					terminalIds.delete(instanceId);
+					this._trackedTerminalScopes.delete(instanceId);
 					if (terminalIds.size === 0) {
 						this._sessionTerminals.delete(sessionId);
 					}
@@ -625,6 +638,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _removeTerminalFromTrackedSessions(instanceId: number): void {
 		for (const [sessionId, terminalIds] of this._sessionTerminals) {
 			terminalIds.delete(instanceId);
+			this._trackedTerminalScopes.delete(instanceId);
 			if (terminalIds.size === 0) {
 				this._sessionTerminals.delete(sessionId);
 			}
@@ -646,7 +660,22 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * session has no tracked terminals yet, falls back to initial cwd matching
 	 * for compatibility with restored terminals from previous sessions.
 	 */
-	private async _updateTerminalVisibility(activeSession: ISession, activeKey: string, forceForegroundTerminalIds: number[]): Promise<void> {
+	private async _terminalMatchesScope(instance: ITerminalInstance, key: string, agentHostAddress: string | undefined): Promise<boolean> {
+		const trackedScope = this._trackedTerminalScopes.get(instance.instanceId);
+		if (trackedScope) {
+			return trackedScope.key === key && trackedScope.agentHostAddress === agentHostAddress;
+		}
+		if (agentHostAddress) {
+			return false;
+		}
+		try {
+			return (await instance.getInitialCwd()).toLowerCase() === key;
+		} catch {
+			return false;
+		}
+	}
+
+	private async _updateTerminalVisibility(activeSession: ISession, activeKey: string, activeAgentHostAddress: string | undefined, forceForegroundTerminalIds: number[]): Promise<void> {
 		const toShow: ITerminalInstance[] = [];
 		const toHide: ITerminalInstance[] = [];
 		const trackedTerminalIds = new Set(this._getTrackedTerminalsForSession(activeSession.sessionId).map(instance => instance.instanceId));
@@ -656,25 +685,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
-			let cwd: string | undefined;
 			const currentInstance = this._getAvailableTerminal(instance, 'update terminal visibility');
 			if (!currentInstance) {
 				continue;
 			}
 
 			const isForeground = this._terminalService.foregroundInstances.includes(currentInstance);
-			const isForceVisible = forceForegroundTerminalIds.includes(currentInstance.instanceId);
-			let belongsToActiveSession = trackedTerminalIds.has(currentInstance.instanceId);
+			const matchesActiveScope = await this._terminalMatchesScope(currentInstance, activeKey, activeAgentHostAddress);
+			const isForceVisible = forceForegroundTerminalIds.includes(currentInstance.instanceId) && matchesActiveScope;
+			let belongsToActiveSession = trackedTerminalIds.has(currentInstance.instanceId) && matchesActiveScope;
 			if (!belongsToActiveSession && !this._isTerminalTracked(currentInstance.instanceId)) {
-				// Untracked terminal (e.g. restored from a previous window) — fall
-				// back to cwd matching so it is shown alongside the session's tracked
-				// terminals rather than incorrectly hidden.
-				try {
-					cwd = (await currentInstance.getInitialCwd()).toLowerCase();
-				} catch {
-					continue;
-				}
-				belongsToActiveSession = cwd === activeKey;
+				belongsToActiveSession = matchesActiveScope;
 			}
 			if ((belongsToActiveSession || isForceVisible) && !isForeground) {
 				toShow.push(currentInstance);
@@ -703,6 +724,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
 			if (this._standaloneTerminalIds.has(instance.instanceId)) {
+				continue;
+			}
+			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
 				continue;
 			}
 			const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
@@ -811,6 +835,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			return;
 		}
 		this._activeKey = undefined;
+		this._activeAgentHostAddress = undefined;
 		this._activeSessionId = undefined;
 		await this._onActiveSessionChanged(activeSession);
 	}

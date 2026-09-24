@@ -409,21 +409,12 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			if (!this._isCompact() && getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get())) {
 				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
 			}
-			if (this._approvalModel) {
-				const approval = this._approvalModel.getApproval(element.chat.resource).get();
-				if (approval) {
-					// Reserve the approval row plus a small bottom slack (the chat row,
-					// unlike the session row, has no bottom padding to absorb the
-					// rendered code-block's line-height rounding). Kept in sync with the
-					// `.session-approval-row.visible` bottom margin in `sessionsList.css`.
-					chatHeight += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
-				}
-			}
-			return this.withInsetRowSpacing(chatHeight);
+			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
 		}
 		if (isSessionGroupItem(element) && element.comparison) {
 			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
 		}
+
 		if (isSessionSection(element) && element.id === SESSIONS_HEADER_SECTION_ID) {
 			return this._sessionsHeaderHeight?.() || SessionsTreeDelegate.SESSIONS_HEADER_HEIGHT;
 		}
@@ -472,6 +463,24 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
 		return this.withInsetRowSpacing(height);
+	}
+
+	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(
+			element,
+			this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT,
+		));
+	}
+
+	private withChatApprovalHeight(element: ISessionChatItem, height: number): number {
+		if (!this._approvalModel) {
+			return height;
+		}
+		const approval = this._approvalModel.getApproval(element.chat.resource).get();
+		if (!approval) {
+			return height;
+		}
+		return height + SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
@@ -759,7 +768,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.folderRow.hidden = !showFolderRow;
 			DOM.clearNode(template.folderRow);
 			if (showFolderRow && folderLabel && chatWorkspace) {
-				const kind = getSessionWorkspaceKind(chatWorkspace, element.session.worktreePending?.read(reader));
+				const kind = getSessionWorkspaceKind(chatWorkspace, false);
 				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
 				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
 				DOM.append(iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
@@ -4663,11 +4672,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.chatRowHeightReconcile.value = autorun(reader => {
 			for (const chatItem of chatItems) {
-				chatItem.session.workspace.read(reader);
-				chatItem.chat.workspace.read(reader);
 				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
-				if (this.tree.hasElement(chatItem)) {
+				if (this.tree.hasElement(chatItem) && this.tree.getRelativeTop(chatItem) !== null) {
+					chatItem.session.workspace.read(reader);
+					chatItem.chat.workspace.read(reader);
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));
+				} else if (this.tree.hasElement(chatItem)) {
+					this.tree.updateElementHeight(chatItem, this._delegate.getHeightWithoutChatWorkspace(chatItem));
 				}
 			}
 		});

@@ -528,6 +528,7 @@ suite('SessionsTerminalContribution', () => {
 		const session = makeAgentSession({ repository: URI.file('/repo-a'), providerType: AgentSessionProviders.Local });
 		activeSessionObs.set(session, undefined);
 		await tick();
+		addCommandToInstance(terminalInstances.get(1)!, 100);
 
 		const activeChat = session.activeChat.get();
 		const secondWorkspace: ISessionWorkspace = {
@@ -551,9 +552,13 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({
 			createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
 			defaultCwd: defaultCwdCalls.at(-1)?.fsPath,
+			activeInstanceId,
+			backgrounded: [...backgroundedInstances],
 		}, {
 			createdCwds: [URI.file('/repo-a').fsPath, URI.file('/repo-b').fsPath],
 			defaultCwd: URI.file('/repo-b').fsPath,
+			activeInstanceId: 2,
+			backgrounded: [1],
 		});
 	});
 

@@ -260,10 +260,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 					transientChangeset,
 				]
 				: changesets;
-			const isMultiFolderSession = (activeSession?.workspace.read(reader)?.folders.length ?? 0) > 1;
-			return isMultiFolderSession
-				? changesetsWithTransientSelection?.filter(changeset => changeset.id !== SESSION_CHANGES_CHANGESET_ID)
-				: changesetsWithTransientSelection;
+			return changesetsWithTransientSelection;
 		});
 
 		this.activeSessionChangesetsLoadingObs = derived(reader => {
@@ -274,7 +271,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const activeSessionChangesetProjectionObs = derivedObservableWithCache<IActiveChangesetProjection>(this, (reader, lastValue) => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
-			const workspace = activeChat?.workspace.read(reader);
+			const chatWorkspace = activeChat?.workspace.read(reader);
 			this._changesetSelectionChanged.read(reader);
 			const sessionSelections = activeSession
 				? this._changesetSelectionsBySession.get(activeSession.resource)
@@ -289,19 +286,19 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				if (activeSession && canPreserveChangesetWhileCatalogueLoads(
 					lastValue,
 					activeSession.resource,
-					workspace,
+					chatWorkspace,
 					mainWorkspace,
 					selectedChangesetId,
 				)) {
 					return {
 						sessionResource: activeSession.resource,
-						workspace,
+						workspace: chatWorkspace,
 						changeset: lastValue.changeset,
 					};
 				}
 				return {
 					sessionResource: activeSession?.resource,
-					workspace,
+					workspace: chatWorkspace,
 					changeset: undefined,
 				};
 			}
@@ -317,7 +314,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			if (selectedChangeset) {
 				return {
 					sessionResource: activeSession?.resource,
-					workspace,
+					workspace: selectedChangeset.id === SESSION_CHANGES_CHANGESET_ID ? activeSession?.workspace.read(reader) : chatWorkspace,
 					changeset: selectedChangeset,
 				};
 			}
@@ -328,10 +325,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const firstEnabledChangeset = activeSessionChangesets
 				.find(c => c.isEnabled.read(reader));
 
+			const changeset = defaultChangeset ?? firstEnabledChangeset;
 			return {
 				sessionResource: activeSession?.resource,
-				workspace,
-				changeset: defaultChangeset ?? firstEnabledChangeset,
+				workspace: changeset?.id === SESSION_CHANGES_CHANGESET_ID ? activeSession?.workspace.read(reader) : chatWorkspace,
+				changeset,
 			};
 		});
 		this.activeSessionChangesetObs = derived(reader => activeSessionChangesetProjectionObs.read(reader).changeset);
