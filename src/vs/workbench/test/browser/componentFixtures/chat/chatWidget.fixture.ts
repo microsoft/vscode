@@ -86,10 +86,10 @@ export interface IFixtureMessage {
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
-		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean }
+		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
 		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
@@ -479,16 +479,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					toolInvocation.requestConfirmation({
 						confirmationMessages: { title: 'Approve tool call?', message: new MarkdownString(part.invocationMessage), confirmResults: part.approval === 'post' },
 					});
-					if (part.approval === 'post') {
+					if (part.approval === 'post' || part.approval === 'denied') {
 						const state = toolInvocation.state.get();
 						if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-							throw new Error('Post-approval fixture requires a confirmable tool');
+							throw new Error('The approval fixture requires a confirmable tool');
 						}
-						state.confirm({ type: ToolConfirmKind.ConfirmationNotNeeded });
-						await toolInvocation.didExecuteTool({ content: [] });
+						state.confirm({ type: part.approval === 'denied' ? ToolConfirmKind.Denied : ToolConfirmKind.ConfirmationNotNeeded });
+						if (part.approval === 'post') {
+							await toolInvocation.didExecuteTool({ content: [] });
+						}
 					}
 				} else if (part.complete) {
-					await toolInvocation.didExecuteTool(part.resultDetails ? { content: [], toolResultDetails: part.resultDetails } : undefined);
+					await toolInvocation.didExecuteTool(part.resultDetails || part.resultError ? { content: [], toolResultDetails: part.resultDetails, toolResultError: part.resultError } : undefined);
 				}
 			} else if (part.kind === 'questionCarousel') {
 				const carousel = new ChatQuestionCarouselData(part.questions, part.allowSkip ?? true, undefined, part.data, part.isUsed, part.message);
@@ -526,7 +528,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					await child.didExecuteTool({ content: [{ kind: 'text', value: '2' }] });
 				}
 			} else if (part.kind === 'mcpStarting') {
-				const servers = part.servers.map(name => ({ id: name, name }));
+				const servers = part.servers.map(name => ({
+					id: name,
+					name,
+					blocking: part.blocking,
+					background: part.background ? async () => { } : undefined,
+				}));
 				if (part.local) {
 					model.acceptResponseProgress(request, new ChatMcpServersStarting(observableValue<IAutostartResult>('mcpStartup', {
 						working: true,
@@ -1100,7 +1107,7 @@ const PERSISTENT_PROGRESS_THINKING: IFixtureMessage[] = [{
 
 const PERSISTENT_PROGRESS_MCP_STARTING: IFixtureMessage[] = [{
 	user: 'Use the workspace and documentation MCP servers',
-	assistant: [{ kind: 'mcpStarting', servers: ['workspace', 'documentation'] }],
+	assistant: [{ kind: 'mcpStarting', servers: ['workspace', 'documentation'], blocking: true, background: true }],
 	responseComplete: false,
 }];
 
@@ -1267,8 +1274,15 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		|| rendered.length > 3 && rendered.endsWith('...') && part.command.startsWith(rendered.slice(0, -3))))) {
 		throw new Error('The terminal command code block is empty or incomplete');
 	}
-	if (mcpStartup && !response.querySelector('.chat-mcp-servers-interaction')?.textContent?.includes('Starting MCP servers')) {
-		throw new Error('MCP startup did not use the real startup progress renderer');
+	if (mcpStartup) {
+		const mcpStartupPart = response.querySelector('.chat-mcp-servers-interaction');
+		const expectedMessage = mcpStartup.blocking ? 'Waiting for MCP servers' : 'Starting MCP servers';
+		if (!mcpStartupPart?.textContent?.includes(expectedMessage)) {
+			throw new Error('MCP startup did not use the real startup progress renderer');
+		}
+		if (mcpStartup.background && mcpStartupPart.querySelector('a[data-href="#skip"]')?.textContent !== 'Skip') {
+			throw new Error('Blocking MCP startup did not offer a Skip link');
+		}
 	}
 
 	if (options.expandThinking) {
@@ -1584,6 +1598,42 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 			responseComplete: complete,
 		}],
 	});
+}
+
+async function renderToolFailures(context: ComponentFixtureContext, grouped: boolean, progress = ChatProgressAnimation.Draw, withDenied = false): Promise<void> {
+	await renderChatWidget(context, {
+		width: 720,
+		height: 340,
+		listHeight: 340,
+		inputVisible: false,
+		persistentProgress: progress,
+		persistentProgressVerbosity: ChatProgressVerbosity.Verbose,
+		collapseCompletedResponses: false,
+		messages: [{
+			user: 'Check the local preview and the rendering tests',
+			assistant: [
+				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the renderer tests', complete: true },
+				...(!grouped ? [{ kind: 'markdown' as const, text: 'The test configuration is ready. Checking the preview next.' }] : []),
+				{
+					kind: 'tool', toolId: 'navigate', displayName: 'Navigate', invocationMessage: 'Open the local preview', complete: true,
+					resultError: 'page.reload: net::ERR_CONNECTION_REFUSED\nCall log:\n  - waiting for navigation until "domcontentloaded"',
+				},
+				...(!grouped ? [{ kind: 'markdown' as const, text: 'The preview is not running. I will inspect the source instead.' }] : []),
+				{
+					kind: 'tool', toolId: 'mcp_fixture_errors', displayName: 'Check fixture errors', invocationMessage: 'Check component fixtures', complete: true,
+					source: { type: 'mcp', label: 'Component Explorer', serverLabel: 'Component Explorer', collectionId: 'explorer', definitionId: 'explorer', instructions: '' },
+					resultError: 'The component explorer browser was closed. Restart the preview and try again.',
+				},
+				...(withDenied ? [{
+					kind: 'tool' as const, toolId: 'mcp_read_settings', displayName: 'Read settings', invocationMessage: 'Read workspace settings', approval: 'denied' as const,
+				}] : []),
+			],
+		}],
+	});
+	const errors = context.container.querySelectorAll('.chat-tool-call-error');
+	if (errors.length !== 2 || context.container.querySelector('.chat-notification-widget')) {
+		throw new Error('Failed tool calls must retain the normal tool rows instead of notification cards');
+	}
 }
 
 async function renderPersistentProgressHandoff(context: ComponentFixtureContext, reasoning: boolean, atBottom = false): Promise<void> {
@@ -2349,6 +2399,12 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PersistentProgress: defineThemedFixtureGroup({ path: 'persistentProgress/' }, {
 		ToolChains: defineToolChainScenarios(),
+		ToolFailures: defineThemedFixtureGroup({
+			Standalone: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolFailures(context, false) }),
+			Grouped: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderToolFailures(context, true) }),
+			Legacy: defineComponentFixture({ render: context => renderToolFailures(context, false, ChatProgressAnimation.Off) }),
+			WithDenied: defineComponentFixture({ render: context => renderToolFailures(context, false, ChatProgressAnimation.Draw, true) }),
+		}),
 		VerbosityComparison: defineThemedFixtureGroup({
 			VerboseStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, false) }),
 			VerboseCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, true) }),

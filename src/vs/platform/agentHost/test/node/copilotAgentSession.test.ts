@@ -163,6 +163,10 @@ class MockCopilotSession {
 	readonly mcpDisableCalls: Array<{ serverName: string }> = [];
 	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
 	readonly mcpStopServerCalls: Array<{ serverName: string }> = [];
+	mcpMoveLoadingToBackgroundCalls = 0;
+	mcpMoveLoadingToBackgroundResult = true;
+	mcpMoveLoadingToBackgroundError: Error | undefined;
+	mcpMoveLoadingToBackgroundGate: Promise<void> | undefined;
 	readonly mcpAuthenticationStateChangedCalls: Array<{ serverName?: string; refreshSessionToken?: boolean }> = [];
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
 	mcpAuthenticationStateChangedError: Error | undefined;
@@ -507,8 +511,9 @@ class MockCopilotSession {
 			},
 		},
 		mcp: {
-			list: async () => {
+			list: async (options?: { startServers?: boolean }) => {
 				this.mcpListCalls++;
+				this.mcpListOptions.push(options);
 				if (this.mcpListError !== undefined) {
 					throw this.mcpListError;
 				}
@@ -521,15 +526,27 @@ class MockCopilotSession {
 				if (this.mcpEnableError !== undefined) {
 					throw this.mcpEnableError;
 				}
+				await this.mcpEnableGate;
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'pending' } : server),
 				};
+			},
+			moveLoadingToBackground: async () => {
+				this.mcpMoveLoadingToBackgroundCalls++;
+				await this.mcpMoveLoadingToBackgroundGate;
+				if (this.mcpMoveLoadingToBackgroundError) {
+					throw this.mcpMoveLoadingToBackgroundError;
+				}
+				return { movedToBackground: this.mcpMoveLoadingToBackgroundResult };
 			},
 			listTools: async (_params: { serverName: string }) => {
 				return { tools: [] };
 			},
 			disable: async (params: { serverName: string }) => {
 				this.mcpDisableCalls.push(params);
+				if (this.mcpDisableError !== undefined) {
+					throw this.mcpDisableError;
+				}
 				await this.mcpDisableGate;
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'disabled' } : server),
@@ -621,9 +638,12 @@ class MockCopilotSession {
 
 	mcpListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>> = { servers: [] };
 	mcpListCalls = 0;
+	mcpListOptions: Array<{ startServers?: boolean } | undefined> = [];
 	mcpListGates: Promise<void>[] = [];
 	mcpListError: unknown = undefined;
 	mcpEnableError: unknown = undefined;
+	mcpEnableGate: Promise<unknown> | undefined;
+	mcpDisableError: unknown = undefined;
 	mcpStartServerError: unknown = undefined;
 }
 
@@ -16275,6 +16295,51 @@ Use the attached image as context.
 
 	suite('MCP server inventory', () => {
 
+		for (const status of ['disabled', 'not_configured', 'stopped'] as const) {
+			for (const enabled of [false, true]) {
+				test(`reconciles ${status} servers with desired enablement ${enabled}`, async () => {
+					const serverName = 'azure';
+					const id = 'mcp-top-level:copilot:test-session-1:azure';
+					const { session, mockSession } = await createAgentSession(disposables, {
+						sessionCustomizations: () => [{
+							type: CustomizationType.McpServer,
+							id,
+							uri: id,
+							name: serverName,
+							state: { kind: McpServerStatus.Stopped },
+						}],
+						resolveCustomizationEnablement: () => ({
+							kind: 'resolved',
+							enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+							enabled,
+							workingDirectory: { kind: 'workspaceless' },
+						}),
+						configureMockSession: mock => {
+							mock.mcpListResult = { servers: [{ name: serverName, status }] };
+						},
+					});
+
+					await session.send('reconcile Azure');
+
+					assert.deepStrictEqual({
+						enable: mockSession.mcpEnableCalls,
+						disable: mockSession.mcpDisableCalls,
+					}, {
+						enable: enabled && status !== 'stopped' ? [{ serverName }] : [],
+						disable: !enabled && status === 'stopped' ? [{ serverName }] : [],
+					});
+				});
+			}
+		}
+
+		test('seeds the initial MCP inventory without starting servers', async () => {
+			const { mockSession } = await createAgentSession(disposables);
+
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.mcpListOptions, [{ startServers: false }]);
+		});
+
 		test('does not enable a server while its customization resolution is pending', async () => {
 			const serverName = 'azure';
 			const id = 'mcp-top-level:copilot:test-session-1:azure';
@@ -16324,6 +16389,220 @@ Use the attached image as context.
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, []);
 		});
 
+		test('uses a non-starting list to disable a runtime-enabled server without waiting for pending inventory', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const inventoryGate = new DeferredPromise<void>();
+			const disableGate = new DeferredPromise<void>();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					enabled: false,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+					mock.mcpDisableGate = disableGate.p;
+				},
+			});
+
+			await timeout(0);
+			const staleControllerState = session.topLevelMcpCustomizations()[0]?.state;
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+			mockSession.mcpListGates.push(inventoryGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'connected' }] });
+			await timeout(0);
+			const sending = session.send('keep Azure disabled');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				staleControllerState,
+				disableCalls: mockSession.mcpDisableCalls,
+				nonStartingListCalls: mockSession.mcpListOptions.filter(options => options?.startServers === false).length,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				staleControllerState: { kind: McpServerStatus.Stopped },
+				disableCalls: [{ serverName }],
+				nonStartingListCalls: 3,
+				sendRequests: [],
+			});
+
+			disableGate.complete();
+			await sending;
+			inventoryGate.complete();
+
+			assert.deepStrictEqual(mockSession.sendRequests, [{ prompt: 'keep Azure disabled', attachments: undefined }]);
+		});
+
+		test('uses a non-starting list to enable a runtime-disabled server without waiting for pending inventory', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const inventoryGate = new DeferredPromise<void>();
+			const enableGate = new DeferredPromise<void>();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [],
+					enabled: true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+					mock.mcpEnableGate = enableGate.p;
+				},
+			});
+
+			await timeout(0);
+			const staleControllerState = session.topLevelMcpCustomizations()[0]?.state;
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+			mockSession.mcpListGates.push(inventoryGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'disabled' }] });
+			await timeout(0);
+			const sending = session.send('use Azure');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				staleControllerState,
+				enableCalls: mockSession.mcpEnableCalls,
+				nonStartingListCalls: mockSession.mcpListOptions.filter(options => options?.startServers === false).length,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				staleControllerState: { kind: McpServerStatus.Ready },
+				enableCalls: [{ serverName }],
+				nonStartingListCalls: 3,
+				sendRequests: [],
+			});
+
+			enableGate.complete();
+			await sending;
+			inventoryGate.complete();
+
+			assert.deepStrictEqual(mockSession.sendRequests, [{ prompt: 'use Azure', attachments: undefined }]);
+		});
+
+		test('does not send when the non-starting MCP list fails', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					enabled: false,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+			});
+
+			mockSession.mcpListError = new Error('list unavailable');
+			await assert.rejects(() => session.send('keep Azure disabled'), /list unavailable/);
+
+			assert.deepStrictEqual({
+				disableCalls: mockSession.mcpDisableCalls,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				disableCalls: [],
+				sendRequests: [],
+			});
+		});
+
+		test('does not send when required MCP disablement fails', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					enabled: false,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+					mock.mcpDisableError = new Error('disable unavailable');
+				},
+			});
+
+			await assert.rejects(() => session.send('keep Azure disabled'), /disable unavailable/);
+
+			assert.deepStrictEqual({
+				disableCalls: mockSession.mcpDisableCalls,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				disableCalls: [{ serverName }],
+				sendRequests: [],
+			});
+		});
+
+		test('uses desired enablement resolved after the non-starting list completes', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const enablementGate = new DeferredPromise<void>();
+			let desiredEnabled = false;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					...(!desiredEnabled ? {
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					} : {}),
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: desiredEnabled ? [] : [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					enabled: desiredEnabled,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+
+			mockSession.mcpListGates.push(enablementGate.p);
+			const sending = session.send('use Azure');
+			await timeout(0);
+			desiredEnabled = true;
+			enablementGate.complete();
+			await sending;
+
+			assert.deepStrictEqual({
+				enableCalls: mockSession.mcpEnableCalls,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				enableCalls: [{ serverName }],
+				sendRequests: [{ prompt: 'use Azure', attachments: undefined }],
+			});
+		});
+
 		test('enables a server resolved as enabled when the SDK reports it disabled', async () => {
 			const serverName = 'azure';
 			const id = 'mcp-top-level:copilot:test-session-1:azure';
@@ -16352,7 +16631,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
 		});
 
-		test('re-enabling an explicitly projected plugin server defers to a session refresh', async () => {
+		test('keeps an explicitly projected plugin server out of the top-level inventory and defers re-enabling it to a session refresh', async () => {
 			const serverName = 'vscode_probe';
 			const pluginUri = 'https://bundle';
 			const pluginDir = URI.file('/bundle');
@@ -16408,6 +16687,9 @@ Use the attached image as context.
 				},
 			});
 
+			await timeout(0);
+			assert.deepStrictEqual(session.topLevelMcpCustomizations(), []);
+
 			enabled = true;
 			dispatchSessionAction({ type: ActionType.SessionCustomizationsChanged, customizations: [...customizations()] });
 			await timeout(0);
@@ -16444,15 +16726,18 @@ Use the attached image as context.
 
 			desiredEnabled = false;
 			await session.send('disable Slack');
+			await timeout(0);
 			const afterDisable = session.topLevelMcpCustomizations();
 			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
 			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] });
 			await timeout(0);
 			const afterRuntimeUpdate = session.topLevelMcpCustomizations();
 			await session.send('keep Slack disabled');
+			await timeout(0);
 			const afterReconcile = session.topLevelMcpCustomizations();
 			desiredEnabled = true;
 			await session.send('enable Slack');
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				disableCalls: mockSession.mcpDisableCalls,
@@ -16481,7 +16766,7 @@ Use the attached image as context.
 					name: serverName,
 					// TODO: Step 2 selects the persisted enablement scope.
 					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
-					state: { kind: McpServerStatus.Starting },
+					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
 				}],
@@ -16502,7 +16787,7 @@ Use the attached image as context.
 					id,
 					uri: id,
 					name: serverName,
-					state: { kind: McpServerStatus.Starting },
+					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
 				}],
@@ -16541,6 +16826,176 @@ Use the attached image as context.
 			await assert.rejects(session.startMcpServer('missing'), /Cannot start unknown MCP server customization missing/);
 		});
 
+		test('backgroundMcpServerStartup accepts a blocking server without waiting for it to connect', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting, blocking: true },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+
+			await session.backgroundMcpServerStartup();
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+
+			assert.deepStrictEqual({
+				calls: mockSession.mcpMoveLoadingToBackgroundCalls,
+				state: session.topLevelMcpCustomizations()[0]?.state,
+			}, {
+				calls: 1,
+				state: { kind: McpServerStatus.Starting, blocking: false },
+			});
+		});
+
+		test('backgroundMcpServerStartup accepts an empty inventory', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.backgroundMcpServerStartup();
+			assert.deepStrictEqual({ calls: mockSession.mcpMoveLoadingToBackgroundCalls, servers: session.topLevelMcpCustomizations() }, { calls: 1, servers: [] });
+		});
+
+		test('backgroundMcpServerStartup preserves blocking when the SDK has no waiting turn to release', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting, blocking: true },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+					mock.mcpMoveLoadingToBackgroundResult = false;
+				},
+			});
+
+			await session.backgroundMcpServerStartup();
+			await session.backgroundMcpServerStartup();
+			const beforeSuccessfulBackgrounding = session.topLevelMcpCustomizations()[0]?.state;
+			mockSession.mcpMoveLoadingToBackgroundResult = true;
+			await session.backgroundMcpServerStartup();
+			mockSession.mcpMoveLoadingToBackgroundResult = false;
+			await session.backgroundMcpServerStartup();
+
+			assert.deepStrictEqual({
+				calls: mockSession.mcpMoveLoadingToBackgroundCalls,
+				beforeSuccessfulBackgrounding,
+				afterRepeatedNoOp: session.topLevelMcpCustomizations()[0]?.state,
+			}, {
+				calls: 4,
+				beforeSuccessfulBackgrounding: { kind: McpServerStatus.Starting, blocking: true },
+				afterRepeatedNoOp: { kind: McpServerStatus.Starting, blocking: false },
+			});
+		});
+
+		test('backgroundMcpServerStartup updates all pending servers after the session-wide SDK request succeeds', async () => {
+			const first = { name: 'db', id: 'mcp-top-level:copilot:test-session-1:db' };
+			const second = { name: 'docs', id: 'mcp-top-level:copilot:test-session-1:docs' };
+			const { session } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [first, second].map(server => ({
+					type: CustomizationType.McpServer,
+					id: server.id,
+					uri: server.id,
+					name: server.name,
+					state: { kind: McpServerStatus.Starting, blocking: true },
+				})),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [first, second].map(server => ({ name: server.name, status: 'pending' as const })) };
+				},
+			});
+
+			await session.backgroundMcpServerStartup();
+			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => server.state), [
+				{ kind: McpServerStatus.Starting, blocking: false },
+				{ kind: McpServerStatus.Starting, blocking: false },
+			]);
+		});
+
+		test('backgroundMcpServerStartup preserves blocking state when the SDK rejects', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting, blocking: true },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+					mock.mcpMoveLoadingToBackgroundError = new Error('rejected');
+				},
+			});
+
+			await assert.rejects(session.backgroundMcpServerStartup(), /rejected/);
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+
+			assert.deepStrictEqual(session.topLevelMcpCustomizations()[0]?.state, { kind: McpServerStatus.Starting, blocking: true });
+		});
+
+		for (const status of ['connected', 'failed', 'restart'] as const) {
+			test(`backgroundMcpServerStartup does not overwrite ${status} while awaiting the SDK`, async () => {
+				const serverName = 'db';
+				const id = 'mcp-top-level:copilot:test-session-1:db';
+				const gate = new DeferredPromise<void>();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+						mock.mcpMoveLoadingToBackgroundGate = gate.p;
+					},
+				});
+				const pending = session.backgroundMcpServerStartup();
+				const beforeAcceptance = session.topLevelMcpCustomizations()[0]?.state;
+				if (status === 'restart') {
+					await session.stopMcpServer(id);
+					await session.startMcpServer(id);
+					mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+				} else {
+					mockSession.fire('session.mcp_server_status_changed', { serverName, status, error: status === 'failed' ? 'failed' : undefined });
+				}
+				const beforeCompletion = session.topLevelMcpCustomizations()[0]?.state;
+				await gate.complete();
+				await pending;
+
+				assert.deepStrictEqual({
+					beforeAcceptance,
+					afterCompletion: session.topLevelMcpCustomizations()[0]?.state,
+				}, {
+					beforeAcceptance: { kind: McpServerStatus.Starting, blocking: true },
+					afterCompletion: beforeCompletion,
+				});
+			});
+		}
+
+		test('a new SDK startup blocks again after a backgrounded startup completes', async () => {
+			const serverName = 'db';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+			await session.backgroundMcpServerStartup();
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'connected' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+
+			assert.deepStrictEqual(session.topLevelMcpCustomizations()[0]?.state, { kind: McpServerStatus.Starting, blocking: true });
+		});
+
 		test('startMcpServer reports Starting only once the SDK reports the reconnect', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
@@ -16575,7 +17030,7 @@ Use the attached image as context.
 				startServerCalls: [{ serverName }],
 				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
 				afterFailedStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
-				afterSdkPending: { kind: McpServerStatus.Starting },
+				afterSdkPending: { kind: McpServerStatus.Starting, blocking: true },
 			});
 		});
 
@@ -16784,6 +17239,7 @@ Use the attached image as context.
 			});
 
 			await session.send('keep MCP server disabled');
+			await timeout(0);
 			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'not_configured' }] });
 			await session.send('keep MCP server disabled after reconfiguration');
 
