@@ -566,11 +566,11 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('does not stick the Sessions header after navigation scrolls away', async () => {
+		test('does not stick the Sessions header while retaining section sticky scroll', async () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', true);
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', false);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
@@ -603,6 +603,7 @@ suite('Sessions - SessionsList', () => {
 			tree.scrollTop = 400;
 			await timeout(0);
 			const headerInStickyContainer = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
+			const stickySectionLabel = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .session-section-label')?.textContent;
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
 			const headerParkedAfterScroll = sessionsHeader.parentElement === sessionsHeaderContainer;
 			const headerHiddenAfterScroll = sessionsHeader.style.display === 'none' && sessionsHeader.getAttribute('aria-hidden') === 'true';
@@ -612,6 +613,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				headerText: sessionsHeader.textContent,
 				headerInStickyContainer,
+				stickySectionLabel,
 				navigationVisibleAfterScroll,
 				headerParkedAfterScroll,
 				headerHiddenAfterScroll,
@@ -622,6 +624,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				headerText: 'Sessions',
 				headerInStickyContainer: false,
+				stickySectionLabel: 'Recent',
 				navigationVisibleAfterScroll: false,
 				headerParkedAfterScroll: true,
 				headerHiddenAfterScroll: true,

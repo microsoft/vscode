@@ -3582,7 +3582,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
 				allowNonCollapsibleParents: true,
-				enableStickyScroll: false,
+				enableStickyScroll: true,
 				expandOnlyOnTwistieClick: element => isSessionItem(element),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
@@ -4300,8 +4300,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: SESSIONS_HEADER_SECTION,
 					collapsible: false,
 					collapsed: false,
-					children,
 				},
+				...children,
 			]);
 		} else {
 			if (this.options.sessionsHeader && this.options.sessionsHeaderContainer) {
