@@ -88,7 +88,15 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		await this.refreshSessionGitState(sessionKey, workingDirectory);
-		await this._queuePullRequestLookup(sessionKey);
+		if (isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey)) {
+			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
+			if (folder.folderKey !== undefined) {
+				await this._queueFolderPullRequestLookup(folder);
+				return;
+			}
+		}
+		const sessionUri = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey).sessionUri : sessionKey;
+		await this._queuePullRequestLookup(sessionUri);
 	}
 
 	/**
@@ -238,6 +246,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 			const currentGitHubState = this.getGitHubState(folder.sourceUri);
 			let nextGitHubState = withMostRecentSessionPullRequest(currentGitHubState, pr.url, branchName);
+			// Other folders are user-selected existing checkouts rather than
+			// newly-created isolated worktrees, so they intentionally baseline
+			// pre-existing pull requests like folder-isolated session folders.
 			if (this._predatesSession(folder.sessionUri, pr)) {
 				nextGitHubState = { ...nextGitHubState, ...withInitialSessionPullRequest(currentGitHubState, pr.url) };
 			}
@@ -480,7 +491,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		// Update session state manager
-		const nextMeta = withSessionSourceControlState(withFolderGitHubState(currentMeta, folder.folderKey, nextState), nextSourceControlState);
+		const nextMeta = withSessionSourceControlState(withFolderGitHubState(currentMeta, folder.folderKey, nextState, folder.workingDirectory), nextSourceControlState);
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 		this._onDidChangeSessionGitHubState.fire(sessionKey);
 
@@ -557,27 +568,29 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextState));
 	}
 
-	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState): Promise<void> {
+	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<void> {
 		// Update session state manager
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const nextMeta = withSessionGitState(currentMeta, gitState);
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
-		await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
+		if (gitState) {
+			await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
+		} else {
+			await this._deleteSessionState(sessionKey, [META_GIT_STATE]);
+		}
 	}
 
 	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<void> {
 		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
 		if (isDefaultChatUri(sessionKey)) {
-			if (gitState) {
-				await this._setSessionGitState(scope.sessionUri, gitState);
-			}
+			await this._setSessionGitState(scope.sessionUri, gitState);
 			return;
 		}
 		const scopeId = getWorkingDirectoryScopeId(scope.workingDirectories);
 		const currentMeta = this._stateManager.getSessionState(scope.sessionUri)?._meta;
-		this._stateManager.setSessionMeta(scope.sessionUri, withFolderScopeGitState(currentMeta, scopeId, gitState));
+		this._stateManager.setSessionMeta(scope.sessionUri, withFolderScopeGitState(currentMeta, scopeId, gitState, scope.workingDirectories));
 		await this._gitStateSaves.queue(scope.sessionUri, async () => {
 			const gitData = readSessionGitData(this._stateManager.getSessionState(scope.sessionUri)?._meta);
 			await this._saveSessionState(scope.sessionUri, META_GIT_DATA_STATE, JSON.stringify(Object.fromEntries(gitData)));
@@ -603,6 +616,29 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			await databaseRef.object.setMetadata(key, value);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${key}`, error);
+		} finally {
+			databaseRef.dispose();
+		}
+	}
+
+	private async _deleteSessionState(sessionKey: string, keys: readonly string[]): Promise<void> {
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.lifecycle === SessionLifecycle.Creating) {
+			return;
+		}
+
+		let databaseRef;
+		try {
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_deleteSessionState] Failed to open session database for ${sessionKey}`, error);
+			return;
+		}
+
+		try {
+			await databaseRef.object.deleteMetadata(keys);
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_deleteSessionState] Failed to delete ${keys.join(', ')}`, error);
 		} finally {
 			databaseRef.dispose();
 		}

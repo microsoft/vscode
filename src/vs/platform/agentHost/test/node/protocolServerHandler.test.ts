@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
+import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -166,6 +167,7 @@ class MockAgentService implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	readonly importedSessions: string[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -284,6 +286,9 @@ class MockAgentService implements IAgentService {
 	}
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+	}
+	async importSession(session: URI): Promise<void> {
+		this.importedSessions.push(session.toString());
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -797,6 +802,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
+				'vscode.importSession': true,
 				'vscode.devContainers': true,
 			},
 		});
@@ -1372,6 +1378,75 @@ suite('ProtocolServerHandler', () => {
 		disabled.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', diagnostic));
 		await ignored;
 		assert.deepStrictEqual(calls, [diagnostic]);
+	});
+
+	test('advertises and routes external session import', async () => {
+		const transport = connectClient('client-import');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const result = initialized.result as InitializeResult;
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/importSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionImport(result),
+			legacy: supportsAgentHostSessionImport({ ...result, _meta: undefined }),
+			malformed: supportsAgentHostSessionImport({ ...result, _meta: { 'vscode.importSession': 'true' } }),
+			uninitialized: supportsAgentHostSessionImport(undefined),
+			response: await response,
+			imported: agentService.importedSessions,
+		}, {
+			supported: true, legacy: false, malformed: false, uninitialized: false,
+			response: { jsonrpc: '2.0', id: 20, result: null },
+			imported: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('rejects invalid session import params before routing', async () => {
+		const transport = connectClient('client-import-invalid');
+		for (const [index, params] of [
+			undefined, null, [], {}, { session: 1 }, { session: 'session-1' },
+			{ session: 'copilotcli:/' }, { session: 'copilotcli://host/session' },
+			{ session: 'copilotcli:/session?query' }, { session: 'copilotcli:/session#fragment' },
+			{ session: buildChatUri('copilotcli:/session-1', 'peer-1') },
+		].entries()) {
+			const id = index + 20;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, 'vscode/importSession', params));
+			const message = await response;
+			assert.ok(isJsonRpcResponse(message) && hasKey(message, { error: true }) && message.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.deepStrictEqual(agentService.importedSessions, []);
+	});
+
+	test('does not advertise or route session import when the service does not support it', async () => {
+		const unsupported: IAgentService = agentService;
+		unsupported.importSession = undefined;
+		const transport = connectClient('client-import-unsupported');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/importSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionImport(initialized.result as InitializeResult),
+			response: await response,
+			imported: agentService.importedSessions,
+		}, {
+			supported: false,
+			response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/importSession' } },
+			imported: [],
+		});
+	});
+
+	test('propagates session import persistence errors', async () => {
+		const transport = connectClient('client-import-error');
+		const error = new Error('Import persistence failed');
+		agentService.importSession = async () => { throw error; };
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/importSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual(await response, {
+			jsonrpc: '2.0', id: 20,
+			error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack },
+		});
 	});
 
 	test('advertises and routes artifact removal through the extension request', async () => {

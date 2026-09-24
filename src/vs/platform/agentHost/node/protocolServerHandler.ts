@@ -23,7 +23,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelAgentHostCanvasApprovalExtensionMethod, CancelCanvasChatInitializationExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, InitializeCanvasChatExtensionMethod, initializeCanvasChatParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostCanvasApprovalExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasApprovalRequest, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { CancelAgentHostCanvasApprovalExtensionMethod, CancelCanvasChatInitializationExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, InitializeCanvasChatExtensionMethod, initializeCanvasChatParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostCanvasApprovalExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasApprovalRequest, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
@@ -719,7 +719,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(canRemoveSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, client.canvases !== undefined),
+				_meta: getAgentHostExtensionInitializeResultMeta(canRemoveSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, client.canvases !== undefined),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -732,7 +732,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				client,
 				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
 					...response,
-					_meta: getAgentHostExtensionInitializeResultMeta(canRemoveSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, client.canvases !== undefined),
+					_meta: getAgentHostExtensionInitializeResultMeta(canRemoveSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, client.canvases !== undefined),
 					...(client.canvases ? { canvases: {} } : {}),
 					serverSeq: this._stateManager.serverSeq,
 					snapshots: snapshots.map(snapshot => this._stateManager.getSnapshot(snapshot.resource) ?? snapshot),
@@ -2031,17 +2031,40 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!artifactId.trim()) {
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'artifactId must be a non-empty string'));
 		}
+		try {
+			return this._agentService.removeSessionArtifact(this._parseSessionUri(sessionParam), artifactId);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+
+	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
+		if (!this._agentService.importSession) {
+			return undefined;
+		}
+		const validated = importSessionParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		try {
+			return this._agentService.importSession(this._parseSessionUri(validated.content.session));
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+
+	private _parseSessionUri(sessionParam: string): URI {
 		let session: URI;
 		try {
 			session = URI.parse(sessionParam, true);
 		} catch {
-			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string');
 		}
 		if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
 			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
-			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI');
 		}
-		return this._agentService.removeSessionArtifact(session, artifactId);
+		return session;
 	}
 
 	/**
@@ -2063,6 +2086,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					? connection.initializeCanvasChat(validated.content)
 					: connection.cancelCanvasChatInitialization(validated.content);
 			});
+		}
+		if (method === ImportSessionExtensionMethod) {
+			return this._handleImportSessionRequest(params);
 		}
 		if (method === ReportAgentHostFirstResponseExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {

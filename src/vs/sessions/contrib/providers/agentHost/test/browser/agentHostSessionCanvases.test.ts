@@ -23,7 +23,7 @@ import { canvasEntry, createCanvasState } from '../../../../canvases/test/common
 type CanvasConnection = IAgentHostCanvasBinding['connection'];
 
 class TestCanvasConnection extends Disposable implements CanvasConnection {
-	readonly initializeResult = observableValue<InitializeResult | undefined>(this, { protocolVersion: '1', serverSeq: 0, snapshots: [], canvases: {}, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, true) });
+	readonly initializeResult = observableValue<InitializeResult | undefined>(this, { protocolVersion: '1', serverSeq: 0, snapshots: [], canvases: {}, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true) });
 	readonly changed = this._register(new Emitter<CanvasState>());
 	readonly failed = this._register(new Emitter<Error>());
 	readonly listings: ListCanvasTypesParams[] = [];

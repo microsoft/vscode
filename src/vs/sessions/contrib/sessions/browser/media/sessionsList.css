@@ -847,6 +847,10 @@
 		font-size: var(--vscode-fontSize-label2);
 		line-height: var(--vscode-spacing-size160);
 
+		&[hidden] {
+			display: none;
+		}
+
 		.session-chat-folder-icon {
 			display: flex;
 			align-items: center;

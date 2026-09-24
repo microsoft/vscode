@@ -102,7 +102,7 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 
 interface IWatch extends IDisposable {
 	readonly sessionUri: ProtocolURI;
-	readonly folder: IGitHubStateFolder;
+	folder: IGitHubStateFolder;
 	readonly ref: PullRequestRef;
 	readonly subscription: PullRequestSubscription;
 	awaitingAuthoritativeRefresh: boolean;
@@ -356,6 +356,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 		const existing = this._watches.get(key);
 		if (existing && sameRefAndHost(existing.ref, parsed)) {
+			existing.folder = folder;
 			existing.subscription.update(this._getSubscriptionOptions(folder));
 			this._updateStatus(key, existing, existing.subscription.resource.snapshot.get());
 			return;

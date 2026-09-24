@@ -45,6 +45,7 @@ export const CancelAgentHostCanvasApprovalExtensionMethod = 'vscode/cancelCanvas
 export const InitializeCanvasChatExtensionMethod = 'vscode/initializeCanvasChat';
 export const CancelCanvasChatInitializationExtensionMethod = 'vscode/cancelCanvasChatInitialization';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 
 export const initializeCanvasChatParamsValidator = vObj({
@@ -68,9 +69,12 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+export const importSessionParamsValidator = vObj({ session: vString() });
+
 export interface IAgentHostExtensionCommandMap {
 	[InitializeCanvasChatExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
 	[CancelCanvasChatInitializationExtensionMethod]: { params: InitializeCanvasChatParams; result: void };
+	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
