@@ -1372,6 +1372,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		await provider.removeSessionArtifact(session.sessionId, artifactId);
 	}
+
+	async importSession(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.isExternal?.get()) {
+			return;
+		}
+		if (!session.capabilities.get().supportsImport || !provider?.importSession) {
+			throw new Error(localize('sessions.importSession.unsupported', "Importing is not supported for this session."));
+		}
+		await provider.importSession(session.sessionId);
+	}
 }
 
 function isDeferredNewSessionRequestOptions(options: NewSessionRequestOptions): options is IDeferredNewSessionRequestOptions {

@@ -122,6 +122,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public claimedDetachedWorktrees: string[] = [];
 	public deletedDetachedWorktrees: string[] = [];
 	public removedArtifacts: { session: URI; artifactId: string }[] = [];
+	public importedSessions: URI[] = [];
+	override async importSession(session: URI): Promise<void> {
+		this.importedSessions.push(session);
+	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
 	}
@@ -3474,7 +3478,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -9294,6 +9298,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	}));
+
+	test('gates external session import on the host capability and waits for ownership metadata', async () => {
+		agentHost.addSession(createSession('import-session', { _meta: withSessionExternal(undefined, true) }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const supported: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => supported.push(session.capabilities.read(reader).supportsImport)));
+		await assert.rejects(() => provider.importSession(session.sessionId), /unavailable/);
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { 'vscode.importSession': true } }, undefined);
+		await provider.importSession(session.sessionId);
+		const awaitingMetadata = session.isExternal?.get();
+		fireSessionMetaChanged(agentHost, 'import-session', withSessionExternal(undefined, false));
+		await provider.importSession(session.sessionId);
+		assert.deepStrictEqual({
+			supported, awaitingMetadata,
+			identityPreserved: provider.getSessions()[0] === session,
+			external: session.isExternal?.get(),
+			imported: agentHost.importedSessions.map(resource => resource.toString()),
+			turns: agentHost.dispatchedActions,
+		}, {
+			supported: [false, true, false], awaitingMetadata: true,
+			identityPreserved: true, external: false,
+			imported: [AgentSession.uri('copilotcli', 'import-session').toString()],
+			turns: [],
+		});
+	});
+
+	test('external session import failures preserve external status', async () => {
+		agentHost.addSession(createSession('failed-import', { _meta: withSessionExternal(undefined, true) }));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { 'vscode.importSession': true } }, undefined);
+		agentHost.importSession = async () => { throw new Error('Import failed'); };
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await assert.rejects(() => provider.importSession(session.sessionId), /Import failed/);
+		assert.strictEqual(session.isExternal?.get(), true);
+	});
 
 	test('gates artifact removal on the host capability and routes the backend session URI', async () => {
 		agentHost.addSession(createSession('remove-artifact'));

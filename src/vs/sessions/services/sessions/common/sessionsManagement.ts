@@ -556,6 +556,9 @@ export interface ISessionsManagementService {
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
 
+	/** Permanently imports an external session through its provider without sending a message. */
+	importSession(session: ISession): Promise<void>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
 

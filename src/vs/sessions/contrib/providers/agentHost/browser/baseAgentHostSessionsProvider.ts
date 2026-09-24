@@ -26,6 +26,7 @@ import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platfo
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -1424,6 +1425,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const connection = this._options.getConnection();
 			return {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
+				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -5426,6 +5428,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async archiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, true);
+	}
+
+	async importSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection?.importSession || !supportsAgentHostSessionImport(connection.initializeResult.get())) {
+			throw new Error(localize('importSessionUnavailable', "Importing is unavailable for this session."));
+		}
+		if (cached.isExternal.get()) {
+			await connection.importSession(cached.backendUri);
+		}
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {

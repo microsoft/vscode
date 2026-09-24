@@ -7642,7 +7642,7 @@ suite('AgentService (node dispatcher)', () => {
 			})), [{ session: external.toString(), external: true, source: 'discovery' }]);
 		});
 
-		async function createExternalSessionForAdoption() {
+		async function createExternalSessionForAdoption(opened = true) {
 			const database = new AgentHostDatabase(':memory:');
 			const svc = createCentralCatalogService(createSessionDataService(new TestSessionDatabase()), database);
 			getConfigurationService(svc).updateRootConfig({
@@ -7654,10 +7654,48 @@ suite('AgentService (node dispatcher)', () => {
 			const session = agent.addSession('external-adoption', Date.now(), { 'test.keep': 'preserved' }, 'External session');
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
-			await svc.restoreSession(session);
+			if (opened) {
+				await svc.restoreSession(session);
+			}
 			await waitForSessionListReconciliation(svc);
 			return { svc, agent, session, database, stateManager: getStateManager(svc), chat: buildDefaultChatUri(session) };
 		}
+
+		for (const opened of [false, true]) {
+			test(`imports an external session without sending a message (${opened ? 'opened' : 'unopened'})`, async () => {
+				const { svc, agent, session, database, stateManager, chat } = await createExternalSessionForAdoption(opened);
+				await svc.importSession(session);
+				await svc.importSession(session);
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
+				await waitForSessionListReconciliation(svc);
+				const registered = await database.getSessionV2Registration(session.toString());
+				assert.deepStrictEqual({
+					registered: { external: registered?.external, source: registered?.source },
+					metadata: stateManager.getSessionState(session.toString())?._meta,
+					sends: agent.sendMessageCalls.length,
+					turns: stateManager.getChatState(chat)?.turns.length,
+					listed: (await svc.listSessions()).map(metadata => metadata.session.toString()),
+					published: stateManager.getExposedSessionKeys().includes(session.toString()),
+				}, {
+					registered: { external: false, source: 'explicit' },
+					metadata: withSessionExternal({ 'test.keep': 'preserved' }, false),
+					sends: 0,
+					turns: 0,
+					listed: [session.toString()],
+					published: true,
+				});
+			});
+		}
+
+		test('importing a deleted external session fails without reviving it', async () => {
+			const { svc, agent, session, database } = await createExternalSessionForAdoption();
+			await svc.disposeSession(session);
+			await assert.rejects(() => svc.importSession(session), /explicitly deleted/);
+			assert.deepStrictEqual({
+				registered: await database.getSessionV2Registration(session.toString()),
+				sends: agent.sendMessageCalls.length,
+			}, { registered: undefined, sends: 0 });
+		});
 
 		for (const { outcome, hidden } of [
 			{ outcome: 'complete', hidden: false },
