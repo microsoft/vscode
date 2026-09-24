@@ -24,6 +24,8 @@ import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
+import { defineWorkingDirectoriesTests } from './workingDirectoriesSuite.js';
+import { defineWorkspaceConversionTests } from './workspaceConversionSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
 import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
@@ -155,6 +157,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		});
 
 		defineAutomationsTests(context);
+		defineWorkingDirectoriesTests(context);
+		defineWorkspaceConversionTests(context);
 
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {

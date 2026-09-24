@@ -107,6 +107,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `suites/` | Scenario modules, each of which may contribute to either tier. Add new scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
 | `suites/clientFilesystemSuite.ts` | Client-to-host `resource*` operations and resource-watch behavior. |
 | `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
+| `suites/workingDirectoriesSuite.ts` | Multi-root peer scoping, delegated folders, additional worktree ownership, and workspace persistence. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
@@ -121,6 +122,10 @@ Use these deterministic E2E tests when the value comes from running the bundled 
 The Codex-specific entry point also checks that invalid workspace skills remain visible with their source paths and grouped validation diagnostics. The worktree scenario checks that existing subscribers receive the resolved directory before the first turn completes, and that the session announcement, subscription, and catalog agree on the materialized workspace.
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
+
+Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
+
+Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 Subagent reopen coverage runs on Windows as well as macOS and Linux for providers that support subagents. It verifies that the parent was reconstructed rather than served from live state, the child transcript contains its sentinel, and the parent transcript does not contain that sentinel.
 
