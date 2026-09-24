@@ -11,6 +11,8 @@ import { BRANCH_CHANGES_CHANGESET_ID, gitHubInfoEqual, IChat, IGitHubInfo, ISess
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
 
+type IChangesetChat = Pick<IChat, 'changes' | 'checkpoints' | 'isArchived'>;
+
 interface IChangesetResolver {
 	resolve(firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined>;
 }
@@ -76,7 +78,7 @@ class GitHubRepositoryChangesetResolver implements IChangesetResolver {
 
 export function createChangesets(
 	workspaceObs: IObservable<ISessionWorkspace | undefined>,
-	chatsObs: IObservable<readonly IChat[]>,
+	chatsObs: IObservable<readonly IChangesetChat[]>,
 	instantiationService: IInstantiationService,
 ): IObservable<readonly ISessionChangeset[]> {
 	const changesetResolver = instantiationService.createInstance(GitHubRepositoryChangesetResolver, workspaceObs);
@@ -112,7 +114,7 @@ abstract class AbstractChangeset implements ISessionChangeset {
 
 	readonly operations = constObservable<readonly ISessionChangesetOperation[]>([]);
 
-	constructor(protected readonly _chats: IObservable<readonly IChat[]>) { }
+	constructor(protected readonly _chats: IObservable<readonly IChangesetChat[]>) { }
 
 	async invokeOperation(_operationId: string, _target?: ISessionChangesetOperationTarget): Promise<void> {
 		// No-op: copilot chat changesets do not advertise server-driven operations.
@@ -142,7 +144,7 @@ export class BranchChangesChangeset extends AbstractChangeset {
 
 	constructor(
 		workspaceObs: IObservable<ISessionWorkspace | undefined>,
-		chatsObs: IObservable<readonly IChat[]>,
+		chatsObs: IObservable<readonly IChangesetChat[]>,
 	) {
 		super(chatsObs);
 
@@ -187,7 +189,7 @@ export class AllChangesChangeset extends AbstractChangeset {
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 
 	constructor(
-		chatsObs: IObservable<readonly IChat[]>,
+		chatsObs: IObservable<readonly IChangesetChat[]>,
 		changesetResolver: IChangesetResolver
 	) {
 		super(chatsObs);
@@ -248,7 +250,7 @@ export class LastTurnChangesChangeset extends AbstractChangeset {
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 
 	constructor(
-		chatsObs: IObservable<readonly IChat[]>,
+		chatsObs: IObservable<readonly IChangesetChat[]>,
 		changesetResolver: IChangesetResolver
 	) {
 		super(chatsObs);

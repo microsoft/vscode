@@ -33,6 +33,60 @@ export function hashSessionIdForTelemetry(sessionId: string): string {
 	return sha1.digest();
 }
 
+export interface ISessionComparisonModelOutcomeTelemetry {
+	readonly comparisonId: string;
+	readonly attemptIndex: number;
+	readonly attemptCount: number;
+	readonly providerId: SessionsTelemetryProviderId;
+	readonly agentId: string;
+	readonly modelId?: string;
+	readonly recommended: boolean;
+	readonly judgeProviderId: SessionsTelemetryProviderId;
+	readonly judgeAgentId: string;
+	readonly judgeModelId?: string;
+}
+
+type SessionComparisonModelOutcomeEvent = ISessionComparisonModelOutcomeTelemetry;
+
+type SessionComparisonModelOutcomeClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks which provider, agent, and model combinations participate in judged comparisons and which combination the Judge recommends.';
+	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to group model outcomes from the same comparison.' };
+	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of this attempt among the attempts reviewed by the Judge.' };
+	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attempts reviewed by the Judge.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category used by this attempt.' };
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier used by this attempt.' };
+	modelId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The resolved or configured model identifier used by this attempt.' };
+	recommended: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Judge recommended this attempt.' };
+	judgeProviderId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category used by the Judge.' };
+	judgeAgentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier used by the Judge.' };
+	judgeModelId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The resolved or configured model identifier used by the Judge.' };
+};
+
+export function logSessionComparisonModelOutcome(telemetryService: ITelemetryService, data: ISessionComparisonModelOutcomeTelemetry): void {
+	telemetryService.publicLog2<SessionComparisonModelOutcomeEvent, SessionComparisonModelOutcomeClassification>('agents/sessionComparisonModelOutcome', data);
+}
+
+export interface ISessionComparisonAttemptCompletedTelemetry {
+	readonly comparisonId: string;
+	readonly attemptIndex: number;
+	readonly elapsedMs: number;
+}
+
+type SessionComparisonAttemptCompletedEvent = ISessionComparisonAttemptCompletedTelemetry;
+
+type SessionComparisonAttemptCompletedClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks the elapsed time of a comparison attempt before its first turn becomes terminal.';
+	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to join this attempt with its Judge model outcome.' };
+	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of this attempt among the attempts reviewed by the Judge.' };
+	elapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider-reported elapsed milliseconds for the terminal first turn.' };
+};
+
+export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetryService, data: ISessionComparisonAttemptCompletedTelemetry): void {
+	telemetryService.publicLog2<SessionComparisonAttemptCompletedEvent, SessionComparisonAttemptCompletedClassification>('agents/sessionComparisonAttemptCompleted', data);
+}
+
 /** Counts non-archived, non-automation sessions shown in the primary Sessions list. */
 export function getNonArchivedSessionListCount(sessions: readonly ISession[]): number {
 	return sessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false)).length;
@@ -82,6 +136,28 @@ type SessionsInteractionClassification = {
  */
 export function logSessionsInteraction(telemetryService: ITelemetryService, button: SessionsInteractionButton, source?: SessionsInteractionSource): void {
 	telemetryService.publicLog2<SessionsInteractionEvent, SessionsInteractionClassification>('vscodeAgents.interaction', source ? { button, source } : { button });
+}
+
+/** Presentation shown for a response-text selection in the Agents window. */
+export type ResponseSelectionWidgetVariant = 'askQuestionInput' | 'actionMenu';
+
+/** User interaction with the response-selection widget. */
+export type ResponseSelectionWidgetAction = 'shown' | 'askQuestionOpened' | 'askQuestionSubmitted' | 'quote' | 'copy';
+
+type ResponseSelectionWidgetEvent = {
+	variant: ResponseSelectionWidgetVariant;
+	action: ResponseSelectionWidgetAction;
+};
+
+type ResponseSelectionWidgetClassification = {
+	owner: 'ulugbekna';
+	comment: 'Measures exposure to and use of the response-text selection widget in the Agents window.';
+	variant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget presentation shown: the existing ask-question input or the experimental action menu.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget exposure or action: shown, question opened or submitted, quote, or copy.' };
+};
+
+export function logResponseSelectionWidgetAction(telemetryService: ITelemetryService, variant: ResponseSelectionWidgetVariant, action: ResponseSelectionWidgetAction): void {
+	telemetryService.publicLog2<ResponseSelectionWidgetEvent, ResponseSelectionWidgetClassification>('vscodeAgents.responseSelectionWidget/action', { variant, action });
 }
 
 // --- Changes panel interactions ---

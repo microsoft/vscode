@@ -350,6 +350,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			type: IChatToolInvocation.StateKind.Completed,
 			confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
 			resultDetails: result?.toolResultDetails,
+			resultError: result?.toolResultError,
 			postConfirmed,
 			contentForModel: result?.content || [],
 			parameters: this.parameters,
@@ -449,6 +450,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			isConfirmed: waitingForPostApproval ? { type: ToolConfirmKind.Skipped } : IChatToolInvocation.executionConfirmedOrDenied(this),
 			isComplete: true,
 			source: this.source,
+			resultError: IChatToolInvocation.resultError(this),
 			resultDetails: isToolResultOutputDetails(details)
 				? { output: { type: 'data', mimeType: details.output.mimeType, base64Data: encodeBase64(details.output.value) } }
 				: details,

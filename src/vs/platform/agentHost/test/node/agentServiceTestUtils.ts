@@ -188,6 +188,8 @@ export function createTestAgentService(
 	});
 	registerAgentHostCoreServices(services, {
 		storageResource,
+		rootConfigResource,
+		orchestratorDatabase,
 		fetchFn,
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
 		copilotApiService,

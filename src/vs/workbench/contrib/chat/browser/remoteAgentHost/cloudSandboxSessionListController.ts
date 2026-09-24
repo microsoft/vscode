@@ -7,7 +7,9 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -16,6 +18,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../.
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
@@ -33,10 +36,13 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	private readonly _sessionListStore: AgentHostSessionListStore;
 	private readonly _controller: AgentHostSessionListController;
 	private readonly _authenticationPending: IObservable<boolean>;
-	private _connection: IAgentConnection | undefined;
+	private readonly _connection = observableValue<IAgentConnection | undefined>(this, undefined);
+	private readonly _discoveredRepositories = observableValue<ReadonlyMap<string, { readonly repository: string | undefined; readonly modifiedTime: number }>>(this, new Map());
+	private readonly _items: IObservable<readonly IChatSessionItem[]>;
 
 	constructor(
 		address: string,
+		workspaceRepositories: IObservable<ReadonlySet<string> | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 	) {
@@ -56,8 +62,38 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
 			'', authority));
-		this._register(this._controller.onDidChangeChatSessionItems(delta => {
-			this._onDidChangeChatSessionItems.fire({ ...delta, addedOrUpdated: delta.addedOrUpdated?.map(item => this._listItem(item)) });
+		const sessionsChanged = observableSignalFromEvent(this, this._controller.onDidChangeChatSessionItems);
+		this._items = derived(this, reader => {
+			sessionsChanged.read(reader);
+			const repositories = workspaceRepositories.read(reader);
+			const discoveredRepositories = this._discoveredRepositories.read(reader);
+			const connected = !!this._connection.read(reader);
+			const visibleSessions = repositories && new Set(this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).filter(entry => {
+				const projectUri = entry.summary.project?.uri;
+				const project = projectUri ? getGitHubRepositoryFromRemoteUrl(projectUri) : undefined;
+				const repository = project
+					? `${project.owner}/${project.repo}`.toLowerCase()
+					: !projectUri || fromAgentHostUri(URI.parse(projectUri)).scheme === Schemas.file
+						? discoveredRepositories.get(entry.rawId)?.repository
+						: undefined;
+				return repository !== undefined && repositories.has(repository);
+			}).map(entry => entry.rawId));
+			return this._controller.items
+				.filter(item => !visibleSessions || visibleSessions.has(AgentSession.id(item.resource)))
+				.map(item => this._listItem(item, connected));
+		});
+		let previousResources = new ResourceSet();
+		this._register(autorun(reader => {
+			const items = this._items.read(reader);
+			const resources = new ResourceSet(items.map(item => item.resource));
+			const removed = [...previousResources].filter(resource => !resources.has(resource));
+			previousResources = resources;
+			if (items.length || removed.length) {
+				this._onDidChangeChatSessionItems.fire({
+					...(items.length ? { addedOrUpdated: items } : {}),
+					...(removed.length ? { removed } : {}),
+				});
+			}
 		}));
 		this._register(autorun(reader => {
 			if (!this._authenticationPending.read(reader)) {
@@ -67,11 +103,11 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	get items(): readonly IChatSessionItem[] {
-		return this._controller.items.map(item => this._listItem(item));
+		return this._items.get();
 	}
 
 	get terminalCommandPrefix(): string | undefined {
-		return this._connection?.initializeResult.get()?.terminalCommandPrefix;
+		return this._connection.get()?.initializeResult.get()?.terminalCommandPrefix;
 	}
 
 	getSessionModifiedTime(rawId: string): number | undefined {
@@ -80,62 +116,71 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	seedSessions(sessions: readonly IAgentSessionMetadata[]): void {
-		if (!this._connection) {
-			this._sessionListStore.seedSessions(sessions);
-		}
+		transaction(tx => {
+			const repositories = new Map(this._discoveredRepositories.get());
+			for (const session of sessions) {
+				const rawId = AgentSession.id(session.session);
+				const project = session.project ? getGitHubRepositoryFromRemoteUrl(session.project.uri.toString()) : undefined;
+				if (session.modifiedTime >= (repositories.get(rawId)?.modifiedTime ?? 0)) {
+					repositories.set(rawId, { repository: project ? `${project.owner}/${project.repo}`.toLowerCase() : undefined, modifiedTime: session.modifiedTime });
+				}
+			}
+			// Host filesystem paths cannot replace discovery's repository identity for workspace matching.
+			this._discoveredRepositories.set(repositories, tx);
+			if (!this._connection.get()) {
+				this._sessionListStore.seedSessions(sessions);
+			}
+		});
 	}
 
 	setConnection(connection: IAgentConnection): void {
-		if (this._connection === connection && RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.get())) {
+		if (this._connection.get() === connection && RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.get())) {
 			return;
 		}
-		const wasConnected = !!this._connection;
-		this._connection = connection;
 		const store = new DisposableStore();
 		this._connectionStore.value = store;
 		store.add(connection.onDidNotification(notification => this._notifications.fire(notification)));
-		if (!wasConnected) {
-			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this.items });
-		}
+		this._connection.set(connection, undefined);
 		void this.refresh(CancellationToken.None);
 	}
 
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.connectionStatus.set(status, undefined);
-		if (this._connection && (RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status))) {
-			this._connection = undefined;
+		if (this._connection.get() && (RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status))) {
 			this._connectionStore.clear();
-			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this.items });
+			this._connection.set(undefined, undefined);
 		}
 	}
 
 	resolveWorkingDirectory(resource: URI): URI | undefined {
 		const entry = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).find(entry => entry.rawId === AgentSession.id(resource));
 		const directory = entry?.summary.workingDirectories?.[0];
-		return directory && this._connection
-			? this._connection.resourceUris.fromAgentHost(fromAgentHostUri(URI.parse(directory)))
+		const connection = this._connection.get();
+		return directory && connection
+			? connection.resourceUris.fromAgentHost(fromAgentHostUri(URI.parse(directory)))
 			: undefined;
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
-		if (this._connection && !this._authenticationPending.get() && !token.isCancellationRequested) {
+		if (this._connection.get() && !this._authenticationPending.get() && !token.isCancellationRequested) {
 			this._sessionListStore.resetCache();
 			await this._sessionListStore.refresh(token);
 		}
 	}
 
-	private _listItem(item: IChatSessionItem): IChatSessionItem {
+	private _listItem(item: IChatSessionItem, connected: boolean): IChatSessionItem {
 		return {
 			...item,
 			iconPath: Codicon.cloud,
-			...(!this._connection || item.isRead === undefined ? { archived: undefined, isRead: undefined } : {}),
+			...(!connected || item.isRead === undefined ? { archived: undefined, isRead: undefined } : {}),
 		};
 	}
 
 	private _requireConnection(): IAgentConnection {
-		if (!this._connection) {
+		const connection = this._connection.get();
+		if (!connection) {
 			throw new Error('The cloud sandbox is not connected.');
 		}
-		return this._connection;
+		return connection;
 	}
 }

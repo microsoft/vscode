@@ -1,9 +1,14 @@
+parameters:
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
+
 jobs:
   - job: Web
     displayName: Web
     timeoutInMinutes: 45
     pool:
-      name: 1es-ubuntu-22.04-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: linux
     variables:
       VSCODE_ARCH: x64
