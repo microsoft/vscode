@@ -188,6 +188,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	// -- Dev Container drafts (optional, local provider only) --
 
+	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
+	readonly devContainerSourceWorkspace?: URI;
 	/** Fires when Dev Container workspace availability should be checked again. */
 	readonly onDidChangeDevContainerAvailability?: Event<void>;
 	/** Whether this workspace supports Dev Container execution. */
@@ -196,10 +198,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isDevContainerAvailable?(sessionId: string): boolean;
 	/** Whether this draft should be prepared on a Dev Container Agent Host. */
 	isDevContainerEnabled?(sessionId: string): boolean;
+	/** Whether this draft has selected Dev Container execution, including pending availability. */
+	isDevContainerRequested?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
-	/** Enable Dev Container execution once availability resolves for this draft. */
-	preferDevContainer?(sessionId: string): void;
+	/** Enable Dev Container execution once availability resolves. Required selections fail rather than falling back to the host. */
+	preferDevContainer?(sessionId: string, options?: { readonly required?: boolean }): void;
 
 	// -- Dynamic Session Config --
 
