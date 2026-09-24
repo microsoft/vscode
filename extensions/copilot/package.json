@@ -4155,7 +4155,7 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
+          "github.copilot.chat.claudeDefaultReasoningEffort": {
             "type": "string",
             "default": "",
             "enum": [
@@ -4165,7 +4165,7 @@
               "high",
               "max"
             ],
-            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
+            "markdownDescription": "%github.copilot.config.claudeDefaultReasoningEffort%",
             "tags": [
               "experimental",
               "onExp"

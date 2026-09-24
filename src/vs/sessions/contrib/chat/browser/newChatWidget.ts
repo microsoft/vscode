@@ -12,7 +12,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,7 +28,7 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, isActiveSessionStatus, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
@@ -527,6 +527,7 @@ export class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		const contextualMessage = dom.append(chatWidgetContent, dom.$('.new-session-contextual-message'));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -584,11 +585,15 @@ export class NewChatWidget extends Disposable {
 				? [workspacePickerContainer, this._quickChatHeaderPickerHost]
 				: [workspacePickerContainer],
 		});
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
+			sessionsChanged.read(reader);
+			const hasRunningSession = this._hasRunningSession(reader);
+			this._updateContextualMessage(contextualMessage, useExperimentalLayout, hasRunningSession);
 			this._newChatInput.placeRepositoryControls(
 				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
 					? this._workspaceRepositoryControlsHost
@@ -682,6 +687,24 @@ export class NewChatWidget extends Disposable {
 		}
 
 		chatWidgetContainer.classList.add('revealed');
+	}
+
+	private _hasRunningSession(reader: IReader): boolean {
+		return this.sessionsManagementService.getSessions().some(session =>
+			isActiveSessionStatus(session.status.read(reader))
+		);
+	}
+
+	private _updateContextualMessage(container: HTMLElement, visible: boolean, hasRunningSession: boolean): void {
+		dom.clearNode(container);
+		container.hidden = !visible;
+		if (!visible) {
+			return;
+		}
+		const title = hasRunningSession
+			? localize('newSession.contextualMessage.parallel.title', "Keep building in parallel")
+			: localize('newSession.contextualMessage.default.title', "What do you want to work on?");
+		dom.append(container, dom.$('h2.new-session-contextual-message-title')).textContent = title;
 	}
 
 	private async _prepareSessionTypeSelection(pick: IPickedSessionType): Promise<boolean> {

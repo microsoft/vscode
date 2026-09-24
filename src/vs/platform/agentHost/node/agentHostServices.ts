@@ -11,6 +11,7 @@ import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { URI } from '../../../base/common/uri.js';
+import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
@@ -41,6 +42,8 @@ import { AgentHostChangesetOperationService } from './agentHostChangesetOperatio
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
+import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -72,12 +75,19 @@ import { RemoteDevContainerAgentHostService } from './devContainerAgentHostServi
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
+	readonly rootConfigResource?: URI;
+	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
 	readonly gitHubServiceOptions: GitHubServiceOptions;
 	readonly copilotApiService?: ICopilotApiService;
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+	const databasePath = inputs.rootConfigResource
+		? joinPath(dirname(inputs.rootConfigResource), 'agent-host.db').fsPath
+		: ':memory:';
+	services.set(IAgentHostDatabase, inputs.orchestratorDatabase ?? new SyncDescriptor(AgentHostDatabase, [databasePath]));
+	services.set(IAgentSessionRegistry, new SyncDescriptor(AgentSessionRegistry));
 	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));

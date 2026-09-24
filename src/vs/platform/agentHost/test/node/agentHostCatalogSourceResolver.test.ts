@@ -7,12 +7,12 @@ import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
-import { META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -107,6 +107,25 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round-trips persisted folder-scoped Git state through the catalog payload', async () => {
+		const scopeId = 'folder-scope';
+		const gitState = { branchName: 'feature', baseBranchName: 'main' };
+		const result = await createResolver({
+			[META_GIT_DATA_STATE]: JSON.stringify({ [scopeId]: gitState }),
+		}).buildCatalogSyncRequest(session, { ...sourceState(), meta: undefined }, {}, true);
+		const encoded = encodeAgentHostCatalogPayload(result.data);
+
+		assert.deepStrictEqual({
+			catalog: result.data._meta?.[SESSION_META_GIT_DATA_KEY],
+			legacy: result.legacyMetadata[META_GIT_DATA_STATE],
+			encoded: encoded.ok,
+		}, {
+			catalog: { [scopeId]: gitState },
+			legacy: JSON.stringify({ [scopeId]: gitState }),
+			encoded: true,
+		});
+	});
 
 	test('consumes the provided database reference and propagates metadata read failures', async () => {
 		const absent = new AgentHostCatalogSourceResolver({

@@ -9,6 +9,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionGitHubState, ISessionGitState, SessionSummaryMeta } from './state/sessionState.js';
 
 export const META_GIT_STATE = 'agentHost.git';
+/** Git state of each normalized working-directory scope in the containing session. */
+export const META_GIT_DATA_STATE = 'agentHost.gitData';
 /**
  * Original single-folder GitHub state of the session folder. No longer written;
  * migrated into {@link META_GITHUB_DATA_STATE} and removed on restore.
@@ -20,6 +22,7 @@ export const META_SOURCE_CONTROL_STATE = 'agentHost.sourceControl';
 
 export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 	[META_GIT_STATE]: true,
+	[META_GIT_DATA_STATE]: true,
 	[META_GITHUB_STATE]: true,
 	[META_GITHUB_DATA_STATE]: true,
 	[META_SOURCE_CONTROL_STATE]: true,
@@ -45,7 +48,7 @@ export interface IAgentHostGitStateService {
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
 
-	/** Returns the latest git state for a session or chat changeset owner. */
+	/** Returns the latest live or restored Git state for a session or folder-scoped chat. */
 	readonly getSessionGitState?: (sessionKey: string) => ISessionGitState | undefined;
 
 	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */

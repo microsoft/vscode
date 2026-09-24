@@ -6,7 +6,7 @@
 // Service implementation that manages remote agent host connections from
 // entries supplied by registered connection factories.
 
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
@@ -170,6 +170,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		return entries;
 	});
+	readonly onDidChangeConfiguredEntries = Event.fromObservableLight(this._configuredEntries);
 	/** In-flight connection attempts, keyed by normalized address. */
 	private readonly _pendingConnects = new Map<string, { readonly promise: Promise<void>; readonly info: IRemoteAgentHostPendingConnection }>();
 

@@ -1006,7 +1006,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (!wasStreamingForPresentation) {
 			this.currentRunningToolCallId = toolInvocation.toolCallId;
 			this.currentRunningToolMessage = this.getToolLabel(toolInvocation, initialState);
-			this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon) : undefined;
+			this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source) : undefined;
 			this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, initialState);
 			this._updateToolPresentation();
 		}
@@ -1024,7 +1024,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				wasStreamingForPresentation = false;
 				this.currentRunningToolCallId = toolInvocation.toolCallId;
 				this.currentRunningToolMessage = this.getToolLabel(toolInvocation, state);
-				this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon) : undefined;
+				this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source) : undefined;
 				this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 				this._updateToolPresentation();
 			}
@@ -1032,7 +1032,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				const toolLabel = this.getToolLabel(toolInvocation, state);
 				if (toolLabel && toolLabel !== this.currentRunningToolMessage) {
 					this.currentRunningToolMessage = toolLabel;
-					this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
+					this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source);
 					this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 					this._updateToolPresentation();
 				}
@@ -1607,7 +1607,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 		// Wrap with icon like thinking parts do
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
+		const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source);
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(content);
 

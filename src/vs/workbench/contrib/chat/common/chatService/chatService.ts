@@ -741,6 +741,8 @@ export interface IChatTerminalToolInvocationData {
 		text: string;
 		truncated?: boolean;
 		lineCount?: number;
+		/** Preview to show after retained full output availability is confirmed. */
+		fullOutputPreview?: string;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {
@@ -946,6 +948,7 @@ export namespace IChatToolInvocation {
 
 	interface IChatToolInvocationPostExecuteState extends IChatToolInvocationPostConfirmState {
 		resultDetails: IToolResult['toolResultDetails'];
+		resultError?: IToolResult['toolResultError'];
 	}
 
 	interface IChatToolWaitingForPostApprovalState extends IChatToolInvocationStateBase, IChatToolInvocationPostExecuteState {
@@ -1081,6 +1084,14 @@ export namespace IChatToolInvocation {
 		return undefined;
 	}
 
+	export function resultError(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): IToolResult['toolResultError'] {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return invocation.resultError;
+		}
+		const state = invocation.state.read(reader);
+		return state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval ? state.resultError : undefined;
+	}
+
 	export function isComplete(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return true; // always cancelled or complete
@@ -1161,6 +1172,7 @@ export interface IChatToolInvocationSerialized {
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetailsSerialized;
+	resultError?: IToolResult['toolResultError'];
 	/** boolean used by pre-1.104 versions */
 	isConfirmed: ConfirmedReason | boolean | undefined;
 	isComplete: boolean;

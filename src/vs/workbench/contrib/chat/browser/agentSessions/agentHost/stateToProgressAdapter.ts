@@ -1546,11 +1546,16 @@ function getTerminalOutput(tc: ToolCallState) {
 	const terminalResult = getTerminalCommandResult(tc);
 	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
-	// A truncated preview omits the completion text that tells the user where the full output was saved.
-	// TODO: Use an SDK API for the large-output file path instead of relying on the tool completion display text.
-	let text = terminalResult?.truncated === true && fallbackText !== undefined
-		? stripLegacyTerminalExitMarkers(fallbackText)
-		: terminalResult?.preview;
+	const retainedOutputCandidate = tc.status === ToolCallStatus.Completed
+		&& terminalContent?.isPty === false
+		&& terminalResult?.truncated === true;
+	const completionText = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
+	let text = terminalResult?.preview;
+	if (retainedOutputCandidate) {
+		text = completionText ?? terminalResult.preview ?? '';
+	} else if (terminalResult?.truncated === true && fallbackText !== undefined) {
+		text = stripLegacyTerminalExitMarkers(fallbackText);
+	}
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
@@ -1562,7 +1567,14 @@ function getTerminalOutput(tc: ToolCallState) {
 	return {
 		text: text.replace(/\r?\n/g, '\r\n'),
 		...(terminalResult?.truncated !== undefined ? { truncated: terminalResult.truncated } : {}),
+		...(retainedOutputCandidate && terminalResult.preview !== undefined ? { fullOutputPreview: terminalResult.preview.replace(/\r?\n/g, '\r\n') } : {}),
 	};
+}
+
+function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
+	return a?.text === b?.text
+		&& a?.truncated === b?.truncated
+		&& a?.fullOutputPreview === b?.fullOutputPreview;
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {
@@ -1963,6 +1975,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: toolCallOriginMessage(tc),
 			pastTenseMessage: pastTenseMsg,
+			resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
@@ -2028,6 +2041,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
+		resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
 	};
 }
 
@@ -2784,7 +2798,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		: undefined;
 	if (isTerminalToolCall(tc, existing.toolSpecificData?.kind)) {
 		const next = buildTerminalToolSpecificData(tc, sessionResource, existingTerminal);
-		const outputChanged = next.terminalCommandOutput?.text !== existingTerminal?.terminalCommandOutput?.text;
+		const outputChanged = !terminalOutputsEqual(next.terminalCommandOutput, existingTerminal?.terminalCommandOutput);
 		const commandChanged = next.commandLine.original !== existingTerminal?.commandLine.original;
 		if (!existingTerminal || outputChanged || commandChanged) {
 			existing.toolSpecificData = next;
@@ -2958,7 +2972,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails
-		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
+		? { content: [], toolResultError: isFailure ? errorString || (isCompleted ? true : undefined) : undefined, toolResultDetails: resultDetails }
 		: undefined;
 	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
 	invocation.acceptProgress({ message: undefined });
