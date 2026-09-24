@@ -12,6 +12,7 @@ import { IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 export const enum McpResourceFormat {
 	Vscode = 'vscode',
 	WorkspaceRoot = 'workspaceRoot',
+	CopilotGlobal = 'copilotGlobal',
 }
 
 export const WORKSPACE_ROOT_MCP_CONFIG_FILE = '.mcp.json';
