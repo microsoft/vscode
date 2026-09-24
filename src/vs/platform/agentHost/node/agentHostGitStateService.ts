@@ -8,9 +8,9 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { getSessionPullRequestUrlKey, getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, parseChatUri, readFolderGitHubState, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { getSessionPullRequestUrlKey, getSessionRelatedPullRequestUrls, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -24,8 +24,8 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
-import { ActionType } from '../common/state/sessionActions.js';
-import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -40,7 +40,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
-	private readonly _chatGitStates = new Map<string, ISessionGitState>();
+	private readonly _gitStateSaves = new SequencerByKey<string>();
 
 	/**
 	 * Serializes pull request lookups per session so overlapping triggers (turn
@@ -68,16 +68,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
-			for (const owner of this._chatGitStates.keys()) {
-				if (parseChatUri(owner)?.session === sessionKey) {
-					this._chatGitStates.delete(owner);
-				}
-			}
-		}));
-		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionChatRemoved) {
-				this._chatGitStates.delete(envelope.action.chat);
-			}
 		}));
 
 		let automaticPullRequestAttachmentEnabled = this._isAutomaticPullRequestAttachmentEnabled();
@@ -230,7 +220,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 		const gitHubState = this.getGitHubState(folder.sourceUri);
-		const gitState = this._chatGitStates.get(folder.sourceUri);
+		const gitState = this.getSessionGitState(folder.sourceUri);
 		const branchName = gitState?.branchName;
 		if (!gitHubState?.owner || !gitHubState.repo || !branchName || branchName === gitState?.baseBranchName || gitHubState.pullRequestBranchName === branchName) {
 			return;
@@ -243,7 +233,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 			const workingDirectory = folder.workingDirectory;
 			const pr = await this._pullRequestAssociationResolver.resolveForCheckout(state, gitHubState.owner, gitHubState.repo, gitState, branchName, authToken, undefined, workingDirectory);
-			if (!pr?.url || this._chatGitStates.get(folder.sourceUri)?.branchName !== branchName) {
+			if (!pr?.url || this.getSessionGitState(folder.sourceUri)?.branchName !== branchName) {
 				return;
 			}
 			const currentGitHubState = this.getGitHubState(folder.sourceUri);
@@ -309,7 +299,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		if (!workingDirectory) {
-			if (isAhpChatChannel(sessionKey) && this._chatGitStates.delete(sessionKey)) {
+			if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
+				await this._setChatGitState(sessionKey, undefined);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
 			}
 			return;
@@ -334,7 +325,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
 					if (gitStateChanged) {
 						if (isAhpChatChannel(sessionKey)) {
-							this._chatGitStates.set(sessionKey, gitState);
+							await this._setChatGitState(sessionKey, gitState);
 						} else {
 							await this._setSessionGitState(sessionKey, gitState);
 						}
@@ -375,8 +366,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 							await this._queuePullRequestLookup(sessionKey);
 						}
 					}
-				} else if (isAhpChatChannel(sessionKey)) {
-					this._chatGitStates.delete(sessionKey);
+				} else if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
+					await this._setChatGitState(sessionKey, undefined);
 				}
 
 				this._onDidRefreshSessionGitState.fire(sessionKey);
@@ -397,9 +388,16 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
-		return isAhpChatChannel(sessionKey)
-			? this._chatGitStates.get(sessionKey)
-			: readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
+		if (!isAhpChatChannel(sessionKey)) {
+			return readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta);
+		}
+		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
+		const sessionState = this._stateManager.getSessionState(scope.sessionUri);
+		if (isDefaultChatUri(sessionKey)) {
+			return readSessionGitState(sessionState?._meta);
+		}
+		return readFolderScopeGitState(sessionState?._meta, getWorkingDirectoryScopeId(scope.workingDirectories))
+			?? (resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder ? readSessionGitState(sessionState?._meta) : undefined);
 	}
 
 	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined {
@@ -567,6 +565,23 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		// Update session database
 		await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
+	}
+
+	private async _setChatGitState(sessionKey: string, gitState: ISessionGitState | undefined): Promise<void> {
+		const scope = resolveBranchChangesetScopeForSource(this._stateManager, sessionKey);
+		if (isDefaultChatUri(sessionKey)) {
+			if (gitState) {
+				await this._setSessionGitState(scope.sessionUri, gitState);
+			}
+			return;
+		}
+		const scopeId = getWorkingDirectoryScopeId(scope.workingDirectories);
+		const currentMeta = this._stateManager.getSessionState(scope.sessionUri)?._meta;
+		this._stateManager.setSessionMeta(scope.sessionUri, withFolderScopeGitState(currentMeta, scopeId, gitState));
+		await this._gitStateSaves.queue(scope.sessionUri, async () => {
+			const gitData = readSessionGitData(this._stateManager.getSessionState(scope.sessionUri)?._meta);
+			await this._saveSessionState(scope.sessionUri, META_GIT_DATA_STATE, JSON.stringify(Object.fromEntries(gitData)));
+		});
 	}
 
 	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {

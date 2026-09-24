@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -15,6 +16,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -51,7 +53,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
@@ -3303,12 +3305,22 @@ suite('Sessions - SessionsList', () => {
 			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 		}
 
-		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false, expandChats = true, compact = false): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
-			const harness = createListHarness(disposables, [session], enableMotion
-				? instantiationService => instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-					override isMotionReduced(): boolean { return false; }
-				})
-				: {});
+		function renderSessionChatsList(
+			session: ISession,
+			onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void,
+			enableMotion = false,
+			expandChats = true,
+			compact = false,
+			configure?: (instantiationService: TestInstantiationService) => void,
+		): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				if (enableMotion) {
+					instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+						override isMotionReduced(): boolean { return false; }
+					});
+				}
+				configure?.(instantiationService);
+			});
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
@@ -3350,9 +3362,12 @@ suite('Sessions - SessionsList', () => {
 
 		function summarizeFolderLabel(container: HTMLElement) {
 			const row = container.querySelector<HTMLElement>('.session-chat-item');
+			const folderRow = row?.querySelector<HTMLElement>('.session-chat-folder-row');
 			return {
-				hasFolderLabel: row?.classList.contains('has-compact-folder-label'),
+				hasFolderLabel: row?.classList.contains('has-folder-label'),
 				folder: row?.querySelector('.session-compact-hover-description')?.textContent,
+				folderRow: folderRow?.textContent,
+				folderIcon: folderRow?.querySelector(`.codicon-${Codicon.worktreeCompact.id}`) ? 'worktree' : folderRow?.querySelector(`.codicon-${Codicon.folderCompact.id}`) ? 'folder' : undefined,
 				ariaLabel: row?.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			};
 		}
@@ -3361,17 +3376,309 @@ suite('Sessions - SessionsList', () => {
 			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
 			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
 			const session = createMultiFolderSession([first, second], [undefined, [second]]);
+			const worktreeSecond: ISessionFolder = {
+				...second,
+				gitRepository: {
+					uri: second.root,
+					workTreeUri: second.workingDirectory,
+					baseBranchName: 'main',
+					gitHubInfo: constObservable(undefined),
+				},
+			};
+			const worktreeSession = createMultiFolderSession([first, worktreeSecond], [undefined, [worktreeSecond]]);
 
 			const compact = renderSessionChatsList(session, undefined, false, true, true).container;
 			const regular = renderSessionChatsList(session, undefined, false, true, false).container;
+			const worktree = renderSessionChatsList(worktreeSession, undefined, false, true, false).container;
 
 			assert.deepStrictEqual({
 				compact: summarizeFolderLabel(compact),
-				// The label is only shown in the compact list; screen readers hear it there too.
-				regularAriaLabel: summarizeFolderLabel(regular).ariaLabel,
+				regular: {
+					...summarizeFolderLabel(regular),
+					height: regular.querySelector<HTMLElement>('.session-chat-item')?.closest<HTMLElement>('.monaco-list-row')?.style.height,
+				},
+				worktree: summarizeFolderLabel(worktree),
 			}, {
-				compact: { hasFolderLabel: true, folder: 'second', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
-				regularAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+				compact: { hasFolderLabel: true, folder: 'second', folderRow: '', folderIcon: undefined, ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+				regular: {
+					hasFolderLabel: true,
+					folder: 'second',
+					folderRow: 'second',
+					folderIcon: 'folder',
+					ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed',
+					height: '46px',
+				},
+				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+			});
+		});
+
+		test('shows each chat pull request from its workspace folder only in multi-folder sessions', () => {
+			const createFolder = (name: string, icon: ThemeIcon): ISessionFolder => {
+				const root = URI.file(`/workspace/${name}`);
+				return {
+					root,
+					workingDirectory: root,
+					name,
+					description: undefined,
+					gitRepository: {
+						uri: root,
+						workTreeUri: undefined,
+						baseBranchName: 'main',
+						gitHubInfo: constObservable({
+							owner: 'microsoft',
+							repo: name,
+							pullRequests: [{
+								owner: 'microsoft',
+								repo: name,
+								number: 1,
+								uri: URI.parse(`https://github.com/microsoft/${name}/pull/1`),
+								icon,
+							}],
+						}),
+					},
+				};
+			};
+			const mainIcon = computePullRequestIcon(GitHubPullRequestState.Open);
+			const peerIcon = computePullRequestIcon(GitHubPullRequestState.Merged);
+			const mainFolder = createFolder('main', mainIcon);
+			const peerFolder = createFolder('peer', peerIcon);
+			const session = createMultiFolderSession([mainFolder, peerFolder], [[mainFolder], [peerFolder]]);
+			const container = renderSessionChats(session);
+			const singleFolderSession = createMultiFolderSession([mainFolder], [[mainFolder], [mainFolder]]);
+			const singleFolderContainer = renderSessionChats(singleFolderSession);
+			const getIconClass = (target: HTMLElement, rowSelector: string, iconSelector: string): string | undefined => {
+				const icon = target.querySelector<HTMLElement>(rowSelector)?.querySelector<HTMLElement>(iconSelector)?.lastElementChild;
+				return icon ? [...icon.classList].find(className => className.startsWith('codicon-git-')) : undefined;
+			};
+
+			assert.deepStrictEqual({
+				multiFolderMain: getIconClass(container, '.session-item', '.session-icon'),
+				multiFolderPeer: getIconClass(container, '.session-chat-item', '.session-chat-icon'),
+				singleFolderMain: getIconClass(singleFolderContainer, '.session-item', '.session-icon'),
+				singleFolderPeer: getIconClass(singleFolderContainer, '.session-chat-item', '.session-chat-icon'),
+			}, {
+				multiFolderMain: `codicon-${mainIcon.id}`,
+				multiFolderPeer: `codicon-${peerIcon.id}`,
+				singleFolderMain: `codicon-${mainIcon.id}`,
+				singleFolderPeer: undefined,
+			});
+		});
+
+		test('shows main chat diff stats on the parent row only in multi-folder sessions', () => {
+			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
+			const withChanges = (session: ISession): ISession => {
+				const mainChat = {
+					...session.mainChat.get(),
+					changes: constObservable([
+						{ modifiedUri: URI.file('/workspace/first/main.ts'), insertions: 3, deletions: 1 },
+					]),
+				};
+				return {
+					...session,
+					changesSummary: constObservable({ files: 4, additions: 20, deletions: 10 }),
+					chats: constObservable([mainChat, ...session.chats.get().slice(1)]),
+					mainChat: constObservable(mainChat),
+				};
+			};
+			const multiFolderSession = withChanges(createMultiFolderSession([first, second], [undefined, [second]]));
+			const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = activeSession;
+					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+				});
+			}).container;
+			const singleFolderContainer = renderSessionChats(withChanges(createMultiFolderSession([first], [undefined])));
+			const getDiff = (container: HTMLElement) => {
+				const row = container.querySelector<HTMLElement>('.session-item');
+				return [
+					row?.querySelector('.session-diff-added')?.textContent,
+					row?.querySelector('.session-diff-removed')?.textContent,
+				];
+			};
+
+			const beforeOpen = getDiff(multiFolderContainer);
+			activeSession.set(upcastPartial<IActiveSession>({
+				...multiFolderSession,
+				activeChat: multiFolderSession.mainChat,
+			}), undefined);
+			const afterOpen = getDiff(multiFolderContainer);
+			activeSession.set(undefined, undefined);
+			const afterSwitch = getDiff(multiFolderContainer);
+
+			assert.deepStrictEqual({
+				multiFolder: { beforeOpen, afterOpen, afterSwitch },
+				singleFolder: getDiff(singleFolderContainer),
+			}, {
+				multiFolder: {
+					beforeOpen: ['+20', '-10'],
+					afterOpen: ['+3', '-1'],
+					afterSwitch: ['+20', '-10'],
+				},
+				singleFolder: ['+20', '-10'],
+			});
+		});
+
+		test('shows the rich chat-scoped hover for peer chats', () => {
+			const mainRoot = URI.file('/workspace/main');
+			const peerRoot = URI.file('/workspace/peer');
+			const mainPullRequestUri = URI.parse('https://github.com/microsoft/main/pull/24');
+			const peerPullRequestUri = URI.parse('https://github.com/microsoft/peer/pull/42');
+			const mainFolder: ISessionFolder = {
+				root: mainRoot,
+				workingDirectory: mainRoot,
+				name: 'main',
+				description: undefined,
+				gitRepository: {
+					uri: mainRoot,
+					workTreeUri: undefined,
+					baseBranchName: 'main',
+					branchName: 'main-work',
+					gitHubInfo: constObservable({
+						owner: 'microsoft',
+						repo: 'main',
+						pullRequests: [{
+							owner: 'microsoft',
+							repo: 'main',
+							number: 24,
+							uri: mainPullRequestUri,
+							title: 'Main pull request',
+							createdByThisSession: true,
+						}],
+					}),
+				},
+			};
+			const peerFolder: ISessionFolder = {
+				root: peerRoot,
+				workingDirectory: peerRoot,
+				name: 'peer',
+				description: undefined,
+				gitRepository: {
+					uri: peerRoot,
+					workTreeUri: undefined,
+					baseBranchName: 'main',
+					branchName: 'peer-work',
+					gitHubInfo: constObservable({
+						owner: 'microsoft',
+						repo: 'peer',
+						pullRequests: [{
+							owner: 'microsoft',
+							repo: 'peer',
+							number: 42,
+							uri: peerPullRequestUri,
+							title: 'Peer pull request',
+							createdByThisSession: true,
+						}],
+					}),
+				},
+			};
+			const peerSessionFolder: ISessionFolder = {
+				...peerFolder,
+				gitRepository: {
+					uri: peerRoot,
+					workTreeUri: undefined,
+					baseBranchName: 'main',
+					branchName: 'peer-work',
+					gitHubInfo: constObservable(undefined),
+				},
+			};
+			const duplicateMainFolder: ISessionFolder = {
+				...mainFolder,
+				workingDirectory: URI.file('/workspace/main-worktree'),
+			};
+			const baseSession = createMultiFolderSession(
+				[mainFolder, peerSessionFolder, duplicateMainFolder],
+				[[mainFolder], [peerFolder], [duplicateMainFolder]],
+			);
+			const createBranchChangeset = (changes: readonly ISessionFileChange[]): ISessionChangeset => upcastPartial<ISessionChangeset>({
+				id: BRANCH_CHANGES_CHANGESET_ID,
+				isDefault: constObservable(false),
+				changes: constObservable(changes),
+			});
+			const mainChat: IChat = {
+				...baseSession.mainChat.get(),
+				changesets: constObservable([createBranchChangeset([
+					{ modifiedUri: URI.file('/workspace/main/first.ts'), insertions: 3, deletions: 1 },
+					{ modifiedUri: URI.file('/workspace/main/second.ts'), insertions: 2, deletions: 0 },
+				])]),
+			};
+			const peerChat: IChat = {
+				...baseSession.chats.get()[1],
+				changes: constObservable([{ modifiedUri: URI.file('/workspace/peer/fallback.ts'), insertions: 99, deletions: 99 }]),
+				changesets: constObservable([createBranchChangeset([
+					{ modifiedUri: URI.file('/workspace/peer/file.ts'), insertions: 7, deletions: 2 },
+				])]),
+			};
+			const session: ISession = {
+				...baseSession,
+				chats: constObservable([mainChat, peerChat]),
+				mainChat: constObservable(mainChat),
+				changesSummary: constObservable({ files: 4, additions: 20, deletions: 8 }),
+			};
+			const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: (target, options) => {
+						hovers.set(target, typeof options === 'function' ? options : () => options);
+						return toDisposable(() => hovers.delete(target));
+					},
+				});
+				instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
+					override getUriLabel(resource: URI): string { return resource.path; }
+				});
+			});
+
+			const summarizeHover = (row: HTMLElement | null) => {
+				const hover = row ? hovers.get(row)?.() : undefined;
+				const content = hover?.content;
+				const element = content instanceof HTMLElement ? content : undefined;
+				return {
+					presentation: hover && {
+						appearance: hover.appearance,
+						position: hover.position,
+						persistence: hover.persistence,
+					},
+					title: element?.querySelector('.session-summary-hover-title-text')?.textContent,
+					location: element?.querySelector('.session-summary-hover-location')?.textContent,
+					pullRequest: element?.querySelector('.session-summary-hover-pull-requests')?.textContent,
+					sessionSummary: element?.querySelector('.session-summary-hover-session-summary')?.textContent,
+					changes: [
+						element?.querySelector('.session-summary-hover-insertions')?.textContent,
+						element?.querySelector('.session-summary-hover-deletions')?.textContent,
+					],
+				};
+			};
+
+			assert.deepStrictEqual({
+				main: summarizeHover(container.querySelector('.session-item')),
+				peer: summarizeHover(container.querySelector('.session-chat-item')),
+			}, {
+				main: {
+					presentation: {
+						appearance: { showPointer: true },
+						position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+						persistence: { hideOnHover: false },
+					},
+					title: 'Session',
+					location: 'Workspace · /workspace/mainBranch · main-work2 files changed+5-1',
+					pullRequest: 'Main pull request',
+					sessionSummary: 'Session summarymain · /workspacepeer · /workspace4 files changed+20-8Main pull requestPeer pull request',
+					changes: ['+5', '-1'],
+				},
+				peer: {
+					presentation: {
+						appearance: { showPointer: true },
+						position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+						persistence: { hideOnHover: false },
+					},
+					title: 'Peer chat',
+					location: 'Workspace · /workspace/peerBranch · peer-work1 file changed+7-2',
+					pullRequest: 'Peer pull request',
+					sessionSummary: '',
+					changes: ['+7', '-2'],
+				},
 			});
 		});
 
@@ -3386,6 +3693,8 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(summarizeFolderLabel(container), {
 				hasFolderLabel: false,
 				folder: '',
+				folderRow: '',
+				folderIcon: undefined,
 				ariaLabel: 'Peer chat, chat, updated now, State: Completed',
 			});
 		});

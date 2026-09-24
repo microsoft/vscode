@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agent.js';
-import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
@@ -69,13 +69,61 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual({
 			turnCount: turns.length,
 			parts: fusionParts(turns[0].responseParts),
-			completionDetails: turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification
-				&& readAgentSystemNotificationMeta(part).fusionStatus === 'completed' ? [part.content] : []),
 			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
 		}, {
 			turnCount: 1,
-			parts: ['selected', 'succeeded', 'Selected final answer', 'completed'],
-			completionDetails: [{ markdown: 'HydraFusion&nbsp;workflow&nbsp;completed\n\nDuration:&nbsp;2.3s' }],
+			parts: ['selected', 'succeeded', 'Selected final answer'],
+			leaksPhaseContent: false,
+		});
+	});
+
+	test('restores committed Fusion phase tools and intermediate text under the phase tile', async () => {
+		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Start the app.' } }]),
+			event('session.fusion_resolved', fusion.resolved),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.message', { messageId: 'm1', content: 'Starting the server', toolRequests: [{ toolCallId: 'tc-bash', name: 'bash', arguments: {} }], fusion: committed }),
+			event('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-bash', success: true, result: { content: 'a.ts' }, fusion: committed }),
+			event('assistant.message', { messageId: 'm2', content: 'The app is running', fusion: committed }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		const phaseToolCallId = 'fusion:fusion-1:phase-1';
+		const phase = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === phaseToolCallId);
+		const phaseContent = phase?.toolCall.status === ToolCallStatus.Completed ? phase.toolCall.content : undefined;
+		assert.deepStrictEqual({
+			root: turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind),
+			phaseChat: phaseContent?.flatMap(item => item.type === ToolResultContentType.Subagent ? [{ resource: item.resource, agentName: item.agentName }] : []),
+			phaseTurn: subagentTurnsByToolCallId.get(phaseToolCallId)?.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind)),
+		}, {
+			root: [ResponsePartKind.SystemNotification, phaseToolCallId, 'The app is running'],
+			phaseChat: [{ resource: buildSubagentSessionUri(session.toString(), phaseToolCallId), agentName: 'hydrafusion-phase' }],
+			phaseTurn: ['Starting the server', 'tc-bash'],
+		});
+	});
+
+	test('restores a review phase critique into its phase chat', async () => {
+		const critic = { ...fusion.phaseCompleted, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review' } as const;
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Implement it.' } }]),
+			event('session.fusion_resolved', { ...fusion.resolved, pattern: 'critique' }),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.fusion_phase_completed', { ...critic, content: JSON.stringify({ assessment: 'revise', feedback: 'Negative input is accepted.', defect: null }) }),
+			event('assistant.message', { messageId: 'final', content: 'Done.' }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		const criticToolCallId = 'fusion:fusion-1:critic';
+		const tile = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === criticToolCallId);
+		assert.deepStrictEqual({
+			linked: tile?.toolCall.status === ToolCallStatus.Completed && !!tile.toolCall.content?.some(item => item.type === ToolResultContentType.Subagent),
+			critique: subagentTurnsByToolCallId.get(criticToolCallId)?.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind)),
+			solverChat: subagentTurnsByToolCallId.has('fusion:fusion-1:phase-1'),
+			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
+		}, {
+			linked: true,
+			critique: ['**Changes requested**\n\nNegative input is accepted.'],
+			solverChat: false,
 			leaksPhaseContent: false,
 		});
 	});
@@ -95,7 +143,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(turns.map(turn => ({
 			id: turn.id,
 			milestones: turn.responseParts.filter(part => part.kind === ResponsePartKind.SystemNotification || part.kind === ResponsePartKind.ToolCall).length,
-		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 3 }]);
+		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 2 }]);
 	});
 
 	for (const correlation of ['user', 'assistant', 'interaction', 'missing', 'shared'] as const) {
@@ -130,7 +178,7 @@ suite('mapSessionEvents — history replay', () => {
 				]);
 				assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, state: turn.state, parts: fusionParts(turn.responseParts) })), [
 					{ id: 'user-1', state: TurnState.Cancelled, parts: [] },
-					{ id: 'user-2', state: TurnState.Complete, parts: correlation === 'missing' || correlation === 'shared' ? ['Second answer'] : ['selected', 'succeeded', 'Second answer', 'completed'] },
+					{ id: 'user-2', state: TurnState.Complete, parts: correlation === 'missing' || correlation === 'shared' ? ['Second answer'] : ['selected', 'succeeded', 'Second answer'] },
 				]);
 			});
 		}
@@ -228,7 +276,7 @@ suite('mapSessionEvents — history replay', () => {
 							state: TurnState.Cancelled,
 							parts: ['selected', ...(phaseStatus ? [phaseStatus] : []), 'cancelled'],
 						},
-						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer', 'completed'] },
+						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer'] },
 					]);
 				});
 			}
@@ -264,7 +312,7 @@ suite('mapSessionEvents — history replay', () => {
 				parts: fusionParts(turn.responseParts),
 			})), [
 				{ id: 'user-1', parts: ['degraded', 'cancelled'] },
-				{ id: 'user-2', parts: ['selected', 'succeeded', 'completed'] },
+				{ id: 'user-2', parts: ['selected', 'succeeded'] },
 			]);
 		});
 	}
@@ -305,7 +353,7 @@ suite('mapSessionEvents — history replay', () => {
 		})), states.map((state, index) => ({
 			id: `user-${index + 1}`,
 			state,
-			parts: ['selected', 'succeeded', ...(state === TurnState.Cancelled ? ['cancelled'] : [`Answer ${index + 1}`, 'completed'])],
+			parts: ['selected', 'succeeded', ...(state === TurnState.Cancelled ? ['cancelled'] : [`Answer ${index + 1}`])],
 		})));
 	});
 
@@ -381,7 +429,7 @@ suite('mapSessionEvents — history replay', () => {
 			})), [{
 				id: 'user-1',
 				state: TurnState.Complete,
-				parts: ['selected', 'succeeded', 'completed', 'selected', 'succeeded', 'Root answer', 'completed'],
+				parts: ['selected', 'succeeded', 'selected', 'succeeded', 'Root answer'],
 			}]);
 		});
 	}

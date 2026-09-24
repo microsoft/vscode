@@ -10,6 +10,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	buildBranchChangesetUri,
@@ -49,7 +50,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName 
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -104,6 +105,18 @@ interface ITurnDiffResult {
 	readonly diffs: readonly ISessionFileDiff[];
 	readonly outcome: 'computed' | 'resolveFailed';
 	readonly multiRoot?: IMultiRootTurnDiffMetrics;
+}
+
+type GitTurnDiffSource =
+	| { readonly strategy: 'git' }
+	| { readonly strategy: 'auto'; readonly trackedSession: ProtocolURI; readonly db: ISessionDatabase };
+
+interface IStaticChangesetRequest {
+	readonly changedTurnId: string | undefined;
+	readonly statusBeforeRefresh: ChangesetState | undefined;
+	readonly reportTelemetry: boolean;
+	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
+	readonly strategy: ChangesetDiffStrategy;
 }
 
 type BranchDiffResult =
@@ -177,18 +190,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
 	private readonly _perTurnDebouncedDiffTimerKeys = new Set<string>();
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
+	private readonly _incrementalTrackerBaselines = new WeakSet<readonly ChangesetFile[]>();
 	private readonly _scheduledStaticRecomputes = new Map<string, {
-		dirty: boolean;
-		request: {
-			changedTurnId: string | undefined;
-			statusBeforeRefresh: ChangesetState | undefined;
-			reportTelemetry: boolean;
-			clientContext: IAgentHostClientTelemetryContext | undefined;
-		};
+		readonly requests: IStaticChangesetRequest[];
 	}>();
 	private readonly _unavailableBranchOwners = new Set<ProtocolURI>();
 	private readonly _failedBranchOwners = new Set<ProtocolURI>();
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
+	private readonly _restoredBranchChangesetOwners = new Set<ProtocolURI>();
+	private readonly _pendingBranchChangesetRestores = new Map<ProtocolURI, Promise<void>>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _worktree: IAgentHostWorktreePendingState;
@@ -231,10 +241,44 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
-		this._stateManager.registerChangeset(buildBranchChangesetUri(this._getBranchChangesetOwner(session)));
+		const branchChangesetOwner = this._getBranchChangesetOwner(session);
+		this._stateManager.registerChangeset(buildBranchChangesetUri(branchChangesetOwner));
+		this._restoreScopedBranchChangeset(branchChangesetOwner);
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		if (!isAhpChatChannel(session)) {
 			this._stateManager.registerChangeset(buildSessionChangesetUri(session));
+		}
+	}
+
+	private _restoreScopedBranchChangeset(owner: ProtocolURI): void {
+		if (this._restoredBranchChangesetOwners.has(owner) || this._pendingBranchChangesetRestores.has(owner)) {
+			return;
+		}
+
+		const task = this._doRestoreScopedBranchChangeset(owner);
+		this._pendingBranchChangesetRestores.set(owner, task);
+		void task.then(() => {
+			this._restoredBranchChangesetOwners.add(owner);
+		}, err => {
+			this._logService.warn(`[AgentHostChangesetService] Failed to restore folder-scoped Branch Changes for ${owner}`, err);
+		}).finally(() => {
+			this._pendingBranchChangesetRestores.delete(owner);
+		});
+	}
+
+	private async _doRestoreScopedBranchChangeset(owner: ProtocolURI): Promise<void> {
+		const scope = parseFolderChangesetOwnerUri(owner);
+		if (!scope) {
+			return;
+		}
+
+		const ref = this._sessionDataService.openDatabase(URI.parse(scope.sessionUri));
+		try {
+			const raw = await ref.object.getMetadata(getScopedBranchChangesetMetadataKey(scope.scopeId));
+			const diffs = tryParsePersistedDiffs(raw, scope.sessionUri, 'folder-scoped branch', this._logService);
+			this._seedIfEmpty(owner, 'branch', diffs);
+		} finally {
+			ref.dispose();
 		}
 	}
 
@@ -515,11 +559,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._scheduleStaticRecompute(branchChangesetOwner, 'branch');
 	}
 
-	refreshSessionChangeset(session: ProtocolURI): void {
+	refreshSessionChangeset(session: ProtocolURI, strategy: ChangesetDiffStrategy = 'auto'): void {
 		if (isAhpChatChannel(session) || !this._hasWorkingDirectory(session)) {
 			return;
 		}
-		this._scheduleStaticRecompute(session, 'session');
+		this._scheduleStaticRecompute(session, 'session', undefined, false, undefined, strategy);
 	}
 
 	/**
@@ -549,26 +593,26 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session);
+					this.refreshSessionChangeset(session, 'fileEditTracker');
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
 					break;
 				case ChangesetKind.Turn:
 					if (parsed.turnId !== undefined) {
-						void this.computeTurnChangeset(session, parsed.turnId);
+						void this.computeTurnChangeset(session, parsed.turnId, 'fileEditTracker');
 					}
 					break;
 			}
 		}
 	}
 
-	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
+	computeTurnChangeset(session: ProtocolURI, turnId: string, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
 		// Turn telemetry is emitted at the turn boundary (onTurnComplete); this subscribe-triggered recompute does not report.
-		return this._queueTurnChangeset(session, turnId, false);
+		return this._queueTurnChangeset(session, turnId, false, undefined, strategy);
 	}
 
-	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
 		const turnUri = buildTurnChangesetUri(session, turnId);
 		this._markChangesetComputing(turnUri);
 		const stopWatch = StopWatch.create();
@@ -576,26 +620,25 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		let result: ITurnDiffResult | undefined;
 		let fileCount: number | undefined;
 		try {
-			let ref: ReturnType<ISessionDataService['openDatabase']>;
+			let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 			try {
-				ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
-			} catch (err) {
-				this._logService.warn(`[AgentHostChangesetService] Failed to open session database for turn diff: ${session}`, err);
-				this._stateManager.dispatchServerAction(turnUri, {
-					type: ActionType.ChangesetStatusChanged,
-					status: ChangesetStatus.Error,
-					error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
-				});
-				outcome = 'dbOpenFailed';
-				return turnUri;
-			}
-			try {
-				// Prefer the checkpoint-ref git diff when available — that path
-				// captures terminal-tool edits the FileEditTracker pipeline
-				// (`file_edits` rows) misses. Falls back to the SDK-tracked
-				// aggregator when checkpoints aren't set up (non-git folder
-				// isolation, baseline never captured, or capture failure).
-				result = await this._computeTurnDiffsPreferCheckpoint(session, ref.object, turnId);
+				if (strategy === 'git') {
+					result = await this._computeTurnDiffsUsingGit(session, turnId, { strategy });
+				} else {
+					try {
+						ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
+					} catch (err) {
+						this._logService.warn(`[AgentHostChangesetService] Failed to open session database for turn diff: ${session}`, err);
+						this._stateManager.dispatchServerAction(turnUri, {
+							type: ActionType.ChangesetStatusChanged,
+							status: ChangesetStatus.Error,
+							error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+						});
+						outcome = 'dbOpenFailed';
+						return turnUri;
+					}
+					result = await this._computeTurnDiffs(session, ref.object, turnId, strategy);
+				}
 				outcome = result.outcome;
 				fileCount = result.diffs.length;
 				this._publishChangesetDiffs(session, turnUri, result.diffs);
@@ -608,7 +651,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				});
 				outcome = 'error';
 			} finally {
-				ref.dispose();
+				ref?.dispose();
 			}
 			return turnUri;
 		} finally {
@@ -789,23 +832,33 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		});
 	}
 
-	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<ITurnDiffResult> {
+	private async _computeTurnDiffs(session: ProtocolURI, db: ISessionDatabase, turnId: string, strategy: 'auto' | 'fileEditTracker'): Promise<ITurnDiffResult> {
 		const trackedSource = this._openTrackedTurnSource(session, db, turnId);
 		// Multi-folder sessions aggregate every folder's changes; single- and
 		// zero-folder sessions keep the existing single-repo behavior exactly.
 		try {
 			if (!trackedSource.sessionUri) {
+				if (strategy !== 'auto') {
+					throw new Error(localize('ambiguousTurnDiff', "Cannot compute turn changes because the turn belongs to more than one chat."));
+				}
 				return { diffs: [], outcome: 'computed' };
 			}
-			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-			if (isMultiRootSession(workingDirectories)) {
-				return await this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+			if (strategy === 'fileEditTracker') {
+				return { diffs: await computeTurnDiffs(trackedSource.sessionUri, trackedSource.db, this._diffComputeService, turnId), outcome: 'computed' };
 			}
-			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
-			return { diffs, outcome: 'computed' };
+			return await this._computeTurnDiffsUsingGit(session, turnId, { strategy, trackedSession: trackedSource.sessionUri, db: trackedSource.db });
 		} finally {
 			trackedSource.dispose();
 		}
+	}
+
+	private async _computeTurnDiffsUsingGit(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<ITurnDiffResult> {
+		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+		if (isMultiRootSession(workingDirectories)) {
+			return this._computeMultiFolderTurnDiffs(session, turnId, workingDirectories!, source);
+		}
+		const diffs = await this._computeSingleFolderTurnDiffs(session, turnId, source);
+		return { diffs, outcome: 'computed' };
 	}
 
 	/**
@@ -815,7 +868,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Every path that can return an empty list is logged — an empty per-turn
 	 * changeset is otherwise indistinguishable from a turn that changed nothing.
 	 */
-	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
+	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(containingSessionUri(session)), turnId);
 		if (pair && pair.parent !== pair.current) {
 			const workingDir = await this._resolveWorkingDirectory(session);
@@ -828,8 +881,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				if (fromRefDiffs) {
 					return fromRefDiffs;
 				}
+				if (source.strategy === 'git') {
+					throw new Error(localize('turnGitDiffUnavailable', "Git diff is unavailable for the requested turn."));
+				}
 				this._logService.warn(`[AgentHostChangesetService] Turn ${session}/${turnId}: git diff ${pair.parent}..${pair.current} produced no result; falling back to tracked file edits, which cannot see terminal-tool edits`);
 			} else {
+				if (source.strategy === 'git') {
+					throw new Error(localize('turnGitDiffWorkingDirectoryUnavailable', "No working directory is available to compute turn changes using Git."));
+				}
 				this._logService.warn(`[AgentHostChangesetService] Turn ${session}/${turnId}: no working directory resolved; falling back to tracked file edits, which cannot see terminal-tool edits`);
 			}
 		} else if (pair) {
@@ -839,11 +898,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._logService.debug(`[AgentHostChangesetService] Turn ${session}/${turnId}: end-of-turn tree matches the turn-start tree (${pair.current}); reporting no changes`);
 			return [];
 		} else {
+			if (source.strategy === 'git') {
+				throw new Error(localize('turnGitDiffCheckpointsUnavailable', "No checkpoint pair is available to compute turn changes using Git."));
+			}
 			// Expected for a non-git folder; otherwise checkpoint capture failed.
 			this._logService.debug(`[AgentHostChangesetService] Turn ${session}/${turnId}: no checkpoint pair; falling back to tracked file edits, which cannot see terminal-tool edits`);
 		}
 		// Fallback: SDK-tracked file_edits aggregator.
-		return computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId);
+		return computeTurnDiffs(source.trackedSession, source.db, this._diffComputeService, turnId);
 	}
 
 	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
@@ -888,9 +950,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * the non-git folders. Per-folder failures are logged and skipped so one
 	 * folder never fails the whole turn changeset.
 	 */
-	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, workingDirectories: readonly string[]): Promise<ITurnDiffResult> {
+	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, turnId: string, workingDirectories: readonly string[], source: GitTurnDiffSource): Promise<ITurnDiffResult> {
 		const sessionUri = URI.parse(containingSessionUri(session));
-		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
+		const workingDirectoryUris = source.strategy === 'git' ? workingDirectories.map(directory => URI.parse(directory)) : this._parseWorkingDirectoryUris(session, workingDirectories);
 
 		let gitRepositories: readonly URI[];
 		let nonGitDirectories: readonly URI[];
@@ -899,12 +961,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// lookup fails is treated as a non-git folder and routed through the
 			// DB-tracked fallback below, so one repo's git failure never drops
 			// the whole turn changeset.
-			({ gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService, (directory, err) => {
+			({ gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService, source.strategy === 'git' ? undefined : (directory, err) => {
 				this._logService.error(`[AgentHostChangesetService] Failed to resolve repository root for ${directory.toString()} in multi-folder turn ${session}/${turnId}; treating it as a non-git folder.`, err);
 			}));
 		} catch (err) {
+			if (source.strategy === 'git') {
+				throw err;
+			}
 			this._logService.error(`[AgentHostChangesetService] Failed to resolve repositories for multi-folder turn ${session}/${turnId}`, err);
 			return { diffs: [], outcome: 'resolveFailed' };
+		}
+		if (source.strategy === 'git' && nonGitDirectories.length > 0) {
+			throw new Error(localize('turnGitDiffNonGitFolders', "Cannot compute all turn changes using Git because the session includes non-Git folders."));
 		}
 
 		// Diff every resolved repository, but bound how many per-repo git diffs
@@ -912,8 +980,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// number of git processes (see MAX_DIFF_REPOSITORY_CONCURRENCY).
 		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
-			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, trackedSession, sessionUri, db, turnId, repoRoot)))),
-			this._computeNonGitTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, nonGitDirectories),
+			Promises.settled(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, sessionUri, turnId, repoRoot, source)))),
+			source.strategy === 'git' ? [] : this._computeNonGitTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, nonGitDirectories),
 		]).finally(() => limiter.dispose());
 
 		// Merge every source, keeping the first occurrence of each file. The git
@@ -941,12 +1009,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * that fallback was taken. Missing checkpoints are expected for older turns;
 	 * actual git failures are logged as errors.
 	 */
-	private async _computeRepoTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
+	private async _computeRepoTurnDiffs(session: ProtocolURI, sessionUri: URI, turnId: string, repoRoot: URI, source: GitTurnDiffSource): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
 			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
 			if (!pair) {
+				if (source.strategy === 'git') {
+					throw new Error(localize('turnGitDiffRepositoryCheckpointsUnavailable', "No checkpoint pair is available to compute turn changes in '{0}' using Git.", repoRoot.fsPath));
+				}
 				this._logService.trace(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, repoRoot), usedFallback: true };
 			}
 			if (pair.parent === pair.current) {
 				// A no-op turn checkpoint reuses the parent ref — the diff is
@@ -960,13 +1031,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				toRef: pair.current,
 			});
 			if (!diffs) {
+				if (source.strategy === 'git') {
+					throw new Error(localize('turnGitDiffRepositoryUnavailable', "Git diff is unavailable for the requested turn in '{0}'.", repoRoot.fsPath));
+				}
 				this._logService.error(`[AgentHostChangesetService] Git turn diff unavailable for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, repoRoot), usedFallback: true };
 			}
 			return { diffs, usedFallback: false };
 		} catch (err) {
+			if (source.strategy === 'git') {
+				throw err;
+			}
 			this._logService.error(`[AgentHostChangesetService] Failed to compute git turn diff for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`, err);
-			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
+			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, repoRoot), usedFallback: true };
 		}
 	}
 
@@ -1032,11 +1109,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/** Computes a complete session delta across repositories and tracked-only folders. */
-	private async _computeMultiFolderSessionDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
+	private async _computeMultiFolderSessionDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[], strategy: 'auto' | 'git'): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService);
 		const latestTurnId = this._latestTurnIdAcrossChats(session);
 		const perRepoDiffs = await this._computeRepositoryCheckpointDiffs(session, gitRepositories, latestTurnId);
 		const trackedRoots = [...nonGitDirectories, ...gitRepositories.filter((_, index) => perRepoDiffs[index] === undefined)];
+		if (strategy === 'git' && trackedRoots.length > 0) {
+			throw new Error(localize('sessionGitDiffUnavailable', "Git diff is unavailable for the session changeset."));
+		}
 		let trackedDiffs: readonly ISessionFileDiff[] = [];
 		if (trackedRoots.length > 0) {
 			const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, true);
@@ -1206,13 +1286,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (this._shouldScheduleBranchRecompute(session)) {
 			this._scheduleBranchRecompute(session, turnId, true, clientContext);
 		}
-		this._scheduleStaticRecompute(session, 'session', turnId, true, clientContext);
+		this._scheduleStaticRecompute(session, 'session', turnId, true, clientContext, 'fileEditTracker');
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
 		this._scheduleBranchRecompute(session, undefined, true);
-		this._scheduleStaticRecompute(session, 'session', undefined, true);
+		this._scheduleStaticRecompute(session, 'session', undefined, true, undefined, 'fileEditTracker');
 	}
 
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {
@@ -1222,7 +1302,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._failedBranchOwners.delete(owner);
 		for (const [key, scheduled] of this._scheduledStaticRecomputes) {
 			if (key.startsWith(`${owner}\u0000`)) {
-				scheduled.dirty = false;
+				scheduled.requests.length = 0;
 				this._scheduledStaticRecomputes.delete(key);
 			}
 		}
@@ -1248,7 +1328,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		this._debouncedSessionDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedSessionDiffTimers.deleteAndDispose(session);
-			this._scheduleStaticRecompute(session, 'session', turnId, false, clientContext);
+			this._scheduleStaticRecompute(session, 'session', turnId, false, clientContext, 'fileEditTracker');
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
 
@@ -1303,12 +1383,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * are logged inside `computeTurnChangeset` and do not fail the turn.
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
-		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext);
+		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext, 'fileEditTracker');
 	}
 
-	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
 		this._markChangesetComputing(buildTurnChangesetUri(session, turnId));
-		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry, clientContext));
+		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry, clientContext, strategy));
 	}
 
 	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -1330,34 +1410,34 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * stale `previousDiffs` reads. Fire-and-forget — failures are logged
 	 * but do not fail the turn.
 	 */
-	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
+	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): void {
 		const key = `${session}\u0000${kind}`;
 		const statusBeforeRefresh = this._markChangesetComputing(staticChangesetUri(session, kind));
 		const existing = this._scheduledStaticRecomputes.get(key);
+		const request: IStaticChangesetRequest = { changedTurnId, statusBeforeRefresh, reportTelemetry, clientContext, strategy };
 		if (existing) {
-			existing.dirty = true;
-			existing.request = {
-				changedTurnId: changedTurnId !== undefined && changedTurnId === existing.request.changedTurnId
-					? changedTurnId
-					: undefined,
-				statusBeforeRefresh: existing.request.statusBeforeRefresh ?? statusBeforeRefresh,
-				reportTelemetry: reportTelemetry || existing.request.reportTelemetry,
-				clientContext: clientContext ?? existing.request.clientContext,
-			};
+			const lastRequest = existing.requests.at(-1);
+			if (lastRequest?.strategy === strategy) {
+				existing.requests[existing.requests.length - 1] = {
+					changedTurnId: changedTurnId !== undefined && changedTurnId === lastRequest.changedTurnId ? changedTurnId : undefined,
+					statusBeforeRefresh: lastRequest.statusBeforeRefresh ?? statusBeforeRefresh,
+					reportTelemetry: reportTelemetry || lastRequest.reportTelemetry,
+					clientContext: clientContext ?? lastRequest.clientContext,
+					strategy,
+				};
+			} else {
+				existing.requests.push(request);
+			}
 			return;
 		}
 
-		const scheduled = {
-			dirty: true,
-			request: { changedTurnId, statusBeforeRefresh, reportTelemetry, clientContext },
-		};
+		const scheduled = { requests: [request] };
 		this._scheduledStaticRecomputes.set(key, scheduled);
 		this._diffComputationSequencer.queue(key, async () => {
 			try {
-				while (scheduled.dirty) {
-					scheduled.dirty = false;
-					const request = scheduled.request;
-					await this._doComputeStaticChangeset(session, kind, request.changedTurnId, request.statusBeforeRefresh, request.reportTelemetry, request.clientContext);
+				while (scheduled.requests.length > 0) {
+					const request = scheduled.requests.shift()!;
+					await this._doComputeStaticChangeset(session, kind, request.changedTurnId, request.statusBeforeRefresh, request.reportTelemetry, request.clientContext, request.strategy);
 				}
 			} finally {
 				if (this._scheduledStaticRecomputes.get(key) === scheduled) {
@@ -1385,7 +1465,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return previous;
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<void> {
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
@@ -1420,7 +1500,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(session)));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for ${kind} diff computation: ${session}`, err);
-			this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+			if (kind === 'session' && strategy !== 'auto') {
+				this._stateManager.registerChangeset(changesetUri);
+				this._stateManager.dispatchServerAction(changesetUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+				});
+			} else {
+				this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+			}
 			this._activeStaticComputes.delete(changesetUri);
 			this._stateManager.onChangesetLivenessChanged();
 			outcome = 'dbOpenFailed';
@@ -1451,18 +1540,21 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let branchResult: BranchDiffResult | undefined;
 			let diffs: readonly ISessionFileDiff[] | undefined;
-			if (kind === 'session' && isMultiRootSession(workingDirectories)) {
-				const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!);
-				diffs = result.diffs;
-				usedEditTrackerFallback = result.usedFallback;
-			} else if (kind === 'branch' && isMultiRootSession(workingDirectories)) {
+			let incrementalTrackerBaseline = false;
+			if (kind === 'branch' && isMultiRootSession(workingDirectories)) {
 				branchResult = await this._computeMultiFolderBranchDiffs(session, ref.object, workingDirectories!);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else if (kind === 'branch') {
 				branchResult = await this._computeBranchDiffs(session, ref.object, workingDirectories?.[0]);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
-			} else {
-				diffs = await this._tryComputeSessionGitDiffs(session);
+			} else if (strategy !== 'fileEditTracker') {
+				if (isMultiRootSession(workingDirectories)) {
+					const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!, strategy);
+					diffs = result.diffs;
+					usedEditTrackerFallback = result.usedFallback;
+				} else {
+					diffs = await this._tryComputeSessionGitDiffs(session, strategy);
+				}
 			}
 			if (!diffs) {
 				if (kind === 'branch') {
@@ -1482,22 +1574,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					outcome = 'preserved';
 					return;
 				}
-				// `session` kind: working-tree git is unavailable (no
-				// working dir or not a git work tree). Fall back to the
-				// edit-tracker aggregator — for the session changeset the
-				// SDK-tracked edits are the best available approximation.
-				//
-				// In multi-chat sessions each peer chat records its file
-				// edits into its OWN database (the chat URI is used as the
-				// session URI for that chat's edit tracker). Union the
-				// session DB with every peer chat DB so peer-chat edits roll
-				// up into the session-level changes.
-				usedEditTrackerFallback = true;
-				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session);
+				if (strategy === 'git') {
+					throw new Error(localize('sessionGitDiffUnavailable', "Git diff is unavailable for the session changeset."));
+				}
+				usedEditTrackerFallback = strategy === 'auto';
+				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker');
 				try {
 					if (peerSources.length > 0) {
 						const sources: ISessionDiffSource[] = [
-							{ sessionUri: session, db: ref.object },
+							{ sessionUri: this._getTrackedDatabaseUri(session), db: ref.object },
 							...peerSources.map(p => ({ sessionUri: p.sessionUri, db: p.ref.object })),
 						];
 						// TODO (debt): multi-chat always does a full recompute
@@ -1515,7 +1600,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 								incrementalUsed = true;
 							}
 						}
-						diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
+						diffs = await computeSessionDiffs(this._getTrackedDatabaseUri(session), ref.object, this._diffComputeService, incremental);
+						incrementalTrackerBaseline = true;
 					}
 				} finally {
 					for (const peer of peerSources) {
@@ -1537,6 +1623,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs, reviewed);
+			const published = this._stateManager.getChangesetState(changesetUri);
+			if (incrementalTrackerBaseline && published) {
+				this._incrementalTrackerBaselines.add(published.files);
+			}
 			if (kind === 'branch') {
 				this._unavailableBranchOwners.delete(session);
 				this._failedBranchOwners.delete(session);
@@ -1548,6 +1638,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
 			const persistenceOwner = kind === ChangesetKind.Branch ? this._getTrackedDatabaseUri(session) : session;
+			if (kind === ChangesetKind.Branch) {
+				const scope = parseFolderChangesetOwnerUri(session);
+				if (scope) {
+					this._persistSessionFlag(scope.sessionUri, getScopedBranchChangesetMetadataKey(scope.scopeId), JSON.stringify(diffs));
+				}
+			}
 			if (!isAhpChatChannel(persistenceOwner)) {
 				this._persistSessionFlag(persistenceOwner, persistKeyFor(kind), JSON.stringify(diffs));
 				if (kind === ChangesetKind.Branch) {
@@ -1607,7 +1703,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _readPreviousChangesetDiffs(changesetUri: ProtocolURI): readonly ISessionFileDiff[] | undefined {
 		const state = this._stateManager.getChangesetState(changesetUri);
-		if (!state || state.files.length === 0) {
+		if (!state || state.files.length === 0 || !this._incrementalTrackerBaselines.has(state.files)) {
 			return undefined;
 		}
 		return state.files.map(f => f.edit);
@@ -1732,7 +1828,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/** Computes Session Changes between the baseline and latest turn checkpoints. */
-	private async _tryComputeSessionGitDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
+	private async _tryComputeSessionGitDiffs(session: ProtocolURI, strategy: 'auto' | 'git'): Promise<readonly ISessionFileDiff[] | undefined> {
 		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
@@ -1766,6 +1862,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				toRef: pair.current
 			});
 		} catch (err) {
+			if (strategy === 'git') {
+				throw err;
+			}
 			this._logService.warn('[AgentHostChangesetService] git-driven session diff computation failed; falling back to edit-tracker', err);
 			return undefined;
 		}

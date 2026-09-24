@@ -784,6 +784,36 @@ suite('ChangesViewService', () => {
 		);
 	});
 
+	test('hides projected session changes for multi-folder sessions', () => {
+		const branchChangeset = { ...createChangeset([]), id: BRANCH_CHANGES_CHANGESET_ID };
+		const sessionChangeset = { ...createChangeset([], { resource: URI.parse('changeset:/session') }), id: SESSION_CHANGES_CHANGESET_ID };
+		const turnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID };
+		const chatWorkspace = createWorkspace('/repo-a');
+		const multiFolderWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [
+				...chatWorkspace.folders,
+				...createWorkspace('/repo-b').folders,
+			],
+		});
+		const chat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/multi-folder' }),
+			workspace: constObservable(chatWorkspace),
+			changes: constObservable([]),
+			changesets: constObservable([branchChangeset, sessionChangeset, turnChangeset]),
+		});
+		const { service } = createHarness(createSession('multi-folder', {
+			workspace: multiFolderWorkspace,
+			activeChat: constObservable(chat),
+			mainChat: constObservable(chat),
+			chats: constObservable([chat]),
+		}));
+
+		assert.deepStrictEqual(
+			service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			[BRANCH_CHANGES_CHANGESET_ID, TURN_CHANGES_CHANGESET_ID],
+		);
+	});
+
 	test('waits while the active chat has not published changesets', () => {
 		const activeChat = upcastPartial<IChat>({
 			resource: URI.from({ scheme: 'test-chat', path: '/active' }),
