@@ -245,7 +245,7 @@ flowchart LR
     codex -. Native logs and metrics .-> sink
 ```
 
-- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
+- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK exports directly to the user's destination. For native HTTP trace exporters, a bare base URL is resolved to `/v1/traces` before it is supplied as a signal-specific endpoint. Explicit/custom paths and gRPC endpoints are unchanged; the base destination for other signals is preserved. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an OTLP/HTTP JSON external endpoint is also configured, the receiver fans the normalized JSON trace body out to an `OtlpHttpForwarder` (`onForward`) so the collector keeps receiving traces alongside the local DB. For OTLP/HTTP protobuf and OTLP/gRPC external protocols, traces remain in SQLite while native logs and metrics still export directly.
 
 ## Native Provider Signal Routing
