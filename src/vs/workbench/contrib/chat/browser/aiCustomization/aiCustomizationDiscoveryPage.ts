@@ -381,6 +381,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly sourceHover = this._register(new MutableDisposable());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(false), searchDelay));
+	private readonly continuationScheduler = this._register(new RunOnceScheduler(() => void this.loadCatalog(true), 0));
 	private catalogPage: ICatalogPageState | undefined;
 	private enabledSourceIds: readonly string[];
 	private readonly browseCatalogCache = new Map<string, IBrowseCatalogCache>();
@@ -535,7 +536,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this._register(this.searchWidget.onShouldFocusResults(() => this.resultList.domFocus()));
 		this._register(this.resultList.onDidScroll(event => {
 			if (!this.query.isEmpty() && !this.errorMessage && event.scrollHeight > event.height && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
-				void this.loadCatalog(true);
+				this.continuationScheduler.schedule();
 			}
 		}));
 
@@ -991,6 +992,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private cancelCatalogRequest(): void {
+		this.continuationScheduler.cancel();
 		this.request.value?.cancel();
 		this.request.clear();
 		this.loading = false;
@@ -1008,7 +1010,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.loading = true;
 		this.loadingMore = append;
 		this.errorMessage = undefined;
-		this.lastAnnouncement = undefined;
 		this.render();
 
 		try {
@@ -1082,6 +1083,18 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.renderBrowse();
 		}
 		this.layout(this.lastDimension);
+		this.scheduleContinuationIfNeeded();
+	}
+
+	private scheduleContinuationIfNeeded(): void {
+		if (!this.visible || this.query.isEmpty() || this.loading || this.errorMessage || !this.hasNextCatalogPage()) {
+			this.continuationScheduler.cancel();
+			return;
+		}
+		const renderHeight = this.resultList.renderHeight;
+		if (renderHeight > 0 && (this.resultList.scrollHeight <= renderHeight || this.resultList.scrollTop + renderHeight >= this.resultList.scrollHeight - resultRowHeight * 3)) {
+			this.continuationScheduler.schedule();
+		}
 	}
 
 	private getLoadingLabel(): string {
@@ -1136,6 +1149,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		const installError = this.installErrors.values().next().value;
 		const catalogPending = this.loading || (!this.loaded && this.shouldQueryCatalog());
+		this.resultListContainer.setAttribute('aria-busy', String(catalogPending));
 		if (installError) {
 			this.resultStatus.textContent = installError;
 		} else if (catalogPending && entries.length === 0) {
@@ -1159,10 +1173,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else {
 			this.resultStatus.textContent = catalogPending ? this.getLoadingLabel() : '';
 		}
-		if (!catalogPending && this.hasNextCatalogPage() && !this.errorMessage && this.resultList.scrollHeight <= this.resultList.renderHeight) {
-			const loadMore = this.resultStatusDisposables.add(new Button(this.resultStatus, { ...defaultButtonStyles, secondary: true, small: true }));
-			loadMore.label = localize('customizationDiscovery.loadMore', "Load More");
-			this.resultStatusDisposables.add(loadMore.onDidClick(() => void this.loadCatalog(true)));
+		if (catalogPending) {
+			this.announce(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
 			this.announce([
