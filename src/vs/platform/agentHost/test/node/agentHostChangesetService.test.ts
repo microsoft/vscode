@@ -1903,6 +1903,75 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		);
 	});
 
+	test('peer-folder turn changesets ask checkpoints for the peer checkout', async () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const roots: Array<string | undefined> = [];
+		const git = createNoopGitService();
+		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoB/terminal.txt')];
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async (_session, _turnId, root) => {
+				roots.push(root?.toString());
+				return { parent: 'parent', current: 'current' };
+			},
+		};
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repoA'],
+			git,
+			checkpoint,
+			peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///repoB'] },
+		});
+
+		const turnUri = await svc.computeTurnChangeset(peer, 'peer-turn');
+
+		assert.deepStrictEqual({
+			roots,
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+		}, {
+			roots: ['file:///repoB'],
+			files: [URI.file('/repoB/terminal.txt').toString()],
+		});
+	});
+
+	test('compare turns checks every multi-root repository explicitly', async () => {
+		const checkpointCalls: { root: string | undefined; turnId: string }[] = [];
+		const gitCalls: { root: string; fromRef: string; toRef: string }[] = [];
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => wd;
+		git.computeFileDiffsBetweenRefs = async (root, options) => {
+			gitCalls.push({ root: root.toString(), fromRef: options.fromRef, toRef: options.toRef });
+			return [gitDiff(`${root.path}/terminal.txt`)];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async (_session, turnId, root) => {
+				checkpointCalls.push({ root: root?.toString(), turnId });
+				return { parent: `${root?.path}-${turnId}-parent`, current: `${root?.path}-${turnId}-current` };
+			},
+		};
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint });
+
+		const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'turn-a', 'turn-b');
+
+		assert.deepStrictEqual({
+			checkpointCalls,
+			gitCalls,
+			files: stateManager.getChangesetState(compareUri)?.files.map(file => file.id).sort(),
+		}, {
+			checkpointCalls: [
+				{ root: 'file:///repoA', turnId: 'turn-a' },
+				{ root: 'file:///repoA', turnId: 'turn-b' },
+				{ root: 'file:///repoB', turnId: 'turn-a' },
+				{ root: 'file:///repoB', turnId: 'turn-b' },
+			],
+			gitCalls: [
+				{ root: 'file:///repoA', fromRef: '/repoA-turn-a-current', toRef: '/repoA-turn-b-current' },
+				{ root: 'file:///repoB', fromRef: '/repoB-turn-a-current', toRef: '/repoB-turn-b-current' },
+			],
+			files: ['/repoA/terminal.txt', '/repoB/terminal.txt'].map(path => URI.file(path).toString()).sort(),
+		});
+	});
+
 	test('does not register or compute Session Changes for chat owners', () => {
 		const peer = buildChatUri(sessionStr, 'peer');
 		const { svc, stateManager } = build({
@@ -1917,6 +1986,33 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		svc.refreshSessionChangeset(peer);
 
 		assert.strictEqual(stateManager.getChangesetState(buildSessionChangesetUri(peer)), undefined);
+	});
+
+	test('turn-complete lifecycle computes Session Changes only for the containing session', async () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'peer-turn', toolCallId: 'terminal', filePath: '/repoB/terminal.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('old'), afterContent: encodeString('new') });
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repoA'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db,
+			peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///repoB'] },
+		});
+
+		svc.onTurnComplete(peer, 'peer-turn');
+		const sessionChangeset = buildSessionChangesetUri(sessionStr);
+		for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset) === undefined; i++) {
+			await timeout(1);
+		}
+
+		assert.deepStrictEqual({
+			hasSessionState: stateManager.getChangesetState(sessionChangeset) !== undefined,
+			peerState: stateManager.getChangesetState(buildSessionChangesetUri(peer)),
+		}, {
+			hasSessionState: true,
+			peerState: undefined,
+		});
 	});
 
 	test('partitions git vs non-git folders so git-folder edits are not double-counted by the DB', async () => {
@@ -2358,7 +2454,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.strictEqual(state?.status, ChangesetStatus.Ready);
 		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/wd/only.ts').toString()]);
 		assert.strictEqual(repoRootCalls, 0, 'single-folder path must not resolve per-folder repositories');
-		assert.deepStrictEqual(checkpointCalls, [{ turnId: 'turn-1', workingDirectory: undefined }], 'checkpoint pair is requested session-wide, not per-repo');
+		assert.deepStrictEqual(checkpointCalls, [{ turnId: 'turn-1', workingDirectory: 'file:///wd' }], 'checkpoint pair is requested for the effective checkout');
 		assert.deepStrictEqual(diffCalls, [{ wd: 'file:///wd', fromRef: 'p', toRef: 'c' }]);
 	});
 
@@ -3149,6 +3245,36 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			}
 		}
 
+		test('Session Changes uses aggregate folders even when Branch Changes supplies the list summary', async () => {
+			const sessionCalls: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => wd;
+			git.computeFileDiffsBetweenRefs = async wd => {
+				sessionCalls.push(wd.toString());
+				return [gitDiff(`${wd.path}/session.ts`)];
+			};
+			git.computeSessionFileDiffs = async wd => [gitDiff(`${wd.path}/branch.ts`, 100, 20)];
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA'],
+				isolation: 'worktree',
+				git,
+				checkpoint: summaryCheckpoint(),
+				peer: { resource: buildChatUri(sessionStr, 'peer'), db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///repoB'] },
+			});
+			completeTurn(stateManager);
+
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+
+			assert.deepStrictEqual({
+				sessionCalls,
+				files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id).sort(),
+			}, {
+				sessionCalls: ['file:///repoA', 'file:///repoB'],
+				files: ['/repoA/session.ts', '/repoB/session.ts'].map(path => URI.file(path).toString()).sort(),
+			});
+		});
+
 		test('multi-root Session Changes uses each repository baseline and the latest peer turn', async () => {
 			const calls: { root: string; fromRef: string; toRef: string }[] = [];
 			const turnCalls: { root: string | undefined; turnId: string }[] = [];
@@ -3180,6 +3306,59 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				turnCalls: [{ root: '/repoA', turnId: 'peer-turn' }, { root: '/repoB', turnId: 'peer-turn' }],
 				summary: { additions: 4, deletions: 2, files: 2 },
 			});
+		});
+
+		test('multi-root Session Changes falls back to each repository latest checkpoint', async () => {
+			const calls: { root: string; fromRef: string; toRef: string }[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => wd;
+			git.computeFileDiffsBetweenRefs = async (wd, options) => {
+				calls.push({ root: wd.path, fromRef: options.fromRef, toRef: options.toRef });
+				return [gitDiff(`${wd.path}/terminal.ts`)];
+			};
+			const checkpoint: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				getBaselineCheckpoint: async (_session, root) => `${root?.path}-baseline`,
+				getTurnCheckpointPair: async (_session, turnId, root) => {
+					if (root?.path === '/repoA' && turnId === 'turn-a') {
+						return { parent: 'a-start', current: 'a-latest' };
+					}
+					if (root?.path === '/repoB' && turnId === 'turn-b') {
+						return { parent: 'b-start', current: 'b-latest' };
+					}
+					return undefined;
+				},
+			};
+			const peer = buildChatUri(sessionStr, 'peer');
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint,
+				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'stale-peer-turn' },
+			});
+			const defaultChat = buildDefaultChatUri(sessionStr);
+			stateManager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-a',
+				startedAt: new Date(0).toISOString(),
+				message: { text: 'terminal A', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'turn-a', duration: 1 });
+			stateManager.dispatchServerAction(peer, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-b',
+				startedAt: new Date(1).toISOString(),
+				message: { text: 'terminal B', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'turn-b', duration: 1 });
+
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+
+			assert.deepStrictEqual(calls.sort((a, b) => a.root.localeCompare(b.root)), [
+				{ root: '/repoA', fromRef: '/repoA-baseline', toRef: 'a-latest' },
+				{ root: '/repoB', fromRef: '/repoB-baseline', toRef: 'b-latest' },
+			]);
 		});
 
 		test('multi-root Session Changes scopes full-session tracked edits across peers and excludes checkpoint-backed files', async () => {
