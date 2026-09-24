@@ -117,10 +117,16 @@ const getParamRanges = (params: ReadFileParams, snapshot: NotebookDocumentSnapsh
 	return { start, end, truncated };
 };
 
+type EndLineInfo = {
+	adjustedEndLine: number;
+	startLines: Map<number, { adjustedStartLine: number; adjustedEndLine: number }>;
+};
+
 export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 	public static toolName = ToolName.ReadFile;
 	public static readonly nonDeferred = true;
 	private _promptContext: IBuildPromptContext | undefined;
+	private readonly adjustedReadRequests = new Map<string, Map<string, Map<number, EndLineInfo>>>();
 
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -185,39 +191,71 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			const documentSnapshot = await this.getSnapshot(uri);
 			ranges = getParamRanges(options.input, documentSnapshot);
 			const languageId = documentSnapshot.languageId;
+			const doRealLineAdjustment = this.configurationService.getExperimentBasedConfig(ConfigKey.ReadFileToolAllowLineAdjustments, this.experimentationService);
 			if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined && uri.scheme === 'file' && (languageId === 'typescript' || languageId === 'javascript')) {
 				const startLine = ranges.start - 1;
 				const endLine = ranges.end - 1;
+				let adjustmentPending = false;
 				try {
-					const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
-					if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-						const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
-						if (regionResult !== undefined && regionResult.regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-							const regions = regionResult.regions;
-							this.sendAdjustedRegionTelemetry(options, startLine, endLine, regions[0].range.start, regions[0].range.end, regionResult.paths, documentSnapshot);
-							// const saving = (ranges.end - ranges.start) - (regions[0].range.end - regions[0].range.start);
-							// this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep matches: [${grepResultMatches.map(m => m.start.line + 1).join(',')}], region [${regionResult.regions[0].range.start + 1}-${regionResult.regions[0].range.end + 1}]`);
+					const continuousReadStart = this.isContinuousRead(options.chatSessionResource, uri, startLine);
+					if (continuousReadStart !== undefined && continuousReadStart >= 0 && continuousReadStart < startLine) {
+						if (doRealLineAdjustment) {
+							ranges = {
+								start: continuousReadStart + 1,
+								end: ranges.end,
+								truncated: ranges.truncated,
+							};
+						}
+						this.sendContinuousRegionTelemetry(options, startLine - continuousReadStart, documentSnapshot);
+					} else {
+						const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
+						if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
+							if (this.beginReadAdjustment(options.chatSessionResource, uri, startLine, endLine)) {
+								adjustmentPending = true;
+								const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine });
+								const adjustedRange = regionResult?.regions[0]?.range;
+								if (regionResult !== undefined && adjustedRange !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
+									const pathInfo = regionResult?.paths;
+									// For telemetry purpose send the adjusted region information
+									this.sendAdjustedRegionTelemetry(options, startLine, endLine, adjustedRange.start, adjustedRange.end, pathInfo, documentSnapshot);
+									if (adjustedRange.end >= startLine && adjustedRange.end < endLine) {
+										if (doRealLineAdjustment) {
+											ranges = {
+												start: ranges.start,
+												end: adjustedRange.end + 1,
+												truncated: ranges.truncated,
+											};
+										}
+										this.completeReadAdjustment(options.chatSessionResource, uri, startLine, endLine, startLine, adjustedRange.end);
+										adjustmentPending = false;
+									}
+								} else {
+									if (documentSnapshot.version === documentSnapshot.document.version) {
+										this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions', documentSnapshot);
+									} else {
+										this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
+									}
+								}
+							} else {
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'reReadSameRange', documentSnapshot);
+							}
 						} else {
 							if (documentSnapshot.version === documentSnapshot.document.version) {
-								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions', documentSnapshot);
-								// this.logService.info(`No regions found for grep result match in file ${documentSnapshot.uri.fsPath} at lines [${grepResultMatches.map(m => m.start.line + 1).join(',')}]`);
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrep', documentSnapshot);
+								// this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);
 							} else {
 								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
 								// this.logService.info(`Document version changed for requestId ${options.chatRequestId}`);
 							}
 						}
-					} else {
-						if (documentSnapshot.version === documentSnapshot.document.version) {
-							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrep', documentSnapshot);
-							// this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);
-						} else {
-							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
-							// this.logService.info(`Document version changed for requestId ${options.chatRequestId}`);
-						}
 					}
 				} catch (err) {
 					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception', documentSnapshot);
 					// this.logService.error(`Error processing grep result for requestId ${options.chatRequestId}: ${err}`);
+				} finally {
+					if (adjustmentPending) {
+						this.cancelReadAdjustment(options.chatSessionResource, uri, startLine, endLine);
+					}
 				}
 			}
 
@@ -383,6 +421,74 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		return TextDocumentSnapshot.create(await this.workspaceService.openTextDocument(uri));
 	}
 
+	private beginReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): boolean {
+		const sessionKey = sessionResource.toString();
+		let files = this.adjustedReadRequests.get(sessionKey);
+		if (files === undefined) {
+			files = new Map();
+			this.adjustedReadRequests.set(sessionKey, files);
+		}
+
+		const filePath = uri.toString();
+		let endLines = files.get(filePath);
+		if (endLines === undefined) {
+			endLines = new Map();
+			files.set(filePath, endLines);
+		}
+
+		let endLineInfo = endLines.get(endLine);
+		if (endLineInfo === undefined) {
+			endLineInfo = { adjustedEndLine: endLine, startLines: new Map() };
+			endLines.set(endLine, endLineInfo);
+		}
+
+		const startLines = endLineInfo.startLines;
+		if (startLines.has(startLine)) {
+			return false;
+		}
+
+		startLines.set(startLine, { adjustedStartLine: startLine, adjustedEndLine: endLine });
+		return true;
+	}
+
+	private isContinuousRead(sessionResource: vscode.Uri, uri: URI, startLine: number): number | undefined {
+		const sessionKey = sessionResource.toString();
+		const files = this.adjustedReadRequests.get(sessionKey);
+		const filePath = uri.toString();
+		const endLines = files?.get(filePath);
+		const endLineInfo = endLines?.get(startLine - 1);
+		return endLineInfo === undefined ? undefined : endLineInfo.adjustedEndLine + 1;
+	}
+
+	private completeReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, adjustedStartLine: number, adjustedEndLine: number): void {
+		const endLineInfo = this.adjustedReadRequests
+			.get(sessionResource.toString())
+			?.get(uri.toString())
+			?.get(endLine);
+		if (endLineInfo) {
+			endLineInfo.adjustedEndLine = Math.min(endLineInfo.adjustedEndLine, adjustedEndLine);
+			endLineInfo.startLines.set(startLine, { adjustedStartLine, adjustedEndLine });
+		}
+	}
+
+	private cancelReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): void {
+		const sessionKey = sessionResource.toString();
+		const files = this.adjustedReadRequests.get(sessionKey);
+		const filePath = uri.toString();
+		const endLines = files?.get(filePath);
+		const endLineInfo = endLines?.get(endLine);
+		endLineInfo?.startLines.delete(startLine);
+		if (endLineInfo?.startLines.size === 0) {
+			endLines?.delete(endLine);
+		}
+		if (endLines?.size === 0) {
+			files?.delete(filePath);
+		}
+		if (files?.size === 0) {
+			this.adjustedReadRequests.delete(sessionKey);
+		}
+	}
+
 	private async sendReadFileTelemetry(outcome: string, options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, { start, end, truncated }: IParamRanges, uri: URI | undefined, documentSnapshot?: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const model = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
 		const extensionSkillInfo = uri && this.customInstructionsService.getExtensionSkillInfo(uri);
@@ -469,7 +575,30 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		);
 	}
 
-	private async sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'exception', documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private async sendContinuousRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, deltaStart: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+		const languageId = documentSnapshot.languageId;
+
+		/* __GDPR__
+			"readFileRegionContinuous" : {
+				"owner": "dbaeumer",
+				"comment": "Information about a continuous read region adjustment",
+				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
+				"deltaStart": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original start line and the adjusted start line", "isMeasurement": true },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
+			}
+		*/
+		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionContinuous',
+			{
+				requestId: options.chatRequestId,
+				languageId,
+			},
+			{
+				deltaStart: deltaStart,
+			}
+		);
+	}
+
+	private async sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'reReadSameRange' | 'exception', documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		/* __GDPR__
 			"readFileRegionAdjustingFailed" : {
 				"owner": "dbaeumer",
