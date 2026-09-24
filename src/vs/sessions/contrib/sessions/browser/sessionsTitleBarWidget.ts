@@ -314,7 +314,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._getCommandCenterTitle() ?? ''}|${this._isQuickChat}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._getCommandCenterTitle() ?? ''}|${this._workspaceInfo?.branch ?? ''}|${this._isQuickChat}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -371,14 +371,16 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _renderActiveSession(): void {
 		const container = this._container!;
 		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
+		const workspaceInfo = this._workspaceInfo;
 		const accessibleTitle = sessionTitle && contextTitle
 			? localize('agentSessionsSessionWithContextAccessible', "{0}, {1}", sessionTitle, contextTitle)
 			: sessionTitle ?? contextTitle;
-		container.setAttribute('aria-label', accessibleTitle
-			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", accessibleTitle)
+		const accessibleTitleWithBranch = accessibleTitle && workspaceInfo?.branch
+			? localize('agentSessionsSessionWithBranchAccessible', "{0}, branch {1}", accessibleTitle, workspaceInfo.branch)
+			: accessibleTitle;
+		container.setAttribute('aria-label', accessibleTitleWithBranch
+			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", accessibleTitleWithBranch)
 			: localize('agentSessionsShowSessions', "Show Sessions"));
-
-		const workspaceInfo = this._workspaceInfo;
 
 		// Session pill: workspace icon + label
 		const sessionPill = $('div.agent-sessions-titlebar-pill');
@@ -414,6 +416,22 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			workspaceGroup.appendChild(workspaceEl);
 			centerGroup.appendChild(workspaceGroup);
 			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: contextTitle }));
+		}
+
+		if (workspaceInfo?.branch) {
+			const separatorEl = $('span.agent-sessions-titlebar-separator', { 'aria-hidden': 'true' });
+			separatorEl.textContent = '·';
+			centerGroup.appendChild(separatorEl);
+
+			const branchGroup = $('div.agent-sessions-titlebar-branch-group');
+			const branchIconEl = $(`div.agent-sessions-titlebar-branch-icon${ThemeIcon.asCSSSelector(Codicon.gitBranchCompact)}`, { 'aria-hidden': 'true' });
+			branchGroup.appendChild(branchIconEl);
+
+			const branchEl = $('div.agent-sessions-titlebar-branch');
+			branchEl.textContent = workspaceInfo.branch;
+			branchGroup.appendChild(branchEl);
+			centerGroup.appendChild(branchGroup);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(branchEl, { content: workspaceInfo.branch }));
 		}
 
 		sessionPill.appendChild(centerGroup);
