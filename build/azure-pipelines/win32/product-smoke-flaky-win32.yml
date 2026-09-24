@@ -189,12 +189,24 @@ jobs:
         testSteps:
           - ${{ each i in parameters.iterations }}:
             - powershell: |
-                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-                $status = $LASTEXITCODE
-                if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
-                  Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"
+                $ErrorActionPreference = 'Stop'
+                $directory = "$env:ProgramFiles\GitHubCopilot"
+                New-Item -ItemType Directory -Path $directory | Out-Null
+                try {
+                  npm run smoketest-no-compile -- --tracing -g 'Policy Plumbing \(Agent Host' --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                  $status = $LASTEXITCODE
+                  if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
+                    Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"
+                  }
+                  exit $status
+                } finally {
+                  $file = Join-Path $directory 'managed-settings.json'
+                  if (Test-Path -LiteralPath $file) {
+                    Remove-Item -LiteralPath $file
+                  }
+                  [System.IO.Directory]::Delete($directory)
                 }
-                exit $status
+              env:
+                VSCODE_SMOKE_TEST_POLICY: "1"
               displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
-              continueOnError: true
-              timeoutInMinutes: 20
+              timeoutInMinutes: 30

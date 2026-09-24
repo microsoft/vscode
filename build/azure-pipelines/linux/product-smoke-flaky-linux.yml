@@ -232,14 +232,18 @@ jobs:
           - ${{ each i in parameters.iterations }}:
             - script: |
                 set -e
+                policy_dir="/etc/github-copilot"
+                sudo mkdir "$policy_dir"
+                trap 'sudo rm -f "$policy_dir/managed-settings.json"; sudo rmdir "$policy_dir"' EXIT
+                sudo chown "$(id -u):$(id -g)" "$policy_dir"
                 status=0
-                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)" || status=$?
+                npm run smoketest-no-compile -- --tracing -g 'Policy Plumbing \(Agent Host' --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)" || status=$?
                 if [ $status -ne 0 ] && [ -d .build/logs/smoke-tests-electron ]; then
                   mv .build/logs/smoke-tests-electron ".build/logs/failed-iteration-${{ i }}"
                 fi
                 exit $status
               env:
                 TMPDIR: $(Agent.TempDirectory)
+                VSCODE_SMOKE_TEST_POLICY: "1"
               displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
-              continueOnError: true
-              timeoutInMinutes: 20
+              timeoutInMinutes: 30
