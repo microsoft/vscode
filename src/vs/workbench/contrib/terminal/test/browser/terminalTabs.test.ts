@@ -267,6 +267,38 @@ suite('Terminal tabs', () => {
 		]);
 	});
 
+	test('exposes the current terminal independently of multi-selection and focused tabs', () => {
+		const bar = createBar();
+		const states = () => Array.from(bar.getHTMLElement().children).map(element => ({
+			selected: element.getAttribute('aria-selected'),
+			current: element.getAttribute('aria-current')
+		}));
+		bar.setSelection([0, 1]);
+		bar.setFocus([2]);
+		const multiSelected = states();
+		groupService.setActiveInstance(instances[1]);
+		const activated = states();
+		groupService.activeInstance = undefined;
+		activeChanges.fire(undefined);
+		deepStrictEqual({ multiSelected, activated, inactive: states() }, {
+			multiSelected: [
+				{ selected: 'true', current: 'true' },
+				{ selected: 'true', current: 'false' },
+				{ selected: 'false', current: 'false' }
+			],
+			activated: [
+				{ selected: 'false', current: 'false' },
+				{ selected: 'true', current: 'true' },
+				{ selected: 'false', current: 'false' }
+			],
+			inactive: [
+				{ selected: 'false', current: 'false' },
+				{ selected: 'true', current: 'false' },
+				{ selected: 'false', current: 'false' }
+			]
+		});
+	});
+
 	for (const location of ['left', 'right', 'top', 'bottom'] as const) {
 		test(`${location}: context menus target unselected terminals alone and preserve selected groups`, () => {
 			tabs.location = location;
@@ -291,7 +323,96 @@ suite('Terminal tabs', () => {
 			entries()[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 }));
 			deepStrictEqual(contexts, [[3], [2, 1], [3]]);
 		});
+
+		test(`${location}: Focus Terminal Tabs returns to the selection instead of an old focused row`, () => {
+			tabs.location = location;
+			stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => delegate.onHide?.(false));
+			const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+			view.layout(600, 300);
+			const rows = container.querySelectorAll<HTMLElement>('.terminal-tabs-bar-tab, .monaco-list-row');
+			rows[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			view.focusTabs();
+			rows[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			view.focusTabs();
+			const focusedIndex = location === 'left' || location === 'right'
+				? container.querySelector<HTMLElement>('.monaco-list-row.focused')?.dataset.index
+				: (getActiveElement() as HTMLElement).dataset.index;
+			deepStrictEqual({
+				focusedIndex,
+				selected: Array.from(container.querySelectorAll<HTMLElement>('.terminal-tabs-bar-tab.selected, .monaco-list-row.selected')).map(row => row.dataset.index)
+			}, { focusedIndex: '0', selected: ['0'] });
+		});
 	}
+
+	test('layout changes preserve the focused tab separately from explicit tab focusing', () => {
+		tabs.location = 'right';
+		stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => delegate.onHide?.(false));
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		container.querySelector<HTMLElement>('.monaco-list-row[data-index="0"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		view.focusTabs();
+		container.querySelector<HTMLElement>('.monaco-list-row[data-index="2"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		changeConfiguration({ location: 'top' });
+		const afterLayout = (getActiveElement() as HTMLElement).dataset.index;
+		view.focusTabs();
+		deepStrictEqual({ afterLayout, afterCommand: (getActiveElement() as HTMLElement).dataset.index }, { afterLayout: '2', afterCommand: '0' });
+	});
+
+	test('Focus Terminal Tabs uses the active terminal when there is no selection', () => {
+		stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => delegate.onHide?.(false));
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		groupService.setActiveInstance(instances[1]);
+		container.querySelector('.terminal-tabs-bar')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		view.focusTabs();
+		deepStrictEqual({
+			focusedIndex: (getActiveElement() as HTMLElement).dataset.index,
+			selectedCount: container.querySelectorAll('.terminal-tabs-bar-tab.selected').length
+		}, { focusedIndex: '1', selectedCount: 0 });
+	});
+
+	test('lays out once for instance changes and avoids unchanged mouse and hidden-terminal updates', () => {
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		const layout = spy(view, 'layout');
+		changes.fire();
+		const instanceChange = layout.callCount;
+		layout.resetHistory();
+		container.querySelector('.tabs-container')!.dispatchEvent(new MouseEvent('mouseleave'));
+		const mouseLeave = layout.callCount;
+		layout.resetHistory();
+		hiddenInstances = [instances[0]];
+		hiddenChanges.fire(instances[0]);
+		const hiddenAdded = layout.callCount;
+		layout.resetHistory();
+		hiddenChanges.fire(instances[0]);
+		const unchangedHidden = layout.callCount;
+		layout.resetHistory();
+		changeConfiguration({ location: 'bottom' });
+		deepStrictEqual({ instanceChange, mouseLeave, hiddenAdded, unchangedHidden, locationChange: layout.callCount },
+			{ instanceChange: 1, mouseLeave: 0, hiddenAdded: 1, unchangedHidden: 0, locationChange: 1 });
+	});
+
+	test('new groups receive current dimensions even when the tabs remain visible', async () => {
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		await instantiationService.get(ITerminalService).createTerminal();
+		deepStrictEqual(groups.map(group => group.size), [
+			{ width: 600, height: 272 }, { width: 600, height: 272 }, { width: 600, height: 272 }
+		]);
+	});
+
+	test('vertical hidden-terminal entries reduce the list height, not terminal content height', () => {
+		tabs.location = 'right';
+		hiddenInstances = [instances[0]];
+		const view = store.add(instantiationService.createInstance(TerminalTabbedView, container));
+		view.layout(600, 300);
+		deepStrictEqual({
+			content: groups[0].size,
+			listHeight: container.querySelector<HTMLElement>('.monaco-list')!.clientHeight,
+			entryHeight: container.querySelector<HTMLElement>('.terminal-tabs-chat-entry')!.clientHeight
+		}, { content: { width: 480, height: 300 }, listHeight: 278, entryHeight: 22 });
+	});
 
 	test('adds late task actions without losing focused Kill or rebuilding unchanged controls', async () => {
 		const fill = spy(TerminalTabsRenderer.prototype, 'fillActionBar');

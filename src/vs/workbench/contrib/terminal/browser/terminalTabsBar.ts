@@ -475,6 +475,7 @@ export class TerminalTabsBar extends Disposable implements ITerminalTabsWidget {
 				entry.element.tabIndex = instance === this._focused ? 0 : -1;
 				entry.element.classList.toggle('selected', selected);
 				entry.element.setAttribute('aria-selected', String(selected));
+				entry.element.setAttribute('aria-current', String(instance === activeInstance));
 				entry.template.element.classList.toggle('is-active', instance === activeInstance);
 			}
 		}

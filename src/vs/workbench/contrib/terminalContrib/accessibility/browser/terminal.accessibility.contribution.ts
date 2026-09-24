@@ -277,20 +277,21 @@ AccessibleViewRegistry.register({
 		const configurationService = accessor.get(IConfigurationService);
 		const previousFocus = getActiveElement();
 		return new AccessibleContentProvider(
-			AccessibleViewProviderId.TerminalHelp,
-			{ type: AccessibleViewType.Help },
+			AccessibleViewProviderId.TerminalTabsHelp,
+			{ type: AccessibleViewType.Help, readMoreUrl: 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility' },
 			() => {
 				const location = configurationService.getValue<string>(TerminalSettingId.TabsLocation);
 				const horizontal = location === 'top' || location === 'bottom';
 				return [
 					localize('terminalTabsHelp.overview', "You are in the terminal tabs. Each tab represents a terminal, including individual terminals in a split group."),
+					localize('terminalTabsHelp.current', "The current tab identifies the active terminal. Multiple tabs can be selected for batch actions."),
 					horizontal
 						? localize('terminalTabsHelp.horizontal', "Use Left and Right Arrow to navigate tabs, or Home and End to move to the first and last tab. Hold Shift to select a range. Press Space to focus the terminal.")
 						: localize('terminalTabsHelp.vertical', "Use Up and Down Arrow to navigate terminals. Hold Shift to select a range."),
 					localize('terminalTabsHelp.rename', "Rename the selected terminal<keybinding:{0}>. While renaming, press Enter to confirm or Escape to cancel.", TerminalCommandId.RenameActiveTab),
 					localize('terminalTabsHelp.actions', "Split the selected terminals<keybinding:{0}> or kill them<keybinding:{1}>. Press Shift+F10 to open the context menu.", TerminalCommandId.SplitActiveTab, TerminalCommandId.KillActiveTab),
 					localize('terminalTabsHelp.selectionModifier', "Configure the mouse multi-selection modifier with `{0}`. When set to Alt, Alt-click selects terminals instead of splitting them.", 'workbench.list.multiSelectModifier'),
-					localize('terminalTabsHelp.location', "Use terminal.integrated.tabs.location to place tabs on the left, right, top, or bottom."),
+					localize('terminalTabsHelp.location', "Use `{0}` to place tabs on the left, right, top, or bottom.", TerminalSettingId.TabsLocation),
 				].join('\n');
 			},
 			() => {

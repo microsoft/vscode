@@ -82,6 +82,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _panelOrientation: Orientation | undefined;
 	private _emptyAreaDropTargetCount = 0;
+	private _hiddenChatTerminalCount = 0;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -165,7 +166,7 @@ export class TerminalTabbedView extends Disposable {
 				this.layout(this._width ?? 0, this._height ?? 0);
 				if (hadTabsFocus) {
 					if (this._shouldShowTabs()) {
-						this.focusTabs();
+						this._focusTabsWidget();
 					} else {
 						this.focus();
 					}
@@ -180,19 +181,16 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 		this._register(Event.any(this._terminalGroupService.onDidChangeInstances, this._terminalGroupService.onDidChangeGroups)(() => {
-			this._refreshShowTabs();
-			this._updateChatTerminalsEntry();
+			this._refreshShowTabs(true);
 		}));
 
 		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances, this._terminalService.onDidDisposeInstance)(() => {
 			this._refreshShowTabs();
-			this._updateChatTerminalsEntry();
 		}));
 
 		this._register(contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([TerminalContribContextKeyStrings.ChatHasHiddenTerminals]))) {
 				this._refreshShowTabs();
-				this._updateChatTerminalsEntry();
 			}
 		}));
 		this._attachEventListeners(parentElement, this._terminalContainer);
@@ -255,14 +253,14 @@ export class TerminalTabbedView extends Disposable {
 		return false;
 	}
 
-	private _refreshShowTabs() {
+	private _refreshShowTabs(forceLayout = false) {
 		const hadTabsFocus = this._tabContainer.contains(dom.getActiveElement());
+		const previousViewCount = this._splitView.length;
+		const chatEntryChanged = this._updateChatTerminalsEntry();
 		if (this._shouldShowTabs()) {
 			if (this._splitView.length === 1) {
 				this._addTabTree();
 				this._addSashListener();
-				this._splitView.resizeView(this._tabTreeIndex, this._isHorizontal ? TerminalTabsBar.HEIGHT : this._getLastListWidth());
-				this.rerenderTabs();
 			}
 		} else {
 			if (this._splitView.length === 2 && !this._terminalTabsMouseContextKey.get()) {
@@ -271,23 +269,24 @@ export class TerminalTabbedView extends Disposable {
 				this._removeSashListener();
 			}
 		}
-		if (this._width !== undefined && this._height !== undefined) {
+		if ((forceLayout || previousViewCount !== this._splitView.length || chatEntryChanged) && this._width !== undefined && this._height !== undefined) {
 			this.layout(this._width, this._height);
 		}
 		if (hadTabsFocus && !this._tabContainer.contains(dom.getActiveElement())) {
 			if (this._shouldShowTabs()) {
-				this.focusTabs();
+				this._focusTabsWidget();
 			} else {
 				this.focus();
 			}
 		}
 	}
 
-	private _updateChatTerminalsEntry(): void {
+	private _updateChatTerminalsEntry(): boolean {
+		const count = this._terminalChatService.getToolSessionTerminalInstances(true).length;
+		const changed = count !== this._hiddenChatTerminalCount;
+		this._hiddenChatTerminalCount = count;
 		this._chatEntry?.update();
-		if (this._width !== undefined && this._height !== undefined) {
-			this.layout(this._width, this._height);
-		}
+		return changed;
 	}
 
 	private _getLastListWidth(): number {
@@ -627,11 +626,19 @@ export class TerminalTabbedView extends Disposable {
 		if (!this._shouldShowTabs()) {
 			return;
 		}
-		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabList.getSelection();
-		if (selected.length && !this._tabList.getFocus().length) {
+		if (selected.length) {
 			this._tabList.setFocus(selected.slice(0, 1));
+		} else {
+			const active = this._terminalGroupService.activeInstance;
+			const activeIndex = active ? this._terminalGroupService.instances.indexOf(active) : -1;
+			this._tabList.setFocus(activeIndex >= 0 ? [activeIndex] : []);
 		}
+		this._focusTabsWidget();
+	}
+
+	private _focusTabsWidget(): void {
+		this._terminalTabsFocusContextKey.set(true);
 		this._tabList.domFocus();
 	}
 
