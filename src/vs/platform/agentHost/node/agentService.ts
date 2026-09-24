@@ -35,7 +35,7 @@ import type { AutomationCapabilities } from '../common/state/protocol/common/com
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -48,6 +48,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMet
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
+import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../common/nonPtyShellTerminalUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, getWorkingDirectoryKey, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
@@ -511,6 +512,38 @@ export interface IAgentServiceCore {
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly callbackBinder: IAgentServiceCallbackBinder;
+}
+
+function findNonPtyTerminalContent(chat: ChatState, toolCallId: string, resource: URI): ToolResultTerminalContent | undefined {
+	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
+	for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+		const parts = turns[turnIndex].responseParts;
+		for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
+			const part = parts[partIndex];
+			if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.toolCallId !== toolCallId) {
+				continue;
+			}
+			const content = part.toolCall.status === ToolCallStatus.Running
+				|| part.toolCall.status === ToolCallStatus.PendingResultConfirmation
+				|| part.toolCall.status === ToolCallStatus.Completed
+				? part.toolCall.content
+				: undefined;
+			const terminal = content?.find((content): content is ToolResultTerminalContent => {
+				if (content.type !== ToolResultContentType.Terminal || content.isPty !== false) {
+					return false;
+				}
+				try {
+					return isEqual(URI.parse(content.resource), resource);
+				} catch {
+					return false;
+				}
+			});
+			if (terminal) {
+				return terminal;
+			}
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -5797,6 +5830,72 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	private async _resolveRetainedTerminalState(
+		resource: URI,
+		parsed: INonPtyShellTerminalUri,
+		restoreSession: (session: URI) => Promise<void>,
+	): Promise<TerminalState | undefined> {
+		const parsedChat = parseChatUri(parsed.chat);
+		if (!parsedChat || !isEqual(URI.parse(parsedChat.session), parsed.session)) {
+			return undefined;
+		}
+		const sessionResource = parsed.session.toString();
+		if (!this._stateManager.getSessionState(sessionResource)) {
+			const parsedSubagentParent = parseSubagentSessionUri(parsed.session);
+			if (parsedSubagentParent) {
+				await this._restoreSubagentSession(sessionResource, parsedSubagentParent.parentSession);
+			} else {
+				await restoreSession(parsed.session);
+			}
+		}
+
+		let chat = this._stateManager.getChatState(parsed.chat.toString());
+		if (!chat) {
+			await this._stateManager.resolveChatState(parsed.chat.toString());
+			chat = this._stateManager.getChatState(parsed.chat.toString());
+		}
+		if (!chat && parsedChat.chatId.startsWith('subagent/')) {
+			await this._restoreSubagentChat(parsed.chat.toString(), parsed.session, parsedChat.chatId.slice('subagent/'.length));
+			chat = this._stateManager.getChatState(parsed.chat.toString());
+		}
+		if (!chat) {
+			return undefined;
+		}
+
+		const terminal = findNonPtyTerminalContent(chat, parsed.toolCallId, resource);
+		if (!terminal?.result) {
+			return undefined;
+		}
+
+		let storedOutput: Uint8Array | undefined;
+		const database = await this._sessionDataService.tryOpenDatabase(parsed.storage);
+		try {
+			storedOutput = await database?.object.readTerminalOutput(parsed.toolCallId);
+		} finally {
+			database?.dispose();
+		}
+		if (terminal.result.truncated === true && storedOutput === undefined) {
+			return undefined;
+		}
+		const output = storedOutput === undefined
+			? terminal.result.preview ?? ''
+			: VSBuffer.wrap(storedOutput).toString();
+		return {
+			title: terminal.title,
+			content: output ? [{ type: 'unclassified', value: output }] : [],
+			lifecycle: terminal.result.exitCode === undefined
+				? { status: TerminalLifecycleStatus.Exited }
+				: { status: TerminalLifecycleStatus.Exited, exitCode: terminal.result.exitCode },
+			claim: {
+				kind: TerminalClaimKind.Session,
+				session: parsed.session.toString(),
+				chat: parsed.chat.toString(),
+				toolCallId: parsed.toolCallId,
+			},
+			isPty: false,
+		};
+	}
+
 	// ---- Protocol methods ---------------------------------------------------
 
 	async createTerminal(params: CreateTerminalParams): Promise<void> {
@@ -5827,11 +5926,20 @@ export class AgentService extends Disposable implements IAgentService {
 				telemetry.setServedFromMemory(true);
 				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
 			}
+			const parsedRetainedTerminal = parseNonPtyShellTerminalUri(resource);
+			if (parsedRetainedTerminal) {
+				const retainedTerminalState = await this._resolveRetainedTerminalState(resource, parsedRetainedTerminal, restoreSession);
+				if (!retainedTerminalState) {
+					throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
+				}
+				telemetry.restoreCompleted();
+				return { resource: resourceStr, state: retainedTerminalState, fromSeq: this._stateManager.serverSeq };
+			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
 			telemetry.setServedFromMemory(!!snapshot);
 			const parsedChangeset = parseChangesetUri(resourceStr);
-			if (snapshot && parsedChangeset && !this._stateManager.getSessionState(parsedChangeset.sessionUri)) {
+			if (snapshot && parsedChangeset) {
 				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreSession);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
@@ -6756,6 +6864,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (action.type === ActionType.ChatTurnCancelled) {
+			// Match the turn before reduction so stale no-ops cannot trigger a chat-wide abort.
+			if (this._stateManager.getChatState(channel)?.activeTurn?.id !== action.turnId) {
+				this._logService.trace(`[AgentService] Ignoring cancellation of an inactive turn: channel=${channel}, turnId=${action.turnId}`);
+				this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
+				return;
+			}
 			const resumedDuration = this._sideEffects.getResumedTurnDuration(channel, action.turnId);
 			if (resumedDuration !== undefined) {
 				action = { ...action, duration: resumedDuration };
