@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -210,6 +212,129 @@ suite('SimpleFileDialog', () => {
 		assert.deepStrictEqual(update && { value: update.value, folder: update.folder.toString() }, {
 			value: '/folder/',
 			folder: folder.toString()
+		});
+	});
+
+	test('uses authority-specific Windows semantics for scoped file systems', async () => {
+		const resource = URI.parse('vscode-agent-host://windows-host/c:/Users/test/project');
+		const semanticRequests: string[] = [];
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			scheme: 'vscode-agent-host',
+			scopedAuthority: 'windows-host',
+			remoteAuthority: undefined,
+			labelService: {
+				getSeparator: () => {
+					throw new Error('Scoped paths must not use display separators');
+				},
+			},
+			pathService: {
+				getOperatingSystem: async (uri: URI) => {
+					semanticRequests.push(`os:${uri.toString()}`);
+					return OperatingSystem.Windows;
+				},
+				getPath: async (uri: URI) => {
+					semanticRequests.push(`path:${uri.toString()}`);
+					return win32;
+				},
+			},
+		}) as unknown as {
+			resolvePathFormatting(): Promise<void>;
+			pathFromUri(uri: URI, endWithSeparator?: boolean): string;
+			remoteUriFrom(path: string, hintUri?: URI): URI;
+			separator: string;
+			isWindows: boolean;
+		};
+		await dialog.resolvePathFormatting();
+		const path = dialog.pathFromUri(resource, true);
+		const roundTripped = dialog.remoteUriFrom(path, resource);
+
+		assert.deepStrictEqual({
+			path,
+			roundTripped: {
+				scheme: roundTripped.scheme,
+				authority: roundTripped.authority,
+				path: roundTripped.path,
+			},
+			separator: dialog.separator,
+			isWindows: dialog.isWindows,
+			semanticRequests,
+		}, {
+			path: 'C:\\Users\\test\\project\\',
+			roundTripped: {
+				scheme: 'vscode-agent-host',
+				authority: 'windows-host',
+				path: '/C:/Users/test/project/',
+			},
+			separator: '\\',
+			isWindows: true,
+			semanticRequests: [
+				'os:vscode-agent-host://windows-host/',
+				'path:vscode-agent-host://windows-host/',
+			],
+		});
+	});
+
+	test('uses POSIX semantics for scoped file systems', async () => {
+		const resource = URI.parse('vscode-agent-host://linux-host/Users/test/project');
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			scheme: 'vscode-agent-host',
+			scopedAuthority: 'linux-host',
+			remoteAuthority: undefined,
+			labelService: {
+				getSeparator: () => {
+					throw new Error('Scoped paths must not use display separators');
+				},
+			},
+			pathService: {
+				getOperatingSystem: async () => OperatingSystem.Linux,
+				getPath: async () => posix,
+			},
+		}) as unknown as {
+			resolvePathFormatting(): Promise<void>;
+			pathFromUri(uri: URI, endWithSeparator?: boolean): string;
+			separator: string;
+			isWindows: boolean;
+		};
+		await dialog.resolvePathFormatting();
+
+		assert.deepStrictEqual({
+			path: dialog.pathFromUri(resource, true),
+			separator: dialog.separator,
+			isWindows: dialog.isWindows,
+		}, {
+			path: '/Users/test/project/',
+			separator: '/',
+			isWindows: false,
+		});
+	});
+
+	test('falls back to POSIX formatting when scoped semantics are unknown', async () => {
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			scheme: 'vscode-agent-host',
+			scopedAuthority: 'unknown-host',
+			remoteAuthority: undefined,
+			labelService: {
+				getSeparator: () => {
+					throw new Error('Scoped paths must not use display separators');
+				},
+			},
+			pathService: {
+				getOperatingSystem: async () => undefined,
+				getPath: async () => undefined,
+			},
+		}) as unknown as {
+			resolvePathFormatting(): Promise<void>;
+			separator: string;
+			isWindows: boolean;
+		};
+		await dialog.resolvePathFormatting();
+
+		assert.deepStrictEqual({
+			separator: dialog.separator,
+			isWindows: dialog.isWindows,
+		}, {
+			separator: '/',
+			isWindows: false,
 		});
 	});
 

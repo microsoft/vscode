@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -802,6 +803,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
+	/** Last operating system successfully reported by this host. */
+	readonly operatingSystem?: OperatingSystem;
 }
 
 export interface IRemoteAgentHostPendingConnection {

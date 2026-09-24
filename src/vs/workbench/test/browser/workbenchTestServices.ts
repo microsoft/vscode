@@ -1767,6 +1767,18 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
+	async getOperatingSystem(_resource: URI): Promise<OperatingSystem | undefined> {
+		return isWindows ? OperatingSystem.Windows : OperatingSystem.Linux;
+	}
+
+	async getPath(_resource: URI) {
+		return this.path;
+	}
+
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
+	}
+
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 	userHome(options: { preferLocal: true }): URI;
 	userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
