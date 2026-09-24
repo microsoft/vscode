@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawn } from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 import { once } from 'events';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -12,11 +12,167 @@ import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import type { killTree } from '../../../../base/node/processes.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
+class TestServerProcess extends ChildProcess {
+	override readonly pid = process.pid + 1;
+	override exitCode: number | null = null;
+	override signalCode: NodeJS.Signals | null = null;
+
+	exit(): void {
+		this.exitCode = 0;
+		this.emit('exit', 0, null);
+	}
+}
+
 suite('Agent Host test server cleanup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { name, cleanup } of [
+		{
+			name: 'graceful shutdown fallback',
+			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => stopServer({ process, port: 0 }, async () => [], 0, {
+				killTree: killProcessTree,
+				killProcess: () => assert.fail('No descendant kills expected'),
+				isSameProcessRunning: async () => assert.fail('No descendant identity checks expected'),
+			}),
+		},
+		{
+			name: 'forceful shutdown',
+			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => killServer({ process, port: 0 }, killProcessTree),
+		},
+	]) {
+		for (const queued of [false, true]) {
+			test(`${name} accepts only an observed ${queued ? 'queued' : 'synchronous'} server exit after taskkill fails`, () => runWithFakedTimers({}, async () => {
+				const server = new TestServerProcess();
+				const calls: { pid: number; forceful: boolean | undefined }[] = [];
+				await cleanup(server, async (pid, forceful) => {
+					calls.push({ pid, forceful });
+					if (queued) {
+						setTimeout(() => server.exit(), 1);
+					} else {
+						server.exit();
+					}
+					throw new Error(`taskkill exited with code 128: ERROR: The process "${pid}" not found.`);
+				});
+
+				assert.deepStrictEqual({
+					calls,
+					exitCode: server.exitCode,
+					exitListeners: server.listenerCount('exit'),
+				}, {
+					calls: [{ pid: server.pid, forceful: true }],
+					exitCode: 0,
+					exitListeners: 0,
+				});
+			}));
+		}
+
+		for (const message of ['taskkill exited with code 128: process not found', 'taskkill access denied']) {
+			test(`${name} preserves ${message} when the server has not exited`, () => runWithFakedTimers({}, async () => {
+				const server = new TestServerProcess();
+				const error = new Error(message);
+				const startTime = Date.now();
+				let attempts = 0;
+				await assert.rejects(cleanup(server, async () => {
+					attempts++;
+					throw error;
+				}), actual => actual === error);
+
+				assert.deepStrictEqual({
+					attempts,
+					exitCode: server.exitCode,
+					exitListeners: server.listenerCount('exit'),
+					elapsedMs: Date.now() - startTime,
+				}, {
+					attempts: 1,
+					exitCode: null,
+					exitListeners: 0,
+					elapsedMs: 1_000,
+				});
+			}));
+		}
+
+		test(`${name} does not kill a server whose exit is already observed`, async () => {
+			const server = new TestServerProcess();
+			server.exit();
+			await cleanup(server, async () => assert.fail('Must not kill an exited server PID'));
+			assert.strictEqual(server.listenerCount('exit'), 0);
+		});
+
+		test(`${name} releases exit listeners after repeated failed cleanup`, () => runWithFakedTimers({}, async () => {
+			const server = new TestServerProcess();
+			const error = new Error('taskkill access denied');
+			const listenerCounts: number[] = [];
+			for (let attempt = 0; attempt < 3; attempt++) {
+				await assert.rejects(cleanup(server, async () => { throw error; }), actual => actual === error);
+				listenerCounts.push(server.listenerCount('exit'));
+			}
+			assert.deepStrictEqual(listenerCounts, [0, 0, 0]);
+		}));
+	}
+
+	for (const { name, identityChecks } of [
+		{ name: 'skips missing or reused descendants', identityChecks: [false] },
+		{ name: 'accepts descendants exiting during termination', identityChecks: [true, false] },
+		{ name: 'waits for the descendant process list to catch up', identityChecks: [true, true, false] },
+		{ name: 'preserves errors for surviving descendants', identityChecks: [true, true, true, true, true, true] },
+	]) {
+		test(`a queued server exit after taskkill failure ${name}`, () => runWithFakedTimers({}, async () => {
+			const server = new TestServerProcess();
+			const descendant = { pid: server.pid + 1, name: 'node.exe', commandLine: 'node child.js' };
+			const rootError = new Error('server process not found');
+			const descendantError = new Error('descendant access denied');
+			const calls: string[] = [];
+			let identityCheckIndex = 0;
+			const stopped = stopServer({ process: server, port: 0 }, async () => [descendant], 0, {
+				killTree: async (pid, forceful) => {
+					calls.push(`killTree:${pid}:${forceful}`);
+					setTimeout(() => {
+						calls.push('server:exit');
+						server.exit();
+					}, 1);
+					throw rootError;
+				},
+				killProcess: pid => {
+					calls.push(`killProcess:${pid}`);
+					throw descendantError;
+				},
+				isSameProcessRunning: async process => {
+					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
+					const result = identityChecks[identityCheckIndex++];
+					if (result === undefined) {
+						throw new Error('Unexpected process identity check');
+					}
+					return result;
+				},
+			});
+			if (identityChecks.at(-1)) {
+				await assert.rejects(stopped, actual => actual === descendantError);
+			} else {
+				await stopped;
+			}
+
+			const identityCheck = `isSameProcessRunning:${descendant.pid}:${descendant.name}:${descendant.commandLine}`;
+			assert.deepStrictEqual({
+				calls,
+				exitCode: server.exitCode,
+				exitListeners: server.listenerCount('exit'),
+			}, {
+				calls: [
+					`killTree:${server.pid}:true`,
+					'server:exit',
+					identityCheck,
+					...(identityChecks[0] ? [`killProcess:${descendant.pid}`, ...identityChecks.slice(1).map(() => identityCheck)] : []),
+				],
+				exitCode: 0,
+				exitListeners: 0,
+			});
+		}));
+	}
 
 	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[], killFails = true): Promise<{ error: Error | undefined; calls: string[] }> {
 		const descendant = { pid: 123, name: 'node.exe', commandLine: 'node child.js' };
