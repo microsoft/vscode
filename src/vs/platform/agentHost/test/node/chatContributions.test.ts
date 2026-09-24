@@ -1749,6 +1749,92 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('does not use an unmatched editor inline attachment as authoritative context', async () => {
+		const file = URI.file('/workspace/inline.ts');
+		const contributions = createBuiltInContributions(
+			disposables,
+			undefined,
+			false,
+			SessionStatus.IsRead,
+			false,
+			{ surface: 'editorInline', targetUri: URI.file('/workspace/expected.ts').toString() },
+		);
+		await contributions.fileService.writeFile(file, VSBuffer.fromString('const value = 1;'));
+		const message: Message = {
+			text: 'change this',
+			origin: { kind: MessageKind.User },
+			attachments: [{
+				type: MessageAttachmentKind.Resource,
+				uri: file.toString(),
+				label: 'inline.ts',
+				displayKind: 'selection',
+				selection: {
+					range: {
+						start: { line: 0, character: 0 },
+						end: { line: 0, character: 5 },
+					},
+				},
+			}],
+		};
+
+		const result = await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat: buildDefaultChatUri(contributions.session),
+			message,
+			turnId: 'unmatched-editor-inline-context',
+		});
+
+		assert.deepStrictEqual(result.message, message);
+	});
+
+	test('does not mark an end-exclusive editor inline range line as selected', async () => {
+		const file = URI.file('/workspace/inline.ts');
+		const contributions = createBuiltInContributions(
+			disposables,
+			undefined,
+			false,
+			SessionStatus.IsRead,
+			false,
+			{ surface: 'editorInline', targetUri: file.toString() },
+		);
+		await contributions.fileService.writeFile(file, VSBuffer.fromString('first\nsecond\nthird'));
+		const message: Message = {
+			text: 'change this',
+			origin: { kind: MessageKind.User },
+			attachments: [{
+				type: MessageAttachmentKind.Resource,
+				uri: file.toString(),
+				label: 'inline.ts',
+				displayKind: 'selection',
+				selection: {
+					range: {
+						start: { line: 0, character: 0 },
+						end: { line: 1, character: 0 },
+					},
+				},
+			}],
+		};
+
+		const result = await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat: buildDefaultChatUri(contributions.session),
+			message,
+			turnId: 'end-exclusive-editor-inline-context',
+		});
+
+		assert.strictEqual(result.message.text, [
+			'<editor_inline_context>',
+			'File: inline.ts',
+			`Target 1:1-2:1; '>' marks target lines:`,
+			'> 1 | first',
+			'  2 | second',
+			'  3 | third',
+			'</editor_inline_context>',
+			'',
+			'change this',
+		].join('\n'));
+	});
+
 	test('updates and persists an independent chat title', async () => {
 		const titles = createSessionTitleContributions(disposables);
 		const action = { type: ActionType.SessionTitleChanged, title: 'Renamed peer' } as const;

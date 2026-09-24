@@ -65,8 +65,9 @@ export class ChatSurfaceContribution extends Disposable implements IAgentHostCha
 			} catch (error) {
 				this._logService.warn(`[ChatSurfaceContribution] Invalid editor inline target URI '${targetUri}': ${getErrorMessage(error)}`);
 			}
+		} else if (attachments.length === 1) {
+			attachment = attachments[0];
 		}
-		attachment ??= attachments.length === 1 ? attachments[0] : undefined;
 		if (!attachment) {
 			return undefined;
 		}
@@ -94,13 +95,16 @@ function createEditorInlineContext(text: string, range: TextRange): string | und
 		return undefined;
 	}
 	const targetStartLine = range.start.line;
-	const targetEndLine = Math.max(targetStartLine, Math.min(range.end.line, lines.length - 1));
+	const reportedEndLine = Math.max(targetStartLine, Math.min(range.end.line, lines.length - 1));
+	const targetEndLine = range.end.character === 0 && reportedEndLine > targetStartLine
+		? reportedEndLine - 1
+		: reportedEndLine;
 	const startLine = Math.max(0, targetStartLine - EDITOR_INLINE_CONTEXT_LINES_BEFORE_TARGET);
 	const endLine = Math.min(lines.length - 1, startLine + MAX_EDITOR_INLINE_CONTEXT_LINES - 1);
 	const lineNumberWidth = String(endLine + 1).length;
-	let context = `Target ${targetStartLine + 1}:${range.start.character + 1}-${targetEndLine + 1}:${range.end.character + 1}; '>' marks target lines:`;
+	let context = `Target ${targetStartLine + 1}:${range.start.character + 1}-${reportedEndLine + 1}:${range.end.character + 1}; '>' marks target lines:`;
 	for (let line = startLine; line <= endLine; line++) {
-		const lineText = lines[line].replace(/\r\n|\r|\n$/, '');
+		const lineText = lines[line].replace(/(?:\r\n|\r|\n)$/, '');
 		const displayedText = lineText.length > MAX_EDITOR_INLINE_CONTEXT_LINE_CHARACTERS
 			? `${lineText.slice(0, MAX_EDITOR_INLINE_CONTEXT_LINE_CHARACTERS - 3)}...`
 			: lineText;
