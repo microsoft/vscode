@@ -1309,6 +1309,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 				case InboxNotificationActionKind.AgentMergeMergePullRequest: {
 					const result = await this.runAgentMergeInboxAction(item, action.kind, enableAlways, sourceElement);
 					logResult(result);
+					if (result === 'failure') {
+						this.notificationService.error(localize('inboxNotifications.action.submitFailed', "Unable to run \"{0}\". Open the session and try again.", action.label));
+					}
 					return;
 				}
 				case InboxNotificationActionKind.ArchiveSession:
@@ -1344,11 +1347,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private renderActionButton(container: HTMLElement, item: IInboxNotificationItem, action: IInboxNotificationAction): IButton {
 		const openSessionIsSecondary = action.kind === InboxNotificationActionKind.OpenSession;
+		const showsSpinnerWhileRunning = isInboxAgentMergeActionKind(action.kind);
 		const baseOptions = {
 			...defaultButtonStyles,
 			secondary: openSessionIsSecondary || !action.primary,
 			small: true,
-			supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
+			supportIcons: action.kind === InboxNotificationActionKind.MarkDone || showsSpinnerWhileRunning,
 			ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
 		};
 		const canShowAlwaysDropdown = this.canShowAlwaysDropdown(item, action.kind);
@@ -1374,9 +1378,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 				this.agentMergeDropdownButtons.set(this.getAgentMergeDropdownButtonKey(item.id, action.kind), button.dropdownButton.element);
 			}
 		}
-		this.renderedListDisposables.add(button.onDidClick(() => {
+		this.renderedListDisposables.add(button.onDidClick(async () => {
 			this.logInboxInteraction('runAction', 'actionButton', item, action.kind, { commandId: action.commandId ?? 'none' });
-			void this.runAction(item, action, button.element);
+			if (!showsSpinnerWhileRunning) {
+				void this.runAction(item, action, button.element);
+				return;
+			}
+			// The action submits a request to the session in the background, which
+			// can take a moment; show an inline spinner so the click clearly
+			// registers instead of looking like nothing happened.
+			button.enabled = false;
+			button.label = `$(loading~spin) ${action.label}`;
+			try {
+				await this.runAction(item, action, button.element);
+			} finally {
+				button.label = action.label;
+				button.enabled = true;
+			}
 		}));
 		return button;
 	}
