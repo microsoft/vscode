@@ -25,6 +25,7 @@ export interface ISinglePaneLayoutContext {
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
+	completeChangesEditorTransition(): void;
 }
 
 /**
