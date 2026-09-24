@@ -114,9 +114,8 @@ function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
-function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
-	return artifact.isArtifact
-		&& artifact.type === type
+function isPromotedGitHubReference(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
+	return artifact.type === type
 		&& artifact.isGitHub === true
 		&& typeof artifact.link === 'string'
 		&& isGitHubArtifactLink(artifact.link);
@@ -130,15 +129,15 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta, sessionWorkingDirectory);
-	const artifactPullRequests = distinct(entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
-	const artifactIssues = distinct(entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
+	const recordedPullRequests = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
+	const recordedIssues = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
-	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
-	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
-	const pullRequestArtifacts = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry]));
-	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
-	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
-	const issueArtifacts = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry]));
+	const pullRequestUrls = dedupeLinks(recordedPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
+	const pullRequestTitles = new Map(recordedPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
+	const pullRequestArtifacts = new Map(recordedPullRequests.map(entry => [linkKey(entry.link), entry]));
+	const issueUrls = dedupeLinks(recordedIssues.map(entry => entry.link));
+	const issueTitles = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry.label]));
+	const issueArtifacts = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
