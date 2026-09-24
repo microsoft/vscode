@@ -353,7 +353,10 @@ suite('ChatMcpServersStartingContentPart', () => {
 				currentRequests++;
 			},
 		}], undefined);
-		staleLink?.click();
+		const staleClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+		// The disposed link has no handler to prevent native navigation to the test runner.
+		staleClick.preventDefault();
+		staleLink?.dispatchEvent(staleClick);
 		part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]')?.click();
 		await timeout(0);
 
