@@ -867,6 +867,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _clientRestartBarrier: DeferredPromise<void> | undefined;
+	private readonly _blockingClientRestartReasons = new Set<string>();
 	/**
 	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
 	 * that all concurrent callers share a single, global retry budget for
@@ -1230,28 +1231,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
 	 * start, so applying the restart late is always correct.
 	 */
-	private async _requestClientRestart(reason: string): Promise<boolean> {
+	private async _requestClientRestart(reason: string, blockNewWork = false): Promise<boolean> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
 			return false;
 		}
-		this._clientRestartBarrier ??= new DeferredPromise<void>();
+		if (blockNewWork) {
+			this._clientRestartBarrier ??= new DeferredPromise<void>();
+			this._blockingClientRestartReasons.add(reason);
+		}
 		this._pendingClientRestartReasons.add(reason);
 		if (this._clientStarting) {
 			try {
 				await this._clientStarting;
 			} catch {
-				this._pendingClientRestartReasons.delete(reason);
-				if (this._pendingClientRestartReasons.size === 0) {
-					this._completeClientRestartBarrier();
-				}
+				this._clearClientRestartReason(reason);
 				return false;
 			}
 		}
 		if (!this._client) {
-			this._pendingClientRestartReasons.delete(reason);
-			if (this._pendingClientRestartReasons.size === 0) {
-				this._completeClientRestartBarrier();
-			}
+			this._clearClientRestartReason(reason);
 			return false;
 		}
 		if (this._updatingGitHubCredentials) {
@@ -1911,7 +1909,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				resource: this._gitHubEndpointService.getCopilotResource(),
 				reason: AuthRequiredReason.Expired,
 			}, undefined);
-			await this._requestClientRestart('GitHub authentication cleared');
+			await this._requestClientRestart('GitHub authentication cleared', this._getEnterpriseHost() !== undefined);
 			void this._scheduleModelRefresh();
 			return;
 		}
@@ -1945,7 +1943,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._applyPendingClientRestart();
 		}
 		const restartWillRefreshModels = restartRequired
-			&& await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
+			&& await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed', useClientAuthentication);
 		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== token) {
 			return;
 		}
@@ -2392,9 +2390,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _completeClientRestartBarrier(): void {
+		this._blockingClientRestartReasons.clear();
 		const barrier = this._clientRestartBarrier;
 		this._clientRestartBarrier = undefined;
 		barrier?.complete();
+	}
+
+	private _clearClientRestartReason(reason: string): void {
+		this._pendingClientRestartReasons.delete(reason);
+		this._blockingClientRestartReasons.delete(reason);
+		if (this._blockingClientRestartReasons.size === 0) {
+			this._completeClientRestartBarrier();
+		}
 	}
 
 	private _waitForClientRestart(): Promise<void> | undefined {

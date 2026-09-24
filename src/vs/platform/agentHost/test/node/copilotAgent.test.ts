@@ -233,6 +233,23 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	chatScopes(agent).set(typed.chatChannelUri.toString(), sessionUri);
 }
 
+function queueTestTurn(agent: CopilotAgent, sessionId: string, task: () => Promise<void>): Promise<void> {
+	const session = AgentSession.uri('copilotcli', sessionId);
+	const chat = defaultChatUri(session);
+	return (agent as unknown as {
+		_queueChatTurn(
+			context: { readonly configurationId: string; readonly sequencerKey: string; readonly chatKey: string },
+			operation: 'sendMessage',
+			turnId: string,
+			task: () => Promise<void>,
+		): Promise<void>;
+	})._queueChatTurn({
+		configurationId: AgentSession.id(session),
+		sequencerKey: chat.toString(),
+		chatKey: chat.toString(),
+	}, 'sendMessage', 'test-turn', task);
+}
+
 function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSessionId?: string): void {
 	const resolvedSdkSessionId = sdkSessionId ?? (stub as { sessionId?: string }).sessionId ?? `sdk-${chatUri.toString()}`;
 	const ownerSession = URI.parse(parseRequiredSessionUriFromChatUri(chatUri));
@@ -3012,20 +3029,7 @@ suite('CopilotAgent', () => {
 			await agent.refreshModels();
 			await reconcileAuthentication();
 			let newWorkSettled = false;
-			const session = AgentSession.uri('copilotcli', 'enterprise-new-turn');
-			const chat = defaultChatUri(session);
-			const newWork = (agent as unknown as {
-				_queueChatTurn(
-					context: { readonly configurationId: string; readonly sequencerKey: string; readonly chatKey: string },
-					operation: 'sendMessage',
-					turnId: string,
-					task: () => Promise<void>,
-				): Promise<void>;
-			})._queueChatTurn({
-				configurationId: AgentSession.id(session),
-				sequencerKey: chat.toString(),
-				chatKey: chat.toString(),
-			}, 'sendMessage', 'new-turn', async () => {
+			const newWork = queueTestTurn(agent, 'enterprise-new-turn', async () => {
 				newWorkSettled = true;
 			});
 			await timeout(0);
@@ -7214,7 +7218,12 @@ suite('CopilotAgent', () => {
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
-				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
+				let newWorkSettled = false;
+				const newWork = queueTestTurn(agent, 'ordinary-restart-new-turn', async () => {
+					newWorkSettled = true;
+				});
+				await newWork;
+				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed, newWorkSettled };
 
 				chat.hasActiveTurn = false;
 				reportChatTurnEnded(agent);
@@ -7224,7 +7233,7 @@ suite('CopilotAgent', () => {
 					duringTurn,
 					afterTurn: { stopCount: client.stopCount, disposed: chat.disposed },
 				}, {
-					duringTurn: { stopCount: 0, disposed: false },
+					duringTurn: { stopCount: 0, disposed: false, newWorkSettled: true },
 					afterTurn: { stopCount: 1, disposed: true },
 				});
 			} finally {
