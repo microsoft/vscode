@@ -6995,6 +6995,7 @@ suite('SessionsManagementService', () => {
 			}));
 			const second = disposables.add(await service.createSessionDraft(folder));
 			const firstSession = first.session;
+			assert.deepStrictEqual([...service.sessionDrafts.get()], [firstSession, second.session]);
 			assert.deepStrictEqual({
 				main: service.newSession.get(), automation: service.automationSession.get(),
 				first: service.getSession(firstSession.resource), created,
@@ -7007,12 +7008,15 @@ suite('SessionsManagementService', () => {
 
 			first.dispose();
 			first.dispose();
+			assert.deepStrictEqual([...service.sessionDrafts.get()], [second.session]);
 			assert.deepStrictEqual({
 				deleted: provider.deleted, first: service.getSession(firstSession.resource),
 				second: service.getSession(second.session.resource),
 				main: service.newSession.get(), automation: service.automationSession.get(),
 			}, { deleted: [firstSession.sessionId], first: undefined, second: second.session, main, automation });
 			await assert.rejects(first.send({ query: 'disposed' }), /Canceled/);
+			await second.send({ query: 'publish' });
+			assert.deepStrictEqual([...service.sessionDrafts.get()], []);
 		});
 
 		test('creates workspace-less quick chats without trust or global draft changes', async () => {
@@ -7166,8 +7170,8 @@ suite('SessionsManagementService', () => {
 			const main = service.createNewSession(folder);
 			await assert.rejects(service.createSessionDraft(folder, { modelId: 'missing' }), /configuration failed/);
 			assert.deepStrictEqual({
-				deleted: provider.deleted, resolved: service.getSession(provider.created[1].resource), main: service.newSession.get(),
-			}, { deleted: [provider.created[1].sessionId], resolved: undefined, main });
+				deleted: provider.deleted, resolved: service.getSession(provider.created[1].resource), main: service.newSession.get(), drafts: [...service.sessionDrafts.get()],
+			}, { deleted: [provider.created[1].sessionId], resolved: undefined, main, drafts: [] });
 		});
 
 		test('retains a prepared replacement and its provider/workspace on failure and retry', async () => {
@@ -7198,12 +7202,14 @@ suite('SessionsManagementService', () => {
 			const draft = disposables.add(await service.createSessionDraft(folder, { providerId: originalProvider.id }));
 			const original = draft.session;
 			await assert.rejects(draft.send({ query: 'first' }), /prepared send failed/);
+			assert.deepStrictEqual([...service.sessionDrafts.get()], [prepared!]);
 			assert.deepStrictEqual({
 				current: draft.session, old: service.getSession(original.resource), currentResolved: service.getSession(draft.session.resource),
 				deletedOriginal: originalProvider.deleted, deletedPrepared: replacementProvider.deleted,
 			}, { current: prepared!, old: undefined, currentResolved: prepared!, deletedOriginal: [original.sessionId], deletedPrepared: [] });
 			await draft.send({ query: 'retry' });
 			draft.dispose();
+			assert.deepStrictEqual([...service.sessionDrafts.get()], []);
 			assert.deepStrictEqual({
 				sent: replacementProvider.sent, deleted: replacementProvider.deleted,
 				inFlight: service.getInFlightNewSessionRequests(),
@@ -7230,6 +7236,7 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ deleted: provider.deleted, cancelled: preparationToken?.isCancellationRequested }, { deleted: [], cancelled: true });
 			await finish.complete();
 			await sending;
+			assert.deepStrictEqual([...service.sessionDrafts.get()], []);
 			assert.deepStrictEqual({
 				deleted: provider.deleted, sent: provider.sent, current: draft.session,
 				resolved: provider.created.map(session => service.getSession(session.resource)),
