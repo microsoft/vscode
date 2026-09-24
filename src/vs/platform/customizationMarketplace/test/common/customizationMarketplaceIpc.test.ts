@@ -26,6 +26,7 @@ suite('CustomizationMarketplaceIpc', () => {
 			id: 'agentFinder',
 			displayName: 'GitHub Feed',
 			enablementSetting: 'chat.customizations.marketplace.sources.publicFeed.enabled',
+			requiresMarketplaceVisibility: true,
 		});
 	});
 
@@ -103,7 +104,10 @@ suite('CustomizationMarketplaceIpc', () => {
 				return { items: [] };
 			},
 		}));
-		const configuration = new TestConfigurationService({ [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true });
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		});
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const client = new CustomizationMarketplaceChannelClient({
 			call: (command, options, token) => server.call('test', command, options, token),

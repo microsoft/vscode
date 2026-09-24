@@ -36,9 +36,12 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	}
 
 	function createConfiguration(enabledIds: readonly string[]) {
-		const configuration = new TestConfigurationService(Object.fromEntries(Object.values(CustomizationMarketplaceSources).map(source => [
-			source.enablementSetting, enabledIds.includes(source.id),
-		])));
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			...Object.fromEntries(Object.values(CustomizationMarketplaceSources).map(source => [
+				source.enablementSetting, enabledIds.includes(source.id),
+			])),
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		return configuration;
 	}
@@ -123,6 +126,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await assert.rejects(service.query({}, CancellationToken.Cancelled), isCancellationError);
 		await assert.rejects(service.query({ query: 'review' }, CancellationToken.Cancelled), isCancellationError);
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const whileDisabled = { creations: create.callCount, requests: requests.length };
 		const pages = [
 			await service.query({}, CancellationToken.None),
@@ -171,6 +176,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 
 	test('composes the built-in catalog with Copilot connectors', async () => {
 		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
 		});
@@ -280,7 +286,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			}, {
 				lengths: [24, 24, 24, 3],
 				totals: [75, 75, 75, 75],
-				results: query ? [...publicResults.slice(0, 11), ...connectorResults, ...publicResults.slice(11)] : browseResults,
+				results: query
+					? [...publicResults.slice(0, 10), connectorResults[0], publicResults[10], ...connectorResults.slice(1), ...publicResults.slice(11)]
+					: browseResults,
 				cursorKeys: [['token'], ['token'], ['token']],
 				nativePageSizes: [24],
 				nativeCalls: 9,
