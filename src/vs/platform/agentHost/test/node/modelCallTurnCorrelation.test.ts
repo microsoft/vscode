@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ModelCallTurnCorrelation } from '../../node/copilot/modelCallTurnCorrelation.js';
 
 suite('ModelCallTurnCorrelation', () => {
@@ -12,13 +13,13 @@ suite('ModelCallTurnCorrelation', () => {
 
 	test('returns a correlation recorded before response telemetry', () => {
 		const correlation = new ModelCallTurnCorrelation();
-		correlation.record('model-call-1', 'turn-1');
+		correlation.record('model-call-1', 'turn-1', AgentHostClientType.AgentsWindow);
 
 		assert.deepStrictEqual({
 			correlation: correlation.take('model-call-1'),
 			remaining: correlation.take('model-call-1'),
 		}, {
-			correlation: 'turn-1',
+			correlation: { turnId: 'turn-1', initiatorClientType: 'agents_window' },
 			remaining: undefined,
 		});
 	});
@@ -32,11 +33,13 @@ suite('ModelCallTurnCorrelation', () => {
 		const result = await pending;
 		assert.deepStrictEqual({
 			correlation: result.turnId,
+			initiatorClientType: result.initiatorClientType,
 			outcome: result.outcome,
 			measuredWait: typeof result.waitMs === 'number' && result.waitMs >= 0,
 			remaining: correlation.take('model-call-1'),
 		}, {
 			correlation: 'turn-1',
+			initiatorClientType: 'unknown',
 			outcome: 'mappingWaited',
 			measuredWait: true,
 			remaining: undefined,
@@ -55,16 +58,16 @@ suite('ModelCallTurnCorrelation', () => {
 			immediateRecord,
 			lateRecord,
 			immediate: correlation.take('immediate-model-call'),
-			timedOut: { turnId: timedOut.turnId, outcome: timedOut.outcome, measuredWait: typeof timedOut.waitMs === 'number' },
+			timedOut: { turnId: timedOut.turnId, initiatorClientType: timedOut.initiatorClientType, outcome: timedOut.outcome, measuredWait: typeof timedOut.waitMs === 'number' },
 			late: correlation.take('timed-out-model-call'),
 		}, {
 			immediateRecord: 'late',
 			lateRecord: 'late',
 			immediate: undefined,
-			timedOut: { turnId: undefined, outcome: 'waitExpired', measuredWait: true },
+			timedOut: { turnId: undefined, initiatorClientType: 'unknown', outcome: 'waitExpired', measuredWait: true },
 			late: undefined,
 		});
-		assert.deepStrictEqual(await correlation.wait('timed-out-model-call'), { turnId: undefined, outcome: 'responseAlreadyForwarded' });
+		assert.deepStrictEqual(await correlation.wait('timed-out-model-call'), { turnId: undefined, initiatorClientType: 'unknown', outcome: 'responseAlreadyForwarded' });
 	});
 
 	test('deduplicates recorded owners and rejects conflicting owners', async () => {
@@ -72,8 +75,8 @@ suite('ModelCallTurnCorrelation', () => {
 		assert.strictEqual(correlation.record('call', 'turn-1'), 'recorded');
 		assert.strictEqual(correlation.record('call', 'turn-1'), 'duplicate');
 		assert.strictEqual(correlation.record('call', 'turn-2'), 'conflict');
-		assert.deepStrictEqual(await correlation.wait('call'), { turnId: 'turn-1', outcome: 'mappingAvailable' });
-		assert.deepStrictEqual(await correlation.wait('call'), { turnId: undefined, outcome: 'responseAlreadyForwarded' });
+		assert.deepStrictEqual(await correlation.wait('call'), { turnId: 'turn-1', initiatorClientType: 'unknown', outcome: 'mappingAvailable' });
+		assert.deepStrictEqual(await correlation.wait('call'), { turnId: undefined, initiatorClientType: 'unknown', outcome: 'responseAlreadyForwarded' });
 		assert.strictEqual(correlation.record('call', 'turn-1'), 'duplicate');
 		assert.strictEqual(correlation.take('call'), undefined);
 	});
@@ -85,12 +88,12 @@ suite('ModelCallTurnCorrelation', () => {
 		correlation.record('call', 'turn');
 
 		assert.deepStrictEqual((await Promise.all([first, second])).map(result => ({
-			turnId: result.turnId, outcome: result.outcome, measuredWait: typeof result.waitMs === 'number' && result.waitMs >= 0,
+			turnId: result.turnId, initiatorClientType: result.initiatorClientType, outcome: result.outcome, measuredWait: typeof result.waitMs === 'number' && result.waitMs >= 0,
 		})), [
-			{ turnId: 'turn', outcome: 'mappingWaited', measuredWait: true },
-			{ turnId: 'turn', outcome: 'mappingWaited', measuredWait: true },
+			{ turnId: 'turn', initiatorClientType: 'unknown', outcome: 'mappingWaited', measuredWait: true },
+			{ turnId: 'turn', initiatorClientType: 'unknown', outcome: 'mappingWaited', measuredWait: true },
 		]);
-		assert.deepStrictEqual(await correlation.wait('call'), { turnId: undefined, outcome: 'responseAlreadyForwarded' });
+		assert.deepStrictEqual(await correlation.wait('call'), { turnId: undefined, initiatorClientType: 'unknown', outcome: 'responseAlreadyForwarded' });
 	});
 
 	test('bounds owner deduplication history', () => {
@@ -111,8 +114,8 @@ suite('ModelCallTurnCorrelation', () => {
 			await correlation.wait('cached'),
 			await correlation.wait('forwarded'),
 		], [
-			{ turnId: 'turn-cached', outcome: 'mappingAvailable' },
-			{ turnId: undefined, outcome: 'responseAlreadyForwarded' },
+			{ turnId: 'turn-cached', initiatorClientType: 'unknown', outcome: 'mappingAvailable' },
+			{ turnId: undefined, initiatorClientType: 'unknown', outcome: 'responseAlreadyForwarded' },
 		]);
 	});
 
@@ -134,8 +137,11 @@ suite('ModelCallTurnCorrelation', () => {
 			retainedMarkerDiscardsCorrelation: forwardedCorrelations.take('forwarded-3'),
 		}, {
 			evictedCorrelation: undefined,
-			retainedCorrelations: ['turn-2', 'turn-3'],
-			evictedMarkerAllowsCorrelation: 'late-turn',
+			retainedCorrelations: [
+				{ turnId: 'turn-2', initiatorClientType: 'unknown' },
+				{ turnId: 'turn-3', initiatorClientType: 'unknown' },
+			],
+			evictedMarkerAllowsCorrelation: { turnId: 'late-turn', initiatorClientType: 'unknown' },
 			retainedMarkerDiscardsCorrelation: undefined,
 		});
 	});

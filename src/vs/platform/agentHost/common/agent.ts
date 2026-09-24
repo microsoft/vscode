@@ -1262,7 +1262,7 @@ export interface IAgent {
 	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
-	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;
+	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string, initiatorClientType?: AgentHostClientType): void;
 
 	// ---- Active clients and interaction ------------------------------------
 

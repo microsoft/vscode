@@ -690,7 +690,8 @@ export class AgentSideEffects extends Disposable {
 
 		if (signal.kind === 'model_call_completed') {
 			// Root signals already carry their owning turn, even after that turn ended.
-			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, signal.turnId);
+			const initiatorClientType = this._turnTracker.getClientTelemetryContext(signalResource, signal.turnId)?.clientType;
+			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, signal.turnId, initiatorClientType);
 		}
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
@@ -967,7 +968,8 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (turnIdRouting === 'remap') {
-			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId);
+			const initiatorClientType = this._turnTracker.getClientTelemetryContext(sessionKey, turnId)?.clientType;
+			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId, initiatorClientType);
 		}
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}

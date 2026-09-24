@@ -948,6 +948,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
+	private readonly _clientTypesByTurnId = new LRUCache<string, AgentHostClientType>(1000);
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
@@ -1014,6 +1015,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn.value?.clientContext; }
+	getTurnClientType(turnId: string): AgentHostClientType | undefined { return this._clientTypesByTurnId.get(turnId); }
 
 	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
 		let result: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>;
@@ -1892,6 +1894,7 @@ export class CopilotAgentSession extends Disposable {
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext);
+		this._clientTypesByTurnId.set(turnId, clientContext.clientType);
 	}
 
 	async hasRunningDetachedShells(): Promise<boolean> {

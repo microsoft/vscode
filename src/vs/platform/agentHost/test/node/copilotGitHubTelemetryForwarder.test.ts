@@ -7,6 +7,7 @@ import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotGitHubTelemetryForwarder } from '../../node/copilot/copilotGitHubTelemetryForwarder.js';
 
 interface CapturedEvent {
@@ -209,6 +210,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			ahCorrelationWaitMs: 101,
 			ahActiveRootTurnIdAtResponse: 'host-root',
 			ahSessionDisposedDuringWait: true,
+			initiatorClientType: AgentHostClientType.AgentsWindow,
 		};
 		forwarder.forward(notification('response.success'), undefined, correlation);
 		forwarder.forward(notification('response.error'), undefined, correlation);
@@ -220,17 +222,24 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		restrictedTelemetryEnabled = true;
 		forwarder.forward(notification('response.error', true), undefined, correlation);
 
+		const correlationDiagnostics = {
+			ahCorrelationOutcome: correlation.ahCorrelationOutcome,
+			ahCorrelationWaitMs: correlation.ahCorrelationWaitMs,
+			ahActiveRootTurnIdAtResponse: correlation.ahActiveRootTurnIdAtResponse,
+			ahSessionDisposedDuringWait: correlation.ahSessionDisposedDuringWait,
+		};
 		assert.deepStrictEqual(telemetryService.events.map(event => ({
 			eventName: event.eventName,
 			diagnostics: Object.fromEntries(Object.entries(event.data ?? {}).filter(([key]) => key.startsWith('ah'))),
+			initiatorClientType: event.data?.initiatorClientType,
 			turn: event.data?.turnId,
 		})), [
-			{ eventName: 'copilotSdk/response.success', diagnostics: correlation, turn: undefined },
-			{ eventName: 'copilotSdk/response.error', diagnostics: correlation, turn: undefined },
-			{ eventName: 'copilotSdk/tool_call_executed', diagnostics: {}, turn: 'sdk-turn' },
-			{ eventName: 'copilotSdk/response.success', diagnostics: {}, turn: undefined },
-			{ eventName: 'copilotSdk/response.error', diagnostics: {}, turn: undefined },
-			{ eventName: 'copilotSdk/response.error', diagnostics: correlation, turn: undefined },
+			{ eventName: 'copilotSdk/response.success', diagnostics: correlationDiagnostics, initiatorClientType: 'agents_window', turn: undefined },
+			{ eventName: 'copilotSdk/response.error', diagnostics: correlationDiagnostics, initiatorClientType: 'agents_window', turn: undefined },
+			{ eventName: 'copilotSdk/tool_call_executed', diagnostics: {}, initiatorClientType: undefined, turn: 'sdk-turn' },
+			{ eventName: 'copilotSdk/response.success', diagnostics: {}, initiatorClientType: undefined, turn: undefined },
+			{ eventName: 'copilotSdk/response.error', diagnostics: {}, initiatorClientType: undefined, turn: undefined },
+			{ eventName: 'copilotSdk/response.error', diagnostics: correlationDiagnostics, initiatorClientType: 'agents_window', turn: undefined },
 		]);
 	});
 
@@ -243,9 +252,9 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				event: { kind, properties: {}, metrics: {} },
 			};
 			const contextual = { ahActiveRootTurnIdAtResponse: 'root-candidate', ahSessionDisposedDuringWait: true };
-			forwarder.forward(notification, 'host-turn', { ...contextual, ahCorrelationOutcome: 'mappingAvailable' });
-			forwarder.forward(notification, 'host-turn', { ...contextual, ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 0 });
-			forwarder.forward(notification, undefined, { ...contextual, ahCorrelationOutcome: 'responseAlreadyForwarded' });
+			forwarder.forward(notification, 'host-turn', { ...contextual, ahCorrelationOutcome: 'mappingAvailable', initiatorClientType: AgentHostClientType.EditorWindow });
+			forwarder.forward(notification, 'host-turn', { ...contextual, ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 0, initiatorClientType: AgentHostClientType.EditorWindow });
+			forwarder.forward(notification, undefined, { ...contextual, ahCorrelationOutcome: 'responseAlreadyForwarded', initiatorClientType: AgentHostClientType.Unknown });
 		}
 
 		assert.deepStrictEqual(telemetryService.events.map(event => ({
@@ -261,10 +270,10 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 	test('records host ownership independently of SDK response forwarding', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
-		forwarder.recordModelCallTurnCorrelation('sdk-session', 'call', 'host-turn', 'late');
+		forwarder.recordModelCallTurnCorrelation('sdk-session', 'call', 'host-turn', AgentHostClientType.AgentsWindow, 'late');
 		assert.deepStrictEqual(telemetryService.events, [{
 			eventName: 'agentHost.modelCallTurnCorrelated',
-			data: { sdkSessionId: 'sdk-session', modelCallId: 'call', turnId: 'host-turn', mappingStatus: 'late' },
+			data: { sdkSessionId: 'sdk-session', modelCallId: 'call', turnId: 'host-turn', initiatorClientType: 'agents_window', mappingStatus: 'late' },
 		}]);
 	});
 
@@ -289,7 +298,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 						properties: { ahCorrelationOutcome: 'sdk-value', usageStatus: 'sdk-value' },
 						metrics,
 					},
-				}, 'host-turn', { ahCorrelationOutcome: 'activeTurnFallback' });
+				}, 'host-turn', { ahCorrelationOutcome: 'activeTurnFallback', initiatorClientType: AgentHostClientType.EditorWindow });
 				const data = telemetryService.events[0].data!;
 				assert.strictEqual(data.usageStatus, status);
 				assert.strictEqual(data.ahCorrelationOutcome, 'activeTurnFallback');
@@ -313,7 +322,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			sessionId: 'sdk-session',
 			restricted: true,
 			event: { kind: 'response.error', properties: {}, metrics: {} },
-		}, 'host-turn', { ahCorrelationOutcome: 'mappingAvailable' });
+		}, 'host-turn', { ahCorrelationOutcome: 'mappingAvailable', initiatorClientType: AgentHostClientType.EditorWindow });
 		assert.deepStrictEqual(telemetryService.events, []);
 	});
 });

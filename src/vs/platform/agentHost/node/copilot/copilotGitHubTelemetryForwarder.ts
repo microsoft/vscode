@@ -5,6 +5,7 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import type { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
@@ -12,12 +13,14 @@ export interface ICopilotModelCallCorrelationTelemetry {
 	readonly ahCorrelationWaitMs?: number;
 	readonly ahActiveRootTurnIdAtResponse?: string;
 	readonly ahSessionDisposedDuringWait?: boolean;
+	readonly initiatorClientType: AgentHostClientType;
 }
 
 type ModelCallTurnCorrelatedEvent = {
 	sdkSessionId: string;
 	modelCallId: string;
 	turnId: string;
+	initiatorClientType: AgentHostClientType;
 	mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>;
 };
 
@@ -27,6 +30,7 @@ type ModelCallTurnCorrelatedClassification = {
 	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session ID matching sdk_session_id on forwarded response events.' };
 	modelCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Call identifier from model completion; join only by exact ID, never by time. Message fallback IDs may have no corresponding SDK response.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host-remapped turn owning the completed model call.' };
+	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of VS Code client that initiated the owning turn.' };
 	mappingStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether ownership was recorded, arrived after forwarding, or conflicts with an owner retained in the bounded cache.' };
 };
 
@@ -63,7 +67,8 @@ type ModelCallTurnCorrelatedClassification = {
 		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A wait expiry does not establish that a completion was produced." },
 		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
 		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },
-		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Present only when a wait occurred and no authoritative turnId was resolved." }
+		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Present only when a wait occurred and no authoritative turnId was resolved." },
+		"initiatorClientType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of VS Code client that initiated the owning turn: editor_window, agents_window, or unknown." }
 	}
 */
 
@@ -246,9 +251,9 @@ export class CopilotGitHubTelemetryForwarder {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	recordModelCallTurnCorrelation(sdkSessionId: string, modelCallId: string, turnId: string, mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>): void {
+	recordModelCallTurnCorrelation(sdkSessionId: string, modelCallId: string, turnId: string, initiatorClientType: AgentHostClientType, mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>): void {
 		this._telemetryService.publicLog2<ModelCallTurnCorrelatedEvent, ModelCallTurnCorrelatedClassification>('agentHost.modelCallTurnCorrelated', {
-			sdkSessionId, modelCallId, turnId, mappingStatus,
+			sdkSessionId, modelCallId, turnId, initiatorClientType, mappingStatus,
 		});
 	}
 
@@ -278,6 +283,7 @@ export class CopilotGitHubTelemetryForwarder {
 		delete data.ahSessionDisposedDuringWait;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (correlation) {
+				data.initiatorClientType = correlation.initiatorClientType;
 				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
 				if (correlation.ahCorrelationWaitMs !== undefined) {
 					data.ahCorrelationWaitMs = correlation.ahCorrelationWaitMs;

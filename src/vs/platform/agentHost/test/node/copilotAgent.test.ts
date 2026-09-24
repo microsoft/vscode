@@ -1906,23 +1906,26 @@ suite('CopilotAgent', () => {
 
 			const subagentCorrelation = new DeferredPromise<IModelCallTurnCorrelationResult>();
 			const forwardedModelCallIds: string[] = [];
-			const activeSession: Pick<CopilotAgentSession, 'currentTurnId' | 'isDisposed'> & {
+			const activeSession: Pick<CopilotAgentSession, 'currentTurnId' | 'currentTurnClientType' | 'isDisposed'> & {
 				modelCallTurnCorrelation: Pick<CopilotAgentSession['modelCallTurnCorrelation'], 'take' | 'wait' | 'markResponseForwarded'>;
 			} = {
 				currentTurnId: 'turn-1',
+				currentTurnClientType: AgentHostClientType.AgentsWindow,
 				isDisposed: false,
 				modelCallTurnCorrelation: {
 					take: () => undefined,
-					wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve({ turnId: undefined, outcome: 'waitExpired', waitMs: 100 }) : subagentCorrelation.p,
+					wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve({ turnId: undefined, initiatorClientType: AgentHostClientType.Unknown, outcome: 'waitExpired', waitMs: 100 }) : subagentCorrelation.p,
 					markResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
 				},
 			};
 			setLiveChatStub(agent, 'active-session', activeSession);
 			setLiveChatStub(agent, 'second-active-session', {
 				currentTurnId: 'turn-2',
+				currentTurnClientType: AgentHostClientType.EditorWindow,
 			});
 			setLiveChatStub(agent, 'idle-session', {
 				currentTurnId: undefined,
+				currentTurnClientType: AgentHostClientType.Unknown,
 			});
 			const notification = (sessionId: string, turnId: string, modelCallId?: string, initiatorType?: string): GitHubTelemetryNotification => ({
 				sessionId,
@@ -1936,7 +1939,7 @@ suite('CopilotAgent', () => {
 
 			await forward(notification('active-session', 'runtime-active', 'root-model-call', 'user'));
 			await forward(notification('active-session', 'runtime-subagent', 'subagent-model-call', 'agent'));
-			subagentCorrelation.complete({ turnId: 'subagent-turn', outcome: 'mappingWaited', waitMs: 4 });
+			subagentCorrelation.complete({ turnId: 'subagent-turn', initiatorClientType: AgentHostClientType.AgentsWindow, outcome: 'mappingWaited', waitMs: 4 });
 			await timeout(0);
 			await forward(notification('active-session', 'runtime-unresolved', 'unresolved-model-call', 'agent'));
 			await timeout(0);
@@ -1950,19 +1953,19 @@ suite('CopilotAgent', () => {
 					const data = event.data as Record<string, unknown>;
 					return event.eventName === 'agentHost.copilotClientStartup'
 						? { eventName: event.eventName, outcome: data.outcome, durationMs: typeof data.durationMs, attemptNumber: data.attemptNumber }
-						: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId, diagnostics: Object.fromEntries(Object.entries(data).filter(([key]) => key.startsWith('ah'))) };
+						: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId, initiatorClientType: data.initiatorClientType, diagnostics: Object.fromEntries(Object.entries(data).filter(([key]) => key.startsWith('ah'))) };
 				}),
 				forwardedModelCallIds,
 			}, {
 				events: [
 					{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 4 } },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'waitExpired', ahCorrelationWaitMs: 100, ahActiveRootTurnIdAtResponse: 'turn-1', ahSessionDisposedDuringWait: false } },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'noActiveTurn' } },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'sessionNotFound' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', initiatorClientType: 'agents_window', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn', initiatorClientType: 'agents_window', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 4 } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined, initiatorClientType: 'unknown', diagnostics: { ahCorrelationOutcome: 'waitExpired', ahCorrelationWaitMs: 100, ahActiveRootTurnIdAtResponse: 'turn-1', ahSessionDisposedDuringWait: false } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2', initiatorClientType: 'editor_window', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', initiatorClientType: 'agents_window', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined, initiatorClientType: 'unknown', diagnostics: { ahCorrelationOutcome: 'noActiveTurn' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined, initiatorClientType: 'unknown', diagnostics: { ahCorrelationOutcome: 'sessionNotFound' } },
 				],
 				forwardedModelCallIds: ['root-model-call'],
 			});
@@ -2044,6 +2047,8 @@ suite('CopilotAgent', () => {
 			setLiveChatStub(agent, 'sdk-session', {
 				sessionId: 'sdk-session',
 				get currentTurnId() { return activeTurn; },
+				currentTurnClientType: AgentHostClientType.AgentsWindow,
+				getTurnClientType: () => AgentHostClientType.EditorWindow,
 				modelCallTurnCorrelation: new ModelCallTurnCorrelation(),
 				isDisposed: false,
 			}, chat);
@@ -2062,10 +2067,11 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(events.map(data => ({
 				turn: data.turnId,
+				initiatorClientType: data.initiatorClientType,
 				diagnostics: Object.fromEntries(Object.entries(data).filter(([key]) => key.startsWith('ah')).map(([key, value]) => [key, key === 'ahCorrelationWaitMs' ? typeof value === 'number' && value >= 0 : value])),
 			})), [
-				{ turn: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
-				{ turn: 'original-logical-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: true } },
+				{ turn: 'subagent-turn', initiatorClientType: 'editor_window', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
+				{ turn: 'original-logical-turn', initiatorClientType: 'editor_window', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: true } },
 			]);
 		} finally {
 			await disposeAgent(agent);
@@ -2128,9 +2134,9 @@ suite('CopilotAgent', () => {
 
 			const mappings = telemetryService.events.filter(event => event.eventName === 'agentHost.modelCallTurnCorrelated').map(event => event.data);
 			assert.deepStrictEqual(mappings, [
-				{ sdkSessionId: 'sdk-session', modelCallId: 'late-call', turnId: 'child-turn', mappingStatus: 'late' },
-				{ sdkSessionId: 'sdk-session', modelCallId: 'late-call', turnId: 'conflicting-turn', mappingStatus: 'conflict' },
-				{ sdkSessionId: 'sdk-session', modelCallId: 'early-call', turnId: 'exact-turn', mappingStatus: 'recorded' },
+				{ sdkSessionId: 'sdk-session', modelCallId: 'late-call', turnId: 'child-turn', initiatorClientType: 'unknown', mappingStatus: 'late' },
+				{ sdkSessionId: 'sdk-session', modelCallId: 'late-call', turnId: 'conflicting-turn', initiatorClientType: 'unknown', mappingStatus: 'conflict' },
+				{ sdkSessionId: 'sdk-session', modelCallId: 'early-call', turnId: 'exact-turn', initiatorClientType: 'unknown', mappingStatus: 'recorded' },
 			]);
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'copilotSdk/response.success').map(event => {
 				const data = event.data as Record<string, unknown>;

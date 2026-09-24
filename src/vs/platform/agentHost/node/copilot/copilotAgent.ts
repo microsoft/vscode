@@ -1965,35 +1965,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _forwardResponseTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
 		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
 		const fallbackTurnId = session?.currentTurnId;
+		const fallbackClientType = session?.currentTurnClientType ?? AgentHostClientType.Unknown;
 		const event = notification.event;
 		const nativeModelCallId = event.properties.modelCallId ?? event.model_call_id;
 		const modelCallId = typeof nativeModelCallId === 'string' && nativeModelCallId.length > 0 ? nativeModelCallId : undefined;
-		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
+		const forward = (turnId: string | undefined, initiatorClientType: AgentHostClientType, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
 				ahCorrelationWaitMs: waitMs,
 				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
 				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
+				initiatorClientType,
 			});
 		};
 		if (!session) {
-			forward(undefined, 'sessionNotFound');
+			forward(undefined, AgentHostClientType.Unknown, 'sessionNotFound');
 			return;
 		}
 		if (modelCallId !== undefined) {
-			const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
-			if (correlatedTurnId) {
-				forward(correlatedTurnId, 'mappingAvailable');
+			const correlation = session.modelCallTurnCorrelation.take(modelCallId);
+			if (correlation) {
+				forward(correlation.turnId, correlation.initiatorClientType, 'mappingAvailable');
 				return;
 			}
 			if (event.properties.initiatorType === 'agent') {
 				const result = await session.modelCallTurnCorrelation.wait(modelCallId);
-				forward(result.turnId, result.outcome, result.waitMs);
+				forward(result.turnId, result.initiatorClientType, result.outcome, result.waitMs);
 				return;
 			}
 			session.modelCallTurnCorrelation.markResponseForwarded(modelCallId);
 		}
-		forward(fallbackTurnId, fallbackTurnId ? 'activeTurnFallback' : 'noActiveTurn');
+		forward(fallbackTurnId, fallbackClientType, fallbackTurnId ? 'activeTurnFallback' : 'noActiveTurn');
 	}
 
 	/**
@@ -3291,12 +3293,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._findChatByUri(chat)?.getTurnTokenUsage(turnId, parentToolCallId);
 	}
 
-	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
+	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string, initiatorClientType?: AgentHostClientType): void {
 		const session = this._findChatByUri(chat);
 		if (session) {
-			const status = session.modelCallTurnCorrelation.record(modelCallId, turnId);
+			const resolvedInitiatorClientType = initiatorClientType ?? session.getTurnClientType?.(turnId) ?? session.currentTurnClientType ?? AgentHostClientType.Unknown;
+			const status = session.modelCallTurnCorrelation.record(modelCallId, turnId, resolvedInitiatorClientType);
 			if (status !== 'duplicate') {
-				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, status);
+				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, resolvedInitiatorClientType, status);
 			}
 		}
 	}
