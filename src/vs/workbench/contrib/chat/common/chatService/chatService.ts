@@ -75,6 +75,8 @@ export interface IChatResponseErrorDetails {
 	 * logged as a `chatAgentError` telemetry event.
 	 */
 	isExpectedError?: boolean;
+	/** Restore unsent input after a preflight failure, if the user has not changed the draft. */
+	restoreInput?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;

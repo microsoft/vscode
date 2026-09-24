@@ -22,7 +22,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotD
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { filter } from '../../../../../base/common/objects.js';
+import { equals, filter } from '../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -3390,6 +3390,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
+		const inputStateBeforeSend = isUserQuery && !options.preserveInput && !isEditing ? this.input.getCurrentInputState() : undefined;
 		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
 		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
 		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
@@ -3591,6 +3592,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
 		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
+		const restoreInputAfterError = this._createInputErrorRecovery(inputStateBeforeSend);
 
 		if (!options.preserveInput) {
 			// A maintenance command is not the user's goal.
@@ -3630,10 +3632,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		sent.data.responseCreatedPromise.then(() => {
+		sent.data.responseCreatedPromise.then(response => {
 			// Only start accessibility progress once a real request/response model exists.
 			this.chatAccessibilityService.acceptRequest(submittedSessionResource);
 			sent.data.responseCompletePromise.then(() => {
+				restoreInputAfterError?.(response);
 				const responses = this.viewModel?.getItems().filter(isResponseVM);
 				const lastResponse = responses?.[responses.length - 1];
 				this.chatAccessibilityService.acceptResponse(lastResponse, submittedSessionResource, options?.isVoiceInput);
@@ -3648,6 +3651,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		return sent.data.responseCreatedPromise;
+	}
+
+	private _createInputErrorRecovery(inputState: IChatModelInputState | undefined): ((response: IChatResponseModel) => void) | undefined {
+		const viewModel = this.viewModel;
+		if (!inputState || !viewModel) {
+			return undefined;
+		}
+		const input = this.input;
+		const editorModel = input.inputEditor.getModel();
+		if (!editorModel) {
+			return undefined;
+		}
+		const clearedVersion = editorModel.getVersionId();
+		const remainingAttachments = input.attachmentModel.attachments;
+		return response => {
+			// Only the originating send may restore the draft. In particular, an old
+			// error must not overwrite a newer draft, an edit, or another conversation.
+			if (!response.result?.errorDetails?.restoreInput || this._store.isDisposed
+				|| this.viewModel !== viewModel || response.session !== viewModel.model
+				|| this._readOnly || viewModel.model.isReadOnly.get() || viewModel.editing || this.input !== input
+				|| viewModel.model.getRequests().at(-1)?.id !== response.requestId
+				|| input.inputEditor.getModel() !== editorModel || editorModel.getVersionId() !== clearedVersion
+				|| editorModel.getValue() || !equals(input.attachmentModel.attachments, remainingAttachments)) {
+				return;
+			}
+			// Preserve current model, mode, and permission choices; only restore the
+			// submitted content through the input model so normal draft persistence applies.
+			const { inputText, attachments, selections, contrib } = inputState;
+			input.flushInputStateToModel();
+			viewModel.model.inputModel.setState({ inputText, attachments, selections, contrib });
+			status(localize('chat.inputRestoredAfterError', "Your unsent message and attachments have been restored to the chat input."));
+		};
 	}
 
 	private _getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined): IChatRequestVariableEntry[] {

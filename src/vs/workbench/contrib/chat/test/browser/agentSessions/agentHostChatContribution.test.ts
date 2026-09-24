@@ -7114,6 +7114,7 @@ suite('AgentHostChatContribution', () => {
 				errorDetails: {
 					message: 'This conversation is in use by another Codex app. If you\'re using it in ChatGPT, let any running task finish, then quit the ChatGPT app and send your message again in VS Code. Your message has not been sent.',
 					isExpectedError: true,
+					restoreInput: true,
 				},
 				markdown: [],
 			});

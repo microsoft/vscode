@@ -16,6 +16,7 @@ import { mockObject, upcastPartial } from '../../../../../../base/test/common/mo
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -34,12 +35,13 @@ import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicator
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -1234,6 +1236,103 @@ suite('ChatWidget - guarded acceptInput', () => {
 			response: fixture.response,
 		});
 	});
+
+	function createInputRecoveryWidget(restoreInput = true) {
+		const fixture = createSubmissionWidget();
+		const inputState: IChatModelInputState = {
+			inputText: 'Continue after handoff',
+			attachments: [
+				{ kind: 'file', id: 'context', name: 'context.txt', value: URI.file('/workspace/context.txt') },
+				{ kind: 'image', id: 'image', name: 'image.png', value: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+			],
+			selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 23, positionLineNumber: 1, positionColumn: 23 }],
+			mode: { id: ChatModeKind.Ask, kind: ChatModeKind.Ask },
+			selectedModel: undefined,
+			contrib: { references: ['context'] },
+		};
+		const editorModel = store.add(createTextModel(inputState.inputText));
+		let attachments: readonly IChatRequestVariableEntry[] = inputState.attachments;
+		const inputModel = mockObject<IChatModel['inputModel']>()();
+		const restored: Partial<IChatModelInputState>[] = [];
+		inputModel.setState.callsFake(state => restored.push(state));
+		Object.defineProperty(fixture.original.model, 'inputModel', { value: inputModel });
+		Object.defineProperties(fixture.input, {
+			inputEditor: { value: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => editorModel.getValue(), getModel: () => editorModel }) },
+			attachmentModel: { value: upcastPartial<ChatAttachmentModel>({ get attachments() { return attachments; } }) },
+		});
+		fixture.input.getCurrentInputState.callsFake(() => ({ ...inputState, inputText: editorModel.getValue(), attachments }));
+		fixture.input.getAttachedContext.callsFake(() => new ChatRequestVariableSet([...attachments]));
+		fixture.input.getAttachedAndImplicitContext.callsFake(() => new ChatRequestVariableSet([...attachments]));
+		fixture.input.acceptInput.callsFake((_isUserQuery, _preserveFocus, preserveInput) => {
+			if (!preserveInput) {
+				editorModel.setValue('');
+				attachments = [];
+			}
+		});
+		const completed = new DeferredPromise<void>();
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: 'existing-request',
+			session: fixture.original.model,
+			result: { errorDetails: { message: 'Request was not sent', restoreInput } },
+		});
+		fixture.chatService.sendRequest.resolves({
+			kind: 'sent',
+			data: upcastPartial<IChatSendRequestData>({ responseCreatedPromise: Promise.resolve(response), responseCompletePromise: completed.p }),
+		});
+		return {
+			...fixture, inputState, editorModel, restored, completed,
+			setAttachments: (value: readonly IChatRequestVariableEntry[]) => { attachments = value; },
+		};
+	}
+
+	test('restores unsent input and attachment payloads when the response requests recovery', async () => {
+		const fixture = createInputRecoveryWidget();
+		await fixture.widget.acceptInput();
+		await fixture.completed.complete();
+
+		const { inputText, attachments, selections, contrib } = fixture.inputState;
+		assert.deepStrictEqual({
+			restored: fixture.restored,
+			flushed: fixture.input.flushInputStateToModel.callCount,
+			requests: fixture.chatService.sendRequest.callCount,
+			focused: fixture.input.focus.callCount,
+		}, {
+			restored: [{ inputText, attachments, selections, contrib }],
+			flushed: 1,
+			requests: 1,
+			focused: 0,
+		});
+	});
+
+	for (const change of ['typed draft', 'typed then cleared', 'new attachment', 'other session', 'inline edit', 'new request', 'disposed', 'read-only'] as const) {
+		test(`does not restore unsent input after ${change}`, async () => {
+			const fixture = createInputRecoveryWidget();
+			await fixture.widget.acceptInput();
+			switch (change) {
+				case 'typed draft': fixture.editorModel.setValue('New draft'); break;
+				case 'typed then cleared': fixture.editorModel.setValue('New draft'); fixture.editorModel.setValue(''); break;
+				case 'new attachment': fixture.setAttachments([{ kind: 'file', id: 'new-file', name: 'new.txt', value: URI.file('/workspace/new.txt') }]); break;
+				case 'other session': fixture.rebind(fixture.other.viewModel); break;
+				case 'inline edit': Object.defineProperty(fixture.original.viewModel, 'editing', { value: { id: 'edited-request' } }); break;
+				case 'new request': Object.defineProperty(fixture.original.model, 'getRequests', { value: () => [upcastPartial<IChatRequestModel>({ id: 'new-request' })] }); break;
+				case 'disposed': fixture.widgetStore.dispose(); break;
+				case 'read-only': fixture.original.isReadOnly.set(true, undefined); break;
+			}
+			await fixture.completed.complete();
+
+			assert.deepStrictEqual({ restored: fixture.restored, requests: fixture.chatService.sendRequest.callCount }, { restored: [], requests: 1 });
+		});
+	}
+
+	for (const kind of ['ordinary error', 'programmatic query', 'preserved draft'] as const) {
+		test(`does not recover input for a ${kind}`, async () => {
+			const fixture = createInputRecoveryWidget(kind !== 'ordinary error');
+			await fixture.widget.acceptInput(kind === 'programmatic query' ? 'Maintenance request' : undefined, { preserveInput: kind === 'preserved draft' });
+			await fixture.completed.complete();
+
+			assert.deepStrictEqual(fixture.restored, []);
+		});
+	}
 });
 
 suite('ChatWidget - acceptAndAwaitSentRequest', () => {
