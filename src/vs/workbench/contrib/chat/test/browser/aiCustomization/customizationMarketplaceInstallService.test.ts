@@ -302,7 +302,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: true,
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		for (const source of sources) {

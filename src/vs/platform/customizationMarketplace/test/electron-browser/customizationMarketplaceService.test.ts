@@ -26,7 +26,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('merges public IPC and renderer-local MCP pages without sending MCP queries through IPC', async () => {
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
@@ -93,7 +93,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('continues desktop public-feed pages using the shared-process cursor contract', async () => {
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -142,7 +142,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('visibility and public feed toggles select custom, default, and public registries without duplicate default requests', async () => {
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.Enabled]: false,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: false,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false,
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
@@ -185,13 +185,13 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const service = services.createInstance(NativeCustomizationMarketplaceService);
 		const ids = async () => (await service.query({ pageSize: 3 }, CancellationToken.None)).items.map(item => item.sourceId);
 		await assert.rejects(service.query({}, CancellationToken.None));
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.Enabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const customAndDefault = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		const customAndPublic = await ids();
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.McpGalleryEnabled, false);
 		const publicOnly = await ids();
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.Enabled, false);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		await assert.rejects(service.query({}, CancellationToken.None));
 		assert.deepStrictEqual({ customAndDefault, customAndPublic, publicOnly, galleryUrls, publicCalls }, {
 			customAndDefault: ['mcpGallery', 'mcpGalleryDefault'],
@@ -204,7 +204,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 
 	test('isolates gallery failures and never opens a public IPC channel for MCP-only discovery', async () => {
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.McpGalleryEnabled]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});

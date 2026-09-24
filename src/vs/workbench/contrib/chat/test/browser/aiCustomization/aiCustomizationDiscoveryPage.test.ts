@@ -56,7 +56,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		store.add(toDisposable(() => container.remove()));
 		const configuration = new TestConfigurationService({
 			'workbench.list.smoothScrolling': false,
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			...Object.fromEntries(sources.map(source => [source.enablementSetting, enabledSources.includes(source.id)])),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);

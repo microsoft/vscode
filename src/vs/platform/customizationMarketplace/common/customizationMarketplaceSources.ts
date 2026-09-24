@@ -13,7 +13,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../configur
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
-	Enabled = 'chat.customizations.marketplace.enabled',
+	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
 	McpGalleryEnabled = 'chat.customizations.marketplace.sources.mcpGallery.enabled',
 }
@@ -38,7 +38,7 @@ export const CustomizationMarketplaceSources = {
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
-	if (configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true) {
+	if (configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
 		return [];
 	}
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true &&
@@ -46,7 +46,7 @@ export function getEnabledCustomizationMarketplaceSources(configurationService: 
 }
 
 export function affectsCustomizationMarketplaceSources(event: IConfigurationChangeEvent, sources: readonly ICustomizationMarketplaceSourceInfo[]): boolean {
-	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.Enabled)
+	return event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 		|| sources.some(source => event.affectsConfiguration(source.enablementSetting) ||
 			(source.exclusionSetting !== undefined && event.affectsConfiguration(source.exclusionSetting)));
 }

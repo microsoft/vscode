@@ -2549,7 +2549,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
 			default: 'switch',
 		},
-		[CustomizationMarketplaceConfiguration.Enabled]: {
+		[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
 			description: nls.localize('chat.customizations.marketplace.enabled', "Shows Discover in the Customizations editor and moves enabled marketplace feeds there. When disabled, the original Overview and MCP server Available section remain available."),

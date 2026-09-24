@@ -23,7 +23,7 @@ suite('CustomizationMarketplaceSources', () => {
 
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			...Object.fromEntries(sources.map(source => [source.enablementSetting, enabledIds.includes(source.id)])),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -32,14 +32,14 @@ suite('CustomizationMarketplaceSources', () => {
 
 	test('visibility gate is independent of enabled feeds and cancels active queries', async () => {
 		const configuration = createConfiguration(['first']);
-		await setEnabled(configuration, CustomizationMarketplaceConfiguration.Enabled, false);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		const disabled = getEnabledCustomizationMarketplaceSources(configuration, sources);
 		await assert.rejects(queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, async () => ({ items: [] })), isCancellationError);
-		await setEnabled(configuration, CustomizationMarketplaceConfiguration.Enabled, true);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		const pendingResult = new DeferredPromise<ICustomizationMarketplacePage>();
 		const pending = queryEnabledCustomizationMarketplaceSources(configuration, sources, {}, CancellationToken.None, () => pendingResult.p);
 		const cancelled = assert.rejects(pending, isCancellationError);
-		await setEnabled(configuration, CustomizationMarketplaceConfiguration.Enabled, false);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		await cancelled;
 		await pendingResult.complete({ items: [] });
 		assert.deepStrictEqual({
@@ -51,7 +51,7 @@ suite('CustomizationMarketplaceSources', () => {
 	test('exclusion setting removes the default source and cancels its in-flight request', async () => {
 		const filteredSources = [{ id: 'default', enablementSetting: 'test.default.enabled', exclusionSetting: 'test.public.enabled' }];
 		const configuration = new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.Enabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			'test.default.enabled': true,
 			'test.public.enabled': false,
 		});

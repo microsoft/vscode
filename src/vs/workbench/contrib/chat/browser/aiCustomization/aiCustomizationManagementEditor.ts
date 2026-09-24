@@ -3865,7 +3865,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private showMcpGalleryInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
 		if (section !== AICustomizationManagementSection.McpServers || !options?.showMarketplace ||
-			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.Enabled) !== true ||
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true ||
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.McpGalleryEnabled) !== true) {
 			return false;
 		}
