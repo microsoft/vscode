@@ -7,7 +7,7 @@ import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../..
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, CancellationError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -1276,6 +1276,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
+		const originalSessionType = getChatSessionType(sessionResource);
 
 		const hasExplicitFileOrImageAttachment = [...(options?.attachedContext ?? []), ...(options?.resolvedVariables ?? [])].some(isExplicitFileOrImageVariableEntry);
 		if (!request.trim() && !hasExplicitFileOrImageAttachment && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
@@ -1334,6 +1335,22 @@ export class ChatService extends Disposable implements IChatService {
 		}
 		if (model.isReadOnly.get()) {
 			return { kind: 'rejected', reason: 'Session is read-only', newSessionResource };
+		}
+
+		const sessionType = getChatSessionType(sessionResource);
+		if (newSessionResource && sessionType !== originalSessionType) {
+			const agent = this.chatAgentService.getAgent(sessionType);
+			if (!agent) {
+				throw new Error(`No agent is registered for the created session '${sessionType}'`);
+			}
+			options = {
+				...options,
+				agentId: undefined,
+				agentIdSilent: agent.id,
+				parserContext: { ...options?.parserContext, selectedAgent: agent, forcedAgent: agent },
+				userSelectedModelId: model.inputModel.intendedModel?.modelId,
+				userSelectedModelConfiguration: model.inputModel.intendedModel?.configuration,
+			};
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
@@ -1399,48 +1416,38 @@ export class ChatService extends Disposable implements IChatService {
 		return result;
 	}
 
-	/**
-	 * Converts an untitled contributed chat session into its real session on the
-	 * first send and returns the real model/resource so the caller can re-target
-	 * the request. Serialized per untitled resource: a first send stores an
-	 * in-flight promise, and a concurrent second send awaits it and converges on
-	 * the same real session (where the caller's pending-request check then rejects
-	 * the duplicate) instead of minting a second real session.
-	 *
-	 * Returns `undefined` when no conversion happened — either there is no
-	 * `newChatSessionItem` handler / the handler declined, or a concurrent
-	 * materialization failed — in which case the caller keeps using the untitled
-	 * session (the original behavior).
-	 */
+	/** Serializes draft creation; concurrent sends share both the resulting session and any creation failure. */
 	private async _materializeUntitledSession(untitledResource: URI, request: string, options: IChatSendRequestOptions | undefined, untitledModel: ChatModel): Promise<{ model: ChatModel; sessionResource: URI; newSessionResource: URI } | undefined> {
-		const inFlight = this._inFlightUntitledMaterializations.get(untitledResource);
-		if (inFlight) {
-			// A concurrent send is already materializing this untitled session.
-			// Await its result and re-target the resulting real resource instead of
-			// minting a second real session.
+		let inFlight = this._inFlightUntitledMaterializations.get(untitledResource);
+		if (!inFlight) {
+			inFlight = this._createUntitledSession(untitledResource, request, options, untitledModel);
+			this._inFlightUntitledMaterializations.set(untitledResource, inFlight);
+		}
+		try {
 			const realResource = await inFlight;
 			if (!realResource) {
-				this.trace('materializeUntitledSession', `In-flight materialization of ${untitledResource.toString()} produced no real session; keeping untitled`);
 				return undefined;
 			}
-			// The winner has already loaded the real model and retains a reference
-			// to it, so look it up without acquiring (and leaking) an additional
-			// reference per concurrent send.
 			const realModel = this._sessionModels.get(realResource);
 			if (!realModel) {
-				this.info('materializeUntitledSession', `Joined in-flight materialization of ${untitledResource.toString()} but real model ${realResource.toString()} is missing; keeping untitled`);
-				return undefined;
+				throw new Error(`The created session '${realResource}' was disposed before the request could be sent`);
 			}
-			this.trace('materializeUntitledSession', `Concurrent send joined in-flight materialization ${untitledResource.toString()} -> ${realResource.toString()}`);
 			return { model: realModel, sessionResource: realResource, newSessionResource: realResource };
+		} finally {
+			if (this._inFlightUntitledMaterializations.get(untitledResource) === inFlight) {
+				this._inFlightUntitledMaterializations.delete(untitledResource);
+			}
 		}
+	}
 
-		// Track the materialization in-flight (keyed by the original untitled
-		// resource) so a concurrent second send joins this one rather than creating
-		// a duplicate real session. Store synchronously, before any await, so a
-		// concurrent send reliably observes the in-flight materialization.
-		const materialized = new DeferredPromise<URI | undefined>();
-		this._inFlightUntitledMaterializations.set(untitledResource, materialized.p);
+	private async _createUntitledSession(untitledResource: URI, request: string, options: IChatSendRequestOptions | undefined, untitledModel: ChatModel): Promise<URI | undefined> {
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource());
+		store.add(this.onDidDisposeSession(event => {
+			if (event.sessionResources.some(resource => isEqual(resource, untitledResource))) {
+				source.cancel();
+			}
+		}));
 		try {
 			const parsedRequest = this.parseChatRequest(untitledResource, request, options?.location ?? untitledModel.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
@@ -1451,19 +1458,26 @@ export class ChatService extends Disposable implements IChatService {
 			// once it loads. Capturing before those steps avoids reading them back
 			// after the untitled entry may have changed during materialization.
 			const initialSessionOptions = this.chatSessionService.getSessionOptions(untitledResource);
-
-			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(untitledResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource }, CancellationToken.None);
+			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(untitledResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource }, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (!newItem) {
-				materialized.complete(undefined);
 				return undefined;
 			}
 
-			// Register the inverse alias before loading so session-option lookups
-			// for the new resource resolve to the untitled session's options.
-			this.chatSessionService.registerSessionResourceAlias(untitledResource, newItem.resource);
+			const sameSessionType = getChatSessionType(newItem.resource) === getChatSessionType(untitledResource);
+			if (sameSessionType) {
+				// A different provider must not inherit options meant for the draft's provider.
+				this.chatSessionService.registerSessionResourceAlias(untitledResource, newItem.resource);
+			}
 
 			// Do not dispose tempRef as per 6bc5ae80de9caffb21e9eb58e18b5ca24fa2d6e8
-			const tempRef = await this.loadRemoteSession(newItem.resource, untitledModel.initialLocation, CancellationToken.None, undefined, untitledModel.sessionTypeSelectionReason);
+			const tempRef = await this.loadRemoteSession(newItem.resource, untitledModel.initialLocation, source.token, undefined, untitledModel.sessionTypeSelectionReason);
+			if (source.token.isCancellationRequested) {
+				tempRef?.dispose();
+				throw new CancellationError();
+			}
 			const realModel = tempRef?.object as ChatModel | undefined;
 			if (!realModel) {
 				throw new Error(`Failed to load session for resource: ${newItem.resource}`);
@@ -1471,35 +1485,24 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Update the new model's contributed session with initialSessionOptions
 			// so that the agent receives them when invoked.
-			if (initialSessionOptions) {
+			if (sameSessionType && initialSessionOptions) {
 				this.chatSessionService.updateSessionOptions(realModel.sessionResource, initialSessionOptions);
 			}
 
-			// The real session continues the untitled conversation rather than replacing it, so the
-			// model it was meant to run on carries over. The accepted caller transfers the submitted
-			// mode after pending-request arbitration.
-			realModel.inputModel.setIntendedModel(untitledModel.inputModel.intendedModel);
+			realModel.inputModel.setIntendedModel(sameSessionType
+				? untitledModel.inputModel.intendedModel
+				: newItem.modelId ? { modelId: newItem.modelId, configuration: newItem.modelConfiguration, reason: ModelSelectionReason.ProgrammaticSelection } : undefined);
 
 			// Publish the forward mapping only after a successful load (see
 			// `setMaterializedSessionResource`).
 			this.chatSessionService.setMaterializedSessionResource(untitledResource, newItem.resource);
-			materialized.complete(newItem.resource);
 			// If this ever logs twice for the
 			// same untitled resource (different real resources), a single send
 			// produced duplicate sessions.
 			this.info('materializeUntitledSession', `Materialized untitled session ${untitledResource.toString()} into real session ${newItem.resource.toString()}`);
-			return { model: realModel, sessionResource: newItem.resource, newSessionResource: newItem.resource };
-		} catch (err) {
-			// Resolve (not reject) so a concurrent waiter degrades to the normal
-			// untitled path rather than inheriting this failure, then propagate the
-			// error to the originating caller. The forward mapping is only published
-			// on success, so there is nothing to roll back here.
-			materialized.complete(undefined);
-			throw err;
+			return newItem.resource;
 		} finally {
-			if (this._inFlightUntitledMaterializations.get(untitledResource) === materialized.p) {
-				this._inFlightUntitledMaterializations.delete(untitledResource);
-			}
+			store.dispose();
 		}
 	}
 

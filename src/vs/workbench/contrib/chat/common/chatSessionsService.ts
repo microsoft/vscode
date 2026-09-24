@@ -160,6 +160,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly description: string;
 	/** Groups session-list filters without changing this type's resource or content routing. */
 	readonly sessionListGroup?: string;
+	/** Hides this type from the Editor harness picker and automatic new-chat selection without affecting existing sessions. */
+	readonly hideFromSessionTypePicker?: boolean;
 	readonly when?: string;
 	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
@@ -668,6 +670,29 @@ export interface IChatNewSessionRequest {
 	readonly untitledResource?: URI;
 }
 
+export interface IChatNewSessionItem extends IChatSessionItem {
+	/** Model selected for a new session whose provider differs from the draft's provider. */
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
+}
+
+export interface IChatSessionCreationOption {
+	readonly label: string;
+	readonly description: string;
+	readonly checked: boolean;
+	readonly enabled: boolean;
+	setChecked(checked: boolean): void;
+}
+
+export interface IChatSessionCreationHandler {
+	/** Controls option visibility only; creation must still validate requests when hidden. */
+	readonly when: string;
+	readonly onDidChangeOption?: Event<void>;
+	getOption(sessionResource: URI): IChatSessionCreationOption;
+	/** Returns undefined when the request should use the session type's normal creation path. */
+	createSession(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatNewSessionItem | undefined>;
+}
+
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
 	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
@@ -682,7 +707,7 @@ export interface IChatSessionItemController {
 
 	refresh(token: CancellationToken): Promise<void>;
 
-	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatNewSessionItem | undefined>;
 
 	/**
 	 * Notifies the controller that a locally-created session now exists on its backend.
@@ -999,10 +1024,13 @@ export interface IChatSessionsService {
 	getNewChatSessionInputState(chatSessionType: string, sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	/**
-	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
-	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
+	 * Creates a session using its creation handler, falling back to the item controller when the handler declines.
 	 */
-	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatNewSessionItem | undefined>;
+
+	registerChatSessionCreationHandler(chatSessionType: string, handler: IChatSessionCreationHandler): IDisposable;
+	getChatSessionCreationOption(sessionResource: URI): IChatSessionCreationOption | undefined;
+	readonly onDidChangeSessionCreationOptions: Event<void>;
 
 	/**
 	 * Notifies the registered controller that a locally-created session now exists on its backend.

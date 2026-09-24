@@ -392,6 +392,9 @@ export function isNewChatSessionTypeUsable(
 	agentHostEnabled = true,
 	managedSandboxEnforced = false,
 ): boolean {
+	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+		return false;
+	}
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	}
@@ -592,7 +595,8 @@ export function isVisibleEditorChatSessionType(
 		return false;
 	}
 
-	return !!chatSessionsService.getChatSessionContribution(sessionType);
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	return !!contribution && !contribution.hideFromSessionTypePicker;
 }
 
 function getVisibleNonLocalEditorChatSessionTypes(

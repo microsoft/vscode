@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -28,13 +29,15 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
+import { IProgress, IProgressService, IProgressStep, Progress } from '../../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
-import { ISCMProvider, ISCMRepository, ISCMService } from '../../../../scm/common/scm.js';
+import { GitRefType, GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
+import { ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../../../../scm/common/scm.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -46,7 +49,10 @@ import { EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution }
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatSessionContentProvider, IChatSessionCreationHandler, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionModelMetadata, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { isVisibleEditorChatSessionType } from '../../../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -129,7 +135,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly storageService?: IStorageService;
 	readonly workspaceFolders?: readonly URI[];
 	readonly repositories?: readonly IGitRepository[];
+	readonly knownRepositories?: readonly IGitRepository[];
+	readonly scmRepositories?: readonly IGitRepository[];
+	readonly activeRepository?: IGitRepository;
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
+	readonly createSession?: ICloudSandboxApiService['createSession'];
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -149,18 +159,30 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const controllers = new Map<string, IChatSessionItemController>();
 	const contributions = new Map<string, ResolvedChatSessionsExtensionPoint>();
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
+	const creationHandlers = new Map<string, IChatSessionCreationHandler>();
+	const sessionOptions = new ResourceMap<ChatSessionOptionsMap>();
+	const warnings: string[] = [];
+	const disposedSessions = store.add(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' | 'disposed' }>());
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
 	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[] };
+	const repositories = [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])];
+	const activeRepository = observableValue<ReturnType<ISCMViewService['activeRepository']['get']>>('activeRepository', options?.activeRepository
+		? { repository: scmRepository(options.activeRepository), pinned: false }
+		: undefined);
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
-		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
+		repositories,
+		scmRepositories: [...(options?.scmRepositories ?? repositories)],
 		result: { kind: 'complete', sessions: [discovered] } as ICloudSandboxDiscoveryResult,
 		online: false,
 		connected: false,
 		completeAuthentication: true,
 		hidden: false,
 		accountKey: 'github:editor-account' as string | undefined,
+		cancelProgress: undefined as (() => void) | undefined,
+		models: [] as string[],
+		hasRequests: false,
 		connectError: undefined as Error | undefined,
 		hostSessions: [{
 			session: backendSession, summary: discovered.name,
@@ -183,6 +205,24 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly onDidChangeAvailability = Event.None;
 		override getChatSessionContribution(type: string) { return contributions.get(type); }
 		override getAllChatSessionContributions() { return [...contributions.values()]; }
+		override registerChatSessionCreationHandler(type: string, handler: IChatSessionCreationHandler) {
+			creationHandlers.set(type, handler);
+			return toDisposable(() => creationHandlers.delete(type));
+		}
+		override getSessionOption(resource: URI, key: string) { return sessionOptions.get(resource)?.get(key); }
+		override getSessionOptions(resource: URI) {
+			const options = sessionOptions.get(resource);
+			return options && new Map<string, string>([...options].map(([key, value]) => [key, typeof value === 'string' ? value : value.id]));
+		}
+		override setSessionOption(resource: URI, key: string, value: Parameters<IChatSessionsService['setSessionOption']>[2]) {
+			let options = sessionOptions.get(resource);
+			if (!options) {
+				options = new Map();
+				sessionOptions.set(resource, options);
+			}
+			options.set(key, value);
+			return true;
+		}
 		override registerChatSessionContribution(contribution: IChatSessionsExtensionPoint) {
 			contributions.set(contribution.type, { ...contribution, icon: undefined });
 			return toDisposable(() => contributions.delete(contribution.type));
@@ -221,8 +261,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			return options?.listSessions ? options.listSessions() : state.result;
 		}
-		override async createSession(): Promise<never> {
+		override async createSession(request: Parameters<ICloudSandboxApiService['createSession']>[0], token: CancellationToken) {
 			calls.created++;
+			if (options?.createSession) {
+				return options.createSession(request, token);
+			}
 			throw new Error('Opening a discovered session must not create a task');
 		}
 		override async getEnvironment(id: string) { return { id, status: state.online ? 'online' as const : 'offline' as const }; }
@@ -282,25 +325,58 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 	}());
 	instantiationService.stub(IGitService, new class extends mock<IGitService>() {
-		override get repositories() { return options?.openRepository ? [] : state.repositories; }
+		override get repositories() { return options?.knownRepositories ?? (options?.openRepository ? [] : state.repositories); }
 		override async openRepository(root: URI) {
-			return options?.openRepository ? options.openRepository(root) : state.repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root));
+			return options?.openRepository ? options.openRepository(root) : state.repositories
+				.filter(repository => extUriBiasedIgnorePathCase.isEqualOrParent(root, repository.rootUri))
+				.sort((a, b) => b.rootUri.path.length - a.rootUri.path.length)[0];
 		}
 	}());
 	instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
 		override readonly onDidAddRepository = repositoryAdded.event;
 		override readonly onDidRemoveRepository = repositoryRemoved.event;
-		override get repositories() { return state.repositories.map(scmRepository); }
+		override get repositories() { return state.scmRepositories.map(scmRepository); }
+	}());
+	instantiationService.stub(ISCMViewService, new class extends mock<ISCMViewService>() {
+		override readonly activeRepository = activeRepository;
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-		override readonly onDidDisposeSession = Event.None;
+		override readonly onDidDisposeSession = disposedSessions.event;
+		override getSession() {
+			return state.hasRequests ? upcastPartial<IChatModel>({ getRequests: () => [upcastPartial<IChatRequestModel>({})] }) : undefined;
+		}
+	}());
+	instantiationService.stub(IProgressService, new class extends mock<IProgressService>() {
+		override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
+			state.cancelProgress = onDidCancel;
+			try {
+				return await task(Progress.None);
+			} finally {
+				state.cancelProgress = undefined;
+			}
+		}
+	}());
+	instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+		override readonly onDidChangeLanguageModels = Event.None;
+		override async selectLanguageModels(selector: { vendor?: string }) {
+			return state.models.map(model => `${selector.vendor}:${model}`);
+		}
+		override lookupLanguageModel(identifier: string) {
+			const id = identifier.slice(identifier.lastIndexOf(':') + 1);
+			return state.models.includes(id) ? upcastPartial<ILanguageModelChatMetadata>({ id }) : undefined;
+		}
+	}());
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override warn(message: NotificationMessage | NotificationMessage[]) {
+			warnings.push(String(message));
+		}
 	}());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() { }());
 	instantiationService.stub(IAgentHostImportConversationStore, new class extends mock<IAgentHostImportConversationStore>() { }());
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes,
+		contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, creationHandlers, warnings, disposedSessions,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -313,11 +389,16 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		},
 		addRepository: (repository: IGitRepository) => {
 			state.repositories.push(repository);
+			state.scmRepositories.push(repository);
 			repositoryAdded.fire(scmRepository(repository));
 		},
 		removeRepository: (repository: IGitRepository) => {
 			state.repositories = state.repositories.filter(candidate => candidate !== repository);
+			state.scmRepositories = state.scmRepositories.filter(candidate => candidate !== repository);
 			repositoryRemoved.fire(scmRepository(repository));
+		},
+		setActiveRepository: (repository: IGitRepository | undefined) => {
+			activeRepository.set(repository ? { repository: scmRepository(repository), pinned: false } : undefined, undefined);
 		},
 		setEnabled: async (key: string, enabled: boolean) => {
 			await configuration.setUserConfiguration(key, enabled);
@@ -330,6 +411,354 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		},
 	};
 }
+
+suite('Editor cloud sandbox creation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createDraft(options?: Parameters<typeof createHarness>[1]) {
+		const requests: Parameters<ICloudSandboxApiService['createSession']>[0][] = [];
+		const h = createHarness(store, {
+			listSessions: async () => ({ kind: 'complete', sessions: [] }),
+			...options,
+			createSession: async (request, token) => {
+				requests.push(request);
+				return options?.createSession ? options.createSession(request, token) : {
+					environmentId: discovered.environmentId, sessionId: discovered.sessionId, taskId: discovered.taskId,
+				};
+			},
+		});
+		await h.refresh();
+		const draft = URI.from({ scheme: SessionType.CopilotCloud, path: '/untitled-sandbox' });
+		const handler = h.creationHandlers.get(SessionType.CopilotCloud)!;
+		return {
+			...h, draft, handler, requests,
+			create: (token = CancellationToken.None) => handler.createSession({
+				prompt: 'Fix the tests', untitledResource: draft,
+				initialSessionOptions: h.chatSessionsService.getSessionOptions(draft),
+			}, token),
+		};
+	}
+
+	test('unchecked Cloud keeps its regular creation path', async () => {
+		const h = await createDraft();
+		assert.deepStrictEqual({
+			checked: h.handler.getOption(h.draft).checked,
+			created: await h.create(),
+			requests: h.requests,
+			connections: h.calls.connected.map(connection => connection.environmentId),
+		}, { checked: false, created: undefined, requests: [], connections: [] });
+	});
+
+	test('the checkbox is per draft and requires a GitHub repository', async () => {
+		const h = await createDraft({ workspaceFolders: [], repositories: [] });
+		const unavailable = h.handler.getOption(h.draft);
+		unavailable.setChecked(true);
+		h.chatSessionsService.setSessionOption(h.draft, 'repositories', 'example/selected');
+		const available = h.handler.getOption(h.draft);
+		available.setChecked(true);
+		assert.deepStrictEqual({
+			unavailable: { enabled: unavailable.enabled, checked: unavailable.checked },
+			available: available.enabled,
+			checked: h.handler.getOption(h.draft).checked,
+			anotherDraft: h.handler.getOption(h.draft.with({ path: '/untitled-other' })).checked,
+			warnings: h.warnings.length,
+		}, {
+			unavailable: { enabled: false, checked: false },
+			available: true, checked: true, anotherDraft: false, warnings: 1,
+		});
+	});
+
+	test('allocates and returns the existing backend session using the workspace repository', async () => {
+		const h = await createDraft();
+		h.handler.getOption(h.draft).setChecked(true);
+		const created = await h.create();
+		assert.deepStrictEqual({
+			resource: created?.resource.toString(),
+			modelId: created?.modelId,
+			requests: h.requests,
+			connections: h.calls.connected.map(connection => connection.environmentId),
+		}, {
+			resource: resource.toString(), modelId: undefined,
+			requests: [{ repoNwo: 'example/project', prompt: 'Fix the tests' }],
+			connections: [discovered.environmentId],
+		});
+	});
+
+	test('an explicitly selected repository works in an empty window', async () => {
+		const h = await createDraft({ workspaceFolders: [], repositories: [] });
+		h.chatSessionsService.setSessionOption(h.draft, 'repositories', 'example/selected');
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual(h.requests, [{ repoNwo: 'example/selected', prompt: 'Fix the tests' }]);
+	});
+
+	test('resolves the open workspace before SCM registers a repository and enables the checkbox', async () => {
+		const pending = new DeferredPromise<IGitRepository | undefined>();
+		const roots: string[] = [];
+		const h = await createDraft({
+			repositories: [],
+			openRepository: root => {
+				roots.push(root.toString());
+				return pending.p;
+			},
+		});
+		const before = h.handler.getOption(h.draft).enabled;
+		const updates: boolean[] = [];
+		store.add(h.handler.onDidChangeOption!(() => updates.push(h.handler.getOption(h.draft).enabled)));
+		await pending.complete(repository(['git@github.com:Example/Project.git']));
+		await h.refresh();
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual({ roots, before, updates, requests: h.requests }, {
+			roots: [workspaceFolder.toString()],
+			before: false,
+			updates: [true],
+			requests: [{ repoNwo: 'example/project', prompt: 'Fix the tests' }],
+		});
+	});
+
+	test('does not open workspace repositories until sandboxes are enabled', async () => {
+		const roots: string[] = [];
+		const h = await createDraft({
+			enabled: false,
+			repositories: [],
+			openRepository: async root => {
+				roots.push(root.toString());
+				return repository(['https://github.com/example/project.git']);
+			},
+		});
+		const before = { enabled: h.handler.getOption(h.draft).enabled, lookups: roots.length };
+		await h.setEnabled(CloudSandboxEnabledSettingId, true);
+		await h.refresh();
+		assert.deepStrictEqual({ before, enabled: h.handler.getOption(h.draft).enabled, roots }, {
+			before: { enabled: false, lookups: 0 }, enabled: true, roots: [workspaceFolder.toString()],
+		});
+	});
+
+	test('uses the containing repository when a workspace subfolder is open before SCM registration', async () => {
+		const h = await createDraft({ workspaceFolders: [URI.joinPath(workspaceFolder, 'src')], scmRepositories: [] });
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual(h.requests, [{ repoNwo: 'example/project', prompt: 'Fix the tests' }]);
+	});
+
+	test('resolves an active nested repository instead of reusing its already known parent', async () => {
+		const parent = repository(['https://github.com/example/project.git']);
+		const nested = repository(['https://github.com/example/nested.git'], URI.joinPath(workspaceFolder, 'nested'));
+		const h = await createDraft({
+			repositories: [parent, nested],
+			knownRepositories: [parent],
+			activeRepository: nested,
+			openRepository: async root => extUriBiasedIgnorePathCase.isEqual(root, nested.rootUri) ? nested : undefined,
+		});
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual(h.requests, [{ repoNwo: 'example/nested', prompt: 'Fix the tests' }]);
+	});
+
+	test('retries workspace detection when Git registers after the initial lookup found no repository', async () => {
+		const h = await createDraft({ repositories: [] });
+		const before = h.handler.getOption(h.draft).enabled;
+		const updates: boolean[] = [];
+		store.add(h.handler.onDidChangeOption!(() => updates.push(h.handler.getOption(h.draft).enabled)));
+		h.addRepository(repository(['https://github.com/example/project.git']));
+		await h.refresh();
+		assert.deepStrictEqual({ before, updates, enabled: h.handler.getOption(h.draft).enabled }, {
+			before: false, updates: [true], enabled: true,
+		});
+	});
+
+	for (const upstream of [undefined, 'upstream']) {
+		test(`uses ${upstream ?? 'origin'} rather than treating multiple Git remotes as multiple workspaces`, async () => {
+			const localRepository = repository([]);
+			localRepository.updateState({
+				...localRepository.state.get(),
+				HEAD: { type: GitRefType.Head, name: 'main' },
+				remotes: [
+					{ name: 'upstream', fetchUrl: 'https://github.com/example/upstream.git', isReadOnly: false },
+					{ name: 'origin', fetchUrl: 'git@github.com:example/fork.git', isReadOnly: false },
+				],
+			});
+			const h = await createDraft({ repositories: [localRepository] });
+			let optionChanges = 0;
+			store.add(h.handler.onDidChangeOption!(() => optionChanges++));
+			if (upstream) {
+				localRepository.updateState({
+					...localRepository.state.get(),
+					HEAD: { type: GitRefType.Head, name: 'main', upstream: { remote: upstream, name: 'main' } },
+				});
+			}
+			h.handler.getOption(h.draft).setChecked(true);
+			await h.create();
+			assert.deepStrictEqual({ optionChanges, requests: h.requests }, {
+				optionChanges: upstream ? 1 : 0,
+				requests: [{ repoNwo: upstream ? 'example/upstream' : 'example/fork', prompt: 'Fix the tests' }],
+			});
+		});
+	}
+
+	test('follows the active workspace repository and its remote changes', async () => {
+		const first = repository(['https://gitlab.com/example/project.git']);
+		const second = repository(['https://github.com/other/project.git'], URI.file('/local/second'));
+		const h = await createDraft({
+			workspaceFolders: [first.rootUri, second.rootUri],
+			repositories: [first, second],
+			activeRepository: first,
+		});
+		const enabled = [h.handler.getOption(h.draft).enabled];
+		store.add(h.handler.onDidChangeOption!(() => enabled.push(h.handler.getOption(h.draft).enabled)));
+		h.setActiveRepository(second);
+		second.updateState({ ...second.state.get(), remotes: [] });
+		second.updateState({
+			...second.state.get(), remotes: [{ name: 'origin', fetchUrl: 'https://github.com/other/renamed.git', isReadOnly: false }],
+		});
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual({ enabled, requests: h.requests }, {
+			enabled: [false, true, false, true],
+			requests: [{ repoNwo: 'other/renamed', prompt: 'Fix the tests' }],
+		});
+	});
+
+	test('does not guess between multiple workspace repositories without an active repository', async () => {
+		const secondFolder = URI.file('/local/second');
+		const h = await createDraft({
+			workspaceFolders: [workspaceFolder, secondFolder],
+			repositories: [repository(['https://github.com/example/project.git']), repository(['https://github.com/other/project.git'], secondFolder)],
+		});
+		const before = h.handler.getOption(h.draft).enabled;
+		h.chatSessionsService.setSessionOption(h.draft, 'repositories', 'example/selected');
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual({ before, requests: h.requests }, {
+			before: false, requests: [{ repoNwo: 'example/selected', prompt: 'Fix the tests' }],
+		});
+	});
+
+	test('an explicit Cloud repository takes precedence over the active workspace repository', async () => {
+		const localRepository = repository(['https://github.com/example/project.git']);
+		const h = await createDraft({ repositories: [localRepository], activeRepository: localRepository });
+		h.chatSessionsService.setSessionOption(h.draft, 'repositories', 'example/selected');
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.create();
+		assert.deepStrictEqual(h.requests, [{ repoNwo: 'example/selected', prompt: 'Fix the tests' }]);
+	});
+
+	test('maps the Cloud model to the connected sandbox catalog', async () => {
+		const h = await createDraft();
+		h.state.models = ['preferred-model'];
+		h.chatSessionsService.setSessionOption(h.draft, 'models', {
+			id: 'cloud-model-option', name: 'Preferred model',
+			modelMetadata: upcastPartial<IChatSessionProviderOptionModelMetadata>({ id: 'preferred-model' }),
+		});
+		h.handler.getOption(h.draft).setChecked(true);
+		const created = await h.create();
+		assert.deepStrictEqual({ modelId: created?.modelId, warnings: h.warnings }, {
+			modelId: `${sessionType}:preferred-model`, warnings: [],
+		});
+	});
+
+	test('warns and uses the host default when the selected Cloud model is unavailable', async () => {
+		const h = await createDraft();
+		h.state.models = ['another-model'];
+		h.chatSessionsService.setSessionOption(h.draft, 'models', 'unavailable-model');
+		h.handler.getOption(h.draft).setChecked(true);
+		const created = await h.create();
+		assert.deepStrictEqual({
+			modelId: created?.modelId, allocations: h.requests.length,
+			warnedAboutModel: h.warnings.length === 1 && h.warnings[0].includes('unavailable-model'),
+		}, { modelId: undefined, allocations: 1, warnedAboutModel: true });
+	});
+
+	test('a checked draft fails instead of falling back when the feature is disabled', async () => {
+		const h = await createDraft();
+		h.handler.getOption(h.draft).setChecked(true);
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		await assert.rejects(h.create(), /Enable GitHub sandboxes/);
+		assert.deepStrictEqual(h.requests, []);
+	});
+
+	test('a checked draft fails when no repository can be resolved', async () => {
+		const h = await createDraft({ workspaceFolders: [], repositories: [] });
+		h.chatSessionsService.setSessionOption(h.draft, 'githubSandbox', 'true');
+		await assert.rejects(h.create(), /repository/i);
+		assert.deepStrictEqual(h.requests, []);
+	});
+
+	test('cannot enable sandbox creation after a Cloud message has already been sent', async () => {
+		const h = await createDraft();
+		h.state.hasRequests = true;
+		const option = h.handler.getOption(h.draft);
+		option.setChecked(true);
+		assert.deepStrictEqual({
+			enabled: option.enabled, checked: h.handler.getOption(h.draft).checked, warnings: h.warnings.length,
+		}, { enabled: false, checked: false, warnings: 1 });
+	});
+
+	test('a failed connection can be retried without allocating another sandbox', async () => {
+		const h = await createDraft();
+		h.handler.getOption(h.draft).setChecked(true);
+		h.state.connectError = new Error('Connection failed');
+		await assert.rejects(h.create(), /Connection failed/);
+		h.state.connectError = undefined;
+		const created = await h.create();
+		assert.deepStrictEqual({
+			resource: created?.resource.toString(), allocations: h.requests.length,
+		}, { resource: resource.toString(), allocations: 1 });
+	});
+
+	test('does not reuse an allocated sandbox after the repository selection changes', async () => {
+		const h = await createDraft();
+		h.handler.getOption(h.draft).setChecked(true);
+		h.state.connectError = new Error('Connection failed');
+		await assert.rejects(h.create(), /Connection failed/);
+		h.state.connectError = undefined;
+		h.chatSessionsService.setSessionOption(h.draft, 'repositories', 'example/another');
+		await assert.rejects(h.create(), /repository, account, or connection changed/);
+		assert.strictEqual(h.requests.length, 1);
+	});
+
+	test('already-cancelled creation never allocates a sandbox', async () => {
+		const h = await createDraft();
+		h.handler.getOption(h.draft).setChecked(true);
+		const source = store.add(new CancellationTokenSource());
+		source.cancel();
+		await assert.rejects(h.create(source.token), /Canceled/);
+		assert.deepStrictEqual(h.requests, []);
+	});
+
+	for (const cancelVia of ['notification', 'closing the draft', 'disabling AI'] as const) {
+		test(`cancels allocation by ${cancelVia} without connecting or falling back`, async () => {
+			const started = new DeferredPromise<void>();
+			const h = await createDraft({
+				createSession: async (_request, token) => {
+					started.complete();
+					await new Promise<void>(resolve => store.add(token.onCancellationRequested(resolve)));
+					return { environmentId: discovered.environmentId, sessionId: discovered.sessionId, taskId: discovered.taskId };
+				},
+			});
+			h.handler.getOption(h.draft).setChecked(true);
+			const creating = h.create();
+			await started.p;
+			switch (cancelVia) {
+				case 'notification':
+					h.state.cancelProgress!();
+					break;
+				case 'closing the draft':
+					h.disposedSessions.fire({ sessionResources: [h.draft], reason: 'disposed' });
+					break;
+				case 'disabling AI':
+					h.state.hidden = true;
+					h.sentimentChanged.fire();
+					break;
+			}
+			await assert.rejects(creating, /Canceled/);
+			assert.deepStrictEqual({ allocations: h.requests.length, connections: h.calls.connected }, {
+				allocations: 1, connections: [],
+			});
+		});
+	}
+});
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -344,6 +773,29 @@ suite('Editor cloud sandbox discovery', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
+	});
+
+	test('hides discovery and individual sandboxes from the harness picker without hiding their sessions', async () => {
+		const h = createHarness(store, { workspaceFolders: [] });
+		h.state.result = { kind: 'complete', sessions: [discovered, otherDiscovered] };
+		await h.refresh();
+		const configurationService = new TestConfigurationService();
+		const workspace = { id: 'editor-workspace', folders: [] };
+
+		assert.deepStrictEqual({
+			contributions: h.chatSessionsService.getAllChatSessionContributions().map(contribution => ({
+				type: contribution.type,
+				visible: isVisibleEditorChatSessionType(contribution.type, configurationService, h.chatSessionsService, workspace),
+			})),
+			sessions: h.items().map(item => item.resource.path),
+		}, {
+			contributions: [
+				{ type: 'cloud-sandbox', visible: false },
+				{ type: sessionType, visible: false },
+				{ type: remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(otherDiscovered.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER), visible: false },
+			],
+			sessions: ['/original-session', '/other-session'],
+		});
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {
@@ -507,7 +959,10 @@ suite('Editor cloud sandbox discovery', () => {
 		h.setWorkspaceFolders([URI.file('/local/unrelated')]);
 		await pending.complete(repository(['https://github.com/example/project.git']));
 		await h.refresh();
-		assert.deepStrictEqual(h.items(), []);
+		const draft = URI.from({ scheme: SessionType.CopilotCloud, path: '/untitled-sandbox' });
+		assert.deepStrictEqual({
+			items: h.items(), enabled: h.creationHandlers.get(SessionType.CopilotCloud)!.getOption(draft).enabled,
+		}, { items: [], enabled: false });
 	});
 
 	test('repository lookup failures are logged and do not expose all projects', async () => {

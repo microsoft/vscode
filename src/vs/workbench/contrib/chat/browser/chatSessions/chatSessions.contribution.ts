@@ -32,7 +32,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionItem, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCreationHandler, IChatSessionCreationOption, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -318,6 +318,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly _serviceBrand: undefined;
 
 	private readonly _itemControllers = new Map</* type */ string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
+	private readonly _creationHandlers = new Map<string, IChatSessionCreationHandler>();
 	private readonly _asyncActivationRegistry = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation);
 
 	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription | undefined }> = new Map();
@@ -346,6 +347,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
 	private readonly _onDidChangeSessionOptions = this._register(new Emitter<IChatSessionOptionsChangeEvent>());
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
+	private readonly _onDidChangeSessionCreationOptions = this._register(new Emitter<void>());
+	readonly onDidChangeSessionCreationOptions = this._onDidChangeSessionCreationOptions.event;
 	private readonly _onDidChangeOptionGroups = this._register(new Emitter<string>());
 	public get onDidChangeOptionGroups() { return this._onDidChangeOptionGroups.event; }
 
@@ -1237,7 +1240,44 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return provider.provideCustomizations(token);
 	}
 
-	async createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+	registerChatSessionCreationHandler(chatSessionType: string, handler: IChatSessionCreationHandler): IDisposable {
+		if (this._creationHandlers.has(chatSessionType)) {
+			throw new Error(`A creation handler is already registered for '${chatSessionType}'`);
+		}
+		const store = new DisposableStore();
+		this._creationHandlers.set(chatSessionType, handler);
+		store.add(toDisposable(() => {
+			this._creationHandlers.delete(chatSessionType);
+			this._onDidChangeSessionCreationOptions.fire();
+		}));
+		if (handler.onDidChangeOption) {
+			store.add(handler.onDidChangeOption(() => this._onDidChangeSessionCreationOptions.fire()));
+		}
+		const contextKeys = new Set(ContextKeyExpr.deserialize(handler.when)?.keys());
+		store.add(this._contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(contextKeys)) {
+				this._onDidChangeSessionCreationOptions.fire();
+			}
+		}));
+		this._onDidChangeSessionCreationOptions.fire();
+		return store;
+	}
+
+	getChatSessionCreationOption(sessionResource: URI): IChatSessionCreationOption | undefined {
+		if (!isUntitledChatSession(sessionResource)) {
+			return undefined;
+		}
+		const handler = this._creationHandlers.get(getChatSessionType(sessionResource));
+		return handler && this._contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(handler.when))
+			? handler.getOption(sessionResource)
+			: undefined;
+	}
+
+	async createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatNewSessionItem | undefined> {
+		const created = await this._creationHandlers.get(chatSessionType)?.createSession(request, token);
+		if (created) {
+			return created;
+		}
 		const controllerData = this._itemControllers.get(chatSessionType);
 		if (!controllerData) {
 			return undefined;

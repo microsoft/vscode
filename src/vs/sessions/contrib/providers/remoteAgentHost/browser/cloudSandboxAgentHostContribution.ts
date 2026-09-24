@@ -5,13 +5,12 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAuthenticationRequiredError, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,7 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { CloudSandboxSessionContribution, discoveredSessionProject, ICloudSandboxSessionEnvironment } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
+import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -122,60 +121,17 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	}
 
 	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxProvisionedSession> {
-		if (!this._isEnabled()) {
-			throw new Error('Copilot cloud sandbox connections are not enabled.');
+		const provisioned = await this._provisionSession(request, token);
+		const session = provisioned.provider.getCachedSession(provisioned.sessionId);
+		if (!session) {
+			provisioned.provider.publishWithheldSession(provisioned.sessionId);
+			throw new Error(`Provisioned sandbox session ${provisioned.sessionId} did not surface on its provider`);
 		}
-		const accountKey = await this._apiService.getAccountKey();
-		if (!this._isEnabled() || token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (!accountKey) {
-			throw new CloudSandboxAuthenticationRequiredError();
-		}
-		this._restoreAccount(accountKey);
-		const enabledToken = this._enabledCts.token;
-		const created = await this._apiService.createSession(request, token);
-		const name = request.repoNwo ?? created.taskId;
-		const address = cloudSandboxAddress(created.environmentId);
-		if (!this._isEnabled() || token.isCancellationRequested || enabledToken.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		this._provisioning.add(address);
-		let seededProvider: CloudSandboxSessionsProvider | undefined;
-		try {
-			const now = Date.now();
-			this._ensureProvider({ ...created, name, repoName: request.repoNwo, updatedAt: new Date(now).toISOString() });
-			const provider = this._providerInstances.get(address);
-			if (!provider) {
-				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
-			}
-			const project = discoveredSessionProject(request.repoNwo);
-			provider.seedProvisionalSession({
-				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, created.sessionId),
-				startTime: now,
-				modifiedTime: now,
-				summary: name,
-				...(project ? { project } : {}),
-			});
-			seededProvider = provider;
-			this._persistInventory();
-			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
-			if (!this._isEnabled() || this._providerInstances.get(address) !== provider) {
-				throw new CancellationError();
-			}
-			const session = provider.getCachedSession(created.sessionId);
-			if (!session) {
-				throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
-			}
-			return { ...created, provider, session };
-		} catch (error) {
-			// The remote task exists even if connecting or publishing it failed.
-			if (seededProvider && this._providerInstances.get(address) === seededProvider) {
-				seededProvider.publishWithheldSession(created.sessionId);
-			}
-			throw error;
-		} finally {
-			this._provisioning.delete(address);
-		}
+		return { ...provisioned, session };
+	}
+
+	protected override _seedProvisionedSession(provider: CloudSandboxSessionsProvider, session: IAgentSessionMetadata): () => void {
+		provider.seedProvisionalSession(session);
+		return () => provider.publishWithheldSession(AgentSession.id(session.session));
 	}
 }
