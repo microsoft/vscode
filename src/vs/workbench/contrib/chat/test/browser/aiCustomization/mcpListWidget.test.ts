@@ -27,6 +27,7 @@ import { IExtensionsWorkbenchService } from '../../../../extensions/common/exten
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -1215,6 +1216,7 @@ suite('mcpListWidget', () => {
 					}();
 					instantiationService.stub(IMcpService, mcpService);
 					instantiationService.stub(IMcpWorkbenchService, mcpWorkbenchService);
+					instantiationService.stub(IMcpWorkspaceInstallTargetService, instantiationService.createInstance(McpWorkspaceInstallTargetService));
 					instantiationService.stub(IMcpRegistry, { collections: observableValue('collections', []) });
 					instantiationService.stub(IMcpSamplingService, { hasLogs: () => false });
 					instantiationService.stub(IAuthenticationService, {});
