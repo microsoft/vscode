@@ -163,7 +163,6 @@ import './aiCustomization/aiCustomizationItemsModel.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/customizationHarnessService.js';
-import { CustomizationMigrationCategoryId } from './aiCustomization/customizationMigrationCategories.js';
 import './attachments/chatAttachmentModel.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from './attachments/chatAttachmentWidgetRegistry.js';
@@ -294,17 +293,11 @@ jsonContributionRegistry.registerSchema(HOOK_SCHEMA_URI, hookFileSchema);
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-const migrateLocationSettingsLink = createMarkdownCommandLink({
+const migrationsTabLink = createMarkdownCommandLink({
 	id: AICustomizationManagementCommands.OpenEditor,
-	text: nls.localize('chat.locations.migrate', "Migrate Location Settings"),
-	tooltip: nls.localize('chat.locations.migrate.tooltip', "Open Migrate Location Settings"),
-	arguments: [{ migration: true, migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations }],
-});
-const migratePromptFilesLink = createMarkdownCommandLink({
-	id: AICustomizationManagementCommands.OpenEditor,
-	text: nls.localize('chat.promptFiles.migrate', "Migrate Prompt Files"),
-	tooltip: nls.localize('chat.promptFiles.migrate.tooltip', "Open Migrate Prompt Files"),
-	arguments: [{ migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles }],
+	text: nls.localize('chat.locations.migrate', "Migrations tab"),
+	tooltip: nls.localize('chat.locations.migrate.tooltip', "Open the Migrations Tab"),
+	arguments: [{ migration: true }],
 });
 configurationRegistry.registerConfiguration({
 	id: 'chatSidebar',
@@ -1986,7 +1979,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				...DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
-			markdownDeprecationMessage: nls.localize('chat.instructions.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to move instructions into supported locations.", migrateLocationSettingsLink),
+			markdownDeprecationMessage: nls.localize('chat.instructions.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to move instructions into supported locations.", migrationsTabLink),
 			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
@@ -2020,7 +2013,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 			},
-			markdownDeprecationMessage: nls.localize('chat.reusablePrompts.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to convert prompt files into skills.", migratePromptFilesLink),
+			markdownDeprecationMessage: nls.localize('chat.reusablePrompts.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to convert prompt files into skills.", migrationsTabLink),
 			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -2055,7 +2048,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 			},
-			markdownDeprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Chat modes are now called custom agents and are located in `.github/agents`. Use {0} in the Agent Customizations editor to move them into supported locations.", migrateLocationSettingsLink),
+			markdownDeprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Chat modes are now called custom agents and are located in `.github/agents`. Review the {0} in the Agent Customizations editor to move them into supported locations.", migrationsTabLink),
 			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -2088,7 +2081,7 @@ configurationRegistry.registerConfiguration({
 				[CLAUDE_AGENTS_SOURCE_FOLDER]: true,
 				[COPILOT_USER_AGENTS_SOURCE_FOLDER]: true,
 			},
-			markdownDeprecationMessage: nls.localize('chat.agents.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to move agents into supported locations.", migrateLocationSettingsLink),
+			markdownDeprecationMessage: nls.localize('chat.agents.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to move agents into supported locations.", migrationsTabLink),
 			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
@@ -2196,7 +2189,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
-			markdownDeprecationMessage: nls.localize('chat.agentSkillsLocations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to move skills into supported locations.", migrateLocationSettingsLink),
+			markdownDeprecationMessage: nls.localize('chat.agentSkillsLocations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to move skills into supported locations.", migrationsTabLink),
 			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
