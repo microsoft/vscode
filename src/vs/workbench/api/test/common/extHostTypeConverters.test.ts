@@ -314,14 +314,25 @@ suite('extHostTypeConverters', function () {
 
 	suite('ChatSessionItem', function () {
 		test('converts ThemeIcon iconPath', function () {
+			const iconPath = new ThemeIcon('my-ext-logo');
 			const item = {
 				resource: URI.parse('vscode-chat://test/session-1'),
 				label: 'Session 1',
-				iconPath: new ThemeIcon('my-ext-logo'),
+				iconPath,
 				timing: { created: 0 },
 			} as vscode.ChatSessionItem;
-			const dto = ChatSessionItem.from(item);
-			assert.strictEqual(dto.iconPath?.id, 'my-ext-logo');
+			assert.deepStrictEqual(ChatSessionItem.from(item).iconPath, IconPath.fromThemeIcon(iconPath));
+		});
+
+		test('preserves ThemeIcon color', function () {
+			const iconPath = new ThemeIcon('my-ext-logo', new ThemeColor('charts.red'));
+			const item = {
+				resource: URI.parse('vscode-chat://test/session-1'),
+				label: 'Session 1',
+				iconPath,
+				timing: { created: 0 },
+			} as vscode.ChatSessionItem;
+			assert.deepStrictEqual(ChatSessionItem.from(item).iconPath, IconPath.fromThemeIcon(iconPath));
 		});
 
 		test('drops URI iconPath', function () {
