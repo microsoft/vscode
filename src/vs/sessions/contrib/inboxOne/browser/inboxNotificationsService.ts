@@ -60,7 +60,7 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 /** Bump when the prompt changes so cached previews regenerate under a new signature. */
-const PREVIEW_PROMPT_VERSION = 'v5';
+const PREVIEW_PROMPT_VERSION = 'v6';
 
 const PREVIEW_MAX_INPUT_CHARS = 2000;
 const PREVIEW_MAX_OUTPUT_CHARS = 60;
@@ -97,6 +97,7 @@ const PREVIEW_SYSTEM_PROMPT = [
 	'- Be concrete and specific: use the real feature, file, tool, or choice names from the detail. Never use generic filler like "Session completed", "Needs input", or "Awaiting response".',
 	'- Prefer the agent\'s and user\'s own nouns and verbs.',
 	'- When the card type says the detail is "conversation leading up to a pending decision", the detail is background context, not the request: summarize what the session has been working on (its topic and progress) so the user recalls the situation, and NEVER restate, quote, paraphrase, or answer the pending request itself.',
+	'- If a "Most recent exchange" is given, lead with it: it is the newest thing the user decided, so the preview must reflect it (the earlier context is only supporting background).',
 	'- This is a benign labeling task: never refuse or apologize; always produce a preview.',
 	'',
 	'Examples (card type | latest detail -> preview):',
@@ -640,14 +641,20 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	 * the latest concrete detail so it can produce a specific, glanceable preview.
 	 */
 	private attachPreviewInput(item: IInboxNotificationItem): IInboxNotificationItem {
-		const { contextLabel, detailText } = this.previewContextForItem(item);
+		const { contextLabel, detailText, recentText } = this.previewContextForItem(item);
 		const trimmedDetail = detailText.replace(/\s+/g, ' ').trim();
+		const trimmedRecent = recentText?.replace(/\s+/g, ' ').trim();
 		const inputLines = [
 			`Card type: ${contextLabel}`,
 			`Session title: ${item.title}`,
 		];
+		// The most recent exchange gets its own prominent line so the model foregrounds the newest
+		// decision instead of diluting it across the whole accumulated history.
+		if (trimmedRecent) {
+			inputLines.push(`Most recent exchange: ${trimmedRecent}`);
+		}
 		if (trimmedDetail) {
-			inputLines.push(`Latest detail: ${trimmedDetail}`);
+			inputLines.push(trimmedRecent ? `Earlier context: ${trimmedDetail}` : `Latest detail: ${trimmedDetail}`);
 		}
 		let inputText = inputLines.join('\n');
 		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
@@ -659,40 +666,43 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	/**
 	 * Input for the one-line card preview. For needs-input items the preview summarizes the
-	 * conversation *leading up to* the pending request — the assistant's prose from earlier turns
-	 * and the questions the user has already answered — but never the current request's own prose
-	 * or unanswered question, so it cannot restate the ask (which the on-card widget already
-	 * shows). The context evolves as the user answers each question, so the preview regenerates and
-	 * stays current instead of reusing a stale summary. When there is no preceding context (a
-	 * first-turn ask), fall back to describing the request itself since there is nothing else.
+	 * conversation *leading up to* the pending request — never the current request's own prose or
+	 * unanswered question, so it cannot restate the ask (which the on-card widget already shows).
+	 * The single most recent answered exchange is surfaced separately as `recentText` so the model
+	 * foregrounds the newest decision (rather than a stale summary of the whole thread), while the
+	 * older turns provide supporting `detailText`. When there is no preceding context (a first-turn
+	 * ask), fall back to describing the request itself since there is nothing else.
 	 */
-	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string } {
+	private previewContextForItem(item: IInboxNotificationItem): { contextLabel: string; detailText: string; recentText?: string } {
 		if (item.needsInputPart) {
-			const context = this.getRecentContextText(item);
-			if (context) {
+			const { recent, earlier } = this.getRecentContextParts(item);
+			if (recent || earlier) {
 				return {
-					contextLabel: 'conversation leading up to a pending decision — summarize the situation, do not restate the request',
-					detailText: context,
+					contextLabel: 'conversation leading up to a pending decision — summarize the situation, lead with the most recent exchange, do not restate the request',
+					detailText: earlier ?? '',
+					recentText: recent,
 				};
 			}
 		}
 		return this.describeItemForPreview(item);
 	}
 
-	private getRecentContextText(item: IInboxNotificationItem): string | undefined {
+	/**
+	 * Splits the recent context into the single most recent answered exchange and the older
+	 * supporting context. Two first-class history sources feed it: the assistant's prose, and —
+	 * crucially for question-driven sessions — the questions the user has already answered, which
+	 * live in the history as `questionCarousel` parts carrying `data`/`isUsed`. The current pending
+	 * request is never included: its prose is the ask (skipped for the turn that holds it) and its
+	 * unanswered carousel is `!isUsed` (skipped by the answered-only filter).
+	 */
+	private getRecentContextParts(item: IInboxNotificationItem): { recent: string | undefined; earlier: string | undefined } {
 		const chatModel = this.getSessionChatModel(item);
 		if (!chatModel) {
-			return undefined;
+			return { recent: undefined, earlier: undefined };
 		}
-		// Build the context leading up to the pending request from the recent turns. Two first-class
-		// history sources feed it: the assistant's prose, and — crucially for question-driven
-		// sessions — the questions the user has already answered, which live in the history as
-		// `questionCarousel` parts carrying `data`/`isUsed`. The current pending request is never
-		// included: its prose is the ask (skipped for the turn that holds it) and its unanswered
-		// carousel is `!isUsed` (skipped by the answered-only filter), so the preview describes the
-		// situation without restating it — and grows as each answer lands, so it regenerates.
 		const pendingRequestId = item.needsInputPart?.requestId;
-		const snippets: string[] = [];
+		const prose: string[] = [];
+		const answered: string[] = [];
 		for (const request of chatModel.getRequests().slice(-6)) {
 			const response = request.response;
 			if (!response || response.isCanceled) {
@@ -706,21 +716,23 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					}
 					const text = renderAsPlaintext(part.content, { useLinkFormatter: true }).trim();
 					if (text) {
-						snippets.push(text);
+						prose.push(text);
 					}
 				} else if (part.kind === 'questionCarousel' && part.isUsed && part.data) {
-					const answered = this.renderAnsweredCarousel(part);
-					if (answered) {
-						snippets.push(answered);
+					const qa = this.renderAnsweredCarousel(part);
+					if (qa) {
+						answered.push(qa);
 					}
 				}
 			}
 		}
-		const text = snippets.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-		if (!text) {
-			return undefined;
+		const recent = answered.length ? answered[answered.length - 1] : undefined;
+		const earlierParts = [...prose, ...answered.slice(0, -1)];
+		let earlier: string | undefined = earlierParts.join('\n').replace(/\n{3,}/g, '\n\n').trim() || undefined;
+		if (earlier && earlier.length > 1200) {
+			earlier = `…${earlier.slice(earlier.length - 1200)}`;
 		}
-		return text.length > 1500 ? `…${text.slice(text.length - 1500)}` : text;
+		return { recent, earlier };
 	}
 
 	/** Renders an answered question carousel as compact "question: answer" context lines. */

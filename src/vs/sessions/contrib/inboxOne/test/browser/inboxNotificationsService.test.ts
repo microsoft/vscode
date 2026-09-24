@@ -434,6 +434,37 @@ suite('InboxNotificationsService', () => {
 		assert.ok(!input.includes('Am I right?'), `did not expect the pending turn prose in preview input, got: ${input}`);
 	});
 
+	test('preview input foregrounds the most recent answered exchange', () => {
+		const chatResource = URI.parse('test:///chat/recent-exchange-preview');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'recent-exchange-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setConversationWithPendingQuestion(chatResource, {
+			priorResponses: [],
+			pending: {
+				requestId: 'turn-1',
+				resolveId: 'q-next',
+				message: 'Next question?',
+				questionTitle: 'Next question',
+				answered: [
+					{ title: 'Favorite food?', answer: 'Tomato and Egg Stir-Fry' },
+					{ title: 'Favorite color family?', answer: 'Blue' },
+					{ title: 'Which specific blue?', answer: 'Sky Blue' },
+				],
+			},
+		});
+
+		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
+		const recentLine = input.split('\n').find(line => line.startsWith('Most recent exchange:')) ?? '';
+		const earlierLine = input.split('\n').find(line => line.startsWith('Earlier context:')) ?? '';
+		// The newest answered exchange gets its own prominent line so the model leads with it...
+		assert.ok(recentLine.includes('Which specific blue?') && recentLine.includes('Sky Blue'), `expected the newest exchange on the recent line, got: ${input}`);
+		// ...while older answers are relegated to supporting context.
+		assert.ok(earlierLine.includes('Favorite food?') && earlierLine.includes('Favorite color family?'), `expected earlier answers in the earlier context, got: ${input}`);
+		assert.ok(!recentLine.includes('Favorite food?'), `did not expect older answers on the recent line, got: ${input}`);
+	});
+
 	test('preview input regenerates as new questions are answered', () => {
 		const chatResource = URI.parse('test:///chat/regen-preview');
 		const chatService = new TestChatService();
