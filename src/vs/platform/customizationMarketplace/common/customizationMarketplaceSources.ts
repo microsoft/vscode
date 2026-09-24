@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
+	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
 }
 
@@ -26,6 +27,11 @@ export const CustomizationMarketplaceSources = {
 
 export function getEnabledCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
 	return sources.filter(source => configurationService.getValue<boolean>(source.enablementSetting) === true);
+}
+
+export function getVisibleCustomizationMarketplaceSources(configurationService: IConfigurationService, sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+		? getEnabledCustomizationMarketplaceSources(configurationService, sources) : [];
 }
 
 export async function queryEnabledCustomizationMarketplaceSources(
