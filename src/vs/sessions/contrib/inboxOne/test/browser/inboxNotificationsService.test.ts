@@ -389,34 +389,34 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(latest?.[0].description, 'Answer the pending questions below.');
 	});
 
-	test('preview input summarizes prior context and passes the pending turn only as reference', () => {
-		const chatResource = URI.parse('test:///chat/context-preview');
+	test('preview input leads with the current pending question and changes as new questions arrive', () => {
+		const chatResource = URI.parse('test:///chat/repeat-preview');
 		const chatService = new TestChatService();
 		const fixture = createFixture([
-			createSession({ id: 'context-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+			createSession({ id: 'repeat-preview', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
 		], undefined, undefined, chatService);
-		chatService.setConversationWithPendingQuestion(chatResource, {
-			priorResponses: [
-				{ requestId: 'turn-1', markdown: 'We configured the staging deployment pipeline together.' },
-			],
-			pending: {
-				requestId: 'turn-2',
-				resolveId: 'resolve-2',
-				message: 'One more thing before I continue.',
-				questionTitle: 'Which release color?',
-			},
-		});
 
-		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
-		const lines = input.split('\n');
-		const contextLine = lines.find(line => line.startsWith('Context to summarize:')) ?? '';
-		const referenceLine = lines.find(line => line.startsWith('Most recent assistant message')) ?? '';
-		// The summary target is the earlier context, not the pending turn's own message.
-		assert.ok(contextLine.includes('staging deployment pipeline'), `expected prior context in the summary target, got: ${input}`);
-		assert.ok(!contextLine.includes('One more thing before I continue.'), `did not expect the pending turn message in the summary target, got: ${input}`);
-		// The pending turn's message is provided, but only as a clearly labeled reference.
-		assert.ok(/reference only/i.test(referenceLine), `expected a reference-only line, got: ${input}`);
-		assert.ok(referenceLine.includes('One more thing before I continue.'), `expected the pending turn message on the reference line, got: ${input}`);
+		// A thread whose latest assistant prose stays the same while the carousel advances through
+		// different questions in the same turn (same requestId, different resolveId/question).
+		chatService.setConversationWithPendingQuestion(chatResource, {
+			priorResponses: [{ requestId: 'turn-1', markdown: 'We locked in Tomato and Egg Stir-Fry.' }],
+			pending: { requestId: 'turn-2', prose: 'Great choice!', resolveId: 'q-color', message: 'Which color?', questionTitle: 'Blue' },
+		});
+		const first = fixture.service.notifications.get()[0].previewInputText ?? '';
+
+		chatService.setConversationWithPendingQuestion(chatResource, {
+			priorResponses: [{ requestId: 'turn-1', markdown: 'We locked in Tomato and Egg Stir-Fry.' }],
+			pending: { requestId: 'turn-2', prose: 'Great choice!', resolveId: 'q-shade', message: 'Which pale blue shade?', questionTitle: 'Sky blue' },
+		});
+		const second = fixture.service.notifications.get()[0].previewInputText ?? '';
+
+		// The preview input leads with the current question, so it is specific to what the user
+		// must decide now...
+		assert.ok(first.includes('Which color?'), `expected first question in preview input, got: ${first}`);
+		assert.ok(second.includes('Which pale blue shade?'), `expected second question in preview input, got: ${second}`);
+		// ...and changes as the thread asks new questions (rather than reusing a stale cache keyed
+		// on the unchanged earlier turns / assistant prose).
+		assert.notStrictEqual(first, second);
 	});
 
 	test('keeps a new question from the same session active after dismissing a prior one', () => {
@@ -1155,12 +1155,12 @@ class TestChatService {
 
 	/**
 	 * Loads a model with one or more prior completed turns followed by a pending question turn.
-	 * Used to verify the card preview summarizes the context leading up to the request rather
-	 * than the request turn's own message.
+	 * `pending.prose` is the assistant markdown in the pending turn (which can stay constant while
+	 * the carousel advances through different questions); it defaults to `pending.message`.
 	 */
 	setConversationWithPendingQuestion(chatResource: URI, options: {
 		readonly priorResponses: readonly { readonly requestId: string; readonly markdown: string }[];
-		readonly pending: { readonly requestId: string; readonly resolveId: string; readonly message: string; readonly questionTitle: string };
+		readonly pending: { readonly requestId: string; readonly resolveId: string; readonly message: string; readonly questionTitle: string; readonly prose?: string };
 	}): void {
 		const requests: IChatRequestModel[] = options.priorResponses.map(prior => this._buildRequest({
 			requestId: prior.requestId,
@@ -1171,7 +1171,7 @@ class TestChatService {
 			requestId: options.pending.requestId,
 			startedWaitingAt: 10,
 			parts: [
-				{ kind: 'markdownContent', content: { value: options.pending.message } },
+				{ kind: 'markdownContent', content: { value: options.pending.prose ?? options.pending.message } },
 				{
 					kind: 'questionCarousel',
 					resolveId: options.pending.resolveId,
