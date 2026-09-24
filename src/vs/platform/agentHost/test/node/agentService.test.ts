@@ -5568,6 +5568,15 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const database = new RecordingCatalogDatabase();
+			let workspacelessAtDisposal: string | undefined;
+			class CatalogAwareAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					disposeChat: async (chat, context) => {
+						workspacelessAtDisposal = await database.getMetadata(AH_META_WORKSPACELESS_DB_KEY);
+						await base.disposeChat(chat, context);
+					},
+				}));
+			}
 			const baseSessionDataService = createSessionDataService(database);
 			const deleted = new Set<string>();
 			const recreated: string[] = [];
@@ -5584,7 +5593,8 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			registerTestAgentProvider(svc, copilotAgent);
+			const agent = disposables.add(new CatalogAwareAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			await svc.whenCatalogReconciliationIdle();
 			const initialCatalogWrites = database.catalogTitles.length;
@@ -5603,7 +5613,7 @@ suite('AgentService (node dispatcher)', () => {
 				await releaseBlocker.p;
 			});
 			await blockerStarted.p;
-			internals._queueCatalogSync(session, { [SESSION_CUSTOM_TITLE_KEY]: 'in-flight' });
+			internals._queueCatalogSync(session, { [SESSION_CUSTOM_TITLE_KEY]: 'in-flight', [AH_META_WORKSPACELESS_DB_KEY]: 'true' });
 			let deletionComplete = false;
 			const deletion = svc.disposeSession(session).then(() => { deletionComplete = true; });
 			for (let i = 0; i < 50 && !internals._catalogSyncService.isSessionDeletionFenced(session); i++) {
@@ -5620,12 +5630,14 @@ suite('AgentService (node dispatcher)', () => {
 				deletionWaited,
 				fencedAfterDeletion: internals._catalogSyncService.isSessionDeletionFenced(session),
 				catalogTitles: database.catalogTitles.slice(initialCatalogWrites),
+				workspacelessAtDisposal,
 				sessionDataDeleted: deleted.has(session.toString()),
 				recreated,
 			}, {
 				deletionWaited: true,
 				fencedAfterDeletion: false,
 				catalogTitles: ['in-flight'],
+				workspacelessAtDisposal: 'true',
 				sessionDataDeleted: true,
 				recreated: [],
 			});

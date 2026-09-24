@@ -5747,11 +5747,12 @@ export class AgentService extends Disposable implements IAgentService {
 				...sessionChats.map(chat => chat.resource),
 				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
 			]);
+			// Providers may read host-owned session metadata (including workspaceless) during disposal.
+			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
+			await catalogDeletionFence.whenDrained;
 			if (provider) {
 				chatsToDelete = [...await this._disposeSession(provider, session)];
 			}
-			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
-			await catalogDeletionFence.whenDrained;
 			if (!isEphemeral) {
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.tombstone(session),
