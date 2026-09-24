@@ -94,13 +94,13 @@ suite('Sessions - Actions', () => {
 				title: 'New Chat in This Session',
 				group: 'navigation',
 				order: 1,
-				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived',
+				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 			contextMenu: {
 				title: 'New Chat in This Session',
 				group: '1_newChat',
 				order: 0,
-				when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
+				when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
 	});
@@ -118,6 +118,7 @@ suite('Sessions - Actions', () => {
 			const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 				.filter(isIMenuItem)
 				.filter(item => actionIds.has(item.command.id))
+				.sort((a, b) => a.command.id.localeCompare(b.command.id))
 				.map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
 
 			assert.deepStrictEqual({
@@ -125,16 +126,16 @@ suite('Sessions - Actions', () => {
 				contextMenu: snapshot(Menus.SessionItemContextMenu),
 			}, {
 				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
 				],
 				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
 					{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
 				],
 			});
 		} finally {
@@ -268,6 +269,7 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
+			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -408,6 +410,28 @@ suite('Sessions - Actions', () => {
 		}]);
 	});
 
+	test('shows Close in every multi-pane desktop session header', () => {
+		const closeItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'sessions.chatCompositeBar.close')
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''))
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
+
+		assert.deepStrictEqual(closeItems, [{
+			group: 'navigation',
+			order: 20,
+			when: 'multipleSessionsVisible && !sessionHeaderShowsChat && !sessionsIsPhoneLayout',
+		}, {
+			group: 'secondary/4_pin',
+			order: 30,
+			when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+		}]);
+	});
+
 	test('keeps the Command Palette delete action explicit', () => {
 		const deleteChat = MenuRegistry.getCommand('sessions.chatCompositeBar.deleteChat');
 
@@ -497,6 +521,7 @@ suite('Sessions - Actions', () => {
 			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
+			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },

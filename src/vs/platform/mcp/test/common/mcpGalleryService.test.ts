@@ -8,13 +8,14 @@ import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../agentFinder/common/agentFinderMcpRegistry.js';
 import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
-import { McpGalleryService } from '../../common/mcpGalleryService.js';
+import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
 
 const SERVERS_URL = 'https://registry.test/servers';
 const NAMED_TEMPLATE = 'https://registry.test/servers/{name}';
@@ -322,10 +323,13 @@ suite('McpGalleryService - getMcpServer validation', () => {
 	});
 
 	test('rejects unsupported v0.1 package registry types', async () => {
-		const requestService = new StatusRequestService(200, serverDocument('unsupported'));
+		const data = serverDocumentData('io.github.owner/server', ['other']);
+		const document = { ...data, server: { ...data.server, repository: { source: 'github', url: 'https://github.com/owner/server' } } };
+		const requestService = new StatusRequestService(200, JSON.stringify(document));
 		const service = createService(requestService, { ...manifest, version: 'v0.1' });
 
-		await assert.rejects(() => service.getMcpServer(serverUrl('io.github.owner/server')), /Failed to serialize MCP server/);
+		await assert.rejects(() => service.getMcpServer(serverUrl('io.github.owner/server')), error =>
+			error instanceof UnsupportedMcpGalleryPackageError && error.repositoryUrl?.toString() === 'https://github.com/owner/server');
 	});
 
 	test('filters unsupported packages while preserving supported launch options', async () => {
@@ -368,6 +372,35 @@ suite('McpGalleryService - getMcpServer validation', () => {
 				}
 			}]
 		});
+	});
+
+	test('resolves a pinned GitHub Feed version with the supported package parser rather than the configured registry', async () => {
+		const name = 'io.github.owner/server';
+		const requestService = new StatusRequestService(200, JSON.stringify(serverDocumentData(name, ['npm'])));
+		const service = createService(requestService);
+		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
+		const server = await service.getMcpServer(url, agentFinderMcpRegistryManifest);
+		assert.deepStrictEqual({
+			name: server?.name,
+			version: server?.version,
+			packageTypes: server?.configuration.packages?.map(pkg => pkg.registryType),
+			requests: requestService.requests.map(request => ({ url: request.url, followRedirects: request.followRedirects, timeout: request.timeout })),
+		}, {
+			name, version: '1.0.0', packageTypes: ['npm'],
+			requests: [{ url, followRedirects: 0, timeout: 30_000 }],
+		});
+	});
+
+	test('bounds versioned feed MCP records without truncating an allowed response', async () => {
+		const name = 'io.github.owner/server';
+		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
+		const document = JSON.stringify(serverDocumentData(name, ['npm']));
+		const size = 5 * 1024 * 1024;
+		const allowed = createService(new StatusRequestService(200, document.padEnd(size, ' ')));
+		const oversized = createService(new StatusRequestService(200, document.padEnd(size + 1, ' ')));
+		const server = await allowed.getMcpServer(url, agentFinderMcpRegistryManifest);
+		await assert.rejects(oversized.getMcpServer(url, agentFinderMcpRegistryManifest), /response is too large/);
+		assert.strictEqual(server?.name, name);
 	});
 
 	test('skips unusable servers without dropping a v0.1 gallery page', async () => {

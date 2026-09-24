@@ -1292,6 +1292,11 @@ per-word capitalization does not survive translation. */
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 }
 
+.ai-customization-management-editor .prompt-migration-footer-inline {
+	width: 100%;
+	box-sizing: border-box;
+}
+
 .ai-customization-management-editor .prompt-migration-selected-count {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -1598,6 +1603,12 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .prompt-migration-unsupported-items {
 	border-color: var(--vscode-agentsPanel-border);
+}
+
+.ai-customization-management-editor .prompt-migration-unsupported-group {
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size200);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 }
 
 .ai-customization-management-editor .prompt-migration-unsupported-item .item-text {
@@ -3013,7 +3024,6 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path {
-	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;

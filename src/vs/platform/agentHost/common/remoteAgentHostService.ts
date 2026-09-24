@@ -714,6 +714,9 @@ export interface IRemoteAgentHostService {
 	/** All remote agent host entries exposed by registered factories, regardless of connection status. */
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 
+	/** Fires when the configured entries change, independently of connection attempts. */
+	readonly onDidChangeConfiguredEntries: Event<void>;
+
 	/** Registers a factory for one connection kind. Throws if that kind already has one. */
 	registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory): IDisposable;
 
@@ -819,6 +822,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
+	readonly onDidChangeConfiguredEntries = Event.None;
 	registerConnectionFactory(): IDisposable {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

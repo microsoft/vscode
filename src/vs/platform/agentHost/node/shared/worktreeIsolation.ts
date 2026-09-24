@@ -17,13 +17,13 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, GitRefType, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { getWorktreesRoot } from '../../common/worktreePaths.js';
+import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 
@@ -109,7 +109,7 @@ const DETACHED_WORKTREE_RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;
 const LEGACY_WORKTREE_META_WORKING_DIRECTORY = 'copilot.workingDirectory';
 const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
-function detachedWorktreeRecordUri(handle: string): URI {
+export function detachedWorktreeRecordUri(handle: string): URI {
 	return URI.from({ scheme: DETACHED_WORKTREE_OWNER_SCHEME, path: `/${DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX}${handle}` });
 }
 
@@ -763,7 +763,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		let worktreeCreateNewBranchProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
-			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
+			const branch = isolationValue === 'worktree' && request.workingDirectory
+				? await this._gitService.getBranch(request.workingDirectory, gitInfo.currentBranch)
+				: undefined;
+			branchDefault = isolationValue === 'worktree'
+				? (branch?.kind === GitRefType.Head ? branch.upstream?.name : undefined) ?? gitInfo.defaultBranch.name
+				: gitInfo.currentBranch;
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
 				? request.config[SessionConfigKey.Branch] as string
 				: branchDefault;
@@ -920,10 +925,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				})
 				: undefined;
 
-			const branchStartPoint = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
-
 			const baseBranch = worktreeCreateNewBranch
-				? branchStartPoint
+				? selectedBranch
 				: (await this._gitService.getDefaultBranch(repositoryRoot))?.startPoint;
 
 			// Git suppresses progress for the first couple of seconds, so name
@@ -938,11 +941,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
-					commitish: worktreeCreateNewBranch
-						? branchStartPoint
-						: selectedBranch,
+					commitish: selectedBranch,
 					newBranchName,
-					preferRemoteBranch: worktreeCreateNewBranch,
 					track: worktreeBranchTrack,
 					onProgress: progress,
 				}));
@@ -1449,13 +1449,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return { currentBranch, defaultBranch };
 	}
 
-	private async _resolveBranchStartPoint(repositoryRoot: URI, selectedBranch: string): Promise<string> {
-		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot);
-		return defaultBranch?.name === selectedBranch
-			? defaultBranch.startPoint
-			: selectedBranch;
-	}
-
 	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
@@ -1623,17 +1616,7 @@ function projectFromRepositoryRoot(repositoryRoot: URI): IAgentSessionProjectInf
 }
 
 function deriveRepositoryRootFromWorktree(worktree: URI): URI | undefined {
-	if (worktree.scheme !== Schemas.file) {
-		return undefined;
-	}
-	const worktreesRoot = URI.joinPath(worktree, '..');
-	const worktreesRootName = basename(worktreesRoot.fsPath);
-	const suffix = '.worktrees';
-	if (!worktreesRootName.endsWith(suffix)) {
-		return undefined;
-	}
-	const repositoryName = worktreesRootName.slice(0, -suffix.length);
-	return repositoryName ? URI.joinPath(worktreesRoot, '..', repositoryName) : undefined;
+	return worktree.scheme === Schemas.file ? getRepositoryRootFromWorktree(worktree) : undefined;
 }
 
 /**

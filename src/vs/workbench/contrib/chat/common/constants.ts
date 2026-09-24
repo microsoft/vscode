@@ -92,6 +92,7 @@ export enum ChatConfiguration {
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	PersistentProgress = 'chat.experimental.persistentProgress',
+	PersistentProgressVerbosity = 'chat.experimental.persistentProgressVerbosity',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -253,6 +254,11 @@ export enum ChatProgressAnimation {
 	Orbit = 'orbit',
 	Accordion = 'accordion',
 	Dial = 'dial',
+}
+
+export enum ChatProgressVerbosity {
+	Verbose = 'verbose',
+	Compact = 'compact',
 }
 
 export enum CollapsedToolsDisplayMode {

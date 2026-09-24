@@ -69,18 +69,22 @@ suite('ChatWidget', () => {
 		const widgetStore = store.add(new DisposableStore());
 		const contextKeyService = store.add(new MockContextKeyService());
 		const inputEnablement: boolean[] = [];
+		const transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
 			_store: widgetStore,
 			container,
 			listContainer: dom.append(container, dom.$('.interactive-list')),
 			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
+			transcriptProgressAction,
 			instantiationService,
 			contextKeyService,
 			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			_readOnly: false,
+			_readOnlyContextKey: ChatContextKeys.readOnly.bindTo(contextKeyService),
 			inputPartDisposable: { value: { setInputEnabled: (enabled: boolean) => inputEnablement.push(enabled) } },
 			updateChatViewVisibility: () => { },
 		}) as ChatWidget;
-		return { widget, container, contextKeyService, inputEnablement };
+		return { widget, container, contextKeyService, inputEnablement, transcriptProgressAction };
 	}
 
 	test('only preparation disables input and completion or cancellation re-enables it', () => {
@@ -221,6 +225,33 @@ suite('ChatWidget', () => {
 			hiddenWithoutAction: true,
 			calls: ['new'],
 		});
+	});
+
+	test('progress rendered by the transcript supplies an inline action without a duplicate overlay', () => {
+		const { widget, container, contextKeyService, transcriptProgressAction } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Preparing', undefined, { inTranscript: true, onCancel: () => { } });
+		const progress = container.querySelector<HTMLElement>('.chat-transcript-progress')!;
+		const hiddenWithoutLog = progress.hidden;
+		widget.setTranscriptProgress('Starting', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('old') }, onCancel: () => { } });
+		widget.setTranscriptProgress('Initializing', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('new') }, onCancel: () => calls.push('cancel') });
+		transcriptProgressAction.get()?.run();
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual({
+			hiddenWithoutLog,
+			hiddenWithLog: progress.hidden,
+			actionLabel: transcriptProgressAction.get()?.label,
+			readOnly: contextKeyService.getContextKeyValue(ChatContextKeys.readOnly.key),
+			calls,
+		}, {
+			hiddenWithoutLog: true,
+			hiddenWithLog: true,
+			actionLabel: 'Show Log',
+			readOnly: true,
+			calls: ['new', 'cancel'],
+		});
+		widget.setTranscriptProgress(undefined);
+		assert.deepStrictEqual({ hidden: progress.hidden, action: transcriptProgressAction.get() }, { hidden: true, action: undefined });
 	});
 
 	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
@@ -770,6 +801,34 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('host can lift the default chat width cap', () => {
+		const inputWidths: number[] = [];
+		const layoutWidths: number[] = [];
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			maximumWidth: 950,
+			viewOptions: {},
+			_location: { location: ChatAgentLocation.Chat },
+			chatSuggestNextWidget: { height: 0 },
+			inputPartDisposable: {
+				value: {
+					setMaxHeight: () => { },
+					layout: (width: number) => inputWidths.push(width),
+				}
+			},
+			_layoutListForInputHeight: () => { },
+			_onDidLayout: { fire: ({ width }: { width: number }) => layoutWidths.push(width) },
+		});
+
+		widget.layout(600, 1400);
+		widget.setMaximumWidth(Number.POSITIVE_INFINITY);
+		widget.layout(600, 1400);
+
+		assert.deepStrictEqual({ inputWidths, layoutWidths }, {
+			inputWidths: [950, 1400],
+			layoutWidths: [950, 1400],
+		});
 	});
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
