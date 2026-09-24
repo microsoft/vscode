@@ -62,7 +62,7 @@ export const enum LayoutSettings {
 export const enum ModernUIFrostedGlassOpacity {
 	Minimum = 50,
 	Maximum = 100,
-	Default = 92
+	Default = 80
 }
 
 export const enum ModernUIEditorTabStyle {

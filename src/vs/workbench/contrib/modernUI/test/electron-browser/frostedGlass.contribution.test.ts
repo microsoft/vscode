@@ -94,7 +94,7 @@ suite('FrostedGlassContribution', () => {
 		}, {
 			enabled: true,
 			agentsWindow: undefined,
-			opacity: 92,
+			opacity: 80,
 			agentsOpacity: undefined,
 		});
 	});
@@ -118,18 +118,18 @@ suite('FrostedGlassContribution', () => {
 	});
 
 	for (const { name, value, opacity, warns } of [
-		{ name: 'unset', value: undefined, opacity: 92, warns: false },
+		{ name: 'unset', value: undefined, opacity: 80, warns: false },
 		{ name: 'minimum', value: 50, opacity: 50, warns: false },
 		{ name: 'fractional', value: 75.5, opacity: 75.5, warns: false },
 		{ name: 'maximum', value: 100, opacity: 100, warns: false },
 		{ name: 'below minimum', value: 25, opacity: 50, warns: true },
 		{ name: 'above maximum', value: 125, opacity: 100, warns: true },
-		{ name: 'NaN', value: NaN, opacity: 92, warns: true },
-		{ name: 'positive infinity', value: Infinity, opacity: 92, warns: true },
-		{ name: 'negative infinity', value: -Infinity, opacity: 92, warns: true },
-		{ name: 'string', value: '75', opacity: 92, warns: true },
-		{ name: 'boolean', value: true, opacity: 92, warns: true },
-		{ name: 'null', value: null, opacity: 92, warns: true },
+		{ name: 'NaN', value: NaN, opacity: 80, warns: true },
+		{ name: 'positive infinity', value: Infinity, opacity: 80, warns: true },
+		{ name: 'negative infinity', value: -Infinity, opacity: 80, warns: true },
+		{ name: 'string', value: '75', opacity: 80, warns: true },
+		{ name: 'boolean', value: true, opacity: 80, warns: true },
+		{ name: 'null', value: null, opacity: 80, warns: true },
 	]) {
 		test(`normalizes ${name} opacity and reports invalid values`, async () => {
 			const services = createServices();
@@ -263,7 +263,7 @@ suite('FrostedGlassContribution', () => {
 		const lostState = services.styleState();
 		services.gpuChanged.fire(true);
 		assert.deepStrictEqual({ initialState, lostState, recoveredState: services.styleState() }, {
-			initialState: [{ glass: true, opacity: '92%' }],
+			initialState: [{ glass: true, opacity: '80%' }],
 			lostState: [{ glass: false, opacity: '' }],
 			recoveredState: [{ glass: true, opacity: '75%' }],
 		});

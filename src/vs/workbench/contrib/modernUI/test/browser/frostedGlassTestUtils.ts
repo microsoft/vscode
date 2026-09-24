@@ -84,6 +84,6 @@ export function readColor(element: HTMLElement, pseudo?: string): Color {
 export function supportsGlass(root: HTMLElement): boolean {
 	const targetWindow = getWindow(root);
 	return targetWindow.CSS.supports('backdrop-filter', 'blur(12px)')
-		&& targetWindow.CSS.supports('background-color', 'color-mix(in srgb, black 92%, transparent)')
+		&& targetWindow.CSS.supports('background-color', 'color-mix(in srgb, black 80%, transparent)')
 		&& targetWindow.matchMedia('(prefers-reduced-transparency: no-preference) and (forced-colors: none)').matches;
 }

@@ -47,7 +47,7 @@ auxiliary editor windows. Native OS menus/dialogs, rich quick-input overlays,
 editor backgrounds, panels, session cards, chat inputs, and web windows are unchanged.
 
 `workbench.modernUIFrostedGlassOpacity` controls the background tint
-as a percentage from **50 to 100**, with the existing **92** as the default.
+as a percentage from **50 to 100**, with **80** as the default.
 Lower values reveal more of the blurred backdrop; **100** retains the full theme
 background color. Changes apply immediately across all supported overlays,
 including shadow-root menus and auxiliary editor windows, without fading text

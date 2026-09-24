@@ -32,7 +32,7 @@ suite('ConfigurationTelemetryContribution', () => {
 		const model = new Configuration(
 			createModel({
 				[LayoutSettings.MODERN_UI_FROSTED_GLASS]: true,
-				[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: 92,
+				[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: 80,
 			}),
 			createModel(),
 			createModel(settings.application),
