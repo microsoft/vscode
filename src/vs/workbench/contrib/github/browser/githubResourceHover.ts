@@ -339,8 +339,8 @@ function appendBranchPill(container: HTMLElement, label: string, kind: 'base' | 
 	element.title = label;
 	if (onDidClick) {
 		element.setAttribute('aria-label', kind === 'base'
-			? localize('github.pullRequestHover.copyBaseBranch', "Copy base branch {0}", label)
-			: localize('github.pullRequestHover.copyHeadBranch', "Copy head branch {0}", label));
+			? localize('github.pullRequestHover.copyBaseBranch', "Copy Base Branch {0}", label)
+			: localize('github.pullRequestHover.copyHeadBranch', "Copy Head Branch {0}", label));
 		element.onclick = event => {
 			event.preventDefault();
 			event.stopPropagation();

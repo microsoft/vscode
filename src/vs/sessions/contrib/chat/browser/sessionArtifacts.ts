@@ -190,13 +190,13 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			resource: uri,
 			toolbarActions: [toAction({
 				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFilePath', "Copy path"),
+				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(fullPath),
 			})],
 			hoverActions: [toAction({
 				id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-				label: localize('sessionArtifacts.copyFileRelativePath', "Copy relative path"),
+				label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(relativePath),
 			})],
@@ -235,14 +235,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			icon,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
-				label: localize('sessionArtifacts.copyCommitUrl', "Copy commit URL"),
+				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(link.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
 				hoverActions: [withChatPillHoverLabel(toAction({
 					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
-					label: localize('sessionArtifacts.copyCommitHash', "Copy commit hash"),
+					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
 				}), chatPillCopyHashHoverLabel)],
@@ -281,11 +281,11 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 	}
 	const link = artifact.link;
 	const copyLinkLabel = artifact.kind === SessionArtifactKind.PullRequest
-		? localize('sessionArtifacts.copyPullRequestLink', "Copy pull request link")
+		? localize('sessionArtifacts.copyPullRequestLink', "Copy Pull Request Link")
 		: artifact.kind === SessionArtifactKind.Issue
-			? localize('sessionArtifacts.copyIssueLink', "Copy issue link")
+			? localize('sessionArtifacts.copyIssueLink', "Copy Issue Link")
 			: artifact.kind === SessionArtifactKind.Website
-				? localize('sessionArtifacts.copyWebsiteUrl', "Copy website URL")
+				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
 				: undefined;
 	const copyLinkAction = copyLinkLabel
 		? [withChatPillHoverLabel(toAction({
@@ -354,13 +354,13 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						resource: uri,
 						toolbarActions: [toAction({
 							id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFilePath', "Copy path"),
+							label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => actions.copy(fullPath),
 						})],
 						hoverActions: [toAction({
 							id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFileRelativePath', "Copy relative path"),
+							label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
 							class: ThemeIcon.asClassName(Codicon.copy),
 							run: () => actions.copy(relativePath),
 						})],

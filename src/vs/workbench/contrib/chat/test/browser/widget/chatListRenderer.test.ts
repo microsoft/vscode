@@ -2102,7 +2102,8 @@ suite('ChatListRenderer', () => {
 			waitingRows,
 			errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
 			error: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Could not ask the question.'),
-		}, { waitingRows: 0, errorRows: 1, error: true });
+			errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+		}, { waitingRows: 0, errorRows: 1, error: true, errorIcon: true });
 		request.response?.complete();
 	});
 
@@ -2166,9 +2167,94 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				assert.deepStrictEqual({
 					errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
-					error: template.value.textContent?.replace(/\u00a0/g, ' ').includes(typeof error === 'string' ? error : 'Tool execution failed'),
-					waiting: template.value.textContent?.includes('Waiting for answer...'),
-				}, { errorRows: 1, error: true, waiting: false });
+					errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+					card: !!template.value.querySelector('.chat-notification-widget'),
+					originalContent: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Waiting for answer...'),
+				}, { errorRows: 1, errorIcon: true, card: false, originalContent: true });
+				request.response?.complete();
+			});
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			for (const source of [ToolDataSource.Internal, { type: 'mcp', label: 'Browser', serverLabel: 'Browser', collectionId: 'browser', definitionId: 'browser', instructions: '' }] satisfies ToolDataSource[]) {
+				test(`failed tools use one error icon instead of a card (restored: ${restored}, preceding tool: ${grouped}, source: ${source.type})`, async () => {
+					const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+					configurePersistentProgressTypography(container, 13);
+					if (grouped) {
+						const first = new ChatToolInvocation(
+							{ invocationMessage: 'Read the first file' },
+							{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+							'first', undefined, {},
+						);
+						await first.didExecuteTool(undefined);
+						model.acceptResponseProgress(request, first);
+					}
+					const failed = new ChatToolInvocation(
+						{ invocationMessage: 'Navigate to the preview', icon: Codicon.search },
+						{ id: 'navigate', displayName: 'Navigate', modelDescription: 'Navigate', source },
+						'failed', undefined, {},
+					);
+					if (!restored) {
+						model.acceptResponseProgress(request, failed);
+						renderer.renderElement(node, 0, template);
+					}
+					await failed.didExecuteTool({ content: [], toolResultError: 'Connection refused' });
+					if (restored) {
+						model.acceptResponseProgress(request, failed.toJSON());
+					}
+					renderer.renderElement(node, 0, template);
+					const iconSelector = grouped && source.type !== 'mcp' ? '.chat-thinking-tool-wrapper > .chat-thinking-icon.codicon-error-compact' : '.chat-tool-call-icon.codicon-error-compact';
+					const icon = template.value.querySelector<HTMLElement>(iconSelector);
+					const visibleErrors = [...template.value.querySelectorAll<HTMLElement>('.codicon-error-compact')].filter(element => element.getClientRects().length > 0 && mainWindow.getComputedStyle(element).display !== 'none');
+					assert.deepStrictEqual({
+						card: !!template.value.querySelector('.chat-notification-widget'),
+						toolLabel: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Navigate to the preview'),
+						errorIcon: !!icon,
+						decorative: icon?.getAttribute('aria-hidden'),
+						visibleErrors: visibleErrors.length,
+						neutralIcon: icon && mainWindow.getComputedStyle(icon).color === 'rgb(140, 140, 140)',
+						extraFocusTarget: !!template.value.querySelector('.progress-step[tabindex]'),
+					}, {
+						card: false, toolLabel: true, errorIcon: true, decorative: 'true', visibleErrors: 1,
+						neutralIcon: true, extraFocusTarget: false,
+					});
+					request.response?.complete();
+				});
+			}
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			test(`denied tools retain their denial icon (restored: ${restored}, grouped: ${grouped})`, async () => {
+				const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, 13);
+				if (grouped) {
+					const first = new ChatToolInvocation(
+						{ invocationMessage: 'Read the first file' },
+						{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+						'first', undefined, {},
+					);
+					await first.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, first);
+				}
+				const toolId = grouped ? 'read_file' : 'mcp_read_file';
+				const denied = ChatToolInvocation.createCancelled({
+					toolData: { id: toolId, displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+					toolId,
+					toolCallId: 'denied',
+					chatRequestId: request.id,
+				}, {}, ToolConfirmKind.Denied);
+				model.acceptResponseProgress(request, restored ? denied.toJSON() : denied);
+				renderer.renderElement(node, 0, template);
+				const icon = template.value.querySelector<HTMLElement>('.progress-container > .codicon-error-compact');
+				assert.deepStrictEqual({
+					grouped: !!icon?.closest('.chat-thinking-tool-wrapper'),
+					denialIconVisible: !!icon && icon.getClientRects().length > 0 && mainWindow.getComputedStyle(icon).display !== 'none',
+					treatedAsFailure: !!icon?.closest('.chat-tool-call-error'),
+				}, { grouped, denialIconVisible: true, treatedAsFailure: false });
 				request.response?.complete();
 			});
 		}
@@ -3618,6 +3704,65 @@ suite('ChatListRenderer', () => {
 				});
 			}
 		}
+	}
+
+	for (const fontSize of [12, 13, 16]) {
+		test(`diff headers center counts and compact chevrons with their title (${fontSize}px)`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				chatMode: ChatModeKind.Agent,
+				progressVerbosity: ChatProgressVerbosity.Compact,
+			});
+			configurePersistentProgressTypography(container, fontSize);
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			for (const name of ['first.ts', 'second.ts']) {
+				model.acceptResponseProgress(request, {
+					kind: 'externalEdit',
+					uri: URI.file(`/workspace/${name}`),
+					editKind: 'edit',
+					beforeContentUri: URI.file(`/before/${name}`),
+					afterContentUri: URI.file(`/after/${name}`),
+					diff: { added: 5, removed: 18 },
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'review', value: '**Reviewing the changes**\nCheck the rendering.' });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The changes are ready.') });
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			const snapshot = (header: HTMLElement) => {
+				const title = header.querySelector<HTMLElement>(':scope > .monaco-icon-button > .monaco-button-mdlabel');
+				const stats = header.querySelector<HTMLElement>(':scope > .chat-thinking-title-diff, :scope > .chat-edit-stats');
+				const chevron = header.querySelector<HTMLElement>(':scope > .chat-collapsible-hover-chevron');
+				assert.ok(title && stats && chevron);
+				const center = (element: Element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.top + bounds.height / 2;
+				};
+				return {
+					counts: [...stats.children].map(child => child.textContent),
+					countsCentered: [...stats.children].every(child => Math.abs(center(child) - center(title)) < 0.1),
+					chevronCentered: Math.abs(center(chevron) - center(title)) < 0.1,
+					chevronSize: mainWindow.getComputedStyle(chevron).fontSize,
+					compactGlyph: chevron.classList.contains('codicon-chevron-right-compact'),
+				};
+			};
+			const thinkingHeader = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label.chat-thinking-title-with-diff');
+			assert.ok(thinkingHeader);
+			const thinking = snapshot(thinkingHeader);
+			const thinkingHeight = thinkingHeader.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const summary = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary');
+			assert.ok(summary);
+			const expected = { counts: ['+10', '-36'], countsCentered: true, chevronCentered: true, chevronSize: '12px', compactGlyph: true };
+			assert.deepStrictEqual({ thinking, completed: snapshot(summary), thinkingHeight }, {
+				thinking: expected,
+				completed: expected,
+				thinkingHeight: fontSize * 1.5,
+			});
+		});
 	}
 
 	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {

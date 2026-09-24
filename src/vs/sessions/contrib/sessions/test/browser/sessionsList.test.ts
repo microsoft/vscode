@@ -61,7 +61,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -566,7 +566,7 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('keeps the Sessions header sticky after navigation scrolls away', async () => {
+		test('does not stick the Sessions header while retaining section sticky scroll', async () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
@@ -584,7 +584,7 @@ suite('Sessions - SessionsList', () => {
 			const sessionsHeaderContainer = mainWindow.document.createElement('div');
 			const sessionsHeader = mainWindow.document.createElement('div');
 			sessionsHeader.textContent = 'Sessions';
-			sessionsHeader.style.height = '32px';
+			sessionsHeader.style.height = '28px';
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			sessionsHeader.append(findWidgetContainer);
 			sessionsHeaderContainer.appendChild(sessionsHeader);
@@ -600,67 +600,48 @@ suite('Sessions - SessionsList', () => {
 			}));
 			list.layout(120, 400);
 			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
-			tree.scrollTop = 120;
+			tree.scrollTop = 400;
 			await timeout(0);
 			const headerInStickyContainer = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const stickyHeaderRow = sessionsHeader.closest<HTMLElement>('.monaco-tree-sticky-row');
-			const stickyHeaderHoverBackground = stickyHeaderRow
-				? mainWindow.getComputedStyle(stickyHeaderRow).getPropertyValue('--vscode-list-hoverBackground').trim()
-				: undefined;
+			const stickySectionLabel = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .session-section-label')?.textContent;
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
-			list.layout(0, 400);
-			await timeout(0);
-			const headerRestoredWhileHidden = sessionsHeader.parentElement === sessionsHeaderContainer;
+			const headerParkedAfterScroll = sessionsHeader.parentElement === sessionsHeaderContainer;
+			const headerHiddenAfterScroll = sessionsHeader.style.display === 'none' && sessionsHeader.getAttribute('aria-hidden') === 'true';
 			list.layout(120, 400);
-			await timeout(0);
-			const headerVisibleAfterRelayout = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			list.openFind();
-			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
-			const findFocusedAfterStickyScroll = mainWindow.document.activeElement === findInput;
-			const headerStickyAfterOpeningFind = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			assert.ok(findInput);
-			findInput.value = 'no matching session';
-			findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-			await timeout(30);
-			const findFocusedAfterFiltering = mainWindow.document.activeElement === findInput;
-			const headerStickyAfterFiltering = sessionsHeader.closest('.monaco-tree-sticky-container') !== null;
-			const headerAttachedAfterFiltering = sessionsHeader.parentElement !== null;
-			list.closeFind();
-			await timeout(350);
 			tree.scrollTop = 0;
 			await timeout(0);
+			const headerRowHeightAfterHiddenLayout = sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height;
+			tree.scrollTop = 400;
+			await timeout(0);
+			list.openFind();
+			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+			const findFocusedAfterOffscreenOpen = mainWindow.document.activeElement === findInput;
 
 			assert.deepStrictEqual({
 				headerText: sessionsHeader.textContent,
 				headerInStickyContainer,
-				stickyHeaderHoverBackground,
+				stickySectionLabel,
 				navigationVisibleAfterScroll,
-				headerRestoredWhileHidden,
-				headerVisibleAfterRelayout,
-				findFocusedAfterStickyScroll,
-				headerStickyAfterOpeningFind,
-				findFocusedAfterFiltering,
-				headerStickyAfterFiltering,
-				headerAttachedAfterFiltering,
-				navigationRestoredAfterScroll: container.querySelector('.monaco-list-rows .session-section-shortcut') !== null,
-				headerRestoredAfterScroll: sessionsHeader.closest('.monaco-list-rows') !== null,
-				headerRowHeight: sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height,
+				headerParkedAfterScroll,
+				headerHiddenAfterScroll,
+				headerRowHeightAfterHiddenLayout,
+				headerRevealedForFind: sessionsHeader.closest('.monaco-list-rows') !== null,
+				headerVisibleForFind: sessionsHeader.style.display === '' && !sessionsHeader.hasAttribute('aria-hidden'),
+				findFocusedAfterOffscreenOpen,
 			}, {
 				headerText: 'Sessions',
-				headerInStickyContainer: true,
-				stickyHeaderHoverBackground: 'transparent',
+				headerInStickyContainer: false,
+				stickySectionLabel: 'Recent',
 				navigationVisibleAfterScroll: false,
-				headerRestoredWhileHidden: true,
-				headerVisibleAfterRelayout: true,
-				findFocusedAfterStickyScroll: true,
-				headerStickyAfterOpeningFind: true,
-				findFocusedAfterFiltering: true,
-				headerStickyAfterFiltering: false,
-				headerAttachedAfterFiltering: true,
-				navigationRestoredAfterScroll: true,
-				headerRestoredAfterScroll: true,
-				headerRowHeight: '42px',
+				headerParkedAfterScroll: true,
+				headerHiddenAfterScroll: true,
+				headerRowHeightAfterHiddenLayout: '38px',
+				headerRevealedForFind: true,
+				headerVisibleForFind: true,
+				findFocusedAfterOffscreenOpen: true,
 			});
+			list.closeFind();
+			await timeout(350);
 		});
 
 		test('derives terminal automation status from the supplied session snapshot', () => {
@@ -2436,6 +2417,36 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, State: Completed, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('archived filter default', () => {
+		function getExcludeArchived(settingValue: boolean, storedValue?: boolean): boolean {
+			const harness = createListHarness(disposables, []);
+			void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, settingValue);
+			if (storedValue !== undefined) {
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.excludeArchived', storedValue, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			return list.isExcludeArchived();
+		}
+
+		test('uses the setting only until the user has changed the filter', () => {
+			assert.deepStrictEqual({
+				defaultHidden: getExcludeArchived(false),
+				experimentShows: getExcludeArchived(true),
+				existingHiddenChoice: getExcludeArchived(true, true),
+				existingShownChoice: getExcludeArchived(false, false),
+			}, {
+				defaultHidden: true,
+				experimentShows: false,
+				existingHiddenChoice: true,
+				existingShownChoice: false,
 			});
 		});
 	});
