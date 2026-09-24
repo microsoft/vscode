@@ -649,7 +649,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		}, 'agenthost-terminal://shell/retained');
 
-		const preview = `BEGIN\n${'x'.repeat(80)}…\nEND\n…`;
+		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: 'turn_a',

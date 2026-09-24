@@ -20,9 +20,9 @@ suite('shouldRetainCodexCommandOutput', () => {
 		], [false, true]);
 	});
 
-	test('builds a compact preview from the beginning of retained output', () => {
-		const output = `BEGIN\n${'x'.repeat(200)}\nMIDDLE\nEND\n`;
-		const preview = `BEGIN\n${'x'.repeat(80)}…\nMIDDLE\n…`;
+	test('keeps a raw prefix as the retained output preview', () => {
+		const output = `BEGIN\n${'x'.repeat(1_000)}\nEND\n`;
+		const preview = output.slice(0, 400);
 
 		assert.deepStrictEqual(codexRetainedCommandOutputContent('agenthost-terminal://shell/retained', output, 0), [
 			{ type: ToolResultContentType.Text, text: preview },
