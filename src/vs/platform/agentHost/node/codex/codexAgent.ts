@@ -6701,7 +6701,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		const hostTurnIds = new Set(session.codexTurnIdByHostTurnId.values());
 		const rolloutMetadata = this._chatHistoryRolloutMetadata.get(session);
 		const changed = read.thread.turns.filter(turn => !hostTurnIds.has(turn.id) && !equals(previousRaw.get(turn.id), turn));
-		const mapped = new Map(replayThreadToTurns({ ...read.thread, turns: changed }, toRolloutTurnModels(rolloutMetadata), rolloutMetadata?.threadCoordinationByTurnId).map(turn => [turn.id, turn]));
+		const commands: ICodexReplayedCommand[] = [];
+		const changedTurns = replayThreadToTurns({ ...read.thread, turns: changed }, toRolloutTurnModels(rolloutMetadata), rolloutMetadata?.threadCoordinationByTurnId, commands);
+		await this._restoreRetainedCommandOutputs(chat, commands);
+		if (session.currentTurnId || session.disposed || connectionGeneration !== this._connectionGeneration
+			|| this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
+			return;
+		}
+		const mapped = new Map(changedTurns.map(turn => [turn.id, turn]));
 		const turns = read.thread.turns.flatMap(turn => {
 			if (hostTurnIds.has(turn.id)) {
 				return [];
