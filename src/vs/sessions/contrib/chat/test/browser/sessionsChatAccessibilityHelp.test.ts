@@ -349,7 +349,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	test('describes the Codicon background Celebrate button', () => {
+	test('describes the background Celebrate button and tint toggle', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -360,12 +360,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
-		const backgroundHelp = provider.provideContent().split('\n').find(line => line.includes('Set Background'));
+		const content = provider.provideContent();
+		const backgroundHelp = content.split('\n').find(line => line.includes('Set Background'));
+		const tintHelp = content.split('\n').find(line => line.includes('Tint Window to Match Background'));
 
 		assert.deepStrictEqual({
 			activation: backgroundHelp?.includes('press Tab to find it, then press Enter or Space to activate it'),
 			nextButton: backgroundHelp?.includes('Each activation selects another random icon as the next Celebrate button.'),
-		}, { activation: true, nextButton: true });
+			tintKeyboardAccess: tintHelp?.includes('Command Palette'),
+			tintCheckedState: tintHelp?.includes('A check mark means tinting is enabled.'),
+			tintPreservesImage: tintHelp?.includes('Turning it off keeps the background image'),
+		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {
