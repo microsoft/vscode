@@ -403,19 +403,16 @@ jobs:
           echo "created=true" >> "$GITHUB_OUTPUT"
           sudo chown "$(id -u):$(id -g)" /etc/vscode
 
-      - name: Set up managed settings smoke fixture
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        id: managed-settings-fixture
-        run: |
-          set -e
-          sudo mkdir /etc/github-copilot
-          echo "created=true" >> "$GITHUB_OUTPUT"
-          sudo chown "$(id -u):$(id -g)" /etc/github-copilot
-
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 30
-        run: npm run smoketest-no-compile -- --tracing
+        run: |
+          set -e
+          policy_dir=/etc/github-copilot
+          sudo mkdir "$policy_dir"
+          trap 'sudo rm -f "$policy_dir/managed-settings.json"; sudo rmdir "$policy_dir"' EXIT
+          sudo chown "$(id -u):$(id -g)" "$policy_dir"
+          npm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
           VSCODE_SMOKE_TEST_POLICY: '1'
@@ -426,13 +423,6 @@ jobs:
           set -e
           sudo rm -f /etc/vscode/policy.json
           sudo rmdir /etc/vscode
-
-      - name: Clean up managed settings smoke fixture
-        if: ${{ always() && steps.managed-settings-fixture.outputs.created == 'true' }}
-        run: |
-          set -e
-          sudo rm -f /etc/github-copilot/managed-settings.json
-          sudo rmdir /etc/github-copilot
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}

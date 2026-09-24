@@ -54,7 +54,7 @@ model server, not a mocked policy service or simulated telemetry producer.
   from the smoke process and verifies its contents remain unchanged. No
   confirmation is accepted to bypass the sandbox.
 
-CI separately provisions an empty managed-settings directory, refusing any
+The CI smoke step provisions an empty managed-settings directory, refusing any
 existing directory:
 
 | Platform | Device-policy file |
@@ -65,8 +65,10 @@ existing directory:
 
 The fixture creates the file exclusively and removes only its own file after
 application shutdown. macOS preferences and Windows registry policy are also
-checked for conflicts, never changed. An always-run CI cleanup removes the
-fixture file and empty directory only when that job created the directory.
+checked for conflicts, never changed. The smoke step registers an exit trap
+(macOS/Linux) or enters `try/finally` (Windows) only after creating the directory,
+so success and failure both clean up this run's fixture without touching an
+existing policy directory.
 Each suite uses an isolated Copilot policy cache.
 
 Run the new cases on a **disposable runner** with the directory provisioned:

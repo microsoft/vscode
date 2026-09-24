@@ -125,14 +125,10 @@ steps:
 
     - script: |
         set -e
-        sudo mkdir /etc/github-copilot
-        echo "##vso[task.setvariable variable=created;isOutput=true]true"
-        sudo chown "$(id -u):$(id -g)" /etc/github-copilot
-      name: managedSettingsFixture
-      displayName: Set up managed settings smoke fixture
-
-    - script: |
-        set -e
+        policy_dir=/etc/github-copilot
+        sudo mkdir "$policy_dir"
+        trap 'sudo rm -f "$policy_dir/managed-settings.json"; sudo rmdir "$policy_dir"' EXIT
+        sudo chown "$(id -u):$(id -g)" "$policy_dir"
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
@@ -150,13 +146,6 @@ steps:
         sudo rmdir /etc/vscode
       displayName: Clean up native policy smoke fixture
       condition: and(always(), eq(variables['policyFixture.created'], 'true'))
-
-    - script: |
-        set -e
-        sudo rm -f /etc/github-copilot/managed-settings.json
-        sudo rmdir /etc/github-copilot
-      displayName: Clean up managed settings smoke fixture
-      condition: and(always(), eq(variables['managedSettingsFixture.created'], 'true'))
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - script: npm run smoketest-no-compile -- --web --tracing --headless
