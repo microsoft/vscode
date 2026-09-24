@@ -287,8 +287,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			return true;
 		}
 		const isPhase = this._isPhasePresentation();
+		// The toolbar keeps this action for its lifetime; the open-chat menu item has no `when`, so the inert fallback is not expected in practice.
 		const menuAction = isPhase
-			? this._register(new Action('chat.fusionPhase', localize('chat.fusionPhase', "HydraFusion phase"), undefined, false))
+			? this._getOpenChatMenuAction() ?? this._register(new Action('chat.fusionPhase', localize('chat.fusionPhase', "HydraFusion phase"), undefined, false))
 			: this._getOpenChatMenuAction();
 		if (!menuAction) {
 			return false;
@@ -392,6 +393,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 					presentation: 'phase',
 					phaseStatus: data.phaseStatus,
 					activityLabel: data.activityDescription ? new MarkdownString().appendText(data.activityDescription).value : undefined,
+					...(chatResource ? { chatResource, isChatAvailable: data.isChatAvailable } : {}),
 				} satisfies ISubagentPhaseContext;
 			} else if (chatResource) {
 				this._openChatToolbar.context = { ...commonContext, chatResource, isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined };
@@ -1006,7 +1008,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (!wasStreamingForPresentation) {
 			this.currentRunningToolCallId = toolInvocation.toolCallId;
 			this.currentRunningToolMessage = this.getToolLabel(toolInvocation, initialState);
-			this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon) : undefined;
+			this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source) : undefined;
 			this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, initialState);
 			this._updateToolPresentation();
 		}
@@ -1024,7 +1026,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				wasStreamingForPresentation = false;
 				this.currentRunningToolCallId = toolInvocation.toolCallId;
 				this.currentRunningToolMessage = this.getToolLabel(toolInvocation, state);
-				this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon) : undefined;
+				this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source) : undefined;
 				this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 				this._updateToolPresentation();
 			}
@@ -1032,7 +1034,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				const toolLabel = this.getToolLabel(toolInvocation, state);
 				if (toolLabel && toolLabel !== this.currentRunningToolMessage) {
 					this.currentRunningToolMessage = toolLabel;
-					this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
+					this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source);
 					this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 					this._updateToolPresentation();
 				}
@@ -1607,7 +1609,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 		// Wrap with icon like thinking parts do
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
+		const icon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon, undefined, toolInvocation.source);
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(content);
 

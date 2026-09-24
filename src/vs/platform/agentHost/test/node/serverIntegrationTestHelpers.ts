@@ -6,7 +6,7 @@
 import { ChildProcess, fork } from 'child_process';
 import type { IProcessInfo } from '@vscode/windows-process-tree';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { Promises, raceTimeout } from '../../../../base/common/async.js';
+import { Promises, raceTimeout, retry } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -775,7 +775,8 @@ export async function stopServer(
 				await processOperations.killTree(pid, true);
 			}
 		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null
+				&& !await raceTimeout(serverExit.then(() => true), 1_000)) {
 				throw error;
 			}
 		}
@@ -795,11 +796,14 @@ export async function stopServer(
 			return { descendant, error };
 		}
 	}));
-	// Concurrent process-list queries can share a snapshot taken before another kill completed.
-	// Recheck failures only after all kills finish so that snapshot cannot report stale identities.
+	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
 	await Promises.settled(failedKills.map(async failure => {
-		if (failure && await processOperations.isSameProcessRunning(failure.descendant)) {
-			throw failure.error;
+		if (failure) {
+			await retry(async () => {
+				if (await processOperations.isSameProcessRunning(failure.descendant)) {
+					throw failure.error;
+				}
+			}, 50, 5);
 		}
 	}));
 }

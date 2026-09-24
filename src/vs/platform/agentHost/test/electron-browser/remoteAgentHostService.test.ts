@@ -366,6 +366,23 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(service.getConnection('ws://unknown:1234'), undefined);
 	});
 
+	test('reports configured entry changes without an active or pending connection', () => {
+		configService.setEnabled(false);
+		const snapshots: string[][] = [];
+		disposables.add(service.onDidChangeConfiguredEntries(() => snapshots.push(service.configuredEntries.map(getEntryAddress))));
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+		configService.setEntries([]);
+
+		assert.deepStrictEqual({ snapshots, connections: service.connections, pending: service.pendingConnections }, {
+			snapshots: [
+				['host1:8080'],
+				[],
+			],
+			connections: [],
+			pending: [],
+		});
+	});
+
 	test('creates connection when setting is updated', async () => {
 		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 

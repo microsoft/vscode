@@ -6592,6 +6592,70 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('Agent Merge settings are per folder: a peer chat writes its own folder while the session folder keeps earlier settings', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			// Keyed with its case by a host on a case-sensitive platform.
+			const peerDirectory = URI.file('/Workspace-Peer');
+			const session = setupMultiChatSession(provider, 'multi-agent-merge', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-agent-merge').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const loadingChat = buildChatUri(sessionUri, 'peer-2');
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('multi-agent-merge', 'copilotcli', {
+				...makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+					// Its folder is not among the session's yet, so its workspace is still unknown.
+					makeChatSummary(loadingChat, 'Loading', ProtocolSessionStatus.Idle, [URI.file('/workspace-loading').toString()]),
+				], { defaultChat }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			// Written by an earlier version, so it describes the session folder.
+			setConfigValues({ [SessionConfigKey.AgentMerge]: { enabled: true } });
+			const mainChat = session.mainChat.get();
+			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+			const loading = session.chats.get().find(chat => chat.resource.fragment === 'peer-2');
+			assert.ok(peer && loading);
+			const readEnabled = () => ({
+				session: provider.getAgentMergeSessionState(session.sessionId)?.enabled,
+				mainChat: provider.getAgentMergeSessionState(session.sessionId, mainChat.resource)?.enabled,
+				peerChat: provider.getAgentMergeSessionState(session.sessionId, peer.resource)?.enabled,
+				peerChatObservable: provider.getAgentMergeClientStateObservable(session.sessionId, peer.resource).get()?.enabled,
+				loadingChat: provider.getAgentMergeSessionState(session.sessionId, loading.resource)?.enabled,
+			});
+			const before = readEnabled();
+
+			const dispatchCount = agentHost.dispatchedActions.length;
+			await provider.setAgentMergeEnabled(session.sessionId, true, peer.resource);
+			await provider.setAgentMergeEnabled(session.sessionId, false, mainChat.resource);
+			const loadingWrite = await provider.setAgentMergeEnabled(session.sessionId, true, loading.resource).then(() => 'written', () => 'rejected');
+			const writes = agentHost.dispatchedActions.slice(dispatchCount).map(({ channel, action }) => ({ channel, action }));
+
+			setConfigValues({
+				[SessionConfigKey.AgentMerge]: { enabled: false },
+				[SessionConfigKey.AgentMergeFolders]: { [peerDirectory.toString()]: { enabled: true, chat: peerChat } },
+			});
+			const after = readEnabled();
+			// A write of another folder, applied locally before the host merges it, holds only that folder.
+			setConfigValues({
+				[SessionConfigKey.AgentMerge]: { enabled: false },
+				[SessionConfigKey.AgentMergeFolders]: { [URI.file('/workspace-loading').toString()]: { enabled: true } },
+			});
+
+			assert.deepStrictEqual({ before, writes, loadingWrite, after, peerChatWhileAnotherFolderIsWritten: readEnabled().peerChat }, {
+				before: { session: true, mainChat: true, peerChat: undefined, peerChatObservable: undefined, loadingChat: undefined },
+				writes: [
+					// Only the folder it changes, by working directory: the host merges it and derives the key.
+					{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMergeFolders]: { [peerDirectory.toString()]: { enabled: true, chat: peerChat } } } } },
+					{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.AgentMerge]: { enabled: false } } } },
+				],
+				loadingWrite: 'rejected',
+				after: { session: false, mainChat: false, peerChat: true, peerChatObservable: true, loadingChat: undefined },
+				peerChatWhileAnotherFolderIsWritten: true,
+			});
+		});
+
 		test('equivalent chat catalogs do not notify chat observers', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-stable');
@@ -9237,6 +9301,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('replaceSessionConfig only replaces sessionMutable, non-readOnly values and preserves everything else', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('rep-1', { summary: 'Replace Session' }));
+		const agentMergeFolders = { 'file:///repo': { enabled: true } };
 		const provider = createProvider(disposables, agentHost);
 		provider.getSessions();
 		await timeout(0);
@@ -9252,7 +9317,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					branch: { type: 'string', title: 'Branch', enum: ['main'], sessionMutable: true, readOnly: true }, // readOnly
 				},
 			},
-			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main' },
+			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders },
 		};
 		const fakeState: SessionState = {
 			provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle,
@@ -9267,7 +9332,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// Caller attempts to change everything — including non-mutable
 		// `isolation`, readOnly `branch`, and an unknown `rogue` key. Only
 		// `autoApprove` should actually change; all other values must be
-		// carried through unchanged and `rogue` must be dropped.
+		// carried through unchanged and `rogue` must be dropped. The host
+		// carries the Agent Merge settings itself, so they are not sent.
 		await provider.replaceSessionConfig(session!.sessionId, {
 			autoApprove: 'autoApprove',
 			isolation: 'folder',
@@ -9285,7 +9351,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		const latest = provider.getSessionConfig(session!.sessionId);
-		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' });
+		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders });
 	}));
 
 	test('running session config writes clamp autoApprove to default when policy disables global auto-approve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

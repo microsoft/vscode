@@ -15,7 +15,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -254,14 +254,16 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const transientChangeset = activeSession && activeChat
 				? this._changesetSelectionsBySession.get(activeSession.resource)?.chats.get(activeChat.resource)?.transientChangeset
 				: undefined;
-			if (!transientChangeset) {
-				return changesets;
-			}
-
-			return [
-				...(changesets?.filter(changeset => changeset.id !== transientChangeset.id) ?? []),
-				transientChangeset,
-			];
+			const changesetsWithTransientSelection = transientChangeset
+				? [
+					...(changesets?.filter(changeset => changeset.id !== transientChangeset.id) ?? []),
+					transientChangeset,
+				]
+				: changesets;
+			const isMultiFolderSession = (activeSession?.workspace.read(reader)?.folders.length ?? 0) > 1;
+			return isMultiFolderSession
+				? changesetsWithTransientSelection?.filter(changeset => changeset.id !== SESSION_CHANGES_CHANGESET_ID)
+				: changesetsWithTransientSelection;
 		});
 
 		this.activeSessionChangesetsLoadingObs = derived(reader => {

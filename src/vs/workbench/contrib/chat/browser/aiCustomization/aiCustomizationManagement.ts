@@ -19,6 +19,8 @@ export { AICustomizationManagementCommands, AICustomizationManagementSection } f
 export type { AICustomizationSource } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 
+export const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
+
 export type AICustomizationManagementOpenEditorTarget =
 	| AICustomizationManagementSection
 	| {

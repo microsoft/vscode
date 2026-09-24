@@ -1169,6 +1169,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parent: petHost,
 				dragBounds: inputContainer ?? petHost,
 				movementBounds: petMovementBounds ?? parent,
+				transition: this.viewOptions.isSessionsWindow ? 'fall' : undefined,
 				model: this._viewModelObs.map(viewModel => viewModel?.model),
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,

@@ -187,6 +187,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 	}
 	return new class extends mock<IChat>() {
 		override readonly resource = resource;
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(undefined);
 		override readonly title: IObservable<string> = constObservable(spec.title);
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
