@@ -465,6 +465,24 @@ suite('ProtocolServerHandler', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('prepareChat validates the chat address and preserves the provider restriction', async () => {
+		const calls: string[] = [];
+		const result = { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } };
+		const service: IAgentService = agentService;
+		service.prepareChat = async chat => { calls.push(chat.toString()); return result; };
+		const transport = connectClient('client-1');
+		const chat = buildChatUri('codex:/session-1', 'peer');
+		transport.simulateMessage(request(2, 'vscode/prepareChat', { chat }));
+		await handler.whenIdle();
+		transport.simulateMessage(request(3, 'vscode/prepareChat', { chat: 'codex:/session-1' }));
+		await handler.whenIdle();
+		assert.deepStrictEqual({ calls, result: findResponse(transport.sent, 2), invalid: findResponse(transport.sent, 3) }, {
+			calls: [chat],
+			result: { jsonrpc: '2.0', id: 2, result },
+			invalid: { jsonrpc: '2.0', id: 3, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'chat must be a chat channel URI' } },
+		});
+	});
+
 	test('handshake returns initialize response', () => {
 		const transport = connectClient('client-1');
 

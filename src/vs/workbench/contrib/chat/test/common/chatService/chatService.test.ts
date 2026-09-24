@@ -3363,6 +3363,7 @@ suite('ChatService', () => {
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
+			readonly isInputBlocked?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
@@ -3384,6 +3385,7 @@ suite('ChatService', () => {
 				progressObs: opts.progressObs,
 				isCompleteObs: opts.isCompleteObs,
 				isReadOnly: opts.isReadOnly,
+				isInputBlocked: opts.isInputBlocked,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
 				onDidChangeHistory: opts.onDidChangeHistory,
@@ -3524,6 +3526,26 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({ states, sendResult }, {
 				states: [true, false],
 				sendResult: { kind: 'rejected', reason: 'Session is read-only' },
+			});
+		});
+
+		test('blocked input rejects send, queue and resend without modifying the transcript', async () => {
+			const isInputBlocked = observableValue('inputBlocked', true);
+			const { resource } = setupRemoteProvider({ isInputBlocked });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const initial = ref.object.getRequests().slice();
+			const send = await service.sendRequest(resource, 'Do not send');
+			const queue = await service.sendRequest(resource, 'Do not queue', { queue: ChatRequestQueueKind.Queued });
+			await service.resendRequest(initial[0]);
+			const unchanged = ref.object.getRequests().every((request, index) => request === initial[index]);
+			isInputBlocked.set(false, undefined);
+			assert.deepStrictEqual({ send, queue, unchanged, requests: ref.object.getRequests().length, pending: ref.object.getPendingRequests().length, unblocked: !ref.object.isInputBlocked.get(), readOnly: ref.object.isReadOnly.get() }, {
+				send: { kind: 'rejected', reason: 'Session input is blocked' },
+				queue: { kind: 'rejected', reason: 'Session input is blocked' },
+				unchanged: true, requests: initial.length, pending: 0, unblocked: true, readOnly: false,
 			});
 		});
 

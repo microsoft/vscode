@@ -768,6 +768,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
+		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false));
+
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
 		// Clear the autopilot goal banner whenever the active request finishes.
@@ -3117,10 +3119,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this._readOnly || expectedViewModel.model.isReadOnly.get()) {
 				throw new ErrorNoTelemetry(localize('chat.submitSessionReadOnly', "The chat session is read-only. The request was not sent."));
 			}
+			if (expectedViewModel.model.isInputBlocked.get()) {
+				throw new ErrorNoTelemetry(localize('chat.submitSessionInputBlocked', "Sending is blocked for this conversation. Use Retry in the banner above the input."));
+			}
 		} : undefined;
 		validateSession?.();
 
-		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
+		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
 
@@ -3139,7 +3144,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async rerunLastRequest(): Promise<void> {
-		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel) {
+		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel || this.viewModel.model.isInputBlocked.get()) {
 			return;
 		}
 

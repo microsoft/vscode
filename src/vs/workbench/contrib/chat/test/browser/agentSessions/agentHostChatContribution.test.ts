@@ -93,7 +93,7 @@ import { IWorkingCopyService } from '../../../../../services/workingCopy/common/
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
-import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { IChatInputNotificationService, type IChatInputNotification } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -7069,6 +7069,30 @@ suite('AgentHostChatContribution', () => {
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {
+		test('opening a locked conversation blocks input and Retry clears the banner without a turn', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { provider: 'codex' });
+			const notifications = new Map<string, IChatInputNotification>();
+			const service = instantiationService.get(IChatInputNotificationService);
+			service.setNotification = notice => notifications.set(notice.id, notice);
+			service.deleteNotification = id => { notifications.delete(id); };
+			agentHostService.setInitializeResult({ _meta: { 'vscode.prepareChat': true } });
+			const host: IAgentHostService = agentHostService;
+			const calls: string[] = [];
+			let locked = true;
+			host.prepareChat = async chat => {
+				calls.push(chat.toString());
+				return locked ? { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } } : {};
+			};
+			const resource = URI.parse('agent-host-copilot:/locked');
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			await session.retryInput?.();
+			const before = { blocked: session.isInputBlocked?.get(), history: session.history.length, notices: notifications.size };
+			locked = false;
+			await session.retryInput?.();
+			assert.deepStrictEqual({ before, blocked: session.isInputBlocked?.get(), history: session.history.length, notices: notifications.size, chats: [...new Set(calls)], turns: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted) }, {
+				before: { blocked: true, history: 0, notices: 1 }, blocked: false, history: 0, notices: 0, chats: [buildDefaultChatUri('codex:/locked')], turns: [],
+			});
+		});
 
 		test('error event renders error message and finishes the request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -7112,7 +7136,7 @@ suite('AgentHostChatContribution', () => {
 				markdown: collected.flat().filter(part => part.kind === 'markdownContent'),
 			}, {
 				errorDetails: {
-					message: 'This conversation is in use by another Codex app. If you\'re using it in ChatGPT, let any running task finish, then quit the ChatGPT app and send your message again in VS Code. Your message has not been sent.',
+					message: 'This conversation is in use by another Codex app. Let any running task finish, then quit the app holding it open, such as ChatGPT, or exit the Codex CLI session. Then send your message again in VS Code. Your message has not been sent.',
 					isExpectedError: true,
 				},
 				markdown: [],

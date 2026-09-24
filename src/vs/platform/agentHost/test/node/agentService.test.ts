@@ -1203,6 +1203,22 @@ suite('AgentService (node dispatcher)', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('prepareChat routes the exact chat without starting a turn and skips archived sessions', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		const session = await service.createSession({ provider: 'copilot' });
+		const chat = URI.parse(buildDefaultChatUri(session.toString()));
+		service.addSubscriber(chat, 'prepare-test');
+		const calls: string[] = [];
+		const result = { error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } };
+		copilotAgent.chats.prepareChat = async resource => { calls.push(resource.toString()); return result; };
+		const blocked = await service.prepareChat(chat);
+		getStateManager(service).dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		const archived = await service.prepareChat(chat);
+		assert.deepStrictEqual({ calls, blocked, archived, turns: getStateManager(service).getChatState(chat.toString())?.turns }, {
+			calls: [chat.toString()], blocked: result, archived: {}, turns: [],
+		});
+	});
+
 	test('starts catalog reconciliation after host startup and the first listing settle', async () => {
 		registerTestAgentProvider(service, copilotAgent);
 		const reconciliation = (service as unknown as { _catalogReconciliationService: { schedule(): void; start(): void } })._catalogReconciliationService;

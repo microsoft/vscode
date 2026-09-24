@@ -903,6 +903,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const requestInProgress = observableValue('requestInProgress', false);
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 		const isReadOnly = observableValue('isReadOnly', false);
+		const isInputBlocked = observableValue('isInputBlocked', false);
 		const pendingRequests: IChatPendingRequest[] = [];
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
@@ -910,13 +911,14 @@ suite('ChatWidget - guarded acceptInput', () => {
 			requestInProgress,
 			requestNeedsInput,
 			isReadOnly,
+			isInputBlocked,
 			inputModel: upcastPartial<IChatModel['inputModel']>({}),
 			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
 			getPendingRequests: () => pendingRequests,
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, hasActiveRequest, requestInProgress, isReadOnly, pendingRequests };
+		return { model, viewModel, hasActiveRequest, requestInProgress, isReadOnly, isInputBlocked, pendingRequests };
 	}
 
 	function createSubmissionWidget() {
@@ -1051,7 +1053,7 @@ suite('ChatWidget - guarded acceptInput', () => {
 		assert.deepStrictEqual(fixture.outcome(), { requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0 });
 	}
 
-	for (const change of ['rebind', 'replace view model', 'clear model', 'dispose', 'widget read-only', 'model read-only'] as const) {
+	for (const change of ['rebind', 'replace view model', 'clear model', 'dispose', 'widget read-only', 'model read-only', 'input blocked'] as const) {
 		test(`rejects ${change} while saving before a guarded submission`, async () => {
 			const fixture = createSubmissionWidget();
 			const saving = createBarrier();
@@ -1069,12 +1071,13 @@ suite('ChatWidget - guarded acceptInput', () => {
 				case 'dispose': fixture.widgetStore.dispose(); break;
 				case 'widget read-only': fixture.setReadOnly(); break;
 				case 'model read-only': fixture.original.isReadOnly.set(true, undefined); break;
+				case 'input blocked': fixture.original.isInputBlocked.set(true, undefined); break;
 			}
 			await saving.release();
 
 			await assert.rejects(pending, {
 				name: 'CodeExpectedError',
-				message: change.endsWith('read-only') ? /chat session is read-only/ : /chat session changed or was closed/,
+				message: change === 'input blocked' ? /Sending is blocked/ : change.endsWith('read-only') ? /chat session is read-only/ : /chat session changed or was closed/,
 			});
 			assertNotAccepted(fixture);
 		});
