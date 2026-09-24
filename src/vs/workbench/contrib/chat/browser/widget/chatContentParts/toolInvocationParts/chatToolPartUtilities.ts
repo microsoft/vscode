@@ -6,6 +6,24 @@
 import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { CopilotToolId } from '../../../../common/tools/copilotToolIds.js';
+import { GenerateImageMockToolId } from '../../../../common/tools/builtinTools/generateImageMockTool.js';
+
+export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
+		|| toolInvocation.toolId === CopilotToolId.GenerateImage
+		|| toolInvocation.toolId === GenerateImageMockToolId
+		|| toolInvocation.toolId === 'image_gen.imagegen'
+		|| toolInvocation.toolId === 'image_generation';
+}
+
+export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): boolean {
+	if (toolInvocation.kind !== 'toolInvocation' || !isImageGenerationToolInvocation(toolInvocation) || IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
+		return false;
+	}
+	const current = state ?? toolInvocation.state.get();
+	return current.type === IChatToolInvocation.StateKind.Streaming || current.type === IChatToolInvocation.StateKind.Executing;
+}
 
 export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');

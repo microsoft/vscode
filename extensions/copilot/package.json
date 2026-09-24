@@ -483,6 +483,28 @@
         }
       },
       {
+        "name": "copilot_generateImage",
+        "toolReferenceName": "generateImage",
+        "canBeReferencedInPrompt": true,
+        "displayName": "%copilot.tools.generateImage.name%",
+        "userDescription": "%copilot.tools.generateImage.userDescription%",
+        "when": "chatIsEnabled && config.github.copilot.chat.tools.generateImage.enabled",
+        "modelDescription": "Generate images from a text prompt. Use this when the user asks to create, draw, or generate a new image, not to inspect an existing image file. This makes a Copilot model request that may consume credits and requires image-generation access. Images are returned in chat and are not automatically saved to the workspace. Do not retry authorization failures.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "description": "A detailed description of the image to generate.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "prompt"
+          ]
+        }
+      },
+      {
         "name": "copilot_listDirectory",
         "toolReferenceName": "listDirectory",
         "displayName": "%copilot.tools.listDirectory.name%",
@@ -3547,6 +3569,14 @@
             "tags": [
               "preview",
               "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.generateImage.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.tools.generateImage.enabled%",
+            "tags": [
+              "experimental"
             ]
           }
         }

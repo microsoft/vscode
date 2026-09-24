@@ -161,6 +161,11 @@ export interface ICopilotConfirmation {
 	confirmation: any;
 }
 
+export interface IGeneratedImage {
+	readonly data: string;
+	readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+}
+
 export interface IResponseDelta {
 	text: string;
 	logprobs?: ChoiceLogProbs;
@@ -173,6 +178,7 @@ export interface IResponseDelta {
 	beginToolCalls?: ICopilotBeginToolCall[];
 	_deprecatedCopilotFunctionCalls?: ICopilotFunctionCall[];
 	copilotConfirmation?: ICopilotConfirmation;
+	generatedImages?: readonly IGeneratedImage[];
 	thinking?: ThinkingDelta | EncryptedThinkingDelta;
 	phase?: string;
 	retryReason?: FilterReason | 'network_error' | 'server_error';
@@ -327,8 +333,13 @@ export interface OpenAiToolSearchTool {
 	parameters?: Record<string, unknown>;
 }
 
-export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool): tool is OpenAiFunctionTool {
-	return (tool as OpenAiFunctionTool).function !== undefined;
+export interface OpenAiImageGenerationTool {
+	type: 'image_generation';
+	output_format?: 'png' | 'jpeg' | 'webp';
+}
+
+export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool | OpenAiImageGenerationTool): tool is OpenAiFunctionTool {
+	return 'function' in tool && tool.function !== undefined;
 }
 
 /**

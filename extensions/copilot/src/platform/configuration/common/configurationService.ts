@@ -1215,6 +1215,7 @@ export namespace ConfigKey {
 	export const ExploreAgentModel = defineSetting<string>('chat.exploreAgent.model', ConfigType.Simple, '');
 
 	export const ViewImageToolEnabled = defineSetting<boolean>('chat.tools.viewImage.enabled', ConfigType.ExperimentBased, true);
+	export const GenerateImageToolEnabled = defineSetting<boolean>('chat.tools.generateImage.enabled', ConfigType.Simple, false);
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/
 	export const LocalIndexEnabled = defineSetting<boolean>('chat.localIndex.enabled', ConfigType.ExperimentBased, true);

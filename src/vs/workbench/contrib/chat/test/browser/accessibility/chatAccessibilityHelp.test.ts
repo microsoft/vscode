@@ -19,6 +19,29 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents generated image previews and saving', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			standalone: help.includes('Image generation appears separately from thinking and tool-call groups'),
+			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
+			waves: help.includes('While generation runs, a decorative waves animation marks where the image will appear, without a tool dropdown'),
+			overlapping: help.includes('Overlapping image-generation attempts share one placeholder while any attempt is running'),
+			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled'),
+			dropdown: help.includes('Only when generation finishes does the tool dropdown appear for inspecting its available prompt and output'),
+			expand: help.includes('Tab to focus the dropdown and Enter or Space to expand or collapse it'),
+			progress: help.includes('progress line says Generating image while generation runs'),
+			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown and the large image below it, even when the dropdown is collapsed'),
+			failure: help.includes('Generated image failed row can be expanded to inspect the error'),
+			restoredState: help.includes('Completed and failed image tools keep their final status when you reopen the chat'),
+			previews: help.includes('Image previews appear as soon as generation succeeds, even if the response is still in progress'),
+			loading: help.includes('A preview is marked as busy while its bytes load'),
+			loadFailure: help.includes('Unable to load image indicates a problem loading the preview, not a failed generation'),
+			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
+			save: help.includes('Save action beside the image'),
+			mock: help.includes('In development builds, reference #generate_image_mock in local Chat'),
+		}, { standalone: true, position: true, waves: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true, mock: true });
+	});
+
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

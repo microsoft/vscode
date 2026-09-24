@@ -5,6 +5,7 @@
 
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatConfiguration } from '../../constants.js';
@@ -12,6 +13,7 @@ import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData, ModifiedFilesConfirmationTool, ModifiedFilesConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
+import { GenerateImageMockTool, GenerateImageMockToolData } from './generateImageMockTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { ReviewPlanTool, ReviewPlanToolData } from './reviewPlanTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
@@ -27,6 +29,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -51,6 +54,10 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const modifiedFilesConfirmationTool = instantiationService.createInstance(ModifiedFilesConfirmationTool);
 		this._register(toolsService.registerTool(ModifiedFilesConfirmationToolData, modifiedFilesConfirmationTool));
 
+		if (!environmentService.isBuilt) {
+			const generateImageMockTool = instantiationService.createInstance(GenerateImageMockTool);
+			this._register(toolsService.registerTool(GenerateImageMockToolData, generateImageMockTool));
+		}
 
 		const taskCompleteTool = instantiationService.createInstance(TaskCompleteTool);
 		this._register(toolsService.registerTool(TaskCompleteToolData, taskCompleteTool));

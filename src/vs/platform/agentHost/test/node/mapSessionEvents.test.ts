@@ -1018,6 +1018,33 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('maps generated image resource links on replayed tool completion', async () => {
+		const uri = 'generated-images:/session/generated-image.png?version=1';
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-image',
+					success: true,
+					result: {
+						content: 'Generated an image.',
+						contents: [{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const part = turns[0].responseParts[0];
+		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Generated an image.' },
+			{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
+		]);
+	});
+
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -1899,6 +1926,17 @@ suite('appendSdkToolResultContent', () => {
 			});
 		}
 	}
+
+	test('preserves resource links without optional MIME type and size', () => {
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, [{ type: 'resource_link', uri: 'generated-images:/session/result', name: 'result' }]);
+		assert.deepStrictEqual(content, [{
+			type: ToolResultContentType.Resource,
+			uri: 'generated-images:/session/result',
+			contentType: undefined,
+			sizeHint: undefined,
+		}]);
+	});
 
 	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
 		const content: ToolResultContent[] = [

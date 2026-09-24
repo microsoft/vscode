@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/progressbar.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -21,7 +22,7 @@ import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { getToolApprovalMessage, shouldShimmerForTool } from './chatToolPartUtilities.js';
+import { getToolApprovalMessage, isImageGenerationToolInvocation, shouldShimmerForTool } from './chatToolPartUtilities.js';
 
 export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationSubPart {
 	/** Remembers expanded tool parts on re-render */
@@ -51,6 +52,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		super(toolInvocation);
 
 		let codeBlockIndex = codeBlockStartIndex;
+		const isImageGeneration = isImageGenerationToolInvocation(toolInvocation);
 
 		// Simple factory to create code part data objects
 		const createCodePart = (data: string, languageId = 'json'): IChatCollapsibleIOCodePart => ({
@@ -104,6 +106,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			context,
 			createCodePart(input, inputLanguage),
 			processedOutput && processedOutput.length > 0 ? {
+				showCollapsedResources: !isImageGeneration,
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
 						? basename(o.uri!)
@@ -133,10 +136,11 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
 			shouldShimmerForTool(toolInvocation, message),
+			isImageGeneration ? Codicon.fileMedia : undefined,
 		));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
-		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
+		const progressObservable = toolInvocation.kind === 'toolInvocation' && !isImageGeneration ? toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
 		const progressBar = new Lazy(() => this._register(new ProgressBar(collapsibleListPart.domNode)));
 		if (progressObservable) {
 			this._register(autorun(reader => {

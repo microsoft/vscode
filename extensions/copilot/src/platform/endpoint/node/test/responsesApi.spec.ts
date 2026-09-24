@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
-import { FinishedCallback, IResponseDelta, isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
+import { FinishedCallback, IGeneratedImage, IResponseDelta, isOpenAIContextManagementResponse, isOpenAiFunctionTool } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -370,6 +370,27 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 });
 
 describe('createResponsesRequestBody', () => {
+	it.each([undefined, false, true])('only enables hosted image generation when requested (%s)', enableImageGeneration => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const body = accessor.get(IInstantiationService).invokeFunction(createResponsesRequestBody, {
+			...createRequestOptions([{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Draw a puppy' }] }], false),
+			modelCapabilities: { enableImageGeneration },
+		}, 'gpt-5.5', testEndpoint);
+
+		expect({
+			model: body.model,
+			tools: body.tools,
+			functionTools: body.tools?.filter(isOpenAiFunctionTool),
+		}).toEqual({
+			model: 'gpt-5.5',
+			tools: enableImageGeneration ? [{ type: 'image_generation', output_format: 'png' }] : undefined,
+			functionTools: enableImageGeneration ? [] : undefined,
+		});
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('extracts compaction threshold from request body context management', () => {
 		expect(getResponsesApiCompactionThresholdFromBody({
 			context_management: [{
@@ -1298,6 +1319,86 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 				content: [{ type: 'input_text', text: 'replayed user input' }],
 			});
 		}
+	});
+});
+
+describe('processResponseFromChatEndpoint image generation', () => {
+	const image = (id: string, result: string | null, output_format?: string, status = 'completed') => ({
+		type: 'image_generation_call', id, result, status, output_format,
+	});
+	const completed = (output: object[]) => ({
+		type: 'response.completed',
+		response: { id: 'response-images', model: 'gpt-5.5', created_at: 123, output },
+	});
+
+	async function runStream(events: object[]) {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		try {
+			const images: IGeneratedImage[] = [];
+			const stream = await processResponseFromChatEndpoint(
+				accessor.get(IInstantiationService),
+				new SpyingTelemetryService(),
+				accessor.get(ILogService),
+				createFakeStreamResponse(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')),
+				1,
+				async (_text, _index, delta) => {
+					images.push(...delta.generatedImages ?? []);
+					return undefined;
+				},
+				TelemetryData.createAndMarkAsIssued({}, {}),
+			);
+			const completions: ChatCompletion[] = [];
+			for await (const completion of stream) {
+				completions.push(completion);
+			}
+			return { images, completions };
+		} finally {
+			accessor.dispose();
+			services.dispose();
+		}
+	}
+
+	it('emits all completed images once across item-done and response-completed events even when item IDs change', async () => {
+		const first = image('image-1', 'cG5n', 'png');
+		const second = image('image-2', 'd2VicA==', 'webp');
+		const result = await runStream([
+			{ type: 'response.output_item.done', output_index: 0, item: first },
+			{ type: 'response.output_item.done', output_index: 0, item: first },
+			completed([{ ...first, id: 'final-image-1' }, second]),
+		]);
+		expect({
+			images: result.images,
+			finishReason: result.completions[0].finishReason,
+			content: result.completions[0].message.content,
+		}).toEqual({
+			images: [{ data: 'cG5n', mimeType: 'image/png' }, { data: 'd2VicA==', mimeType: 'image/webp' }],
+			finishReason: FinishedCompletionReason.Stop,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: 'data:image/png;base64,cG5n' } },
+				{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: 'data:image/webp;base64,d2VicA==' } },
+			],
+		});
+	});
+
+	it('handles terminal-only image results and the default PNG format', async () => {
+		const result = await runStream([completed([image('image-1', 'cG5n'), image('image-2', 'anBlZw==', 'jpeg')])]);
+		expect(result.images).toEqual([{ data: 'cG5n', mimeType: 'image/png' }, { data: 'anBlZw==', mimeType: 'image/jpeg' }]);
+	});
+
+	it('does not publish failed, unfinished, empty, or partial images as final results', async () => {
+		const failed = image('failed', 'cG5n', 'png', 'failed');
+		const unfinished = image('unfinished', 'cG5n', 'png', 'generating');
+		const result = await runStream([
+			{ type: 'response.image_generation_call.partial_image', item_id: 'partial', output_index: 0, partial_image_b64: 'cG5n', partial_image_index: 0 },
+			{ type: 'response.output_item.done', output_index: 1, item: failed },
+			completed([failed, unfinished, image('empty', ''), image('missing', null)]),
+		]);
+		expect({ images: result.images, content: result.completions[0].message.content }).toEqual({ images: [], content: [] });
+	});
+
+	it('rejects an unsupported output format instead of mislabeling the bytes', async () => {
+		await expect(runStream([completed([image('image-1', 'aW1hZ2U=', 'gif')])])).rejects.toThrow('Unsupported generated image format: gif');
 	});
 });
 

@@ -21,6 +21,7 @@ import { IFileDialogService } from '../../../../../../platform/dialogs/common/di
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -42,9 +43,9 @@ const IMAGE_DECODE_DELAY_MS = 100;
 
 /**
  * A reusable widget for rendering a group of resource data parts (files, images)
- * with attachment pills and a toolbar with save actions.
+ * with image previews, attachment pills, and shared save actions.
  *
- * Used by ChatToolOutputContentSubPart and ChatMcpAppSubPart (for download resources).
+ * Inline image results bypass deferred attachment thumbnails while retaining the shared resource actions.
  */
 export class ChatResourceGroupWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -53,10 +54,11 @@ export class ChatResourceGroupWidget extends Disposable {
 
 	constructor(
 		parts: IChatCollapsibleIODataPart[],
-		private readonly _options: { showImageInHover?: boolean } | undefined,
+		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline' } | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -70,7 +72,7 @@ export class ChatResourceGroupWidget extends Disposable {
 	}
 
 	private async _fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
-		// First pass: create entries immediately, using file placeholders for base64 images
+		// Only ordinary attachment thumbnails use the deferred file-placeholder path.
 		const entries: IChatRequestVariableEntry[] = [];
 		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart; mimeType: string }[] = [];
 
@@ -78,7 +80,19 @@ export class ChatResourceGroupWidget extends Disposable {
 			const part = parts[i];
 			const imageMimeType = getResourceImageMimeType(part);
 			if (imageMimeType) {
-				if (part.base64Value) {
+				if (this._options?.imagePresentation === 'inline') {
+					let value = part.value;
+					if (part.base64Value !== undefined) {
+						try {
+							value = decodeBase64(part.base64Value).buffer;
+						} catch (error) {
+							this._logService.warn('Unable to decode generated image', part.uri, error);
+							// Empty image data takes the image error path, not the file-pill fallback.
+							value = new Uint8Array();
+						}
+					}
+					entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value: value ?? part.uri, mimeType: imageMimeType, isURL: !value, references: [{ kind: 'reference', reference: part.uri }] });
+				} else if (part.base64Value) {
 					// Defer base64 decode - use file placeholder for now
 					entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
 					deferredImageParts.push({ index: i, part, mimeType: imageMimeType });
@@ -101,7 +115,6 @@ export class ChatResourceGroupWidget extends Disposable {
 			return;
 		}
 
-		// Render attachments immediately with placeholders
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
 			{
@@ -110,6 +123,7 @@ export class ChatResourceGroupWidget extends Disposable {
 				contentReferences: undefined,
 				domNode: undefined,
 				showImageInHover: this._options?.showImageInHover,
+				imagePresentation: this._options?.imagePresentation,
 			}
 		));
 

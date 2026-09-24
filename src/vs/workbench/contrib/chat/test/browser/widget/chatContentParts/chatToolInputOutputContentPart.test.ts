@@ -8,10 +8,13 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { CopilotToolId } from '../../../../common/tools/copilotToolIds.js';
+import { GenerateImageMockToolId } from '../../../../common/tools/builtinTools/generateImageMockTool.js';
 import { CodeBlockPart } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
@@ -78,6 +81,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			false,
 			false,
 			false,
+			undefined,
 		));
 
 		const button = part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget-title');
@@ -191,6 +195,58 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			renderedTexts: ['First result', 'Second result'],
 		});
 	});
+
+	for (const toolId of [CopilotToolId.GenerateImage, GenerateImageMockToolId, 'image_gen.imagegen', 'image_generation', 'copilot_viewImage']) {
+		test(`collapsed resources are hidden only for image generation (${toolId})`, () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const context: IChatContentPartRenderContext = {
+				element: new class extends mock<IChatResponseViewModel>() {
+					override readonly id = 'response';
+					override readonly sessionResource = URI.parse('chat-session://test/session');
+				}(),
+				elementIndex: 0,
+				container: mainWindow.document.createElement('div'),
+				content: [],
+				contentIndex: 0,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				inlineTextModels: new class extends mock<InlineTextModelCollection>() { }(),
+				editorPool: new class extends mock<EditorPool>() { }(),
+				diffEditorPool: new class extends mock<DiffEditorPool>() { }(),
+				currentWidth: observableValue('testWidth', 500),
+				onDidChangeVisibility: Event.None,
+			};
+			const toolInvocation: IChatToolInvocationSerialized = {
+				kind: 'toolInvocationSerialized',
+				toolCallId: 'image-call',
+				toolId,
+				invocationMessage: 'Image tool',
+				originMessage: undefined,
+				pastTenseMessage: 'Image tool completed',
+				isComplete: true,
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatInputOutputMarkdownProgressPart,
+				toolInvocation,
+				context,
+				0,
+				'Image tool completed',
+				undefined,
+				'{}',
+				undefined,
+				[{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+				false,
+			));
+
+			assert.deepStrictEqual({
+				collapsed: part.domNode.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+				previewCount: part.domNode.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
+			}, { collapsed: 'false', previewCount: toolId === 'copilot_viewImage' ? 1 : 0 });
+		});
+	}
 
 	test('uses output MIME types and defaults to plaintext', () => {
 		const renderedCodeBlocks: { text: string; languageId: string }[] = [];

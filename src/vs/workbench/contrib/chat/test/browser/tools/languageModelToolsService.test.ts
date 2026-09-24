@@ -5,10 +5,12 @@
 
 import * as assert from 'assert';
 import { Barrier } from '../../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -20,10 +22,12 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { InMemoryTestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
@@ -41,6 +45,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { ChatUrlFetchingConfirmationContribution } from '../../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
 import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
+import { GenerateImageMockTool, GenerateImageMockToolData } from '../../../common/tools/builtinTools/generateImageMockTool.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -2523,6 +2529,67 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(dataOutput.mimeType, 'application/octet-stream');
 		assert.strictEqual(dataOutput.value, 'AQID'); // base64 of [1,2,3]
 	});
+
+	test('generate_image_mock uses normal tool input/output and generated-image result handling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fileService = store.add(new InMemoryTestFileService());
+		const image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+		await fileService.writeFile(FileAccess.asFileUri('vs/workbench/contrib/chat/common/tools/builtinTools/media/generatedImageMock.png'), decodeBase64(image));
+		const environmentService = new class extends mock<IEnvironmentService>() {
+			override isBuilt = false;
+		}();
+		const tool = registerToolForTest(service, store, GenerateImageMockToolData.id, new GenerateImageMockTool(fileService, environmentService), GenerateImageMockToolData);
+		const chatEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
+		const available = () => [...service.getTools(undefined)].some(candidate => candidate.id === tool.id);
+		const hiddenWithoutChat = !available();
+		chatEnabled.set(true);
+		const availableWithChat = available();
+		const result = await service.invokeTool(tool.makeDto({ prompt: 'Draw a happy puppy' }), async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			hiddenWithoutChat,
+			availableWithChat,
+			toolSpecificData: result.toolSpecificData,
+			details: result.toolResultDetails,
+		}, {
+			hiddenWithoutChat: true,
+			availableWithChat: true,
+			toolSpecificData: { kind: 'generatedImage' },
+			details: {
+				input: '{\n  "prompt": "Draw a happy puppy"\n}',
+				output: [
+					{ type: 'embed', isText: true, value: 'Development mock: returned the bundled sample image. No image was generated.' },
+					{ type: 'embed', value: image, mimeType: 'image/png' },
+				],
+			},
+		});
+	}));
+
+	for (const { toolId, isError, hasImage, generated } of [
+		{ toolId: CopilotToolId.GenerateImage, isError: false, hasImage: true, generated: true },
+		{ toolId: CopilotToolId.GenerateImage, isError: true, hasImage: true, generated: false },
+		{ toolId: CopilotToolId.GenerateImage, isError: false, hasImage: false, generated: false },
+		{ toolId: 'copilot_viewImage', isError: false, hasImage: true, generated: false },
+	]) {
+		test(`generated image outcome for ${toolId}, error=${isError}, image=${hasImage}`, async () => {
+			const tool = registerToolForTest(service, store, toolId, {
+				invoke: async () => ({
+					content: hasImage
+						? [{ kind: 'data', value: { data: VSBuffer.fromString('image'), mimeType: 'image/png' } }]
+						: [{ kind: 'text', value: 'No image' }],
+					toolResultError: isError,
+				}),
+			});
+			const result = await service.invokeTool(tool.makeDto({ prompt: 'Draw a puppy' }), async () => 0, CancellationToken.None);
+			const details = result.toolResultDetails;
+			assert.deepStrictEqual({
+				toolSpecificData: result.toolSpecificData,
+				output: isToolResultInputOutputDetails(details) ? details.output : undefined,
+			}, {
+				toolSpecificData: generated ? { kind: 'generatedImage' } : undefined,
+				output: hasImage ? [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }] : undefined,
+			});
+		});
+	}
 
 	test('tool error handling and telemetry', async () => {
 		const testTelemetryService = new TestTelemetryService();

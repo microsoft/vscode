@@ -55,6 +55,16 @@ function getGeneratedImageResultDetails(toolInvocation: IChatToolInvocation | IC
 	return isToolResultInputOutputDetails(resultDetails) ? resultDetails : undefined;
 }
 
+export function getLastGeneratedImageToolCallId(content: ReadonlyArray<IChatRendererContent>): string | undefined {
+	const lastImageTool = content.findLast(part =>
+		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+		&& part.toolSpecificData?.kind === 'generatedImage'
+		&& IChatToolInvocation.isComplete(part));
+	return lastImageTool?.kind === 'toolInvocation' || lastImageTool?.kind === 'toolInvocationSerialized'
+		? lastImageTool.toolCallId
+		: undefined;
+}
+
 export function getGeneratedImageResultCount(content: ReadonlyArray<IChatRendererContent>): number {
 	let count = 0;
 	for (const part of content) {
@@ -81,9 +91,9 @@ export function getGeneratedImageResultPartsFromContent(
 	if (parts.length < 2) {
 		return parts;
 	}
-	return parts.map((part, index) => ({
+	return parts.map((part, index) => part.base64Value === undefined ? part : ({
 		...part,
-		// Distinguish each attachment in the gallery's visible and accessible labels.
+		// Only synthetic names may change; referenced URIs identify the bytes to load and save.
 		uri: part.uri.with({ path: part.uri.path.replace(/generated-image(?=\.[^/]+$|$)/, `generated-image-${index + 1}`) }),
 	}));
 }
@@ -91,7 +101,7 @@ export function getGeneratedImageResultPartsFromContent(
 /** Renders generated images as response outcomes using the shared image preview affordances. */
 export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
-	public override readonly codeblocks: IChatCodeBlockInfo[] = [];
+	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
@@ -101,11 +111,17 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
+		this.domNode = dom.$('.chat-generated-image-tool-result');
+
+		if (getLastGeneratedImageToolCallId(context.content) !== toolInvocation.toolCallId) {
+			return;
+		}
+
 		const parts = getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
-		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, { showImageInHover: false }));
+		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, { showImageInHover: false, imagePresentation: 'inline' }));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		this.domNode = dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode);
+		const gallery = dom.append(this.domNode, dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode));
 		const hasMultipleGeneratedImages = getGeneratedImageResultCount(context.content) > 1;
-		this.domNode.classList.toggle('multiple', hasMultipleGeneratedImages);
+		gallery.classList.toggle('multiple', hasMultipleGeneratedImages);
 	}
 }

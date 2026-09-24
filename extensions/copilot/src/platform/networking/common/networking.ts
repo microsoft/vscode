@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { AnthropicMessagesTool, ContextManagement } from './anthropic';
-import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
+import { FinishedCallback, OpenAiFunctionTool, OpenAiImageGenerationTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
 
@@ -62,7 +62,7 @@ const requestTimeoutMs = 30 * 1000; // 30 seconds
  */
 export interface IEndpointBody {
 	/** General or completions: */
-	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool)[];
+	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool | OpenAiImageGenerationTool)[];
 	model?: string;
 	previous_response_id?: string;
 	max_tokens?: number;
@@ -186,6 +186,8 @@ export interface IModelCapabilityOptions {
 	enableToolSearch?: boolean;
 	/** Enable context editing for this request. */
 	enableContextEditing?: boolean;
+	/** Enable hosted image generation for this Responses API request. */
+	enableImageGeneration?: boolean;
 }
 
 export interface IMakeChatRequestOptions {
@@ -225,7 +227,7 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
-	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
+	/** Per-request model capability opt-ins. */
 	modelCapabilities?: IModelCapabilityOptions;
 	/**
 	 * The round ID at which the most recent client-side summarization occurred.

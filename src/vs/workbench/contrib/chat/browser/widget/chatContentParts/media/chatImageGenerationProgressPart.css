@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-image-generation-placeholder {
+	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
+}
+
+.chat-image-generation-label {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.chat-image-generation-canvas {
+	position: relative;
+	width: min(100%, 512px);
+	height: min(40vh, 280px);
+	overflow: hidden;
+}
+
+.chat-image-generation-contours {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	color: color-mix(in srgb, var(--vscode-focusBorder) 70%, var(--vscode-foreground));
+	stroke: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
+	stroke-width: var(--vscode-strokeThickness);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	opacity: 0.9;
+	mask-image: radial-gradient(ellipse at 48% 48%, currentColor 18%, transparent 70%);
+}
+
+.chat-image-generation-contour {
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+.monaco-enable-motion .chat-image-generation-contour {
+	animation: chat-image-generation-wave 5s ease-in-out infinite;
+}
+
+@keyframes chat-image-generation-wave {
+	0%, 100% {
+		transform: translate(-8px, -8px) scaleY(0.92);
+		opacity: 0.55;
+	}
+	50% {
+		transform: translate(8px, 8px) scaleY(1.08);
+		opacity: 1;
+	}
+}
+
+.monaco-reduce-motion .chat-image-generation-contour,
+.disable-animations .chat-image-generation-contour {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-enable-motion .chat-image-generation-contour {
+		animation: none;
+	}
+}
+
+.hc-black .chat-image-generation-contours,
+.hc-light .chat-image-generation-contours {
+	stroke: var(--vscode-descriptionForeground);
+	opacity: 1;
+	mask-image: none;
+}
+
+.hc-black .chat-image-generation-contour,
+.hc-light .chat-image-generation-contour {
+	animation: none;
+}

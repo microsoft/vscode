@@ -10,15 +10,16 @@ import { IAuthenticationService } from '../../../../platform/authentication/comm
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
-import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { IInteractionService } from '../../../../platform/chat/common/interactionService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
+import { createResponsesRequestBody, processResponseFromChatEndpoint } from '../../../../platform/endpoint/node/responsesApi';
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback, getCopilotServiceRequestId } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, getCopilotServiceRequestId, IGeneratedImage } from '../../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
@@ -29,6 +30,7 @@ import { NullExperimentationService } from '../../../../platform/telemetry/commo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
+import { createPlatformServices } from '../../../../platform/test/node/services';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { InstantiationServiceBuilder } from '../../../../util/common/services';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
@@ -38,7 +40,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { IPowerService, NullPowerService } from '../../../power/common/powerService';
 import { ChatMLFetcherImpl } from '../chatMLFetcher';
 
-describe('ChatMLFetcherImpl Response API telemetry', () => {
+describe('ChatMLFetcherImpl Response API', () => {
 	let disposables: DisposableStore;
 	let fetcher: ChatMLFetcherImpl;
 	let mockFetcherService: MockFetcherService;
@@ -81,6 +83,65 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 
 	afterEach(() => {
 		disposables.dispose();
+	});
+
+	it('preserves hosted-tool opt-in and image-only results through the fetch pipeline', async () => {
+		const services = disposables.add(createPlatformServices());
+		const accessor = disposables.add(services.createTestingAccessor());
+		const instantiationService = accessor.get(IInstantiationService);
+		const requestBodies: IEndpointBody[] = [];
+		const endpoint: IChatEndpoint = {
+			...createResponseApiEndpoint(),
+			model: 'gpt-5.5',
+			family: 'gpt-5.5',
+			apiType: 'responses',
+			createRequestBody: options => {
+				const body = instantiationService.invokeFunction(createResponsesRequestBody, options, 'gpt-5.5', endpoint);
+				requestBodies.push(body);
+				return body;
+			},
+			processResponseFromChatEndpoint: (telemetry, log, response, choices, callback, telemetryData) =>
+				processResponseFromChatEndpoint(instantiationService, telemetry, log, response, choices, callback, telemetryData),
+		};
+		const image = { id: 'image-1', type: 'image_generation_call', status: 'completed', result: 'cG5n', output_format: 'png' };
+		const events = [
+			{ type: 'response.output_item.done', output_index: 0, item: image },
+			{ type: 'response.completed', response: { id: 'response-images', model: 'gpt-5.5', created_at: 123, output: [image] } },
+		];
+		mockFetcherService.queueResponse(Response.fromText(
+			200,
+			'OK',
+			new FakeHeaders(new Map([['content-type', 'text/event-stream']])),
+			events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''),
+			'node-fetch',
+		));
+		const images: IGeneratedImage[] = [];
+		const response = await fetcher.fetchOne({
+			debugName: 'test-image-generation',
+			endpoint,
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Draw a puppy' }] }],
+			location: ChatLocation.Agent,
+			requestOptions: {},
+			modelCapabilities: { enableImageGeneration: true },
+			finishedCb: async (_text, _index, delta) => {
+				images.push(...delta.generatedImages ?? []);
+				return undefined;
+			},
+		}, cancellationTokenSource.token);
+
+		expect({
+			requests: requestBodies.map(body => ({ model: body.model, tools: body.tools })),
+			type: response.type,
+			text: response.type === ChatFetchResponseType.Success ? response.value : undefined,
+			images,
+			fetchCount: mockFetcherService.fetchCallCount,
+		}).toEqual({
+			requests: [{ model: 'gpt-5.5', tools: [{ type: 'image_generation', output_format: 'png' }] }],
+			type: ChatFetchResponseType.Success,
+			text: '',
+			images: [{ data: 'cG5n', mimeType: 'image/png' }],
+			fetchCount: 1,
+		});
 	});
 
 	it('logs non-empty messagesJson for Response API requests (input field)', async () => {

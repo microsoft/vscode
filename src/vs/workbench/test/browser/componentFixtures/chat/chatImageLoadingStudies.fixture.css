@@ -1,0 +1,1018 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.image-loading-studies {
+	box-sizing: border-box;
+	width: min(1120px, 100vw);
+	padding: var(--vscode-spacing-size240);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+}
+
+.image-loading-studies-header {
+	margin-bottom: var(--vscode-spacing-size320);
+
+	h2 {
+		margin: 0 0 var(--vscode-spacing-size80);
+		font-size: var(--vscode-fontSize-heading2);
+		font-weight: var(--vscode-fontWeight-semiBold);
+	}
+
+	p {
+		margin: 0;
+		color: var(--vscode-descriptionForeground);
+	}
+}
+
+.image-loading-studies-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+	gap: var(--vscode-spacing-size320) var(--vscode-spacing-size240);
+}
+
+.image-loading-study {
+	min-width: 0;
+}
+
+.image-loading-study-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.image-loading-study-stage {
+	position: relative;
+	height: 172px;
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.image-loading-study-stage .chat-image-generation-placeholder {
+	height: 100%;
+	margin: 0;
+}
+
+.image-loading-study-stage .chat-image-generation-canvas {
+	width: 100%;
+	height: 100%;
+}
+
+.image-loading-study-artwork {
+	display: block;
+	width: 100%;
+	height: 100%;
+	fill: none;
+	color: color-mix(in srgb, var(--vscode-focusBorder) 70%, var(--vscode-foreground));
+	stroke: currentColor;
+	stroke-width: var(--vscode-strokeThickness);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	mask-image: radial-gradient(ellipse at 50% 50%, currentColor 20%, transparent 74%);
+}
+
+.image-loading-study-shape {
+	transform-box: fill-box;
+	transform-origin: center;
+	opacity: 0.7;
+}
+
+.monaco-enable-motion .image-loading-study-shape {
+	animation-name: var(--image-study-motion);
+	animation-duration: var(--image-study-duration);
+	animation-delay: var(--image-study-delay);
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+}
+
+.image-loading-study-dot {
+	fill: currentColor;
+	stroke: none;
+}
+
+.image-loading-study-tile {
+	fill: currentColor;
+	fill-opacity: 0.25;
+}
+
+.image-loading-study-ink {
+	fill: currentColor;
+	fill-opacity: 0.14;
+	stroke-opacity: 0.45;
+}
+
+.image-loading-study-facet {
+	fill: currentColor;
+	fill-opacity: 0.06;
+}
+
+.image-loading-study-particles {
+	stroke-width: calc(var(--vscode-strokeThickness) * 2);
+}
+
+.image-loading-study-horizon {
+	transform-box: view-box;
+	transform-origin: 210px 80px;
+}
+
+.image-loading-study-shape.image-loading-study-orbit {
+	transform-box: view-box;
+	transform-origin: 210px 120px;
+	animation-timing-function: linear;
+}
+
+.image-loading-study-shape.image-loading-study-trace,
+.image-loading-study-shape.image-loading-study-brush {
+	animation-timing-function: linear;
+}
+
+.image-loading-study-brush {
+	stroke-width: calc(var(--vscode-strokeThickness) * 2);
+}
+
+.image-loading-study-status {
+	margin: 0 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.image-loading-study-description {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.image-loading-studies-footer {
+	margin: var(--vscode-spacing-size320) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.image-loading-studies-pencil {
+	width: min(1000px, 100vw);
+
+	.image-loading-studies-grid {
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+	}
+
+	.image-loading-study-stage {
+		height: 232px;
+	}
+}
+
+.image-loading-studies-narrow {
+	width: min(360px, 100vw);
+}
+
+.image-loading-studies-single {
+	width: min(560px, 100vw);
+
+	.image-loading-study-stage {
+		height: 280px;
+	}
+}
+
+.image-loading-studies-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size160);
+
+	.monaco-button {
+		width: auto;
+		padding-inline: var(--vscode-spacing-size120);
+	}
+}
+
+.image-loading-studies-prism {
+	--image-study-tone-0: var(--vscode-charts-blue);
+	--image-study-tone-1: var(--vscode-charts-purple);
+	--image-study-tone-2: var(--vscode-charts-yellow);
+	--image-study-tone-3: var(--vscode-charts-green);
+}
+
+.image-loading-study-tone-0 {
+	color: var(--image-study-tone-0, inherit);
+}
+
+.image-loading-study-tone-1 {
+	color: var(--image-study-tone-1, inherit);
+}
+
+.image-loading-study-tone-2 {
+	color: var(--image-study-tone-2, inherit);
+}
+
+.image-loading-study-tone-3 {
+	color: var(--image-study-tone-3, inherit);
+}
+
+.image-loading-study-illustration {
+	color: color-mix(in srgb, var(--vscode-charts-blue) 45%, var(--vscode-foreground));
+	stroke-width: calc(var(--vscode-strokeThickness) * 1.2);
+	mask-image: radial-gradient(ellipse at 50% 50%, var(--vscode-foreground) 32%, transparent 78%);
+
+	path,
+	circle,
+	rect {
+		vector-effect: non-scaling-stroke;
+	}
+}
+
+.image-loading-study-paint {
+	fill: currentColor;
+	fill-opacity: 0.22;
+}
+
+.image-loading-study-glass {
+	fill: currentColor;
+	fill-opacity: 0.28;
+	stroke-opacity: 0.85;
+}
+
+.image-loading-study-paper {
+	fill: currentColor;
+	fill-opacity: 0.32;
+	transform-origin: 50% 100%;
+}
+
+.image-loading-study-pixel {
+	fill: currentColor;
+	fill-opacity: 0.65;
+	stroke: none;
+}
+
+.image-loading-study-strong-line {
+	stroke-width: calc(var(--vscode-strokeThickness) * 1.5);
+}
+
+.image-loading-study-pen {
+	offset-path: var(--image-study-pen-path);
+	offset-rotate: 0deg;
+	offset-distance: 52%;
+}
+
+.image-loading-study-bristle {
+	stroke-linecap: round;
+}
+
+.image-loading-study-scanline {
+	transform-origin: left center;
+	stroke-width: calc(var(--vscode-strokeThickness) * 2.4);
+}
+
+.image-loading-study-handles {
+	stroke-dasharray: 3 5;
+	stroke-opacity: 0.35;
+}
+
+.image-loading-study-anchor {
+	fill: var(--vscode-editor-background);
+}
+
+.image-loading-studies-paused .image-loading-study-shape,
+.image-loading-studies-paused .chat-image-generation-contour {
+	animation-play-state: paused;
+}
+
+.image-loading-studies:not(.image-loading-studies-prism) .chat-image-generation-contour {
+	stroke: var(--vscode-foreground);
+}
+
+@keyframes image-study-develop {
+	0%, 100% {
+		opacity: 0.18;
+	}
+	32% {
+		opacity: 0.65;
+	}
+	55%, 72% {
+		opacity: 0.95;
+	}
+}
+
+@keyframes image-study-expose {
+	0%, 100% {
+		transform: translateY(0);
+		opacity: 0;
+	}
+	16% {
+		opacity: 0.65;
+	}
+	72% {
+		transform: translateY(119px);
+		opacity: 0.65;
+	}
+	86% {
+		transform: translateY(119px);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-grain {
+	0%, 100% {
+		transform: translate(var(--image-study-x), var(--image-study-y)) scale(0.45);
+		opacity: 0.15;
+	}
+	35%, 70% {
+		transform: translate(0, 0) scale(1);
+		opacity: 0.9;
+	}
+}
+
+@keyframes image-study-focus {
+	0%, 100% {
+		transform: translate(var(--image-study-x), var(--image-study-y)) scale(1.06);
+		opacity: 0.28;
+	}
+	28% {
+		transform: translate(calc(var(--image-study-x) * -0.18), calc(var(--image-study-y) * -0.18));
+		opacity: 0.4;
+	}
+	48%, 72% {
+		transform: translate(0, 0) scale(1);
+		opacity: 0.7;
+	}
+}
+
+@keyframes image-study-register {
+	0%, 100% {
+		transform: translate(var(--image-study-x), var(--image-study-y));
+		opacity: 0.4;
+	}
+	42%, 72% {
+		transform: translate(0, 0);
+		opacity: 0.8;
+	}
+}
+
+@keyframes image-study-proof {
+	0%, 100% {
+		transform: translateY(12px) scale(0.92);
+		opacity: 0.18;
+	}
+	35%, 58% {
+		transform: translateY(-8px) scale(1.06);
+		opacity: 0.95;
+	}
+}
+
+@keyframes image-study-draw {
+	0%, 8% {
+		stroke-dashoffset: 100;
+		opacity: 0.4;
+	}
+	52%, 78% {
+		stroke-dashoffset: 0;
+		opacity: 0.95;
+	}
+	96%, 100% {
+		stroke-dashoffset: -100;
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-pen {
+	0%, 8% {
+		offset-distance: 0%;
+		opacity: 0;
+	}
+	12% {
+		opacity: 1;
+	}
+	52%, 76% {
+		offset-distance: 100%;
+		opacity: 0.9;
+	}
+	80%, 100% {
+		offset-distance: 100%;
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-wash {
+	0%, 18%, 100% {
+		opacity: 0.05;
+	}
+	48%, 78% {
+		opacity: 0.85;
+	}
+}
+
+@keyframes image-study-contact {
+	0%, 100% {
+		clip-path: inset(100% 0 0 0);
+		opacity: 0.2;
+	}
+	40%, 76% {
+		clip-path: inset(0);
+		opacity: 0.95;
+	}
+}
+
+@keyframes image-study-paper {
+	0%, 100% {
+		transform: translateY(23px) scaleY(0.72);
+		opacity: 0.12;
+	}
+	38%, 70% {
+		transform: translateY(0) scaleY(1);
+		opacity: 0.9;
+	}
+}
+
+@keyframes image-study-assemble {
+	0%, 100% {
+		transform: translate(var(--image-study-x), var(--image-study-y)) rotate(var(--image-study-angle, 0deg)) scale(0.65);
+		opacity: 0.12;
+	}
+	40%, 72% {
+		transform: translate(0, 0) rotate(0deg) scale(1);
+		opacity: 0.95;
+	}
+}
+
+@keyframes image-study-relief {
+	0%, 100% {
+		transform: translateY(var(--image-study-y)) scaleY(0.6);
+		opacity: 0.2;
+	}
+	42%, 70% {
+		transform: translateY(0) scaleY(1);
+		opacity: 0.85;
+	}
+}
+
+@keyframes image-study-fold {
+	0%, 100% {
+		transform: scaleX(0.08) rotate(-9deg);
+		opacity: 0.15;
+	}
+	38%, 72% {
+		transform: scaleX(1) rotate(0deg);
+		opacity: 0.85;
+	}
+}
+
+@keyframes image-study-raster {
+	0%, 100% {
+		transform: scaleX(0.02);
+		opacity: 0.08;
+	}
+	42%, 78% {
+		transform: scaleX(1);
+		opacity: 0.9;
+	}
+}
+
+@keyframes image-study-surface {
+	0%, 100% {
+		fill-opacity: 0;
+		stroke-opacity: 0.15;
+	}
+	36% {
+		fill-opacity: 0;
+		stroke-opacity: 0.85;
+	}
+	54%, 78% {
+		fill-opacity: 0.3;
+		stroke-opacity: 0.85;
+	}
+}
+
+.image-loading-study-handmade {
+	color: var(--vscode-foreground);
+	stroke-width: var(--vscode-strokeThickness);
+}
+
+.image-loading-studies-prism .image-loading-study-handmade {
+	--image-study-tone-0: color-mix(in srgb, var(--vscode-charts-blue) 35%, var(--vscode-foreground));
+	--image-study-tone-1: color-mix(in srgb, var(--vscode-charts-purple) 35%, var(--vscode-foreground));
+	--image-study-tone-2: color-mix(in srgb, var(--vscode-charts-yellow) 35%, var(--vscode-foreground));
+	--image-study-tone-3: color-mix(in srgb, var(--vscode-charts-green) 35%, var(--vscode-foreground));
+}
+
+.image-loading-study-underdrawing {
+	opacity: 0.12;
+}
+
+.image-loading-study-pigment {
+	fill: currentColor;
+	fill-opacity: 0.035;
+	stroke-opacity: 0.25;
+	stroke-width: calc(var(--vscode-strokeThickness) * 0.65);
+}
+
+.image-loading-study-pastel {
+	stroke-width: calc(var(--vscode-strokeThickness) * 3.2);
+}
+
+.image-loading-study-fine-bristle {
+	stroke-width: calc(var(--vscode-strokeThickness) * 0.6);
+}
+
+.image-loading-study-drawing-tip {
+	stroke-width: var(--vscode-strokeThickness);
+}
+
+.image-loading-study-knife {
+	fill: currentColor;
+	fill-opacity: 0.16;
+	stroke-opacity: 0.35;
+}
+
+.image-loading-study-gouache {
+	fill: currentColor;
+	fill-opacity: 0.16;
+	stroke: none;
+}
+
+.image-loading-study-calligraphy {
+	fill: currentColor;
+	stroke: none;
+}
+
+.image-loading-study-erasure {
+	mask-image: linear-gradient(105deg, currentColor 44%, transparent 48%, transparent 52%, currentColor 56%);
+	mask-size: 280% 100%;
+	mask-position: 70% 0%;
+	mask-repeat: no-repeat;
+}
+
+.image-loading-study-pencil {
+	color: var(--vscode-foreground);
+	mask-image:
+		linear-gradient(to right, transparent, currentColor 8%, currentColor 92%, transparent),
+		linear-gradient(to bottom, transparent, currentColor 10%, currentColor 90%, transparent);
+	mask-composite: intersect;
+}
+
+.image-loading-studies-prism .image-loading-study-pencil {
+	--image-study-tone-0: color-mix(in srgb, var(--vscode-charts-blue) 75%, var(--vscode-foreground));
+	--image-study-tone-1: color-mix(in srgb, var(--vscode-charts-purple) 65%, var(--vscode-foreground));
+}
+
+.image-loading-study-shape.image-loading-study-pencil-mark {
+	/* Keep normalized dashes in the path's coordinate system as the preview scales. */
+	vector-effect: none;
+	stroke-linecap: butt;
+	stroke-opacity: 0.52;
+	animation-timing-function: linear;
+}
+
+.image-loading-study-pencil-layer {
+	stroke-width: 1.7px;
+	animation-fill-mode: backwards;
+}
+
+.image-loading-study-pencil-grain {
+	mask-image: radial-gradient(ellipse at 35% 45%, transparent 0.4px, currentColor 1px);
+	mask-size: 4px 3px;
+}
+
+@keyframes image-study-pencil-color {
+	0% {
+		stroke-dashoffset: 100;
+		opacity: 0;
+	}
+	1% {
+		opacity: 0.85;
+	}
+	78%, 89% {
+		stroke-dashoffset: 0;
+		opacity: 0.85;
+	}
+	100% {
+		stroke-dashoffset: 0;
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-pencil-layer {
+	0% {
+		stroke-dashoffset: 100;
+		opacity: 0;
+	}
+	2% {
+		opacity: 0.85;
+	}
+	45%, 50% {
+		stroke-dashoffset: 0;
+		opacity: 0.85;
+	}
+	95%, 100% {
+		stroke-dashoffset: 0;
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-sketch {
+	0%, 8% {
+		stroke-dashoffset: 100;
+		opacity: 0.2;
+	}
+	52%, 78% {
+		stroke-dashoffset: 0;
+		opacity: 0.65;
+	}
+	96%, 100% {
+		stroke-dashoffset: -100;
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-bristle-pass {
+	0%, 100% {
+		clip-path: inset(0 91% 0 0);
+		stroke-dashoffset: 7;
+		opacity: 0.12;
+	}
+	45%, 72% {
+		clip-path: inset(0);
+		stroke-dashoffset: 0;
+		opacity: 0.55;
+	}
+}
+
+@keyframes image-study-pigment-pressure {
+	0%, 100% {
+		opacity: 0.12;
+	}
+	35% {
+		opacity: 0.4;
+	}
+	58%, 74% {
+		opacity: 0.6;
+	}
+}
+
+@keyframes image-study-paint-laydown {
+	0%, 100% {
+		clip-path: inset(0 94% 0 0);
+		opacity: 0.16;
+	}
+	46%, 78% {
+		clip-path: inset(0);
+		opacity: 0.65;
+	}
+	96% {
+		clip-path: inset(0);
+		opacity: 0.1;
+	}
+}
+
+@keyframes image-study-erase {
+	0%, 8% {
+		mask-position: 100% 0%;
+	}
+	80%, 100% {
+		mask-position: 0% 0%;
+	}
+}
+
+@keyframes image-study-morph {
+	0%, 100% {
+		d: var(--image-study-frame-0);
+		opacity: 0.55;
+	}
+	25% {
+		d: var(--image-study-frame-1);
+		opacity: 0.8;
+	}
+	50% {
+		d: var(--image-study-frame-2);
+		opacity: 0.65;
+	}
+	75% {
+		d: var(--image-study-frame-3);
+		opacity: 0.85;
+	}
+}
+
+@keyframes image-study-dot-tide {
+	0%, 100% {
+		transform: translateY(6px) scale(0.7);
+		opacity: 0.25;
+	}
+	50% {
+		transform: translateY(-13px) scale(1.3);
+		opacity: 0.95;
+	}
+}
+
+@keyframes image-study-orbit {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes image-study-ripple {
+	0% {
+		transform: scale(0.35);
+		opacity: 0;
+	}
+	25% {
+		opacity: 0.8;
+	}
+	100% {
+		transform: scale(1.45);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-splash {
+	0% {
+		transform: translate(0, 12px) scale(0.4);
+		opacity: 0;
+	}
+	20% {
+		opacity: 0.85;
+	}
+	55% {
+		transform: translate(var(--image-study-x), var(--image-study-y)) scale(0.8);
+		opacity: 0.65;
+	}
+	100% {
+		transform: translate(calc(var(--image-study-x) * 1.3), 24px) scale(0.35);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-firefly {
+	0%, 100% {
+		transform: translate(0, 0) scale(0.7);
+		opacity: 0.2;
+	}
+	35% {
+		transform: translate(var(--image-study-x), calc(var(--image-study-y) * -0.5)) scale(1.3);
+		opacity: 0.9;
+	}
+	70% {
+		transform: translate(calc(var(--image-study-x) * 0.6), var(--image-study-y)) scale(0.9);
+		opacity: 0.5;
+	}
+}
+
+@keyframes image-study-trace {
+	from {
+		stroke-dashoffset: 100;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@keyframes image-study-twinkle {
+	0%, 100% {
+		transform: scale(0.8);
+		opacity: 0.4;
+	}
+	50% {
+		transform: scale(1.3);
+		opacity: 1;
+	}
+}
+
+@keyframes image-study-bloom {
+	0% {
+		transform: scale(0.35) rotate(-8deg);
+		opacity: 0;
+	}
+	35% {
+		opacity: 0.6;
+	}
+	100% {
+		transform: scale(1.5) rotate(14deg);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-petal {
+	0%, 100% {
+		transform: translateX(-8px) scale(0.65);
+		opacity: 0.25;
+	}
+	50% {
+		transform: translateX(8px) scale(1.1);
+		opacity: 0.9;
+	}
+}
+
+@keyframes image-study-mosaic {
+	0%, 100% {
+		transform: scale(0.35) rotate(-8deg);
+		opacity: 0.12;
+	}
+	50% {
+		transform: scale(1) rotate(0deg);
+		opacity: 0.8;
+	}
+}
+
+@keyframes image-study-dune {
+	0% {
+		transform: translate(-12px, 0);
+		opacity: 0;
+	}
+	50% {
+		transform: translate(0, -4px);
+		opacity: 0.9;
+	}
+	100% {
+		transform: translate(12px, -6px);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-rain {
+	0% {
+		transform: translateY(-48px);
+		opacity: 0;
+	}
+	20% {
+		opacity: 0.7;
+	}
+	50% {
+		transform: translateY(20px);
+		opacity: 0.7;
+	}
+	54%, 100% {
+		transform: translateY(27px);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-rain-ring {
+	0%, 50% {
+		transform: scale(0.3);
+		opacity: 0;
+	}
+	60% {
+		opacity: 0.8;
+	}
+	100% {
+		transform: scale(2);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-bubble {
+	0%, 100% {
+		transform: translate(0, 0) scale(1);
+		opacity: 0.55;
+	}
+	50% {
+		transform: translate(var(--image-study-x), var(--image-study-y)) scale(1.07, 0.96);
+		opacity: 0.9;
+	}
+}
+
+@keyframes image-study-seed {
+	0% {
+		transform: translate(calc(var(--image-study-x) * -0.5), 18px) rotate(-10deg);
+		opacity: 0;
+	}
+	20%, 70% {
+		opacity: 0.8;
+	}
+	100% {
+		transform: translate(var(--image-study-x), var(--image-study-y)) rotate(14deg);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-echo {
+	0% {
+		stroke-dashoffset: 100;
+		opacity: 0;
+	}
+	35%, 50% {
+		stroke-dashoffset: 0;
+		opacity: 0.8;
+	}
+	100% {
+		stroke-dashoffset: -100;
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-hatch {
+	0%, 100% {
+		stroke-dashoffset: 100;
+		opacity: 0.2;
+	}
+	35%, 65% {
+		stroke-dashoffset: 0;
+		opacity: 0.8;
+	}
+}
+
+@keyframes image-study-streamer {
+	0%, 100% {
+		transform: translateY(-10px) rotate(-18deg) scaleX(0.4);
+		opacity: 0.4;
+	}
+	25% {
+		transform: translateY(0) rotate(5deg) scaleX(1);
+		opacity: 0.9;
+	}
+	50% {
+		transform: translateY(10px) rotate(20deg) scaleX(0.4);
+		opacity: 0.5;
+	}
+	75% {
+		transform: translateY(0) rotate(-4deg) scaleX(0.85);
+		opacity: 0.8;
+	}
+}
+
+@keyframes image-study-horizon {
+	0% {
+		transform: scale(0.3);
+		opacity: 0;
+	}
+	35% {
+		opacity: 0.8;
+	}
+	100% {
+		transform: scale(1.7);
+		opacity: 0;
+	}
+}
+
+@keyframes image-study-spark {
+	0% {
+		transform: rotate(0deg) scale(0.4);
+		opacity: 0.12;
+	}
+	50% {
+		transform: rotate(45deg) scale(1.2);
+		opacity: 0.8;
+	}
+	100% {
+		transform: rotate(90deg) scale(0.4);
+		opacity: 0.12;
+	}
+}
+
+@keyframes image-study-helix {
+	0%, 100% {
+		transform: translateY(-42px) scale(0.7);
+		opacity: 0.4;
+	}
+	25% {
+		transform: translateY(0) scale(1.2);
+		opacity: 1;
+	}
+	50% {
+		transform: translateY(42px) scale(0.7);
+		opacity: 0.4;
+	}
+	75% {
+		transform: translateY(0) scale(0.45);
+		opacity: 0.2;
+	}
+}
+
+.monaco-reduce-motion .image-loading-study-shape,
+.disable-animations .image-loading-study-shape,
+.hc-black .image-loading-study-shape,
+.hc-light .image-loading-study-shape {
+	animation: none;
+}
+
+.hc-black .image-loading-study-artwork,
+.hc-light .image-loading-study-artwork {
+	color: var(--vscode-descriptionForeground);
+}
+
+.hc-black .image-loading-study-illustration,
+.hc-light .image-loading-study-illustration {
+	--image-study-tone-0: var(--vscode-foreground);
+	--image-study-tone-1: var(--vscode-foreground);
+	--image-study-tone-2: var(--vscode-foreground);
+	--image-study-tone-3: var(--vscode-foreground);
+	mask-image: none;
+}
+
+.hc-black .image-loading-study-erasure,
+.hc-light .image-loading-study-erasure {
+	mask-image: none;
+}
+
+.hc-black .image-loading-study-pencil-layer,
+.hc-light .image-loading-study-pencil-layer {
+	stroke-opacity: 1;
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-enable-motion .image-loading-study-shape {
+		animation: none;
+	}
+}
