@@ -21,6 +21,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  playwright:
+    name: Playwright Fixture Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-component-fixtures
+          key-args: "compile $(node -p process.arch)"
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: build
+
+      - name: Install rspack dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: build/rspack
+
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+
+      - name: Build component explorer
+        run: npx rspack build --config rspack.serve-out.config.mts
+        working-directory: build/rspack
+        env:
+          COMPONENT_EXPLORER_STATIC_BUILD: 1
+
+      - name: Install Playwright test dependencies
+        run: npm ci
+        working-directory: test/componentFixtures/playwright
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        working-directory: test/componentFixtures/playwright
+
+      - name: Run Playwright fixture tests
+        run: npx playwright test
+        working-directory: test/componentFixtures/playwright
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-test-results
+          path: test/componentFixtures/playwright/test-results/
+
   screenshots:
     name: Screenshots & Tests
     runs-on: ubuntu-latest
@@ -85,25 +152,6 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium
-
-      - name: Install Playwright test dependencies
-        run: npm ci
-        working-directory: test/componentFixtures/playwright
-
-      - name: Install Playwright Chromium (tests)
-        run: npx playwright install chromium
-        working-directory: test/componentFixtures/playwright
-
-      - name: Run Playwright fixture tests
-        run: npx playwright test
-        working-directory: test/componentFixtures/playwright
-
-      - name: Upload Playwright test results
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: playwright-test-results
-          path: test/componentFixtures/playwright/test-results/
 
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
