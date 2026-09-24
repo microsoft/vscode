@@ -277,6 +277,24 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('branchCompletions returns all branches in priority order', async () => {
+		const gitService = createGitService();
+		gitService.getBranches = async () => [
+			...Array.from({ length: 35 }, (_, index) => ({
+				ref: `refs/heads/branch-${index}`,
+				name: `branch-${index}`,
+				kind: GitRefType.Head as const,
+			})),
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
+		];
+		const isolation = createIsolation(disposables, { gitService });
+
+		const all = await isolation.branchCompletions(repoRoot);
+
+		assert.deepStrictEqual(all.items.map(item => item.value), ['feature', 'main', ...Array.from({ length: 35 }, (_, index) => `branch-${index}`)]);
+	});
+
 	test('uses the selected local default branch as the worktree start point', async () => {
 		const gitService = createGitService();
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });

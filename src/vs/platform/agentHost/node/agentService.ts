@@ -5733,7 +5733,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The host owns branch completions for every agent (they share the same
 		// git-backed branch list); all other properties stay provider-specific.
 		if (params.property === SessionConfigKey.Branch && this._worktree.supported) {
-			return this._worktree.branchCompletions(params.workingDirectory, params.query);
+			return this._worktree.branchCompletions(params.workingDirectory);
 		}
 		const provider = this._providerService.resolveProvider(params.provider);
 		if (!provider) {

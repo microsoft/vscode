@@ -1316,6 +1316,51 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'new-draft');
 	});
 
+	test('openNewSession requires Dev Container execution before activating the draft', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const newDraftSession = stubSession({
+			sessionId: 'new-draft',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const events: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override createNewSession(): ISession { return newDraftSession; }
+			preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void {
+				events.push(`require:${sessionId}:${options?.required}`);
+			}
+		}(newDraftSession);
+		const { view } = createSessionsManagementService(newDraftSession, disposables, provider);
+		disposables.add(autorun(reader => {
+			const session = view.activeSession.read(reader);
+			if (session) {
+				events.push(`activate:${session.sessionId}`);
+			}
+		}));
+
+		const result = await view.openNewSession({ folderUri, requireDevContainer: true });
+
+		assert.deepStrictEqual({
+			events,
+			result: result.session?.sessionId,
+			active: view.activeSession.get()?.sessionId,
+		}, {
+			events: ['require:new-draft:true', 'activate:new-draft'],
+			result: 'new-draft',
+			active: 'new-draft',
+		});
+	});
+
 	test('removing the active chat keeps the custom view open', async () => {
 		const sideChat: IChat = {
 			...stubChat,

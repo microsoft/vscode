@@ -34,13 +34,13 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
-	test('sorts the current and default branches before recent branches and applying the limit', () => {
+	test('sorts the current and default branches before recent branches', () => {
 		assert.deepStrictEqual(
 			getBranchCompletions(
 				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
-				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+				{ currentBranch: 'feature/current', defaultBranch: 'dev' },
 			),
-			['feature/current', 'dev', 'feature/recent'],
+			['feature/current', 'dev', 'feature/recent', 'main', 'feature/older'],
 		);
 	});
 
@@ -51,16 +51,6 @@ suite('AgentHostGitService', () => {
 				{ currentBranch: 'other', defaultBranch: 'main' },
 			),
 			['feature/recent', 'release', 'feature/older'],
-		);
-	});
-
-	test('filters before prioritizing the current and default branches', () => {
-		assert.deepStrictEqual(
-			getBranchCompletions(
-				['feature/recent', 'maintenance', 'main', 'feature/current'],
-				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
-			),
-			['maintenance', 'main'],
 		);
 	});
 

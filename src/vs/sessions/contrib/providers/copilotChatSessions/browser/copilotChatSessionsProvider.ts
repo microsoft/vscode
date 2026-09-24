@@ -145,6 +145,8 @@ export interface ICopilotChatSession {
 	/** Checkpoints associated with this session, if any. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
+	/** Whether this session is still treated as external to VS Code. Absent means `false`. */
+	readonly isExternal?: IObservable<boolean>;
 
 	readonly initialAutomationSessionConfiguration?: IAutomationSessionConfiguration;
 
@@ -595,6 +597,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly isRead: IObservable<boolean>;
 
+	private readonly _isExternal: ReturnType<typeof observableValue<boolean>>;
+	readonly isExternal: IObservable<boolean>;
+
 	private readonly _description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
 	readonly description: IObservable<IMarkdownString | undefined>;
 
@@ -716,6 +721,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.isArchived = this._isArchived;
 		this._isRead = observableValue(this, session.isRead());
 		this.isRead = this._isRead;
+		this._isExternal = observableValue(this, this._extractIsExternal(session));
+		this.isExternal = this._isExternal;
 		this._description = observableValue(this, this._extractDescription(session));
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
@@ -753,6 +760,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._checkpoints, this._extractCheckpoints(session), tx, structuralEquals) || changed;
 			changed = setIfChanged(this._isArchived, session.isArchived(), tx) || changed;
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
+			changed = setIfChanged(this._isExternal, this._extractIsExternal(session), tx) || changed;
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
 			changed = setIfChanged(this._baseGitHubInfo, gitHubInfo, tx, gitHubInfoEqual) || changed;
@@ -785,6 +793,14 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return undefined;
 		}
 		return typeof session.description === 'string' ? new MarkdownString(session.description) : session.description;
+	}
+
+	/**
+	 * The cloud provider marks tasks that were neither started nor adopted from VS Code. Sending
+	 * a message adopts a task, and the refreshed metadata clears the mark.
+	 */
+	private _extractIsExternal(session: IAgentSession): boolean {
+		return session.providerType === AgentSessionProviders.Cloud && session.metadata?.external === true;
 	}
 
 	private _extractIssueArtifacts(session: IAgentSession): readonly ISessionArtifact[] {
@@ -2501,6 +2517,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			chats: chatsObs,
 			mainChat,
 			createdBySession: chat.createdBySession ?? this._createdBySession(chat.resource),
+			isExternal: chat.isExternal,
 			capabilities: constObservable({
 				supportsMultipleChats: false,
 				supportsRename: false,
