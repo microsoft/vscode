@@ -2964,7 +2964,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('renews expiring GitHub Enterprise client authentication before refreshing models', async () => {
+	test('allows one-hour GitHub Enterprise auth and defers renewal restart until idle', async () => {
 		let now = 1_000_000;
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
