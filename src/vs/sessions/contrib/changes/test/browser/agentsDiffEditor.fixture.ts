@@ -10,12 +10,10 @@ import { $, Dimension, getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
@@ -41,7 +39,9 @@ import { AgentFeedbackOverlayController, IAgentFeedbackOverlayEditorGroup } from
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../../agentFeedback/browser/agentFeedbackEditorActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
 const MODIFIED_FIRST_RESOURCE = URI.file('/workspace/src/first.ts');
@@ -131,7 +131,6 @@ class AgentsDiffUIElementFactory implements IWorkbenchUIElementFactory {
 function createFixtureSession(): ISession {
 	return new class extends mock<ISession>() {
 		override readonly resource = SESSION_RESOURCE;
-		override readonly changes = constObservable([]);
 	}();
 }
 
@@ -143,11 +142,15 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
 		}
 		override getSessionForFile(resource: URI): ISession | undefined {
 			return resource.toString() === MODIFIED_FIRST_RESOURCE.toString() ? session : undefined;
+		}
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 		override getFeedbackSessionResource(resource: URI): URI | undefined {
 			return resource.toString() === feedbackScopeResource.toString() ? SESSION_RESOURCE : undefined;
@@ -244,6 +247,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, createMockCodeReviewService());
 			reg.defineInstance(IContextKeyService, createContextKeyService());
 			reg.define(IMenuService, FixtureAgentFeedbackMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
@@ -276,7 +280,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		editorInstance,
 		instantiationService.createInstance(AgentsDiffUIElementFactory),
 		{
-			variant: MultiDiffEditorVariant.Compact,
+			variant: 'noCards',
 			diffEditorOptions: {
 				hideOriginalLineNumbers: true,
 				folding: false,

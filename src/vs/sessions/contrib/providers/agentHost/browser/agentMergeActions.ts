@@ -143,7 +143,9 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
-			const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService).read(reader) : undefined;
+			// Each folder has its own Agent Merge; follow the one the active chat works in.
+			const chat = session?.activeChat.read(reader);
+			const state = session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, configurationService, chat).read(reader) : undefined;
 			const enabled = state?.enabled === true;
 			const effective = state?.actions ?? getGlobalAgentMergeConfiguration(configurationService);
 			enabledKey.set(enabled);
@@ -152,10 +154,10 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 			}
 			mergePullRequestKey.set(effective.mergePullRequest);
 			const authorized = agentMergeRepairActions.filter(action => effective[action]);
-			const signature = `${session?.sessionId ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
+			const signature = `${session?.sessionId ?? 'none'}|${chat?.resource.toString() ?? 'none'}|${enabled}|${authorized.join(',')}|${effective.mergePullRequest}`;
 			if (lastLogged !== signature) {
 				lastLogged = signature;
-				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
+				logService.info(`[AgentMergeActions] Session state: session=${session?.sessionId ?? 'none'}, chat=${chat?.resource.toString() ?? 'none'}, enabled=${enabled}, authorizedActions=[${authorized.join(', ') || 'none'}], mergePullRequest=${effective.mergePullRequest}`);
 			}
 		}));
 	}
@@ -169,10 +171,11 @@ interface IAgentMergeActionPick extends IQuickPickItem {
 
 abstract class AgentMergeActionBase extends Action2 {
 
+	/** The active session and its active chat, whose folder's Agent Merge the actions change. */
 	protected getActiveSession(accessor: ServicesAccessor) {
 		const session = accessor.get(ISessionsService).activeSession.get();
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
-		return session && provider && isAgentHostProvider(provider) ? { session, provider } : undefined;
+		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;
 	}
 
 	/**
@@ -187,7 +190,7 @@ abstract class AgentMergeActionBase extends Action2 {
 		}
 		const configurationService = accessor.get(IConfigurationService);
 		const logService = accessor.get(ILogService);
-		const state = active.provider.getAgentMergeSessionState(active.session.sessionId);
+		const state = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
 		const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(configurationService), state?.overrides);
 		const overrides: AgentMergeSessionOverrides = {
 			addressReviews: effective.addressReviews,
@@ -196,7 +199,7 @@ abstract class AgentMergeActionBase extends Action2 {
 			mergePullRequest: effective.mergePullRequest,
 			...patch,
 		};
-		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides);
+		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides, active.chat);
 		logService.info(`[AgentMergeActions] Overrides updated: session=${active.session.sessionId}, change=${JSON.stringify(patch)}`);
 	}
 }
@@ -245,7 +248,7 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 		if (!active) {
 			return;
 		}
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, true);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, true, active.chat);
 		logService.info(`[AgentMergeActions] Enabled from the title bar: session=${active.session.sessionId}`);
 	}
 });
@@ -271,7 +274,7 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 		if (!active) {
 			return;
 		}
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, false);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, false, active.chat);
 		logService.info(`[AgentMergeActions] Disabled from the title bar: session=${active.session.sessionId}`);
 	}
 });
@@ -308,7 +311,7 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 			if (!active) {
 				return;
 			}
-			const state = active.provider.getAgentMergeSessionState(active.session.sessionId);
+			const state = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
 			const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(accessor.get(IConfigurationService)), state?.overrides);
 			await this.updateOverrides(accessor, { [action]: !effective[action] });
 		}
@@ -395,7 +398,7 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 		}
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, true);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, true, active.chat);
 		logService.info(`[AgentMergeActions] Enable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
 		notificationService.info(localize('agentMerge.enabled', "Agent Merge is enabled for the active session."));
 	}
@@ -418,7 +421,7 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 		}
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		await active.provider.setAgentMergeEnabled(active.session.sessionId, false);
+		await active.provider.setAgentMergeEnabled(active.session.sessionId, false, active.chat);
 		logService.info(`[AgentMergeActions] Disable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
 		notificationService.info(localize('agentMerge.disabled', "Agent Merge is disabled for the active session."));
 	}
@@ -444,7 +447,7 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
 		const defaults = getGlobalAgentMergeConfiguration(configurationService);
-		const current = active.provider.getAgentMergeSessionState(active.session.sessionId);
+		const current = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
 		const effective = resolveAgentMergeConfiguration(defaults, current?.overrides);
 		const picks: IAgentMergeActionPick[] = agentMergeRepairActions.map(action => ({
 			action,
@@ -458,7 +461,7 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		// The merge choice is an enum rather than a checkbox, so it is carried
 		// through untouched instead of being reset by this multi-select.
 		const overrides = result.reset ? undefined : toOverrides(result.actions, effective.mergePullRequest);
-		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides);
+		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides, active.chat);
 		logService.info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${result.reset}, enabledActions=${[...result.actions].sort().join(',') || 'none'}`);
 		notificationService.info(result.reset
 			? localize('agentMerge.action.reset.complete', "Agent Merge now follows the global action defaults for this session.")

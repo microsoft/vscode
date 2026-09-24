@@ -321,18 +321,20 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			const session = await createSession('artifact-add', false, () => setRootConfig({
 				[AgentHostArtifactToolsConfigKey]: true,
 			}));
-			await driveServerTool(
+			const { tool } = await driveServerTool(
 				session,
 				'turn-artifact-add',
 				'Call add_artifact_or_reference exactly once with an items array containing two entries: type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host"; then type "file", label "Agent Host report", isArtifact true, and uri "file:///agent-host-report.md". Then reply with exactly "recorded".',
 				ArtifactServerToolName.AddArtifactOrReference,
-				{ result: [/Added reference:/, /Agent Host guide/, /Added artifact:/, /Agent Host report/] },
+				{ result: [/Added reference:/, /Added artifact:/] },
 			);
 			const artifacts = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
 
 			assert.deepStrictEqual({
+				result: tool.resultText,
 				artifacts: artifacts.map(({ id: _id, ...artifact }) => artifact),
 			}, {
+				result: `Added reference: ${artifacts[0].id}\nAdded artifact: ${artifacts[1].id}`,
 				artifacts: [
 					{
 						type: 'website',
@@ -555,7 +557,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'viewUnreviewedComments',
 			{ result: [/"id":\s*"reveal-me"/] },
 		);
-		assert.strictEqual(turn.sawPendingConfirmation, true);
+		assert.strictEqual(turn.sawPendingConfirmation, config.provider !== 'codex');
 		const annotation = (await annotationsState(session.sessionUri)).annotations.find(annotation => annotation.id === 'reveal-me');
 		assert.deepStrictEqual({
 			pendingAgentReveal: (annotation?._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined)?.pendingAgentReveal,
@@ -821,7 +823,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: turn.sawPendingConfirmation,
 			messages: peerState.turns.map(turn => turn.message.text),
 		}, {
-			sawPendingConfirmation: true,
+			sawPendingConfirmation: config.provider !== 'codex',
 			messages: ['/rename Created Peer'],
 		});
 	}, config.supportsMultipleChats && supportsCurrentSessionCreation);
@@ -1039,7 +1041,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			childRequestModel: childRequest.model,
 			creationReference,
 		}, {
-			sawPendingConfirmation: true,
+			sawPendingConfirmation: config.provider !== 'codex',
 			provider: model.provider,
 			isolation: 'folder',
 			messages: [childPrompt],

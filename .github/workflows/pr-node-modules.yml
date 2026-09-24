@@ -31,6 +31,10 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
+      - name: Install Electron headers
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/npm/preinstall.ts
+
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
@@ -88,13 +92,20 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Check Electron cache
+        id: cache-electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+          lookup-only: 'true'
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-linux
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          lookup-only: 'true'
+          lookup-only: ${{ steps.cache-electron.outputs.cache-hit == 'true' }}
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -143,6 +154,15 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
 
+      - name: Setup Electron
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+          save-cache: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+
   macOS:
     name: macOS
     runs-on: macos-26-xlarge
@@ -158,13 +178,20 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Check Electron cache
+        id: cache-electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+          lookup-only: 'true'
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-macos
           key-args: "darwin ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          lookup-only: 'true'
+          lookup-only: ${{ steps.cache-electron.outputs.cache-hit == 'true' }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -202,6 +229,15 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
 
+      - name: Setup Electron
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+          save-cache: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+
   windows:
     name: Windows
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
@@ -217,13 +253,20 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Check Electron cache
+        id: cache-electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+          lookup-only: 'true'
+
       - name: Restore node_modules cache
         id: node-modules-cache
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
-          lookup-only: 'true'
+          lookup-only: ${{ steps.cache-electron.outputs.cache-hit == 'true' }}
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -260,6 +303,15 @@ jobs:
       - name: Save node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
+
+      - name: Setup Electron
+        if: steps.cache-electron.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+          save-cache: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
   copilot-linux:
     name: Copilot (Linux)

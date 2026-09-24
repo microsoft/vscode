@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableFromEventOpts, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../../common/customizationLockdown.js';
+import { ICustomizationMcpServerCompatibility, ICustomizationMcpServerCompatibilityScope } from '../../../common/customizationHarnessService.js';
 import { IMcpService, IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from './agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from './agentHostMcpServerSupport.js';
 
 const MCP_SUPPORT_UPDATE_DEBOUNCE_DELAY = 50;
 
@@ -34,6 +39,82 @@ export interface IAgentHostMcpServerSupportScope extends IDisposable {
 	readonly isResolved: IObservable<boolean>;
 	/** Resolves after the latest scheduled support assessment settles or the scope is disposed. */
 	whenResolved(): Promise<void>;
+}
+
+export function createCustomizationMcpServerCompatibilityScope(
+	onDidChange: Event<void>,
+	getWorkingDirectories: () => readonly URI[],
+	acquireScope: (roots: readonly URI[]) => IAgentHostMcpServerSupportScope | undefined,
+): ICustomizationMcpServerCompatibilityScope {
+	const store = new DisposableStore();
+	const servers = observableValue<readonly ICustomizationMcpServerCompatibility[]>('mcpServerCompatibility', []);
+	const isResolved = observableValue('mcpServerCompatibilityResolved', false);
+	const workingDirectories = observableFromEventOpts(
+		{ equalsFn: (a, b) => equals(a, b, isEqual) },
+		onDidChange,
+		getWorkingDirectories,
+	);
+	store.add(autorun(reader => {
+		const scope = acquireScope(workingDirectories.read(reader));
+		if (!scope) {
+			transaction(tx => {
+				servers.set([], tx);
+				isResolved.set(true, tx);
+			});
+			return;
+		}
+		reader.store.add(scope);
+		reader.store.add(autorun(reader => {
+			const compatibility = scope.support.read(reader).servers
+				.filter(server => server.applicability !== AgentHostMcpServerApplicability.OutsideCurrentScope)
+				.map(server => ({
+					id: server.id,
+					kind: server.compatibility.kind,
+					details: server.compatibility.kind === 'supported' ? undefined : server.compatibility.reasons.map(getMcpCompatibilityDetail),
+				}));
+			const resolved = scope.isResolved.read(reader);
+			transaction(tx => {
+				servers.set(compatibility, tx);
+				isResolved.set(resolved, tx);
+			});
+		}));
+	}));
+	return {
+		servers,
+		isResolved,
+		dispose: () => store.dispose(),
+	};
+}
+
+export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): string {
+	switch (reason) {
+		case AgentHostMcpSupportReason.UnsupportedSourceLocation:
+			return localize('mcpCompatibilityUnsupportedSourceLocation', "The current configuration location for this server is not supported by the Copilot harness.\nTo migrate this server, move its configuration to the workspace root .mcp.json file.");
+		case AgentHostMcpSupportReason.RequiresUserInteraction:
+			return localize('mcpCompatibilityRequiresUserInteraction', "Input and command variables are not supported by the Copilot harness.\nTo migrate this server, replace them with concrete values or environment variables defined directly in the server configuration.");
+		case AgentHostMcpSupportReason.UnresolvedConfiguration:
+			return localize('mcpCompatibilityUnresolvedConfiguration', "Unresolved configuration, environment, or workspace variables are not supported by the Copilot harness.\nTo migrate this server, define the missing variables or replace them with concrete values.");
+		case AgentHostMcpSupportReason.LaunchNotRepresentable:
+			return localize('mcpCompatibilityLaunchNotRepresentable', "The launch configuration for this server is not supported by the Copilot harness.\nTo migrate this server, add a command for a local server or a valid URL for a remote server.");
+		case AgentHostMcpSupportReason.EnvironmentFileIgnored:
+			return localize('mcpCompatibilityEnvironmentFileIgnored', "Environment files are not supported by the Copilot harness.\nTo migrate this server, move required variables from the environment file into the server env configuration.");
+		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
+			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
+		case AgentHostMcpSupportReason.ServerVersionNotPortable:
+			return localize('mcpCompatibilityServerVersionNotPortable', "Server version metadata cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the version property.");
+		case AgentHostMcpSupportReason.SseTransportNotPortable:
+			return localize('mcpCompatibilitySseTransportNotPortable', "SSE transport settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, use the default HTTP transport.");
+		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:
+			return localize('mcpCompatibilitySandboxConfigurationIgnored', "Per-server sandbox settings are not supported by the Copilot harness.\nTo migrate this server, remove the server sandbox setting.");
+		case AgentHostMcpSupportReason.DevelopmentModeIgnored:
+			return localize('mcpCompatibilityDevelopmentModeIgnored', "MCP development mode is not supported by the Copilot harness.\nTo migrate this server, remove the development mode setting and restart the server manually after configuration changes.");
+		case AgentHostMcpSupportReason.OAuthClientConfigurationIgnored:
+			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "Custom OAuth client configuration is not supported by the Copilot harness.\nTo migrate this server, remove the custom OAuth client configuration and sign in when the Copilot harness prompts for authentication.");
+		case AgentHostMcpSupportReason.DefinitionNotLoaded:
+			return localize('mcpCompatibilityDefinitionNotLoaded', "Compatibility cannot be determined because the server definition has not loaded.\nTo migrate this server, wait for MCP discovery to finish, then refresh this view. If the issue persists, check the server configuration for errors.");
+		case AgentHostMcpSupportReason.SourceUnknown:
+			return localize('mcpCompatibilitySourceUnknown', "Compatibility cannot be determined because the server configuration source is unknown.\nTo migrate this server, move its configuration to a recognized location such as the workspace root .mcp.json file.");
+	}
 }
 
 /** Owns MCP support assessment and refreshes it while at least one consumer holds a reference. */

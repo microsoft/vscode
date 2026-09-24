@@ -18,6 +18,7 @@ import { localize } from '../../../nls.js';
  * every level is present.
  */
 export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
+export const ReasoningEffortConfigKey = 'thinkingLevel';
 
 /**
  * Union of every reasoning-effort / thinking-level value surfaced by any
@@ -30,6 +31,15 @@ export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high'
  * consistently.
  */
 export type ReasoningEffortLevel = typeof reasoningEffortLevels[number];
+
+/**
+ * Narrows an arbitrary string to a recognized {@link ReasoningEffortLevel}.
+ * Derives from {@link reasoningEffortLevels} so newly-added tiers are never
+ * silently dropped by a private allowlist.
+ */
+export function isReasoningEffortLevel(value: string | undefined): value is ReasoningEffortLevel {
+	return value !== undefined && (reasoningEffortLevels as readonly string[]).includes(value);
+}
 
 /**
  * Localized, title-cased picker label for a reasoning-effort value.

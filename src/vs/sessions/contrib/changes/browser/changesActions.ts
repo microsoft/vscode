@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/changesActions.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,7 +32,7 @@ import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
@@ -34,6 +40,12 @@ import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } fr
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
+import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
+
+function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
+	const change = changes.find(change => isChangesFileResource(change, resource));
+	return change ? getChangesFileUri(change) : resource;
+}
 
 // --- View All Changes action
 
@@ -109,7 +121,10 @@ class OpenChangedFileAction extends Action2 {
 			return;
 		}
 
-		await accessor.get(IEditorService).openEditor({ resource });
+		const changesViewService = accessor.get(IChangesViewService);
+		await accessor.get(IEditorService).openEditor({
+			resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.get()),
+		});
 	}
 }
 registerAction2(OpenChangedFileAction);
@@ -383,7 +398,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 
 						await changeset?.invokeOperation(operation.id, {
 							kind: 'resource',
-							resource,
+							resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.read(undefined)),
 						});
 					}
 				}));
@@ -392,13 +407,41 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	}
 }
 
+const NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperation.';
+
+class CommitActionViewItem extends MenuEntryActionViewItem {
+
+	override render(container: HTMLElement): void {
+		this.options.icon = false;
+		this.options.label = true;
+		container.classList.add('changes-commit-action');
+		super.render(container);
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const icon = this._commandAction.item.icon;
+			const iconElement = icon && ThemeIcon.isThemeIcon(icon) ? renderIcon(icon) : undefined;
+			iconElement?.setAttribute('aria-hidden', 'true');
+			dom.reset(this.label, ...(iconElement ? [iconElement] : []), dom.$('span.changes-commit-label', undefined, this._commandAction.label));
+		}
+	}
+}
+
 export class NewSessionUncommittedChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperationsAction';
 
 	constructor(
 		@ISessionsService sessionsService: ISessionsService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
+
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderLayout, `${NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
+			return action instanceof MenuItemAction
+				? instantiationService.createInstance(CommitActionViewItem, action, options)
+				: undefined;
+		}));
 
 		this._register(autorun(reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
@@ -406,7 +449,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				return;
 			}
 
-			const changeset = activeSession.changesets.read(reader)
+			const changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
 				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 			const operations = changeset?.operations.read(reader)
 				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
@@ -425,7 +468,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: `workbench.contrib.sessions.newSessionUncommittedChangesetOperation.${operation.id}`,
+							id: `${NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
 							title: operation.label,
 							tooltip: operation.description,
 							icon: operation.icon,

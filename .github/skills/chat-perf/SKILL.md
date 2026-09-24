@@ -37,8 +37,7 @@ npm run perf:chat-leak -- --messages 20 --verbose
 
 ## Perf regression test
 
-**Script:** `scripts/chat-simulation/test-chat-perf-regression.js`
-**npm:** `npm run perf:chat`
+**Script:** `scripts/chat-simulation/test-chat-perf-regression.js` **npm:** `npm run perf:chat`
 
 Launches VS Code via Playwright Electron, opens the chat panel, sends a message with a mock LLM response, and measures timing, layout, and rendering metrics. By default, downloads VS Code 1.115.0 as a baseline, benchmarks it, then benchmarks the local dev build and compares.
 
@@ -206,8 +205,7 @@ Results use **IQR-based outlier removal** and **median** (not mean) to handle st
 
 ## Memory leak check
 
-**Script:** `scripts/chat-simulation/test-chat-mem-leaks.js`
-**npm:** `npm run perf:chat-leak`
+**Script:** `scripts/chat-simulation/test-chat-mem-leaks.js` **npm:** `npm run perf:chat-leak`
 
 Launches one VS Code session, sends N messages sequentially, forces GC between each, and measures renderer heap and DOM node count. Uses **linear regression** on the samples to compute per-message growth rate, which is compared against a threshold.
 

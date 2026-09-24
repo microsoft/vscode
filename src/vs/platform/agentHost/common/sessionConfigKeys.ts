@@ -21,6 +21,8 @@ export const enum SessionConfigKey {
 	AutoApprove = 'autoApprove',
 	/** `'permissions'` — per-tool session allow/deny lists. */
 	Permissions = 'permissions',
+	/** Persisted session sandbox selection; omitted or `default` follows the host default. */
+	SandboxEnabled = 'sandboxEnabled',
 	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
 	/** `'branch'` — host-owned base branch to work from. */
@@ -39,9 +41,17 @@ export const enum SessionConfigKey {
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
 	AgentMergeController = 'agentMerge.controller',
+	/** `'agentMerge.folders'` — client-owned Agent Merge enablement and overrides per working-directory key. */
+	AgentMergeFolders = 'agentMerge.folders',
+	/** `'agentMerge.controller.folders'` — host-owned Agent Merge lifecycle state per working-directory key. */
+	AgentMergeControllerFolders = 'agentMerge.controller.folders',
+	/** `'agentMerge.injectedConfiguration'` — host-owned session-wide elevated configuration applied while any Agent Merge folder runs. */
+	AgentMergeInjectedConfiguration = 'agentMerge.injectedConfiguration',
 	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
 	ShellInitScripts = 'shellInitScripts',
 }
+
+export type SessionSandboxEnabled = 'default' | 'on' | 'off';
 
 /**
  * The set of enum values the unified permission picker *tolerates* for the
@@ -73,6 +83,7 @@ export function omitTransientSessionConfigValues<T>(values: Record<string, T>): 
 
 const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.Permissions,
+	SessionConfigKey.SandboxEnabled,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
@@ -81,6 +92,9 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.AgentMerge,
 	SessionConfigKey.AgentMergeController,
+	SessionConfigKey.AgentMergeFolders,
+	SessionConfigKey.AgentMergeControllerFolders,
+	SessionConfigKey.AgentMergeInjectedConfiguration,
 ] as const;
 
 /** Removes values owned by a concrete session or target rather than a reusable Automation template. */

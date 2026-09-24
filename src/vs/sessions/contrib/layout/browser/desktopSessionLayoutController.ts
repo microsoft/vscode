@@ -79,7 +79,8 @@ export class LayoutController extends BaseLayoutController {
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
+			const activeChat = activeSession?.activeChat.read(reader);
+			return activeChat?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
 		});
 
 		const editorMaximizedObs = observableFromEvent(this,

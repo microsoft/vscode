@@ -4,20 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { SessionArtifactType, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readSessionGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readFolderGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
+import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
+import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
+import { SESSION_ARTIFACTS_KEY, persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { SessionArtifacts } from './shared/sessionArtifacts.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -32,6 +39,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostPullRequestStatusService private readonly _pullRequestStatusService: IAgentHostPullRequestStatusService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -43,7 +51,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
 		const resolveBaseBranchName = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey);
-		const onCreated = (event: PullRequestCreatedEvent) => this._onPullRequestCreated(event);
+		const onCreated = (event: PullRequestCreatedEvent) => this.recordCreatedPullRequest(event);
 		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, false, getSessionState, resolveBaseBranchName, onCreated);
 		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, false, getSessionState, resolveBaseBranchName, onCreated);
 		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', false, getSessionState, resolveBaseBranchName, onCreated);
@@ -52,6 +60,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		const createAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		const createDraftAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
+		store.add(registry.registerChangesetOperationHandler(PREPARE_PULL_REQUEST_OPERATION_ID, { invoke: (params, token) => createPrHandler.prepare(params, token) }));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR, createDraftPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_MERGE, createAutoMergePrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_SQUASH, createAutoSquashPrHandler));
@@ -96,7 +105,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		return operations;
 	}
 
-	private _computeOperations({ sessionKey, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+	private _computeOperations({ sessionKey, ownerKey, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
 		// New Session
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
@@ -109,9 +118,9 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		// Pull request already exists for the currently checked out branch
+		// Pull request already exists for the currently checked out branch.
 		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return this._getPullRequestLifecycleOperations(sessionKey);
+			return this._getPullRequestLifecycleOperations(sessionKey, ownerKey ?? sessionKey);
 		}
 
 		const hasBranchChanges = gitState?.hasBaseBranchChanges ?? (gitState?.outgoingChanges ?? 0) > 0;
@@ -121,9 +130,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		const agentMergeEnabled = this._isAgentMergeEnabled();
 		return [{
-			id: 'create-pr',
+			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR,
 			label: localize('agentHost.changeset.createPR', "Create PR"),
 			icon: 'git-pull-request-create',
 			group: 'pull-request',
@@ -131,53 +139,14 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			status: ChangesetOperationStatus.Idle,
 		},
 		{
-			id: 'create-pr-auto-merge',
-			label: localize('agentHost.changeset.createPRAutoMerge', "Create PR (Auto-Merge)"),
-			icon: 'git-merge',
+			id: PREPARE_PULL_REQUEST_OPERATION_ID,
+			label: localize('agentHost.changeset.preparePR', "Prepare PR"),
+			description: localize('agentHost.changeset.preparePR.description', "Generate a pull request title and description and read repository merge options without changing the repository."),
+			icon: 'git-pull-request-create',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		},
-		{
-			id: 'create-pr-auto-squash',
-			label: localize('agentHost.changeset.createPRAutoSquash', "Create PR (Auto-Squash)"),
-			icon: 'git-merge',
-			group: 'pull-request',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		},
-		{
-			id: 'create-pr-auto-rebase',
-			label: localize('agentHost.changeset.createPRAutoRebase', "Create PR (Auto-Rebase)"),
-			icon: 'git-merge',
-			group: 'pull-request',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		},
-		...(agentMergeEnabled ? [{
-			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AGENT_MERGE,
-			label: localize('agentHost.changeset.createPRAgentMerge', "Create PR & Agent Merge"),
-			icon: 'git-merge',
-			group: 'pull-request',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		}] : []),
-		{
-			id: 'create-draft-pr',
-			label: localize('agentHost.changeset.createDraftPR', "Create Draft PR"),
-			icon: 'git-pull-request-draft',
-			group: 'pull-request_draft',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		},
-		...(agentMergeEnabled ? [{
-			id: AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR_AGENT_MERGE,
-			label: localize('agentHost.changeset.createDraftPRAgentMerge', "Create Draft PR & Agent Merge"),
-			icon: 'git-merge',
-			group: 'pull-request_draft',
-			scopes: [ChangesetOperationScope.Changeset],
-			status: ChangesetOperationStatus.Idle,
-		}] : []),
 		] satisfies ChangesetOperation[];
 	}
 
@@ -199,8 +168,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	 * the button bar stays hidden rather than flashing the wrong action, and
 	 * once the pull request is merged or closed, when nothing is left to do.
 	 */
-	private _getPullRequestLifecycleOperations(sessionKey: string): ChangesetOperation[] | undefined {
-		const status = this._pullRequestStatusService.getPullRequestStatus(sessionKey);
+	private _getPullRequestLifecycleOperations(sessionKey: string, ownerKey: string): ChangesetOperation[] | undefined {
+		const status = this._pullRequestStatusService.getPullRequestStatus(ownerKey);
 		if (!status) {
 			this._logService.trace(`[AgentHostPullRequestOperationContribution] No pull request operations: session=${sessionKey}, reason=pull request state has not resolved yet`);
 			return undefined;
@@ -212,7 +181,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		const operations: ChangesetOperation[] = [];
 		if (status.draft) {
-			const agentMergeRunning = this._isAgentMergeRunning(sessionKey);
+			const agentMergeRunning = this._isAgentMergeRunning(ownerKey);
 			const operationId = agentMergeRunning && status.agentMergeReadyForReview !== true
 				? AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY_WITH_AGENT_MERGE
 				: AgentHostPullRequestLifecycleOperationHandler.OPERATION_MARK_READY;
@@ -266,9 +235,11 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		return operations;
 	}
 
-	private _isAgentMergeRunning(sessionKey: string): boolean {
+	private _isAgentMergeRunning(ownerKey: string): boolean {
+		const folder = resolveGitHubStateFolder(this._stateManager, ownerKey);
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
 		return this._isAgentMergeEnabled()
-			&& readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
+			&& readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
 	}
 
 	/**
@@ -289,13 +260,27 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._logService.info(`[AgentHostPullRequestOperationContribution] Advertised operations changed: session=${sessionKey}, primary=${primary}, operations=[${advertised}]`);
 	}
 
-	private _onPullRequestCreated(event: PullRequestCreatedEvent): void {
+	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<void> {
 		const sessionKey = event.sessionKey;
 
-		this._registry?.onDidChangeOperations(sessionKey);
-		this._registry?.refreshSessionGitState(sessionKey);
+		const artifacts = new SessionArtifacts(this._stateManager, sessionKey, async (session, entries) => {
+			await persistSessionMetadataValues(this._sessionDataService, session, {
+				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),
+			});
+		});
+		// The pull request belongs to the folder it was created from.
+		const folder = resolveGitHubStateFolder(this._stateManager, event.ownerUri);
+		await artifacts.mutate(collection => collection.addOrPromoteArtifact({
+			type: SessionArtifactType.PullRequest,
+			label: event.pullRequestTitle ?? '',
+			isArtifact: true,
+			link: event.pullRequestUrl,
+		}, generateUuid));
 
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		this._gitStateService.setSessionGitHubState(sessionKey, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
+		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
+
+		this._registry?.onDidChangeOperations(sessionKey);
+		void this._registry?.refreshSessionGitState(event.ownerUri);
 	}
 }

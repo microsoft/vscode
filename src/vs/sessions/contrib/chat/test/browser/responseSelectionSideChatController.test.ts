@@ -11,16 +11,20 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 class RecordingNotificationService extends TestNotificationService {
@@ -38,10 +42,20 @@ class RecordingNotificationService extends TestNotificationService {
 suite('ResponseSelectionSideChatController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createChat(resource: URI, interactivity = ChatInteractivity.Full): IChat {
+		return upcastPartial<IChat>({
+			resource,
+			interactivity: constObservable(interactivity),
+		});
+	}
+
 	function setup(options?: {
 		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
+		enhancedSelectionMenu?: boolean;
+		initialInput?: string;
+		chatInteractivity?: ChatInteractivity;
 	}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -68,6 +82,8 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
 		const focusResponseItemCalls: boolean[] = [];
+		let inputValue = options?.initialInput ?? '';
+		let focusInputCalls = 0;
 		const onDidScroll = store.add(new Emitter<void>());
 		let autoScrollHolds = 0;
 		const widget = upcastPartial<IChatWidget>({
@@ -80,6 +96,9 @@ suite('ResponseSelectionSideChatController', () => {
 				autoScrollHolds++;
 				return toDisposable(() => { autoScrollHolds--; });
 			},
+			getInput: () => inputValue,
+			setInput: value => { inputValue = value ?? ''; },
+			focusInput: () => { focusInputCalls++; },
 		});
 
 		// The widget spans the whole chat view, including the input part below
@@ -148,7 +167,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const highlightedRanges = () => targetWindow.CSS.highlights?.get('chat-response-selection')?.size ?? 0;
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
-		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/source') });
+		const chat = createChat(URI.parse('test:///chat/source'), options?.chatInteractivity);
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
@@ -158,7 +177,13 @@ suite('ResponseSelectionSideChatController', () => {
 		});
 
 		const callOrder: string[] = [];
+		const clipboardWrites: string[] = [];
+		const telemetryEvents: { name: string; data: unknown }[] = [];
 		const notificationService = new RecordingNotificationService();
+		const configurationService = new TestConfigurationService({
+			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: options?.enhancedSelectionMenu ?? false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			getSessionForChatResource: resource => resource.toString() === chat.resource.toString() ? { session, chat } : undefined,
 			createSideChatInSession: options?.createSideChatInSession ?? (async (_session, _sourceChat, turnId, selection) => {
@@ -179,11 +204,38 @@ suite('ResponseSelectionSideChatController', () => {
 		}));
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IClipboardService, upcastPartial<IClipboardService>({
+			writeText: async text => { clipboardWrites.push(text); },
+		}));
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({
+			publicLog2: (name, data) => { telemetryEvents.push({ name, data }); },
+		}));
 
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
 
-		return { controller, setSelection, setSelectionOutsideTranscript, setTranscriptRect, detachSelectedRow, scroll, autoScrollHolds: () => autoScrollHolds, callOrder, doc, chat, sideChat, focusResponseItemCalls, notificationService, highlightedRanges, inputHeight: () => inputDomNode(controller).offsetHeight };
+		return {
+			controller,
+			setSelection,
+			setSelectionOutsideTranscript,
+			setTranscriptRect,
+			detachSelectedRow,
+			scroll,
+			autoScrollHolds: () => autoScrollHolds,
+			callOrder,
+			doc,
+			chat,
+			sideChat,
+			focusResponseItemCalls,
+			focusInputCalls: () => focusInputCalls,
+			inputValue: () => inputValue,
+			clipboardWrites,
+			telemetryEvents,
+			notificationService,
+			highlightedRanges,
+			inputHeight: () => inputDomNode(controller).offsetHeight,
+		};
 	}
 
 	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
@@ -192,6 +244,32 @@ suite('ResponseSelectionSideChatController', () => {
 
 	function inputTextArea(controller: ResponseSelectionSideChatController): HTMLTextAreaElement {
 		return (controller as unknown as { _input: { inputElement: HTMLTextAreaElement } })._input.inputElement;
+	}
+
+	function menuDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
+		return (controller as unknown as { _menuDomNode: HTMLElement })._menuDomNode;
+	}
+
+	function menuActionLabels(controller: ResponseSelectionSideChatController): string[] {
+		return Array.from(menuDomNode(controller).querySelectorAll<HTMLElement>('.action-menu-item'))
+			.map(item => item.textContent?.trim() ?? '');
+	}
+
+	function menuAction(controller: ResponseSelectionSideChatController, label: string): HTMLElement {
+		const item = Array.from(menuDomNode(controller).querySelectorAll<HTMLElement>('.action-menu-item'))
+			.find(item => item.textContent?.trim() === label);
+		assert.ok(item, `Missing menu action: ${label}`);
+		return item;
+	}
+
+	function triggerMenuAction(controller: ResponseSelectionSideChatController, label: string): void {
+		const menu = menuDomNode(controller);
+		const item = menuAction(controller, label);
+		const actionItem = item.closest<HTMLElement>('.action-item');
+		assert.ok(actionItem, `Missing action item for: ${label}`);
+		const index = Array.from(menu.querySelectorAll<HTMLElement>('.action-item')).indexOf(actionItem);
+		assert.notStrictEqual(index, -1, `Missing menu action: ${label}`);
+		(controller as unknown as { _menu: { trigger(index: number): void } })._menu.trigger(index);
 	}
 
 	function isInputBusy(controller: ResponseSelectionSideChatController): boolean {
@@ -230,6 +308,147 @@ suite('ResponseSelectionSideChatController', () => {
 
 		setSelection('');
 		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('shows the enhanced action menu only when the experiment setting is enabled', () => {
+		const { controller, setSelection } = setup({ enhancedSelectionMenu: true });
+
+		setSelection('hello world');
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			menuRole: menuDomNode(controller).querySelector('[role="menu"]')?.getAttribute('aria-label'),
+			actions: menuActionLabels(controller),
+		}, {
+			inputVisible: false,
+			menuVisible: true,
+			menuRole: 'Selected response text actions',
+			actions: ['Ask with /btw', 'Quote', 'Copy'],
+		});
+	});
+
+	test('Escape dismisses the focused enhanced menu and restores transcript focus', () => {
+		const { controller, setSelection, focusResponseItemCalls } = setup({ enhancedSelectionMenu: true });
+		setSelection('hello world');
+		const menu = menuDomNode(controller).querySelector<HTMLElement>('[role="menu"]');
+		assert.ok(menu);
+		menu.focus();
+
+		dispatchKey(menu, 'Escape');
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			focusResponseItemCalls,
+		}, {
+			menuVisible: false,
+			focusResponseItemCalls: [true],
+		});
+	});
+
+	test('opens the anchored question input from Ask with /btw and attributes telemetry to the action menu', () => {
+		const { controller, setSelection, telemetryEvents } = setup({ enhancedSelectionMenu: true });
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Ask with /btw');
+		submitViaClick(controller, 'what does this mean?');
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			inputVisible: true,
+			menuVisible: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionSubmitted' } },
+			],
+		});
+	});
+
+	test('quotes the selection at the end of the current chat input', () => {
+		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			initialInput: 'Existing prompt',
+		});
+		setSelection('first line\nsecond line');
+
+		triggerMenuAction(controller, 'Quote');
+
+		assert.deepStrictEqual({
+			inputValue: inputValue(),
+			focusInputCalls: focusInputCalls(),
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			inputValue: 'Existing prompt\n> first line\n> second line\n\n',
+			focusInputCalls: 1,
+			menuVisible: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'quote' } },
+			],
+		});
+	});
+
+	test('disables Quote for read-only chats', () => {
+		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			initialInput: 'Existing prompt',
+			chatInteractivity: ChatInteractivity.ReadOnly,
+		});
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Quote');
+
+		assert.deepStrictEqual({
+			quoteAriaDisabled: menuAction(controller, 'Quote').getAttribute('aria-disabled'),
+			inputValue: inputValue(),
+			focusInputCalls: focusInputCalls(),
+			telemetryEvents,
+		}, {
+			quoteAriaDisabled: 'true',
+			inputValue: 'Existing prompt',
+			focusInputCalls: 0,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('copies the exact selection and records the action', async () => {
+		const { controller, setSelection, clipboardWrites, telemetryEvents } = setup({ enhancedSelectionMenu: true });
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Copy');
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			clipboardWrites,
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			clipboardWrites: ['hello world'],
+			menuVisible: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'copy' } },
+			],
+		});
+	});
+
+	test('records exposure and submission for the existing ask-question input', () => {
+		const { controller, setSelection, telemetryEvents } = setup();
+		setSelection('hello world');
+
+		submitViaClick(controller, 'what does this mean?');
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'askQuestionInput', action: 'shown' } },
+			{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'askQuestionInput', action: 'askQuestionSubmitted' } },
+		]);
 	});
 
 	test('creates, opens, and sends a side chat anchored to the response on submit', async () => {
@@ -575,7 +794,7 @@ suite('ResponseSelectionSideChatController', () => {
 		// A new IChat object for the same resource (e.g. ChatView re-invoking
 		// setChat on a status/interactivity observable change) must not
 		// discard the visible draft.
-		controller.setChat(upcastPartial<IChat>({ resource: chat.resource }));
+		controller.setChat(createChat(chat.resource));
 
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'input must stay visible on a same-resource setChat');
 		assert.strictEqual(textArea.value, 'a draft in progress', 'the typed draft must survive a same-resource setChat');
@@ -596,7 +815,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		// A same-resource setChat (status/interactivity update) must not
 		// force-dismiss or clear busy while the submission is still pending.
-		controller.setChat(upcastPartial<IChat>({ resource: chat.resource }));
+		controller.setChat(createChat(chat.resource));
 		assert.strictEqual(isInputBusy(controller), true, 'busy must survive a same-resource setChat');
 		assert.strictEqual(inputTextArea(controller).disabled, true);
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
@@ -625,7 +844,7 @@ suite('ResponseSelectionSideChatController', () => {
 		submitViaClick(controller, 'what does this mean?');
 		assert.strictEqual(isInputBusy(controller), true);
 
-		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
 
 		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a genuine chat change must dismiss even a busy overlay');
 		assert.strictEqual(isInputBusy(controller), false);
@@ -651,7 +870,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 
-		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
 		setSelection('');
 		const focusCallsAtDismiss = focusResponseItemCalls.length;
 
@@ -672,7 +891,7 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('hello world');
 		submitViaClick(controller, 'what does this mean?');
 
-		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
 		setSelection('');
 		const focusCallsAtDismiss = focusResponseItemCalls.length;
 

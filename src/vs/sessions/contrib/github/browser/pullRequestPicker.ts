@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
-import { ISessionGitHubState, withSessionGitHubState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ISessionGitHubState, withMostRecentRelatedSessionPullRequest, withSessionGitHubStateInput } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../common/types.js';
@@ -162,11 +162,10 @@ export function createPullRequestBootstrapPrompt(pullRequest: IGitHubPullRequest
 
 export function createPullRequestSessionMetadata(owner: string, repo: string, pullRequest: IGitHubPullRequestSummary): Record<string, unknown> {
 	const pullRequestUrl = URI.from({ scheme: 'https', authority: 'github.com', path: `/${owner}/${repo}/pull/${pullRequest.number}` }).toString();
-	return withSessionGitHubState(undefined, {
+	return withSessionGitHubStateInput(undefined, {
 		owner,
 		repo,
-		pullRequestUrls: [pullRequestUrl],
-		pullRequestBranchName: pullRequest.headRef,
+		...withMostRecentRelatedSessionPullRequest(undefined, pullRequestUrl, pullRequest.headRef),
 	} satisfies ISessionGitHubState)!;
 }
 

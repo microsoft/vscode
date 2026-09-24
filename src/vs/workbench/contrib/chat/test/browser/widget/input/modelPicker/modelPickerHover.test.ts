@@ -77,6 +77,31 @@ suite('ModelPickerHover', () => {
 		]);
 	});
 
+	test('HydraFusion presents like Auto: its detail as the badge and its description instead of a category', () => {
+		const model = createModel('hydrafusion', 'HydraFusion');
+		model.metadata = {
+			...model.metadata,
+			category: 'powerful',
+			detail: 'Research preview',
+			tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.',
+		} as ILanguageModelChatMetadata;
+		const hover = getModelHoverContent(model, true, undefined, NullOpenerService);
+		assert.ok(hover);
+		disposables.add(hover.disposable);
+
+		assert.deepStrictEqual({
+			category: hover.element.querySelector('.chat-model-hover-category')?.textContent,
+			badges: Array.from(hover.element.querySelectorAll('.chat-model-hover-price-badge'), element => element.textContent),
+			description: hover.element.querySelector('.chat-model-hover-description')?.textContent?.trim(),
+			context: hover.element.querySelector('.chat-model-hover-context') !== null,
+		}, {
+			category: undefined,
+			badges: ['Research preview'],
+			description: 'HydraFusion routes the first eligible turn and may use multiple models.',
+			context: false,
+		});
+	});
+
 	test('info text renders as its own banner alongside warnings', () => {
 		const model = createModel('gpt-4.1', 'GPT-4.1');
 		model.metadata = {
@@ -98,7 +123,7 @@ suite('ModelPickerHover', () => {
 		});
 	});
 
-	test('auto names its navigation option the routing profile, other models keep the schema title', () => {
+	test('auto names its navigation option Optimize for, other models keep the schema title', () => {
 		const results = ['auto', 'gpt-5'].map(id => {
 			const model = createModel(id, id);
 			model.metadata = {
@@ -107,8 +132,8 @@ suite('ModelPickerHover', () => {
 					properties: {
 						navigationOption: {
 							type: 'string',
-							title: 'Optimize for',
-							enum: ['eco', 'max'],
+							title: id === 'auto' ? undefined : 'Thinking Effort',
+							enum: ['efficiency', 'intelligence'],
 							group: 'navigation',
 						},
 						contextSize: {
@@ -128,8 +153,8 @@ suite('ModelPickerHover', () => {
 		});
 
 		assert.deepStrictEqual(results, [
-			['Routing Profile', 'Context Size'],
 			['Optimize for', 'Context Size'],
+			['Thinking Effort', 'Context Size'],
 		]);
 	});
 });

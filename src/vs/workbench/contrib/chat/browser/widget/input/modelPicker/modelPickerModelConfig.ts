@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
+import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
@@ -31,7 +32,7 @@ export function getModelConfigProperty(
 	configurationAccess: IModelConfigurationAccess,
 	group: string,
 ): IModelConfigProperty | undefined {
-	const properties = model?.metadata.configurationSchema?.properties;
+	const properties = model && (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
 	if (!properties) {
 		return undefined;
 	}
@@ -47,6 +48,9 @@ export function getModelConfigProperty(
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
 export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, value: unknown): string {
+	if (value === 'fast' && schema.enum?.includes('efficiency') && !schema.enum.includes('fast')) {
+		return localize('chat.modelPicker.automaticTier', "Automatic");
+	}
 	const index = schema.enum?.indexOf(value) ?? -1;
 	const label = index >= 0 ? schema.enumItemLabels?.[index] : undefined;
 	return label ?? (typeof value === 'number' ? formatTokenCount(value) : String(value));
@@ -73,13 +77,22 @@ export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 ): string | undefined {
-	const parts: string[] = [];
+	const parts = getChangedModelConfigProperties(model, configurationAccess).map(property => getModelConfigValueLabel(property.schema, property.value));
+	return parts.length ? parts.join(' \u00b7 ') : undefined;
+}
+
+/** The effort and context properties whose effective values differ from their defaults. */
+export function getChangedModelConfigProperties(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: IModelConfigurationAccess,
+): IModelConfigProperty[] {
+	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
 		const property = getModelConfigProperty(model, configurationAccess, group);
 		if (!property || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}
-		parts.push(getModelConfigValueLabel(property.schema, property.value));
+		properties.push(property);
 	}
-	return parts.length ? parts.join(' \u00b7 ') : undefined;
+	return properties;
 }

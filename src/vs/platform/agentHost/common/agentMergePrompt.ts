@@ -136,20 +136,16 @@ export function buildAgentMergePrompt(actions: readonly AgentMergeRepairAction[]
 export function parseAgentMergePrompt(text: string): IAgentMergePromptSummary | undefined {
 	// Cheap reject first: this runs for every request whose label or find text
 	// is computed, and splitting a long user message would dominate that cost.
-	if (!text.includes(stateOpenTag)) {
-		return undefined;
-	}
-	const lines = text.split('\n');
-	const openIndex = lines.findIndex(line => line.trim() === stateOpenTag);
+	const openIndex = text.indexOf(stateOpenTag);
 	if (openIndex === -1) {
 		return undefined;
 	}
-	const closeIndex = lines.findIndex((line, index) => index > openIndex && line.trim() === stateCloseTag);
-	if (closeIndex === -1) {
+	const closeIndex = text.lastIndexOf(stateCloseTag);
+	if (closeIndex < openIndex + stateOpenTag.length) {
 		return undefined;
 	}
 
-	const stateLines = lines.slice(openIndex + 1, closeIndex);
+	const stateLines = text.slice(openIndex + stateOpenTag.length, closeIndex).trim().split('\n');
 	const actionsLine = stateLines.find(line => line.startsWith(actionsPrefix));
 	if (actionsLine === undefined) {
 		return undefined;
@@ -170,7 +166,7 @@ export function parseAgentMergePrompt(text: string): IAgentMergePromptSummary | 
 		failedChecks: parseFailedChecks(sections.get('Failed required checks:')),
 		behind: sections.get('Behind base:')?.trim() === 'yes',
 		conflicting: sections.get('Conflicting:')?.trim() === 'yes',
-		agentMessage: lines.slice(closeIndex + 1).join('\n').trim(),
+		agentMessage: text.slice(closeIndex + stateCloseTag.length).trim(),
 	};
 }
 

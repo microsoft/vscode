@@ -16,6 +16,23 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot managed-settings diagnostics cannot return an account snapshot
+
+A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the bundled `1.0.15-preview.2` runtime, the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
+
+- Test: `managed settings diagnostics expose the provider snapshot`.
+- Scope: Copilot on all platforms, in strict replay.
+- Expected: `getManagedSettingsDiagnostics` returns a provider snapshot with a valid source and an array of managed keys.
+- Observed: the provider reports an error because the bundled runtime SDK does not expose the account-scoped `getManagedSettings()` function.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "managed settings diagnostics expose the provider snapshot"
+  ```
+
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
@@ -375,14 +392,14 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 
 ### What is still Windows-scoped
 
-The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
+The blanket `!isWindows` shell exclusion is gone. Permission approval, file operations, renames, deletes, directory creation, git status, and git-backed config completions all run on Windows.
 
 The following tests remain scoped at their call sites:
 
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
 - `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows because the host terminal tool does not expose a terminal resource there, as described below.
 
-The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
+The prompt and skill-budget tests in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only, by construction rather than because of an observed failure.
 
 - Expected: one committed baseline per model describes the prompt the bundled CLI assembles.
 - Observed: the Windows prompt is not a renaming of the POSIX one. Beyond the shell tool names, the CLI runtime carries PowerShell-only sections that POSIX never emits — no-heredoc guidance ("avoid `python - <<'PY'`", use a single-quoted here-string), `; with explicit checks such as `if ($?) { ... }`` for dependent steps, and the caveat that "the PATH/LIB/INCLUDE changes from the .bat will not be available". A fixture handles the name difference by storing a `${shell}` placeholder that `expandShellToolName` swaps back in, but here the prose *is* the asserted artifact — projecting it away would delete the tool instructions the snapshot exists to pin.
@@ -562,21 +579,6 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
     --grep "chat action is broadcast|unsubscribed client|terminal output is streamed|root session summaries"
   ```
 
-### Discard changes fails for an untracked file
-
-- Test: `discarding an untracked file removes it from disk`.
-- Scope: conformance reference provider, uncommitted changeset with one untracked file.
-- Expected: the advertised resource-scoped `discard-changes` operation removes the untracked file and returns to idle.
-- Observed: the operation fails because `git restore` reports that the untracked path does not match a file known to Git.
-- Gate: the affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
-    --grep "discarding an untracked file"
-  ```
-
 ### Checkpoint-backed per-turn changesets omit host-local filesystem edits
 
 - Tests:
@@ -586,10 +588,10 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
   - `a per-turn changeset for an unknown turn reports an error`
   - `comparing a turn with itself produces an empty ready changeset`
   - `comparing two turns reports the changes between their checkpoints`
-  - `a materialized git session advertises turn and compare changeset templates`
+  - `a materialized git session advertises changesets only on its chat`
 - Scope: conformance reference provider, real worktree-isolated sessions.
-- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized git sessions advertise the turn/compare templates.
-- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the session catalog does not advertise turn/compare templates.
+- Expected: host-local bang-command edits are represented by checkpoint-backed per-turn/compare changesets, unknown turns report an error, and materialized sessions advertise selectable changesets only on the default chat.
+- Observed: create/edit/delete turn changesets are empty and Ready, unknown turns are empty and Ready, compare operations cannot find usable checkpoints, and the host-local command used by the catalogue test does not materialize the provisional provider session.
 - Gate: each affected `conformanceTest` is disabled at its declaration in `changesetSuite.ts`.
 - Reproduce:
 
@@ -709,9 +711,9 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
 
 ## Platform and deterministic-replay limitations
 
-### Copilot prompt snapshots on Windows
+### Copilot prompt and skill-budget tests on Windows
 
-- Tests: all models in `copilotPromptsE2E.integrationTest.ts`.
+- Tests: all cases in `copilotPromptsE2E.integrationTest.ts`.
 - Scope: Windows.
 - Expected: one committed baseline per model describes the prompt assembled by the bundled CLI.
 - Observed: the Windows prompt includes PowerShell-specific instructions and host-probed capabilities, so it is not a stable renaming of the POSIX prompt.
@@ -747,46 +749,6 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
-### Codex shell-tool replay on Linux
-
-- Scope: Codex on Linux in deterministic replay.
-- Expected: recorded `exec_command` turns emit their tool lifecycle and complete.
-- Observed: packaged Linux completes the recorded turn without command-execution notifications.
-- Gate: `shellToolReplayUnstableOnLinux: true`. Recording and other platforms remain enabled.
-- Tests directly affected by this gate:
-  - `worktree session uses the resolved worktree as working directory`
-  - `reads an existing text file`
-  - `reads a file from a nested directory`
-  - `lists workspace entries`
-  - `reads a value from JSON`
-  - `counts lines in a file`
-  - `handles a missing file without a session error`
-  - `creates a new text file`
-  - `edits an existing text file`
-  - `creates a file in a new nested directory`
-  - `renames a workspace file`
-  - `deletes a workspace file`
-  - `runs a deterministic shell command`
-  - `reads a filename containing spaces`
-  - `secondary workspace skill reaches the Codex model request`
-  - `peer chat reads a file from the parent workspace`
-  - `peer chat reads a file from a nested directory`
-  - `peer chat creates a file in the parent workspace`
-  - `peer chat edits an existing workspace file`
-  - `peer chat creates a file in a nested directory`
-  - `peer chat handles a missing workspace file without an error`
-  - `peer chat reads a filename containing spaces`
-  - `two peer chats write distinct workspace files`
-  - `session changeset aggregates provider edits from default and peer chats`
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts
-  ```
-
-  Temporarily clear `shellToolReplayUnstableOnLinux`.
-
 ### Codex successful shell result text
 
 - Tests:
@@ -820,48 +782,36 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolResultTextUnreliable`.
 
-### Claude subagent replay on Windows
+### Claude file deletion replay on Windows
 
-- Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
-- Scope: Claude on Windows.
-- Expected: the reopened parent transcript excludes subagent-only messages.
-- Observed: Claude reconstructs the subagent transcript from `subagents/agent-*.jsonl`, which is not reliably visible immediately on Windows.
-- Gate: `subagentReplayUnstableOnWindows: true`.
-- Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
-- Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
+A user can ask Claude to delete a file from the workspace through its shell tool. On Windows, the bundled Claude runtime can exit during this turn instead of reporting the tool result, which interrupts the session even though the same portable Node.js command succeeds in adjacent file-operation scenarios.
 
-### Copilot custom subagent without a display name
+- Test: `deletes a workspace file`.
+- Scope: Claude deterministic replay on Windows.
+- Expected: Claude runs the recorded `node` deletion command, reports a successful tool call, and completes the turn.
+- Observed: the Agent Host receives `Claude Code process exited with code 1` while driving the delete turn. The adjacent rename and deterministic-shell scenarios complete on the same worker.
+- Gate: `fileDeleteReplayUnstableOnWindows: true`. Recording and other platforms remain enabled.
+- Failing run: [PR #334648](https://github.com/microsoft/vscode/actions/runs/33930389356/job/101207609438?pr=334648).
+- Reproduce: temporarily clear the gate and run:
 
-A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
-
-- Test: `custom agent without a display name completes as a subagent`.
-- Scope: Copilot.
-- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
-- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
-- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "custom agent without a display name completes as a subagent"
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
 
-### Copilot restored-parent replay differs between OSS and product runtimes
+### Codex file creation replay on Windows
 
-A parent session should remain usable after restoration when a custom subagent has no available transcript. The public runtime used by OSS CI creates that state by rejecting a custom agent without `displayName`, while the product runtime override fixes that validation error and makes an additional child-model request. One sequence-based model fixture cannot replay both request paths, so enabling the test makes either OSS CI or product-build CI fail despite the restored parent accepting another turn in live recording.
+A user can ask Codex to create a file in the workspace by running a command through its shell tool. On Windows, the turn finishes and the assistant reports the command as run, but the new file is not in the workspace afterwards, so a user who asked for a file would find nothing there.
 
-- Test: `restored parent accepts a new turn after a custom subagent has no transcript`.
-- Scope: Copilot deterministic replay while OSS and product builds use different runtime versions.
-- Expected: the parent is reconstructed and accepts a new turn under both runtimes.
-- Observed: the OSS fixture records the failed child launch, while the product runtime launches the child successfully and consumes the fixture's next response.
-- Gate: the scenario is disabled until OSS and product builds use the same fixed runtime.
-- Reproduce after locally installing the product runtime:
+- Test: `creates a new text file`.
+- Scope: Codex deterministic replay on Windows.
+- Expected: Codex runs the recorded `node` creation command and `result.txt` contains `CREATED_VALUE` when the turn completes.
+- Observed: `ENOENT: no such file or directory, open '…\ahp-coverage-create-…\result.txt'` right after the turn completes. The adjacent edit, nested-create, rename, and delete scenarios run the same kind of command and pass on the same worker, and the scenario passes on macOS.
+- Gate: `fileCreateReplayUnstableOnWindows: true`. Recording and other platforms remain enabled.
+- Failing run: [PR #335918](https://github.com/microsoft/vscode/actions/runs/35553772031/job/106193302484?pr=335918).
+- Reproduce: temporarily clear the gate and run:
 
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "restored parent accepts a new turn after a custom subagent has no transcript"
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\codexAgentHostE2E.integrationTest.ts --grep "creates a new text file"
   ```
 
 ### Mid-turn abort is record-only
@@ -872,6 +822,7 @@ A parent session should remain usable after restoration when a custom subagent h
 - Scope: deterministic replay for every provider; the second test is Copilot-specific.
 - Reason: replay serves the intentionally truncated response immediately, leaving no real streaming window in which to abort.
 - Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Latest live check (`1.0.84-1`): the Copilot steering variant timed out before reaching cancellation. The steering message started a separate turn, but the expected `chat/pendingMessageRemoved` notification never arrived. This scenario does not currently verify the deferred-idle abort fix.
 - Run:
 
   ```bash
@@ -884,25 +835,18 @@ A parent session should remain usable after restoration when a custom subagent h
     --grep "accepted steering followed by abort"
   ```
 
-### Retryable Copilot errors are temporarily disabled
+### Mid-turn host shutdown recovery is record-only
 
-Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
+A user can lose the Agent Host process while a model response is still streaming. Reopening the session should restore the unfinished request as a resumable error, and retrying should continue that same turn without adding another user message.
 
-- Tests:
-  - `resumes a failed turn in place`
-  - `resumes the same turn after repeated failures`
-  - `restores and resumes a turn interrupted by host shutdown`
-- Scope: Copilot on all platforms and execution modes.
-- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
-- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
-- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
-- Run after removing the temporary gate:
+- Test: `restores and resumes a turn interrupted by host shutdown`.
+- Scope: deterministic replay for Copilot.
+- Expected: the host dies after streaming starts but before any final turn action; restoration synthesizes a resumable `executionInterrupted` error, and a continuation completes the same turn.
+- Observed: replay serves the full recorded response immediately, leaving no active streaming window in which to kill the host before turn completion.
+- Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Run:
 
   ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
-
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "restores and resumes a turn interrupted by host shutdown"

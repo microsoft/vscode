@@ -4,6 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Shared workbench chat-pill presentation. */
+.chat-pill-location-hover-panel .action-list-submenu-hover-header {
+	width: min(420px, 70vw);
+	max-width: 100%;
+}
+
+.chat-pill-location-hover {
+	box-sizing: border-box;
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
 .chat-pills,
 .chat-pills .monaco-toolbar,
 .chat-pills .monaco-action-bar,
@@ -167,6 +179,40 @@
 	background-size: var(--vscode-codiconFontSize);
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+
+.action-widget.chat-pill-dropdown .monaco-list .monaco-list-row.has-toolbar:not(.has-standalone-toggle):not(.has-inline-toggle):not(.has-detail) {
+	padding-right: 0;
+}
+
+.action-widget.chat-pill-dropdown .monaco-list .monaco-list-row.has-toolbar:not(.has-standalone-toggle):not(.has-inline-toggle):not(.has-detail) .action-list-item-toolbar {
+	margin-right: 0;
+}
+
+.action-widget.chat-pill-dropdown .monaco-list-row.chat-pill-github-reference .action-item-badge {
+	margin-left: var(--vscode-spacing-size40);
+	padding: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: inherit;
+	line-height: inherit;
+}
+
+.chat-pill-image-preview {
+	display: flex;
+	flex-direction: column;
+	width: min(320px, calc(100vw - var(--vscode-spacing-size240)));
+	color: var(--vscode-foreground);
+}
+
+.chat-pill-image-preview-unavailable {
+	padding: var(--vscode-spacing-size80);
+	overflow-wrap: anywhere;
+}
+
+.chat-pill-image-preview-unavailable {
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Horizontally scrollable status pills above a chat input. */

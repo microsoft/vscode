@@ -14,11 +14,11 @@ import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollable
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
 import { disposableTimeout } from '../../base/common/async.js';
+import { CancellationToken, cancelOnDispose } from '../../base/common/cancellation.js';
 import { Emitter, Event } from '../../base/common/event.js';
-import { MarkdownString } from '../../base/common/htmlContent.js';
 import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
-import { Disposable, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../base/common/scrollable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
@@ -26,8 +26,10 @@ import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import type { IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../platform/files/common/files.js';
 import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
+import { createChatImageHoverContent } from './chatImagePreview.js';
 import './media/chatPills.css';
 
 /**
@@ -49,13 +51,30 @@ export interface IChatPillsModel {
 export interface IChatPillEntry {
 	readonly id: string;
 	readonly label: string;
+	/** Optional trailing metadata rendered after the dropdown row label. */
+	readonly badge?: string;
+	/** Optional CSS class added to the dropdown row. */
+	readonly className?: string;
 	/** Short label used when this entry renders as the pill itself. */
 	readonly pillLabel?: string;
 	readonly icon?: ThemeIcon;
 	/** Renders the entry with its resource's themed file icon. */
 	readonly resource?: URI;
+	/** Displays a thumbnail above the resource location in the entry's hover. */
+	readonly imagePreview?: {
+		readonly resource: URI;
+		readonly mimeType: string;
+	};
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
-	readonly toolbarActions?: readonly IAction[];
+	readonly toolbarActions?: readonly IChatPillAction[];
+	/** Additional actions shown only in the rich hover footer. */
+	readonly hoverActions?: readonly IChatPillAction[];
+	/**
+	 * Action shown on the entry's dropdown row alongside {@link toolbarActions},
+	 * which consumers may also promote onto the pill itself when this is its
+	 * only entry.
+	 */
+	readonly promotedAction?: IChatPillAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
@@ -67,6 +86,104 @@ export interface IChatPillEntry {
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
 	open(): void;
+}
+
+export interface IChatPillAction extends IAction {
+	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
+	readonly hoverLabel?: string;
+}
+
+export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
+export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy hash");
+export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove reference");
+
+export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
+	return Object.assign(action, { hoverLabel });
+}
+
+export function getChatPillLocationHover(location: string): IActionListItemHover {
+	return {
+		content: $('.chat-pill-location-hover', undefined, location),
+		panelClassName: 'chat-pill-location-hover-panel',
+	};
+}
+
+export interface IChatPillImagePreview {
+	readonly element: HTMLElement;
+	readonly disposable: IDisposable;
+}
+
+const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
+
+/** Creates the visual preview shared by direct image pills and image rows in a dropdown. */
+export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillImagePreview {
+	const preview = entry.imagePreview;
+	const container = $('.chat-pill-image-preview', { 'aria-busy': 'true' });
+	const disposables = new DisposableStore();
+	const readToken = cancelOnDispose(disposables);
+	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+	if (token.isCancellationRequested) {
+		disposables.dispose();
+		return { element: container, disposable: disposables };
+	}
+	const showUnavailable = () => {
+		if (disposables.isDisposed) {
+			return;
+		}
+		container.setAttribute('aria-busy', 'false');
+		container.replaceChildren(
+			$('.chat-pill-image-preview-unavailable', undefined, localize('chatPills.imagePreviewUnavailable', "Image preview unavailable.")),
+			$('.chat-image-hover-location', undefined, entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true)),
+		);
+	};
+
+	void fileService.readFile(preview.resource, { limits: { size: MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE } }, readToken).then(content => {
+		if (disposables.isDisposed) {
+			return;
+		}
+		const imageHover = createChatImageHoverContent(
+			preview.resource,
+			entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true),
+			content.value.buffer,
+			`${preview.resource.toString()}:${content.etag}`,
+			() => {
+				if (disposables.isDisposed) {
+					return;
+				}
+				container.setAttribute('aria-busy', 'false');
+				container.classList.add('loaded');
+			},
+			undefined,
+			undefined,
+			localize('chatPills.imagePreviewAlt', "Preview of {0}", entry.label),
+			true,
+			showUnavailable,
+		);
+		disposables.add(imageHover.disposable);
+		container.replaceChildren(imageHover.element);
+	}, () => {
+		showUnavailable();
+	});
+
+	return { element: container, disposable: disposables };
+}
+
+/** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
+export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IChatPillAction[] {
+	const actions = [...entry.toolbarActions ?? []];
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
+	}
+	return actions;
+}
+
+/** Footer actions for a rich entry hover, including row actions and hover-only actions. */
+export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IChatPillAction[] {
+	const actions = [...entry.toolbarActions ?? [], ...entry.hoverActions ?? []];
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
+	}
+	return actions;
 }
 
 /** A titled group of entries, rendered as a dropdown section. */
@@ -81,7 +198,7 @@ export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel =
 	return {
 		ariaDescription: value,
 		ariaLabel,
-		hover: { content: new MarkdownString().appendText(value) },
+		hover: getChatPillLocationHover(value),
 		tooltip: value,
 	};
 }
@@ -347,6 +464,14 @@ export class ChatPillsWidget extends Disposable {
 			}
 		}
 		return elements;
+	}
+
+	focusFirst(): boolean {
+		if (this._toolbar.getItemsLength() === 0) {
+			return false;
+		}
+		this._toolbar.focus(0);
+		return true;
 	}
 
 	/**

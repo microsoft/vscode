@@ -8,11 +8,12 @@ import { getWindow } from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
-import { ModelPickerAutoRow } from '../../../../../browser/widget/input/modelPicker/modelPickerAutoRow.js';
+import { IAutoRowOptions, ModelPickerAutoRow } from '../../../../../browser/widget/input/modelPicker/modelPickerAutoRow.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
@@ -62,21 +63,25 @@ suite('ModelPickerAutoRow', () => {
 	function createRow(initiallyEnabled: boolean, options: {
 		autoModel?: ILanguageModelChatMetadataAndIdentifier;
 		configurationAccess?: IModelConfigurationAccess;
+		selectionVersion?: () => number;
 		onToggle?: (enabled: boolean) => void;
 	} = {}) {
 		const toggles: boolean[] = [];
+		const configurationChanges: Parameters<NonNullable<IAutoRowOptions['onDidChangeConfiguration']>>[] = [];
 		let enabled = initiallyEnabled;
 		const configurationAccess = options.configurationAccess ?? createConfigurationAccess();
 		const row: ModelPickerAutoRow = disposables.add(new ModelPickerAutoRow({
 			autoModel: options.autoModel ?? createAutoModel(),
 			configurationAccess,
 			isEnabled: () => enabled,
+			selectionVersion: options.selectionVersion,
 			onToggle: next => {
 				enabled = next;
 				toggles.push(next);
 				options.onToggle?.(next);
 				row.render();
 			},
+			onDidChangeConfiguration: (...change) => configurationChanges.push(change),
 		}));
 		const element = row.element;
 		mainWindow.document.body.appendChild(element);
@@ -93,7 +98,10 @@ suite('ModelPickerAutoRow', () => {
 			--vscode-spacing-size80: 8px;
 			--vscode-spacing-size240: 24px;
 			--vscode-strokeThickness: 1px;
+			--vscode-cornerRadius-small: 4px;
+			--vscode-cornerRadius-medium: 6px;
 			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
 			--vscode-fontWeight-semiBold: 600;
 			--vscode-foreground: #ffffff;
 			--vscode-descriptionForeground: #cccccc;
@@ -104,6 +112,7 @@ suite('ModelPickerAutoRow', () => {
 		return {
 			row,
 			toggles,
+			configurationChanges,
 			configurationAccess,
 			get tiers() { return Array.from(element.querySelectorAll<HTMLElement>('[role="radio"]')); },
 			main: element.querySelector('.chat-model-picker-auto-main') as HTMLElement,
@@ -160,6 +169,17 @@ suite('ModelPickerAutoRow', () => {
 			{ strip: true, description: true });
 	});
 
+	test('an internal Auto preset is not exposed as a selectable tier or mislabeled as Efficiency', () => {
+		const result = createRow(true, {
+			autoModel: createAutoModel(true),
+			configurationAccess: createConfigurationAccess({ tier: 'fast' }),
+		});
+		assert.deepStrictEqual({
+			tiers: result.tiers.map(element => element.textContent),
+			description: result.description.textContent,
+		}, { tiers: [], description: 'Automatic model selection' });
+	});
+
 	test('inactive tiers remain visible and interactive with the remembered tier and description', () => {
 		const { row, tiers, description, toggle, configurationAccess } = createRow(false, {
 			autoModel: createAutoModel(true),
@@ -176,7 +196,11 @@ suite('ModelPickerAutoRow', () => {
 				disabled: element.classList.contains('disabled'),
 				ariaDisabled: element.getAttribute('aria-disabled'),
 				visible: element.getBoundingClientRect().height > 0,
+				color: getWindow(element).getComputedStyle(element).color,
+				background: getWindow(element).getComputedStyle(element).backgroundColor,
+				weight: getWindow(element).getComputedStyle(element).fontWeight,
 			})),
+			selectionVisibility: getWindow(row.element).getComputedStyle(row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
 			description: description.textContent,
 			descriptionVisible: description.getBoundingClientRect().height > 0,
 			savedTier: configurationAccess.getModelConfiguration('copilot/auto')?.tier,
@@ -185,14 +209,46 @@ suite('ModelPickerAutoRow', () => {
 			toggle: 'false',
 			group: 'Optimize for',
 			tiers: [
-				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true },
-				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true },
-				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true },
+				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
 			],
+			selectionVisibility: 'hidden',
 			description: 'Automatic model selection · Most capable models',
 			descriptionVisible: true,
 			savedTier: 'max',
 		});
+	});
+
+	test('Auto-off tiers meet normal-text contrast with Light+ theme defaults', () => {
+		const { row, tiers } = createRow(false, { autoModel: createAutoModel(true) });
+		row.element.style.setProperty('--vscode-foreground', '#616161');
+		row.element.style.setProperty('--vscode-descriptionForeground', '#717171');
+		row.element.style.setProperty('--vscode-menu-background', '#ffffff');
+		row.element.style.backgroundColor = 'var(--vscode-menu-background)';
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		const context = canvas.getContext('2d', { willReadFrequently: true });
+		assert.ok(context);
+		const background = Color.white;
+		const contrasts = tiers.map(tier => {
+			context.fillStyle = getWindow(row.element).getComputedStyle(row.element).backgroundColor;
+			context.fillRect(0, 0, 1, 1);
+			context.fillStyle = getWindow(tier).getComputedStyle(tier).color;
+			context.fillRect(0, 0, 1, 1);
+			const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+			return background.getContrastRatio(new Color(new RGBA(red, green, blue)));
+		});
+
+		assert.deepStrictEqual({
+			passesAA: contrasts.map(contrast => contrast >= 4.5),
+			interactive: tiers.map(tier => tier.getAttribute('aria-disabled')),
+			selectedIndicator: getWindow(row.element).getComputedStyle(row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
+		}, {
+			passesAA: [true, true, true],
+			interactive: ['false', 'false', 'false'],
+			selectedIndicator: 'hidden',
+		}, `Tier contrast ratios: ${contrasts.join(', ')}`);
 	});
 
 	for (const [index, tier, description] of [
@@ -221,6 +277,7 @@ suite('ModelPickerAutoRow', () => {
 				description: result.description.textContent,
 				focused: mainWindow.document.activeElement === result.tiers[index],
 				previousConnected: previousButton.isConnected,
+				selectionVisibility: getWindow(result.row.element).getComputedStyle(result.row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
 			}, {
 				toggles: [true],
 				savedAtToggle: [tier],
@@ -229,7 +286,8 @@ suite('ModelPickerAutoRow', () => {
 				checked: [0, 1, 2].map(candidate => String(candidate === index)),
 				description: `Automatic model selection · ${description}`,
 				focused: true,
-				previousConnected: false,
+				previousConnected: true,
+				selectionVisibility: 'visible',
 			});
 		});
 	}
@@ -307,7 +365,8 @@ suite('ModelPickerAutoRow', () => {
 		result.toggle.click();
 		const inactive = readState();
 		const inactiveStyle = getWindow(result.tiers[2]).getComputedStyle(result.tiers[2]);
-		const inactiveAppearance = { color: inactiveStyle.color, background: inactiveStyle.backgroundColor, opacity: inactiveStyle.opacity };
+		const selection = result.row.element.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		const inactiveAppearance = { color: inactiveStyle.color, background: inactiveStyle.backgroundColor, selectionVisibility: getWindow(selection).getComputedStyle(selection).visibility, weight: inactiveStyle.fontWeight, opacity: inactiveStyle.opacity };
 		result.toggle.click();
 
 		assert.deepStrictEqual({
@@ -315,13 +374,15 @@ suite('ModelPickerAutoRow', () => {
 			inactive,
 			restored: readState(),
 			inactiveAppearance,
+			restoredHighlight: getWindow(selection).getComputedStyle(selection).visibility,
 			savedTier: result.configurationAccess.getModelConfiguration('copilot/auto')?.tier,
 			toggleFocused: mainWindow.document.activeElement === result.toggle,
 		}, {
 			toggles: [false, true],
 			inactive: initial,
 			restored: initial,
-			inactiveAppearance: { color: 'rgb(204, 204, 204)', background: 'rgb(32, 32, 32)', opacity: '1' },
+			inactiveAppearance: { color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', selectionVisibility: 'hidden', weight: '400', opacity: '1' },
+			restoredHighlight: 'visible',
 			savedTier: 'max',
 			toggleFocused: true,
 		});
@@ -360,7 +421,7 @@ suite('ModelPickerAutoRow', () => {
 		});
 		result.tiers[2].focus();
 		result.tiers[2].click();
-		const beforeSave = { toggles: [...result.toggles], savedTier: access.getModelConfiguration('copilot/auto')?.tier };
+		const beforeSave = { toggles: [...result.toggles], configurationChanges: [...result.configurationChanges], savedTier: access.getModelConfiguration('copilot/auto')?.tier };
 		result.toggle.focus();
 		await saved.complete();
 		await timeout(0);
@@ -368,11 +429,13 @@ suite('ModelPickerAutoRow', () => {
 		assert.deepStrictEqual({
 			beforeSave,
 			toggles: result.toggles,
+			configurationChanges: result.configurationChanges,
 			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
 			toggleFocused: mainWindow.document.activeElement === result.toggle,
 		}, {
-			beforeSave: { toggles: [], savedTier: 'balanced' },
+			beforeSave: { toggles: [], configurationChanges: [], savedTier: 'balanced' },
 			toggles: [true],
+			configurationChanges: [['navigation', 'tier', 'balanced', 'max']],
 			savedTier: 'max',
 			toggleFocused: true,
 		});
@@ -401,12 +464,14 @@ suite('ModelPickerAutoRow', () => {
 		assert.deepStrictEqual({
 			reported,
 			toggles: result.toggles,
+			configurationChanges: result.configurationChanges,
 			checked: result.tiers.map(element => element.getAttribute('aria-checked')),
 			description: result.description.textContent,
 			focused: mainWindow.document.activeElement === result.tiers[0],
 		}, {
 			reported: [failure],
 			toggles: [],
+			configurationChanges: [],
 			checked: ['false', 'true', 'false'],
 			description: 'Automatic model selection · Balances capability and cost',
 			focused: true,
@@ -441,6 +506,7 @@ suite('ModelPickerAutoRow', () => {
 			pendingWrites,
 			writes,
 			toggles: result.toggles,
+			configurationChanges: result.configurationChanges,
 			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
 			checked: result.tiers.map(element => element.getAttribute('aria-checked')),
 			description: result.description.textContent,
@@ -448,6 +514,7 @@ suite('ModelPickerAutoRow', () => {
 			pendingWrites: ['eco'],
 			writes: ['eco', 'max'],
 			toggles: [true],
+			configurationChanges: [['navigation', 'tier', 'balanced', 'eco'], ['navigation', 'tier', 'eco', 'max']],
 			savedTier: 'max',
 			checked: ['false', 'false', 'true'],
 			description: 'Automatic model selection · Most capable models',
@@ -492,6 +559,39 @@ suite('ModelPickerAutoRow', () => {
 			});
 		});
 	}
+
+	test('a model selected elsewhere during a pending save is not overridden by enabling Auto', async () => {
+		const saved = new DeferredPromise<void>();
+		const access = createConfigurationAccess({ tier: 'balanced' });
+		let selectionVersion = 0;
+		const result = createRow(false, {
+			autoModel: createAutoModel(true),
+			selectionVersion: () => selectionVersion,
+			configurationAccess: {
+				...access,
+				setModelConfiguration: async (modelId, values) => {
+					await saved.p;
+					await access.setModelConfiguration(modelId, values);
+				},
+			},
+		});
+		result.tiers[2].click();
+		await timeout(0);
+		// E.g. HydraFusion switched on: Auto stays off, so only the selection moves.
+		selectionVersion++;
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			toggles: result.toggles,
+			enabled: result.row.element.classList.contains('enabled'),
+			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
+		}, {
+			toggles: [],
+			enabled: false,
+			savedTier: 'max',
+		});
+	});
 
 	test('a disposed row does not enable Auto or recreate controls after a pending save', async () => {
 		const saved = new DeferredPromise<void>();

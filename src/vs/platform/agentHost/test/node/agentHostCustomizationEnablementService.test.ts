@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
@@ -788,6 +788,11 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state.createSession(makeSummary(session));
 		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		assert.strictEqual(service.resolve(session, plugin).kind, 'resolved');
+		state.dispatchServerAction(session, {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			directory: URI.file('/previous-workspace').toString(),
+			replacement: workspace.toString(),
+		});
 
 		worktree.pending.add(AgentSession.id(session));
 		assert.deepStrictEqual(service.resolve(session, plugin), { kind: 'pending', reason: 'workingDirectory' });
@@ -800,6 +805,31 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}, {
 			changes: [[session], [session]],
 			resolution: 'resolved',
+		});
+	});
+
+	test('defers customization updates for a materializing working-directory change until the turn completes', async () => {
+		const changes: string[][] = [];
+		disposables.add(service.onDidChange(event => changes.push([...event.sessions])));
+		const chat = buildDefaultChatUri(session);
+		state.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'test', origin: { kind: MessageKind.User } },
+		});
+
+		state.markSessionPersisted(session, makeSummary(session, [URI.file('/repo.worktrees/feature').toString()]), true);
+		const changesDuringTurn = [...changes];
+		state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			changesDuringTurn,
+			changes,
+		}, {
+			changesDuringTurn: [],
+			changes: [[session]],
 		});
 	});
 

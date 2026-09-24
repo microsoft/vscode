@@ -6,11 +6,15 @@
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IMultiDiffResourceId } from '../../../../../editor/common/multiDiffEditor.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -42,9 +46,10 @@ suite('SessionChangesEditorInput', () => {
 		});
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
-		const viewModel = disposables.add(new MultiDiffEditorViewModel({
+		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() { }());
+		const viewModel = disposables.add(instantiationService.createInstance(MultiDiffEditorViewModel, {
 			documents: ValueWithChangeEvent.const([]),
-		}, instantiationService));
+		}));
 
 		let firstModelReferenceDisposed = false;
 		instantiationService.stubInstance(MultiDiffEditorInput, {
@@ -120,6 +125,58 @@ suite('SessionChangesEditorInput', () => {
 		}, {
 			inputReleased: true,
 			editorInput: undefined,
+		});
+	});
+
+	test('defers revealing a snapshot-backed resource until its diff item resolves', () => {
+		const originalUri = URI.parse('snapshot:/before/file.ts');
+		const modifiedUri = URI.parse('snapshot:/after/file.ts');
+		const item = new class extends mock<DocumentDiffItemViewModel>() {
+			override get originalUri() { return originalUri; }
+			override get modifiedUri() { return modifiedUri; }
+		}();
+		const items = observableValue<readonly DocumentDiffItemViewModel[]>('items', []);
+		const viewModel = new class extends mock<MultiDiffEditorViewModel>() {
+			override readonly items = items;
+		}();
+		const revealed: IMultiDiffResourceId[] = [];
+		const widget = new class extends mock<MultiDiffEditorWidget>() {
+			override reveal(resource: IMultiDiffResourceId): void {
+				revealed.push(resource);
+			}
+		}();
+		const pendingReveal = disposables.add(new MutableDisposable());
+		const editor = Object.create(SessionChangesEditor.prototype) as SessionChangesEditor;
+		Object.defineProperties(editor, {
+			viewModel: { value: viewModel, writable: true },
+			widget: { value: widget, writable: true },
+			_pendingReveal: { value: pendingReveal },
+		});
+
+		editor.setOptions({
+			viewState: {
+				revealData: {
+					resource: { original: originalUri, modified: modifiedUri },
+				},
+			},
+		});
+		const beforeResolution = [...revealed];
+		items.set([item], undefined);
+
+		assert.deepStrictEqual({
+			beforeResolution,
+			afterResolution: revealed.map(resource => ({
+				original: resource.original?.toString(),
+				modified: resource.modified?.toString(),
+			})),
+			pending: pendingReveal.value !== undefined,
+		}, {
+			beforeResolution: [],
+			afterResolution: [{
+				original: originalUri.toString(),
+				modified: modifiedUri.toString(),
+			}],
+			pending: false,
 		});
 	});
 
