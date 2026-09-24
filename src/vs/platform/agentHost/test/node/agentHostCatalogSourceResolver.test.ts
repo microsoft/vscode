@@ -346,7 +346,6 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
 				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: liveGitHub }),
-				[META_GITHUB_STATE]: '',
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(liveSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 1, deletions: 2, files: 3 }),
@@ -402,11 +401,24 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[SESSION_CUSTOM_TITLE_KEY]: 'Persisted title',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
 				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: persistedGitHub }),
-				[META_GITHUB_STATE]: '',
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(persistedSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 10, deletions: 20, files: 30 }),
 			},
+		});
+	});
+
+	test('ignores an empty legacy GitHub tombstone when preferring persisted metadata', async () => {
+		const result = await createResolver({
+			[META_GITHUB_STATE]: '',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			githubData: result.data._meta?.[SESSION_META_GITHUB_DATA_KEY],
+			legacyGitHub: result.legacyMetadata[META_GITHUB_STATE],
+		}, {
+			githubData: { [liveFolderKey]: liveGitHub },
+			legacyGitHub: undefined,
 		});
 	});
 

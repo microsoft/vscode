@@ -70,7 +70,7 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -1107,8 +1107,8 @@ export class ChangesViewPane extends ViewPane {
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
-			// The tree root and relative paths follow the active chat's folder.
-			const folder = this.getActiveChatFolder(reader);
+			const workspace = this.getActiveChangesetWorkspace(reader);
+			const folder = this.getTreeRootFolder(workspace);
 
 			if (!this.tree || activeSessionLoading) {
 				return;
@@ -1394,9 +1394,16 @@ export class ChangesViewPane extends ViewPane {
 		return selection.filter(item => !!item && isChangesFileItem(item));
 	}
 
-	/** The active chat's first folder, which files are shown relative to; it may differ from the session's. */
-	private getActiveChatFolder(reader: IReader | undefined): ISessionFolder | undefined {
-		return this.sessionsService.activeSession.read(reader)?.activeChat.read(reader).workspace.read(reader)?.folders[0];
+	private getActiveChangesetWorkspace(reader: IReader | undefined): ISessionWorkspace | undefined {
+		const activeSession = this.sessionsService.activeSession.read(reader);
+		if (this.changesViewService.activeSessionChangesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
+			return activeSession?.workspace.read(reader);
+		}
+		return activeSession?.activeChat.read(reader).workspace.read(reader);
+	}
+
+	private getTreeRootFolder(workspace: ISessionWorkspace | undefined): ISessionFolder | undefined {
+		return workspace?.folders.length === 1 ? workspace.folders[0] : undefined;
 	}
 
 	private getTreeRootInfo(items: readonly IChangesFileItem[], folder: ISessionFolder | undefined): IChangesTreeRootInfo | undefined {
@@ -1475,7 +1482,7 @@ export class ChangesViewPane extends ViewPane {
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		if (viewMode === ChangesViewMode.Tree) {
-			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getActiveChatFolder(undefined))));
+			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items, this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined)))));
 		} else {
 			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
 		}
@@ -1554,7 +1561,7 @@ export class ChangesViewPane extends ViewPane {
 			[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, actionRunner,
 				() => {
 					// Pass in the tree root to be used to compute the label description
-					const folder = this.getActiveChatFolder(undefined);
+					const folder = this.getTreeRootFolder(this.getActiveChangesetWorkspace(undefined));
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: folder?.workingDirectory;

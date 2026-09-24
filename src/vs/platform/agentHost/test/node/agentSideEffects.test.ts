@@ -61,7 +61,6 @@ import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSes
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
-import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -211,10 +210,6 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
-	services.set(IAgentHostSessionPromptService, {
-		_serviceBrand: undefined,
-		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
-	});
 	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
@@ -6155,15 +6150,17 @@ suite('AgentSideEffects', () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
-		async function waitForMetadata(key: string): Promise<string> {
+		async function waitForMetadata(key: string, expectedValue?: string): Promise<string> {
 			for (let attempt = 0; attempt < 100; attempt++) {
 				const value = await sessionDb.getMetadata(key);
-				if (value !== undefined) {
+				if (value !== undefined && (expectedValue === undefined || value === expectedValue)) {
 					return value;
 				}
 				await timeout(10);
 			}
-			throw new Error(`Session metadata '${key}' was not persisted`);
+			throw new Error(expectedValue === undefined
+				? `Session metadata '${key}' was not persisted`
+				: `Session metadata '${key}' did not reach '${expectedValue}'`);
 		}
 
 		teardown(async () => {
@@ -6328,10 +6325,10 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual({
-				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
-				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
-				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
-				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat), 'Newer'),
+				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat), 'user'),
+				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY, 'Newer'),
+				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user'),
 			}, {
 				chatTitle: 'Newer',
 				chatSource: 'user',

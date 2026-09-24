@@ -1783,6 +1783,11 @@ async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Prom
 		activeSessionMcpServers: inlineErrorMcpServers,
 		mcpSearchQuery: 'component',
 	});
+	const workspaceTab = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container [role="tab"]')]
+		.find(tab => tab.textContent?.includes('Workspace'));
+	assert(workspaceTab !== undefined, 'The fixture must render the Workspace MCP tab.');
+	workspaceTab.click();
+	await timeout(50);
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
 		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
@@ -2398,7 +2403,7 @@ async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureCont
 
 	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
 	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
-	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
+	assert(row.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
 	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
 	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
 	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
@@ -2414,13 +2419,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Discover shows a compact Marketplace-style search and filter control above a responsive browse layout. The subtly recessed Featured area gives cards additional horizontal breathing room; each card places type/source metadata beside the name and its description on the second line, with a trailing Install action.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, compact gutters, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
 	}),
@@ -2428,14 +2433,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Agent-host welcome page variant that highlights local prompt files which
 	// need to be migrated because the active harness only consumes skills.
 	AgentHostPromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 		}),
@@ -2444,7 +2449,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Sessions-window variant of the full editor with workspace override UX
 	// and sessions section ordering.
 	Sessions: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			isSessionsWindow: true,
@@ -2467,7 +2472,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Sessions Skills tab showing UI Integration badges on built-in skills
 	SessionsSkillsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			isSessionsWindow: true,
@@ -2494,16 +2499,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with workspace-relative configuration paths beneath installed server names and no Featured section.'],
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP Servers page shows User, Workspace, and Available tabs with count badges. The selected User tab contains tree rows with workspace-relative configuration paths beneath server names.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 		}),
 	}),
 
+	McpServersTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+		}),
+	}),
+
 	McpServersProvenance: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
 		expectedVisualDescriptions: ['The MCP Servers page shows linked "Plugin: Linear" and "Extension: Acme Agent Tools" provenance labels beneath their installed server names.'],
 		render: ctx => renderEditor(ctx, {
@@ -2514,7 +2529,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServersTabCopilotCompatibility: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
 		expectedVisualDescriptions: ['With the Copilot harness selected, the component-explorer MCP server has a Partially supported badge and PostgreSQL has separate Unsupported and Error badges. Compatibility badges sit beside the server name without replacing runtime status.'],
 		render: ctx => renderEditor(ctx, {
@@ -2528,7 +2543,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServersSearch: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2537,7 +2552,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServersTabActiveSession: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			isSessionsWindow: true,
@@ -2547,14 +2562,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServersErrorsWithoutDetails: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The error row stays compact and shows its ordinary description with an Error badge. No inline error message or Show More control appears; diagnostics are available from the MCP detail page.'],
 		render: renderMcpErrorsWithoutDetails,
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			isSessionsWindow: true,
@@ -2565,7 +2580,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServerActiveSessionDetail: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			isSessionsWindow: true,
@@ -2578,15 +2593,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Agents tab — workspace and user agents, scrollable
 	AgentsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 		}),
 	}),
 
+	AgentsTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Agents page uses a classic tree with collapsible Workspace, User, Plugins, Extensions, and Built-In groups where applicable.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Agents,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+		}),
+	}),
+
 	AgentsSearch: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
@@ -2595,7 +2620,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	AgentsEmptyUser: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
@@ -2605,7 +2630,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Skills tab — workspace and user skills, scrollable
 	SkillsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
@@ -2613,19 +2638,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	CodexSkillMissingDescriptionHover: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The editor-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
 		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, false),
 	}),
 
 	SessionsCodexSkillMissingDescriptionHover: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Agents-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
 		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, true),
 	}),
 
 	RemoteSkillsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
@@ -2637,7 +2662,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Instructions tab — many instructions with applyTo patterns, scrollable
 	InstructionsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Instructions,
@@ -2646,7 +2671,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Hooks tab — workspace and user hooks, scrollable
 	HooksTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Hooks,
@@ -2654,7 +2679,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	HooksEmptyWorkspace: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Hooks,
@@ -2664,7 +2689,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Prompts tab — workspace and user prompts, scrollable
 	PromptsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -2672,7 +2697,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PromptsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -2682,15 +2707,27 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	MigrationDashboard: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The migration dashboard groups customizations under Your profile and vscode. Both scopes include a Custom location settings row for customizations found in unsupported configured locations.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
+			configuration: {
+				[PromptsConfig.AGENTS_LOCATION_KEY]: {
+					'/home/dev/my-agents': true,
+				},
+				[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
+					'/workspace/team-rules': true,
+				},
+				[PromptsConfig.SKILLS_LOCATION_KEY]: {
+					'/workspace/team-skills': true,
+				},
+			},
 		}),
 	}),
 
 	MigrationDashboardNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -2700,7 +2737,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	MigrationDashboardActivityScrollable: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -2710,7 +2747,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as compact tabs with count badges above a flat tree of tool sets.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Tools,
@@ -2722,10 +2760,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	ToolsTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Tools page shows Built-in Tools, Connected Sources, and Extension Tools as collapsible parent nodes in a classic tree.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Tools,
+			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+		}),
+	}),
+
 	ToolsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
-		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows Built-in Tools and an Extension Tools section with a count of eight.'],
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows compact tabs for Built-in Tools and Extension Tools, including an Extension Tools count of eight.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
@@ -2741,7 +2794,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsSearchEmpty: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Tools,
@@ -2755,7 +2808,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsEmptyExtensions: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Tools,
@@ -2769,7 +2822,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
@@ -2778,7 +2831,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	UserDataMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.UserData,
@@ -2786,7 +2839,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
@@ -2795,7 +2848,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ConfiguredLocationsMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		deferPaint: true,
 		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
 		render: ctx => renderEditor(ctx, {
@@ -2818,16 +2871,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins page shows User, Workspace, and Available tabs with count badges. The selected User tab contains installed plugin tree rows.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 		}),
 	}),
 
+	PluginsTree: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			configuration: { [ChatConfiguration.ChatCustomizationsListLayout]: 'tree' },
+		}),
+	}),
+
 	SessionsPluginsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			isSessionsWindow: true,
@@ -2839,7 +2902,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	OverviewWithoutMarketplace: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The original Overview cards and migration guidance remain available when no marketplace feed is enabled.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2848,7 +2911,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverWithOtherSourceOnly: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
@@ -2858,7 +2921,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EnableDiscoverFromOverview: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			agentFinderPublicFeedEnabled: false,
@@ -2867,7 +2930,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DisableDiscoverToOverview: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			togglePublicFeed: true,
@@ -2875,7 +2938,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	SessionsDiscover: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			isSessionsWindow: true,
@@ -2883,7 +2946,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverSearchResults: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Search replaces browse cards with one dense, flat virtualized list of installed and available results. Selection bounds align with the title and search control; rows show compact icons, source metadata beside the name, descriptions on the second line, trailing ratings, and vertically centered Install or Uninstall actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2892,7 +2955,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverClearedSearch: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2902,7 +2965,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2912,7 +2975,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverInfiniteScroll: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The flat virtualized Discover results list keeps loaded rows visible while the next marketplace page loads automatically near the scroll boundary, without a Load More footer.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2922,7 +2985,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverInstalledFilter: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			discoveryQuery: '@installed',
@@ -2930,7 +2993,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverError: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			customizationMarketplaceState: 'error',
@@ -2938,7 +3001,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverLoading: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			customizationMarketplaceState: 'loading',
@@ -2946,7 +3009,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverInstallStates: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			customizationMarketplaceInstallationState: 'mixed',
@@ -2954,7 +3017,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	DiscoverInstallError: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The first resource has an installation error and Retry Install action while the remaining Discover results stay available.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -2966,64 +3029,64 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP browse/marketplace mode — standalone widget with gallery results, scrollable
 	// Verifies fix for https://github.com/microsoft/vscode/issues/304139
 	McpBrowseMode: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: renderMcpBrowseMode,
 	}),
 
 	// Plugin browse/marketplace mode — standalone widget with marketplace results, scrollable
 	PluginBrowseMode: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: renderPluginBrowseMode,
 	}),
 
 	PluginCatalogHome: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 
 	PluginCatalogSearch: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: renderPluginSearchMode,
 	}),
 
 	PluginCatalogHomeNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: renderPluginHomeNarrowMode,
 	}),
 
 	PluginCatalogHomeEmptyInstalled: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: renderPluginHomeEmptyInstalledMode,
 	}),
 
 	// MCP disabled splash — chat.mcp.access set to 'none' by user
 	McpDisabledByUser: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderMcpDisabled(ctx, false),
 	}),
 
 	// MCP disabled splash — chat.mcp.access locked to 'none' by enterprise policy
 	McpDisabledByPolicy: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderMcpDisabled(ctx, true),
 	}),
 
 	// Plugins disabled splash — chat.plugins.enabled=false by user
 	PluginsDisabledByUser: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderPluginDisabled(ctx, false),
 	}),
 
 	// Plugins disabled splash — chat.plugins.enabled locked to false by enterprise policy
 	PluginsDisabledByPolicy: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderPluginDisabled(ctx, true),
 	}),
 
 	// Scrolled-to-bottom variants — verify last items are fully visible above footer
 	PromptsTabScrolled: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -3033,7 +3096,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	McpServersTabScrolled: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		virtualTime: { durationMs: 5000 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -3043,7 +3106,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PluginsTabScrolled: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -3054,7 +3117,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Narrow viewport — catches badge clipping and layout overflow at small sizes
 	McpServersTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3064,7 +3127,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	AgentsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
@@ -3074,7 +3137,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PluginsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -3086,7 +3149,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Item-preview view (after clicking an agent) — verifies the structured front
 	// matter preview and rendered markdown body.
 	AgentsItemPreview: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
@@ -3096,7 +3159,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Raw markdown editor view reached from the structured preview's Edit action.
 	AgentsItemRaw: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
@@ -3108,7 +3171,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Built-in skill preview view — verifies that built-in skills open in the
 	// structured preview while still offering an editable raw override path.
 	BuiltinSkillItemPreview: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
@@ -3119,7 +3182,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Built-in skill raw view reached from the structured preview's Edit action.
 	BuiltinSkillItemRaw: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
@@ -3131,7 +3194,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP definition editor — matches the standard customization file editor layout.
 	McpServerDetail: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3141,7 +3204,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Narrow MCP editor — catches header overflow and editor framing regressions.
 	McpServerDetailNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3153,7 +3216,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The plugin detail page shows an overflowing README with themed vertical and horizontal scrollbars.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -3164,7 +3227,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PluginDetailNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -3176,7 +3239,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Standalone embedded MCP detail widget with a workspace stdio definition.
 	EmbeddedMcpDetailWorkspace: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace', {
 			type: McpServerType.LOCAL,
 			command: 'npx',
@@ -3185,7 +3248,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailSourceLink: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP detail header shows mcp.json as a themed source link above the configuration.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
@@ -3205,7 +3268,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Standalone embedded MCP detail widget with a user HTTP definition.
 	EmbeddedMcpDetailUser: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session', {
 			type: McpServerType.REMOTE,
 			url: 'https://mcp.example.com/search',
@@ -3213,7 +3276,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailErrorUnsupported: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['Two untitled diagnostic cards appear above Configuration and are stacked vertically with red backgrounds in color themes. The first reports the connection-refused error; the second says Not supported by Copilot and explains the unsupported source location.'],
 		render: ctx => renderEmbeddedMcpDetail(
@@ -3238,7 +3301,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailPartiallySupported: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['A single untitled yellow diagnostic card appears above Configuration. It says Partially supported by Copilot and lists two configuration limitations; no error card is shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
@@ -3263,7 +3326,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailSupportUnknown: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['A yellow compatibility card explains that support could not be determined because the server definition has not loaded, followed by an actionable refresh suggestion.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
@@ -3285,7 +3348,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailCheckingCompatibility: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['A neutral compatibility card with a loading icon says Checking compatibility with Copilot instead of showing a clean diagnostics state.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
@@ -3304,7 +3367,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailCompatible: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The text No diagnostics to show appears above Configuration. No diagnostics header or diagnostic cards are shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
@@ -3322,7 +3385,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	EmbeddedMcpDetailMigratable: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['A yellow Migrate MCP Server card appears above Configuration with a warning icon, text explaining that migration is required to keep working, and an emphasized Review Migrations link. No error or compatibility issue card is shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
@@ -3343,41 +3406,41 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Standalone embedded MCP detail widget before marketplace installation.
 	EmbeddedMcpDetailUninstalled: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedMcpDetail(ctx, galleryServers[0]),
 	}),
 
 	// Standalone embedded MCP detail widget — empty / no input state.
 	EmbeddedMcpDetailEmpty: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedMcpDetail(ctx, undefined),
 	}),
 
 	// Standalone embedded plugin detail widget — installed plugin.
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
 	}),
 
 	EmbeddedPluginDetailExcludedWorkspace: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('PagerDuty', 'Incident response and on-call management', ContributionEnablementState.DisabledWorkspace)),
 	}),
 
 	EmbeddedPluginDetailPolicyBlocked: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Deployment Guard', 'Deployment controls managed by your organization', ContributionEnablementState.DisabledProfile, true)),
 	}),
 
 	// Standalone embedded plugin detail widget — marketplace plugin.
 	EmbeddedPluginDetailMarketplace: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeMarketplacePluginItem('Sentry', 'Error monitoring and performance tracing')),
 	}),
 
 	// Standalone embedded plugin detail widget — empty / no input state.
 	EmbeddedPluginDetailEmpty: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEmbeddedPluginDetail(ctx, undefined),
 	}),
 });

@@ -30,7 +30,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -930,6 +930,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
+	telemetryContext?: IAgentTelemetryContext;
 	onTurnEnded?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
@@ -1232,6 +1233,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
+			telemetryContext: () => options?.telemetryContext,
 		},
 	));
 
@@ -11556,7 +11558,7 @@ Use the attached image as context.
 				activity,
 				leaksPhaseContent: JSON.stringify(signals).includes('PRIVATE'),
 			}, {
-				statuses: ['selected', 'completed'],
+				statuses: ['selected'],
 				phaseModels: ['model-a'],
 				phaseActions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
 				phaseParts: [],
@@ -11845,7 +11847,7 @@ Use the attached image as context.
 				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, turnId: 'sdk-shared' });
 				const lateEvents = signals.length - beforeLate;
 				mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, fusionId: 'fusion-2', phaseId: 'phase-2', activity: 'tool_started' });
-				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared' });
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-2', turnId: 'sdk-shared', outcome: 'degraded' });
 
 				assert.deepStrictEqual({
 					lateEvents,
@@ -11859,7 +11861,7 @@ Use the attached image as context.
 					latestTelemetryOwner: 'second',
 					pendingEvents: 0,
 					activity: ['Main pass: running a tool', undefined],
-					statuses: ['completed'],
+					statuses: ['degraded'],
 				});
 			});
 		}
@@ -11912,7 +11914,7 @@ Use the attached image as context.
 				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
 				mockSession.fire(phaseEvent, phaseEvent === 'assistant.fusion_phase_completed'
 					? { ...fusionTestData.phaseCompleted, verdict: 'PRIVATE VERDICT' } : fusionTestData.phaseFailed);
-				mockSession.fire('session.fusion_completed', fusionTestData.completed);
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, outcome: 'degraded' });
 				const buffered = {
 					count: session['_pendingFusionEvents'].length,
 					leaksContent: JSON.stringify(session['_pendingFusionEvents']).includes('PRIVATE'),
@@ -11940,7 +11942,7 @@ Use the attached image as context.
 			mockSession.fire('abort', { reason: 'user_initiated' });
 			session.resetTurnState('second');
 			const beforeCompletion = signals.length;
-			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, outcome: 'degraded' });
 			const beforeMapping = signals.length - beforeCompletion;
 			mockSession.fire('user.message', { content: 'Second request', turnId: 'sdk-turn' });
 			assert.deepStrictEqual({
@@ -11951,7 +11953,7 @@ Use the attached image as context.
 			}, {
 				beforeMapping: 0,
 				pendingEvents: 0,
-				statuses: ['completed'],
+				statuses: ['degraded'],
 			});
 		});
 
@@ -12380,6 +12382,7 @@ Use the attached image as context.
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
+				telemetryContext: { copilotSku: 'sku-a' },
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
@@ -12424,6 +12427,7 @@ Use the attached image as context.
 						totalToolCalls: data.totalToolCalls,
 						parallelToolCallRounds: data.parallelToolCallRounds,
 						parallelToolCallsTotal: data.parallelToolCallsTotal,
+						copilotSku: data.copilotSku,
 					};
 				}),
 				modelCalls: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => ({
@@ -12445,6 +12449,7 @@ Use the attached image as context.
 					totalToolCalls: 2,
 					parallelToolCallRounds: 1,
 					parallelToolCallsTotal: 2,
+					copilotSku: 'sku-a',
 				}],
 				modelCalls: [
 					{ turnId: 'turn-tool-details', modelCallId: 'api-tools' },
@@ -12493,6 +12498,7 @@ Use the attached image as context.
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession } = await createAgentSession(disposables, {
 				telemetryService,
+				telemetryContext: { copilotSku: 'sku-a' },
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
@@ -12541,13 +12547,14 @@ Use the attached image as context.
 					toolId: data.toolId,
 					confirmKind: data.confirmKind,
 					confirmationNotNeededReason: data.confirmationNotNeededReason,
+					copilotSku: data.copilotSku,
 				};
 			}), [{
-				provider: 'copilotcli', toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}, {
-				provider: 'copilotcli', toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}, {
-				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}]);
 		});
 

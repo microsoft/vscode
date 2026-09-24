@@ -95,7 +95,7 @@ function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
  * returns a snapshot of everything the user can see: the button label, its
  * accessible name, the list options and the option rows.
  */
-function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema) {
+function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema, showModelDetails = false) {
 	const access: IModelConfigurationAccess = {
 		getModelConfiguration: () => configuration,
 		getModelConfigurationSchema: () => schema,
@@ -132,7 +132,7 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 	}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService);
 	const button = document.createElement('a');
 
-	controller.renderButton(button, false, false);
+	controller.renderButton(button, false, false, showModelDetails);
 	controller.show(button);
 
 	return {
@@ -170,6 +170,32 @@ suite('ModelPickerConfiguration', () => {
 				{ className: 'chat-model-picker-config-option', label: '32K', checked: false, ariaDescription: 'Default' },
 				{ className: 'chat-model-picker-config-option', label: '64K', checked: true, ariaDescription: undefined },
 			],
+		});
+	});
+
+	test('the tabbed readout includes defaults and names its details destination', () => {
+		const result = render(createModel(), {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
+			label: 'Low · 32K',
+			ariaLabel: 'Test Model details, Thinking Effort: Low, Context: 32K',
+		});
+	});
+
+	test('the tabbed readout keeps unresolved settings reachable without guessing', () => {
+		const result = render(createModel({ omitEffortDefault: true, omitContextDefault: true }), {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
+			label: 'Configure',
+			ariaLabel: 'Test Model details, Configure',
+		});
+	});
+
+	test('the tabbed readout links fixed context to information without adding configuration', () => {
+		const model = createModel();
+		const result = render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }, {}, undefined, true);
+		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel, sections: result.sections }, {
+			label: '200K',
+			ariaLabel: 'Test Model details, Max context: 200K',
+			sections: [],
 		});
 	});
 

@@ -69,13 +69,10 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual({
 			turnCount: turns.length,
 			parts: fusionParts(turns[0].responseParts),
-			completionDetails: turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification
-				&& readAgentSystemNotificationMeta(part).fusionStatus === 'completed' ? [part.content] : []),
 			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
 		}, {
 			turnCount: 1,
-			parts: ['selected', 'succeeded', 'Selected final answer', 'completed'],
-			completionDetails: [{ markdown: 'HydraFusion&nbsp;workflow&nbsp;completed\n\nDuration:&nbsp;2.3s' }],
+			parts: ['selected', 'succeeded', 'Selected final answer'],
 			leaksPhaseContent: false,
 		});
 	});
@@ -100,7 +97,7 @@ suite('mapSessionEvents — history replay', () => {
 			phaseChat: phaseContent?.flatMap(item => item.type === ToolResultContentType.Subagent ? [{ resource: item.resource, agentName: item.agentName }] : []),
 			phaseTurn: subagentTurnsByToolCallId.get(phaseToolCallId)?.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind)),
 		}, {
-			root: [ResponsePartKind.SystemNotification, phaseToolCallId, 'The app is running', ResponsePartKind.SystemNotification],
+			root: [ResponsePartKind.SystemNotification, phaseToolCallId, 'The app is running'],
 			phaseChat: [{ resource: buildSubagentSessionUri(session.toString(), phaseToolCallId), agentName: 'hydrafusion-phase' }],
 			phaseTurn: ['Starting the server', 'tc-bash'],
 		});
@@ -146,7 +143,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(turns.map(turn => ({
 			id: turn.id,
 			milestones: turn.responseParts.filter(part => part.kind === ResponsePartKind.SystemNotification || part.kind === ResponsePartKind.ToolCall).length,
-		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 3 }]);
+		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 2 }]);
 	});
 
 	for (const correlation of ['user', 'assistant', 'interaction', 'missing', 'shared'] as const) {
@@ -181,7 +178,7 @@ suite('mapSessionEvents — history replay', () => {
 				]);
 				assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, state: turn.state, parts: fusionParts(turn.responseParts) })), [
 					{ id: 'user-1', state: TurnState.Cancelled, parts: [] },
-					{ id: 'user-2', state: TurnState.Complete, parts: correlation === 'missing' || correlation === 'shared' ? ['Second answer'] : ['selected', 'succeeded', 'Second answer', 'completed'] },
+					{ id: 'user-2', state: TurnState.Complete, parts: correlation === 'missing' || correlation === 'shared' ? ['Second answer'] : ['selected', 'succeeded', 'Second answer'] },
 				]);
 			});
 		}
@@ -279,7 +276,7 @@ suite('mapSessionEvents — history replay', () => {
 							state: TurnState.Cancelled,
 							parts: ['selected', ...(phaseStatus ? [phaseStatus] : []), 'cancelled'],
 						},
-						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer', 'completed'] },
+						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer'] },
 					]);
 				});
 			}
@@ -315,7 +312,7 @@ suite('mapSessionEvents — history replay', () => {
 				parts: fusionParts(turn.responseParts),
 			})), [
 				{ id: 'user-1', parts: ['degraded', 'cancelled'] },
-				{ id: 'user-2', parts: ['selected', 'succeeded', 'completed'] },
+				{ id: 'user-2', parts: ['selected', 'succeeded'] },
 			]);
 		});
 	}
@@ -356,7 +353,7 @@ suite('mapSessionEvents — history replay', () => {
 		})), states.map((state, index) => ({
 			id: `user-${index + 1}`,
 			state,
-			parts: ['selected', 'succeeded', ...(state === TurnState.Cancelled ? ['cancelled'] : [`Answer ${index + 1}`, 'completed'])],
+			parts: ['selected', 'succeeded', ...(state === TurnState.Cancelled ? ['cancelled'] : [`Answer ${index + 1}`])],
 		})));
 	});
 
@@ -432,7 +429,7 @@ suite('mapSessionEvents — history replay', () => {
 			})), [{
 				id: 'user-1',
 				state: TurnState.Complete,
-				parts: ['selected', 'succeeded', 'completed', 'selected', 'succeeded', 'Root answer', 'completed'],
+				parts: ['selected', 'succeeded', 'selected', 'succeeded', 'Root answer'],
 			}]);
 		});
 	}
