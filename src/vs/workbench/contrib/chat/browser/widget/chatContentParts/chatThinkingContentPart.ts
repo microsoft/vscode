@@ -1473,7 +1473,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	public getPendingCollapseAnimation(): Promise<void> | undefined {
 		const container = this.contentAnimationContainer ?? this.scrollableElement?.getDomNode();
-		if (this.isExpanded() || this._store.isDisposed || !container?.isConnected) {
+		// Unmaterialized previews cannot be collapsing; querying their animations forces a style flush.
+		if (!this.wrapper || this.isExpanded() || this._store.isDisposed || !container?.isConnected) {
 			return undefined;
 		}
 		const animations = container.getAnimations().filter(animation => animation.playState !== 'finished' && animation.playState !== 'idle');
