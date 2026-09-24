@@ -202,6 +202,11 @@
 	min-height: 40px;
 }
 
+/* Compact modal headers should not render the default title-bar divider. */
+.monaco-modal-editor-block.compact-header .modal-editor-part {
+	border-top: none;
+}
+
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label::before,
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label > .monaco-icon-label-iconpath {
 	display: none;
