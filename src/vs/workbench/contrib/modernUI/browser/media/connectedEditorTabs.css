@@ -31,11 +31,11 @@
 	--modern-ui-connected-tab-border: var(--vscode-focusBorder);
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple > .content .editor-group-container {
 	position: relative;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple > .content .editor-group-container::after {
 	content: '';
 	position: absolute;
 	inset: 0;
