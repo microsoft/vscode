@@ -1092,11 +1092,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			treeStartIndex: 0,
 		};
 		const factory = this.createCarouselToolPartFactory(context, context.codeBlockStartIndex);
-		widget.inputPart.addToolToConfirmationCarousel(tool, factory, tool.subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
+		const inputPart = widget.inputPart;
+		inputPart.addToolToConfirmationCarousel(tool, factory, tool.subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 		for (const template of this.templateDataByRequestId.values()) {
 			this.updateWorkingProgressForPendingConfirmations(template);
 		}
-		return toDisposable(() => widget.inputPart.removeToolFromConfirmationCarousel(tool, response.sessionResource));
+		return toDisposable(() => inputPart.removeToolFromConfirmationCarousel(tool, response.sessionResource));
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {

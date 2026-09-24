@@ -5509,9 +5509,14 @@ suite('ChatListRenderer', () => {
 				override removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
 					carousels.get(sessionResource.toString())?.removeToolInvocation(tool);
 				}
+				override dispose(): void {
+					carousels.clearAndDisposeAll();
+				}
 			}();
+			const inputPartDisposable = store.add(new MutableDisposable<ChatInputPart>());
+			inputPartDisposable.value = inputPart;
 			const widget = new class extends mock<IChatWidget>() {
-				override readonly inputPart = inputPart;
+				override get inputPart() { return inputPartDisposable.value!; }
 				override get viewModel() { return currentViewModel; }
 				override reveal(item: ChatTreeItem): void { revealed.push(item); }
 				override focusInput(): void { }
@@ -5528,7 +5533,7 @@ suite('ChatListRenderer', () => {
 			}());
 			context.renderer.layout(600);
 			return {
-				...context, inputPart, confirmationContainer, revealed, factoriesUsed,
+				...context, inputPart, inputPartDisposable, confirmationContainer, revealed, factoriesUsed,
 				get carousel() { return inputPart.currentCarousel; },
 				getConfirmationEditor() {
 					const editorService = context.instantiationService.invokeFunction(accessor => accessor.get(ICodeEditorService));
@@ -5557,6 +5562,26 @@ suite('ChatListRenderer', () => {
 				.filter(part => part.style.display !== 'none' && !part.closest('[style*="display: none"]'));
 			return { toolParts: parts.length, confirmations: parts.filter(part => part.classList.contains('has-confirmation')).length };
 		}
+
+		test('disposes pending confirmations after the widget input part has been cleared', () => {
+			const context = createConfirmationRenderer();
+			const tool = createPendingTool('pending-at-disposal');
+			context.model.acceptResponseProgress(context.request, tool);
+			const pendingBeforeDisposal = context.carousel?.pendingCount;
+
+			context.inputPartDisposable.clear();
+			context.renderer.dispose();
+
+			assert.deepStrictEqual({
+				pendingBeforeDisposal,
+				pendingAfterDisposal: context.carousel?.pendingCount ?? 0,
+				toolState: tool.state.get().type,
+			}, {
+				pendingBeforeDisposal: 1,
+				pendingAfterDisposal: 0,
+				toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		test('shows offscreen retained subagent approvals and allows each original invocation independently', async () => {
 			const context = createConfirmationRenderer();
