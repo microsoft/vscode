@@ -697,13 +697,9 @@ export class CodeApplication extends Disposable {
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		// In portable mode, use a distinct id so that Windows does not
-		// associate the portable instance with shortcuts, pins and jump
-		// lists of a regularly installed version.
+		// Associate the program with the app user model id so that Windows
+		// matches it with pinned taskbar shortcuts. Use a distinct id in
+		// portable mode to not interfere with a regularly installed version.
 		const win32AppUserModelId = this.productService.win32AppUserModelId;
 		if (isWindows && win32AppUserModelId) {
 			app.setAppUserModelId(this.environmentMainService.isPortable ? `${win32AppUserModelId}.Portable` : win32AppUserModelId);
