@@ -8,11 +8,11 @@ import { ChildProcess, spawn } from 'child_process';
 import { once } from 'events';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { killTree } from '../../../../base/node/processes.js';
+import type { killTree } from '../../../../base/node/processes.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, killServer, stopServer } from './serverIntegrationTestHelpers.js';
@@ -36,6 +36,7 @@ suite('Agent Host test server cleanup', () => {
 			name: 'graceful shutdown fallback',
 			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => stopServer({ process, port: 0 }, async () => [], 0, {
 				killTree: killProcessTree,
+				killProcess: () => assert.fail('No descendant kills expected'),
 				isSameProcessRunning: async () => assert.fail('No descendant identity checks expected'),
 			}),
 		},
@@ -116,7 +117,7 @@ suite('Agent Host test server cleanup', () => {
 
 	for (const { name, identityChecks } of [
 		{ name: 'skips missing or reused descendants', identityChecks: [false] },
-		{ name: 'accepts descendants exiting during taskkill', identityChecks: [true, false] },
+		{ name: 'accepts descendants exiting during termination', identityChecks: [true, false] },
 		{ name: 'waits for the descendant process list to catch up', identityChecks: [true, true, false] },
 		{ name: 'preserves errors for surviving descendants', identityChecks: [true, true, true, true, true, true] },
 	]) {
@@ -129,14 +130,15 @@ suite('Agent Host test server cleanup', () => {
 			let identityCheckIndex = 0;
 			const stopped = stopServer({ process: server, port: 0 }, async () => [descendant], 0, {
 				killTree: async (pid, forceful) => {
-					calls.push(`kill:${pid}:${forceful}`);
-					if (pid === server.pid) {
-						setTimeout(() => {
-							calls.push('server:exit');
-							server.exit();
-						}, 1);
-						throw rootError;
-					}
+					calls.push(`killTree:${pid}:${forceful}`);
+					setTimeout(() => {
+						calls.push('server:exit');
+						server.exit();
+					}, 1);
+					throw rootError;
+				},
+				killProcess: pid => {
+					calls.push(`killProcess:${pid}`);
 					throw descendantError;
 				},
 				isSameProcessRunning: async process => {
@@ -161,10 +163,10 @@ suite('Agent Host test server cleanup', () => {
 				exitListeners: server.listenerCount('exit'),
 			}, {
 				calls: [
-					`kill:${server.pid}:true`,
+					`killTree:${server.pid}:true`,
 					'server:exit',
 					identityCheck,
-					...(identityChecks[0] ? [`kill:${descendant.pid}:true`, ...identityChecks.slice(1).map(() => identityCheck)] : []),
+					...(identityChecks[0] ? [`killProcess:${descendant.pid}`, ...identityChecks.slice(1).map(() => identityCheck)] : []),
 				],
 				exitCode: 0,
 				exitListeners: 0,
@@ -172,7 +174,7 @@ suite('Agent Host test server cleanup', () => {
 		}));
 	}
 
-	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[]): Promise<{ error: Error | undefined; calls: string[] }> {
+	async function runDescendantKillFailureTest(isSameProcessRunningResults: readonly boolean[], killFails = true): Promise<{ error: Error | undefined; calls: string[] }> {
 		const descendant = { pid: 123, name: 'node.exe', commandLine: 'node child.js' };
 		const server = spawn(process.execPath, ['-e', `
 			process.stdin.resume();
@@ -185,14 +187,19 @@ suite('Agent Host test server cleanup', () => {
 			windowsHide: true,
 		});
 		const calls: string[] = [];
-		const killError = new Error('taskkill failed');
+		const killError = new Error('process kill failed');
 		let identityCheckIndex = 0;
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
 			const error = await stopServer({ process: server, port: 0 }, async () => [descendant], 5_000, {
 				killTree: async (pid, forceful) => {
-					calls.push(`kill:${pid}:${forceful}`);
-					throw killError;
+					throw new Error(`Unexpected server tree kill: ${pid}:${forceful}`);
+				},
+				killProcess: pid => {
+					calls.push(`kill:${pid}`);
+					if (killFails) {
+						throw killError;
+					}
 				},
 				isSameProcessRunning: async process => {
 					calls.push(`isSameProcessRunning:${process.pid}:${process.name}:${process.commandLine}`);
@@ -273,7 +280,7 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
-	test('ignores a failed descendant kill when the process exits during taskkill', async function () {
+	test('ignores a failed descendant kill when the process exits during termination', async function () {
 		this.timeout(15_000);
 		const result = await runDescendantKillFailureTest([true, false]);
 
@@ -281,7 +288,7 @@ suite('Agent Host test server cleanup', () => {
 			error: undefined,
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
-				'kill:123:true',
+				'kill:123',
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
 		});
@@ -295,7 +302,23 @@ suite('Agent Host test server cleanup', () => {
 			error: undefined,
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
-				'kill:123:true',
+				'kill:123',
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'isSameProcessRunning:123:node.exe:node child.js',
+			],
+		});
+	});
+
+	test('waits for a descendant to exit after a successful kill', async function () {
+		this.timeout(15_000);
+		const result = await runDescendantKillFailureTest([true, true, true, false], false);
+
+		assert.deepStrictEqual(result, {
+			error: undefined,
+			calls: [
+				'isSameProcessRunning:123:node.exe:node child.js',
+				'kill:123',
+				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
@@ -310,10 +333,10 @@ suite('Agent Host test server cleanup', () => {
 			error: result.error?.message,
 			calls: result.calls,
 		}, {
-			error: 'taskkill failed',
+			error: 'process kill failed',
 			calls: [
 				'isSameProcessRunning:123:node.exe:node child.js',
-				'kill:123:true',
+				'kill:123',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
 				'isSameProcessRunning:123:node.exe:node child.js',
@@ -321,6 +344,63 @@ suite('Agent Host test server cleanup', () => {
 				'isSameProcessRunning:123:node.exe:node child.js',
 			],
 		});
+	});
+
+	test('rechecks failed descendant kills after all concurrent kills finish', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdin.resume();
+			process.stdout.write('ready');
+			process.stdin.once('end', () => process.exit(0));
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		const descendants = [
+			{ pid: 123, name: 'node.exe', commandLine: 'node child.js' },
+			{ pid: 124, name: 'node.exe', commandLine: 'node grandchild.js' },
+		];
+		const calls: string[] = [];
+		let concurrentKillFinished = false;
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			const error = await stopServer({ process: server, port: 0 }, async () => descendants, 5_000, {
+				killTree: async pid => {
+					throw new Error(`Unexpected server tree kill: ${pid}`);
+				},
+				killProcess: pid => {
+					calls.push(`kill:${pid}`);
+					if (pid === 123) {
+						throw new Error('process kill failed');
+					}
+					concurrentKillFinished = true;
+					calls.push(`killed:${pid}`);
+				},
+				isSameProcessRunning: async process => {
+					calls.push(`isSameProcessRunning:${process.pid}`);
+					return !concurrentKillFinished;
+				},
+			}).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			assert.deepStrictEqual({ error: error?.message, calls }, {
+				error: undefined,
+				calls: [
+					'isSameProcessRunning:123',
+					'isSameProcessRunning:124',
+					'kill:123',
+					'kill:124',
+					'killed:124',
+					'isSameProcessRunning:123',
+					'isSameProcessRunning:124',
+				],
+			});
+		} finally {
+			await killServer({ process: server, port: 0 });
+		}
 	});
 
 	test('ignores a failed server tree kill when the server exits during taskkill', async function () {
@@ -341,6 +421,7 @@ suite('Agent Host test server cleanup', () => {
 					server.kill();
 					throw new Error('taskkill failed after the server exited');
 				},
+				killProcess: () => { throw new Error('Unexpected descendant kill'); },
 				isSameProcessRunning: async () => false,
 			});
 			assert.deepStrictEqual(server.exitCode !== null || server.signalCode !== null, true);
@@ -366,6 +447,7 @@ suite('Agent Host test server cleanup', () => {
 				killTree: async () => {
 					throw new Error('taskkill failed while server was running');
 				},
+				killProcess: () => { throw new Error('Unexpected descendant kill'); },
 				isSameProcessRunning: async () => false,
 			}).then(
 				() => undefined,
@@ -420,23 +502,37 @@ suite('Agent Host test server cleanup', () => {
 
 			assert.strictEqual(server.exitCode, 0);
 			assert.throws(() => process.kill(message, 0), { code: 'ESRCH' });
-			await rm(directory, { recursive: true });
+			await rm(directory, { recursive: true, maxRetries: 10, retryDelay: 100 });
 		} finally {
-			await Promises.settled([server.pid, descendantPid].map(async pid => {
-				if (pid === undefined) {
-					return;
-				}
-				try {
-					process.kill(pid, 0);
-				} catch (error) {
-					if (getErrorCode(error) === 'ESRCH') {
+			await Promises.settled([
+				killServer({ process: server, port: 0 }),
+				(async () => {
+					const pid = descendantPid;
+					if (pid === undefined) {
 						return;
 					}
-					throw error;
-				}
-				await killTree(pid, true);
-			}));
-			await rm(directory, { recursive: true, force: true });
+					try {
+						process.kill(pid);
+					} catch (error) {
+						if (getErrorCode(error) !== 'ESRCH') {
+							throw error;
+						}
+						return;
+					}
+					await retry(async () => {
+						try {
+							process.kill(pid, 0);
+						} catch (error) {
+							if (getErrorCode(error) === 'ESRCH') {
+								return;
+							}
+							throw error;
+						}
+						throw new Error(`Agent Host test server descendant ${pid} did not exit after termination`);
+					}, 50, 100);
+				})(),
+			]);
+			await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 		}
 	});
 });
