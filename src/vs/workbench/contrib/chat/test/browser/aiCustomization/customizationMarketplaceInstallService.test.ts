@@ -981,8 +981,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 	suite('MCP servers', () => {
 		test('installs default gallery entries from their pinned registry only while public feed is off', async () => {
 			const fixture = await createFixture({ enabled: false, otherSourceEnabled: true });
-			const candidate = { ...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGalleryDefault.id,
-				installation: { kind: 'mcpGallery' as const, name: 'io.example/demo', registry: 'default' as const } };
+			const candidate = {
+				...galleryMcpResource(), sourceId: CustomizationMarketplaceSources.McpGalleryDefault.id,
+				installation: { kind: 'mcpGallery' as const, name: 'io.example/demo', registry: 'default' as const }
+			};
 			fixture.mcpService.galleryServer = mcpServer('io.example/demo', McpServerInstallState.Uninstalled, 'io.example/demo', 'https://api.mcp.github.com');
 			await fixture.service.install(candidate);
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);

@@ -158,11 +158,13 @@ suite('NativeCustomizationMarketplaceService', () => {
 					listen: () => Event.None,
 					async call<T>(): Promise<T> {
 						publicCalls++;
-						return { items: [{
-							sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
-							mediaType: CustomizationMarketplaceMediaType.McpServer,
-							tags: [], capabilities: [], representativeQueries: [],
-						}], total: 1 } as T;
+						return {
+							items: [{
+								sourceId: 'agentFinder', identifier: 'public', displayName: 'Public', description: '',
+								mediaType: CustomizationMarketplaceMediaType.McpServer,
+								tags: [], capabilities: [], representativeQueries: [],
+							}], total: 1
+						} as T;
 					},
 				};
 			}
@@ -176,10 +178,12 @@ suite('NativeCustomizationMarketplaceService', () => {
 			override async queryPage(_options: { readonly pageSize: number }, _token: CancellationToken, manifest?: { readonly url: string }) {
 				galleryUrls.push(manifest?.url ?? '');
 				const name = manifest?.url === 'https://registry.test' ? 'custom' : 'default';
-				return { items: [{
-					name, displayName: name, description: '', version: '1.0',
-					isLatest: true, status: GalleryMcpServerStatus.Active, publisher: name, configuration: {},
-				} satisfies IGalleryMcpServer], total: 1 };
+				return {
+					items: [{
+						name, displayName: name, description: '', version: '1.0',
+						isLatest: true, status: GalleryMcpServerStatus.Active, publisher: name, configuration: {},
+					} satisfies IGalleryMcpServer], total: 1
+				};
 			}
 		}());
 		const service = services.createInstance(NativeCustomizationMarketplaceService);
