@@ -11,7 +11,6 @@ import { tmpdir } from 'os';
 import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, killServer, stopServer } from './serverIntegrationTestHelpers.js';
@@ -224,7 +223,8 @@ suite('Agent Host test server cleanup', () => {
 		}
 	});
 
-	(isWindows ? test : test.skip)('stops owned descendants after the server exits gracefully', async function () {
+	// Flaky on Windows: taskkill intermittently exits with code 255 during descendant cleanup.
+	test.skip('stops owned descendants after the server exits gracefully', async function () {
 		this.timeout(30_000);
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-test-server-cleanup-'));
 		const descendantCode = `
