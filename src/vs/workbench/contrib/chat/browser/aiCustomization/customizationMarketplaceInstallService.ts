@@ -234,6 +234,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this._onDidChange.fire();
 		try {
 			await operation;
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 		} catch (error) {
 			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(resource.sourceId)) {
 				throw new CancellationError();
@@ -333,7 +336,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!plugin) {
 				throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
 			}
-			await this.pluginInstallService.installPlugin(plugin);
+			await this.pluginInstallService.installPlugin(plugin, token);
 			return;
 		}
 		const source = resource.installation;

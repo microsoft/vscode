@@ -464,11 +464,57 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
-		await service.fetchMarketplacePlugins(CancellationToken.None);
+		const errors: string[] = [];
+		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None, undefined, {
+			onMarketplaceError: (reference, error) => errors.push(`${reference.displayLabel}: ${error instanceof Error ? error.message : String(error)}`),
+		});
 
-		assert.ok(requestUrls.length > 0);
-		assert.ok(requestUrls.every(url => url.includes('/marketplace/')));
-		assert.ok(requestUrls.every(url => !url.includes('/main/')));
+		assert.deepStrictEqual({
+			queriedPinnedRevision: requestUrls.length > 0 && requestUrls.every(url => url.includes('/marketplace/')) && requestUrls.every(url => !url.includes('/main/')),
+			plugins,
+			errors,
+		}, {
+			queriedPinnedRevision: true,
+			plugins: [],
+			errors: ['microsoft/vscode#marketplace: Unable to read marketplace \'microsoft/vscode#marketplace\' (HTTP 500).'],
+		});
+	});
+
+	test('reports an unreadable cloned marketplace rather than a successful empty catalog', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {
+			readFile: async () => { throw new Error('Permission denied'); },
+		} as Partial<IFileService> as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			ensureRepository: async () => URI.file('/cache/marketplace'),
+		} as Partial<IAgentPluginRepositoryService> as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => ({ res: { headers: {}, statusCode: 404 }, stream: bufferToStream(VSBuffer.fromString('')) }),
+		} as Partial<IRequestService> as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' } as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		const errors: string[] = [];
+		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None, undefined, {
+			onMarketplaceError: (_reference, error) => errors.push(error instanceof Error ? error.message : String(error)),
+		});
+		assert.deepStrictEqual({ plugins, errors }, { plugins: [], errors: ['Permission denied'] });
 	});
 
 	test('a cancelled fetch does not clear the last fetched plugins', async () => {

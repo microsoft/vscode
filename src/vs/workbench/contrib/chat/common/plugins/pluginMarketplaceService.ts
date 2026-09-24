@@ -14,9 +14,10 @@ import { revive } from '../../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
@@ -532,6 +533,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		let repoMayBePrivate = true;
+		let readError: Error | undefined;
 
 		const plugins = await this._readPluginsFromDefinitions(reference, async (defPath) => {
 			if (token.isCancellationRequested) {
@@ -544,11 +546,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				const statusCode = context.res.statusCode;
 				if (statusCode !== 200) {
 					repoMayBePrivate &&= statusCode !== undefined && statusCode >= 400 && statusCode < 500;
+					if (statusCode === undefined || statusCode >= 500 || statusCode === 429) {
+						readError = new Error(localize('pluginMarketplace.httpReadFailed', "Unable to read marketplace '{0}' (HTTP {1}).", reference.displayLabel, statusCode ?? 'unknown'));
+					}
 					this._logService.debug(`[PluginMarketplaceService] ${url} returned status ${statusCode}, skipping`);
 					return undefined;
 				}
 				return await asJson<IMarketplaceJson>(context) ?? undefined;
 			} catch (err) {
+				readError = new Error(localize('pluginMarketplace.readFailed', "Unable to read marketplace '{0}'.", reference.displayLabel));
 				this._logService.debug(`[PluginMarketplaceService] Failed to fetch marketplace.json from ${url}:`, err);
 				return undefined;
 			}
@@ -574,9 +580,23 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				this._savePersistedGitHubMarketplaceCache(cache);
 			}
 
-			return this._fetchFromClonedRepo(reference, token, options);
+			let cloneFailed = false;
+			const cloned = await this._fetchFromClonedRepo(reference, token, {
+				...options,
+				onMarketplaceError: (ref, error) => {
+					cloneFailed = true;
+					options?.onMarketplaceError?.(ref, error);
+				},
+			});
+			if (!cloned.length && readError && !cloneFailed && !token.isCancellationRequested) {
+				options?.onMarketplaceError?.(reference, readError);
+			}
+			return cloned;
 		}
 
+		if (readError && !token.isCancellationRequested) {
+			options?.onMarketplaceError?.(reference, readError);
+		}
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${repo}`);
 		return [];
 	}
@@ -935,7 +955,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
-		return this._readPluginsFromDirectory(repoDir, reference, token);
+		return this._readPluginsFromDirectory(repoDir, reference, token, options);
 	}
 
 	async readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]> {
@@ -1014,8 +1034,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		return false;
 	}
 
-	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {
-		return this._readPluginsFromDefinitions(reference, async (defPath) => {
+	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
+		let readError: unknown;
+		const plugins = await this._readPluginsFromDefinitions(reference, async (defPath) => {
 			if (token?.isCancellationRequested) {
 				return undefined;
 			}
@@ -1023,10 +1044,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			try {
 				const contents = await this._fileService.readFile(definitionUri);
 				return parseJSONC(contents.value.toString()) as IMarketplaceJson | undefined;
-			} catch {
+			} catch (error) {
+				if (!(error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND)) {
+					readError = error;
+				}
 				return undefined;
 			}
 		}, repoDir);
+		if (!plugins.length && readError !== undefined && !token?.isCancellationRequested) {
+			options?.onMarketplaceError?.(reference, readError);
+		}
+		return plugins;
 	}
 
 	/**

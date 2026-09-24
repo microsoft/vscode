@@ -109,7 +109,7 @@ export class PluginCustomizationMarketplaceProvider extends Disposable implement
 			items: entries.slice(offset, end),
 			total: sourceErrors.length ? undefined : entries.length,
 			nextCursor,
-			...(sourceErrors.length && end === entries.length ? { error: sourceErrors.join('; ') } : {}),
+			...(sourceErrors.length ? { warning: sourceErrors.join('; ') } : {}),
 		};
 	}
 }

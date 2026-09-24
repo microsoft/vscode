@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -58,6 +59,8 @@ suite('PluginInstallService', () => {
 		dialogConfirmResult: boolean;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
+		onEnsureRepository?: (token: CancellationToken | undefined) => Promise<URI>;
+		onTrustConfirmation?: () => Promise<boolean>;
 		ensurePluginSourceResult: URI;
 		/** Plugin source install URI, per kind */
 		pluginSourceInstallUris: Map<string, URI>;
@@ -174,7 +177,7 @@ suite('PluginInstallService', () => {
 
 		// IDialogService
 		instantiationService.stub(IDialogService, {
-			confirm: async () => ({ confirmed: state.dialogConfirmResult }),
+			confirm: async () => ({ confirmed: state.onTrustConfirmation ? await state.onTrustConfirmation() : state.dialogConfirmResult }),
 		} as unknown as IDialogService);
 
 		// ITerminalService — the mock coordinates runCommand and onCommandFinished
@@ -286,8 +289,8 @@ suite('PluginInstallService', () => {
 				return URI.joinPath(state.ensureRepositoryResult, plugin.source);
 			},
 			getRepositoryUri: () => state.ensureRepositoryResult,
-			ensureRepository: async (_marketplace: IMarketplaceReference, _options?: IEnsureRepositoryOptions) => {
-				return state.ensureRepositoryResult;
+			ensureRepository: async (_marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions) => {
+				return state.onEnsureRepository ? state.onEnsureRepository(options?.token) : state.ensureRepositoryResult;
 			},
 			pullRepository: async (marketplace: IMarketplaceReference, options?: IPullRepositoryOptions) => {
 				state.pullRepositoryCalls.push({ marketplace, options });
@@ -943,6 +946,45 @@ suite('PluginInstallService', () => {
 	// =========================================================================
 
 	suite('installPlugin — marketplace trust', () => {
+
+		test('cancellation while confirming trust never trusts or installs the plugin', async () => {
+			const confirmation = new DeferredPromise<boolean>();
+			const cancellation = store.add(new CancellationTokenSource());
+			const { service, state } = createService({ marketplaceTrusted: false, onTrustConfirmation: () => confirmation.p });
+			const plugin = createPlugin({ source: 'plugins/myPlugin', sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' } });
+			const pending = service.installPlugin(plugin, cancellation.token);
+			cancellation.cancel();
+			await confirmation.complete(true);
+			await assert.rejects(pending, isCancellationError);
+			assert.deepStrictEqual({ trusted: state.trustedMarketplaces, installed: state.addedPlugins }, { trusted: [], installed: [] });
+		});
+
+		test('cancellation while checking a cloned plugin prevents registration', async () => {
+			const exists = new DeferredPromise<boolean>();
+			const checking = new DeferredPromise<void>();
+			const cancellation = store.add(new CancellationTokenSource());
+			let repositoryToken: CancellationToken | undefined;
+			const { service, state } = createService({
+				onEnsureRepository: async token => {
+					repositoryToken = token;
+					return URI.file('/cache/agentPlugins/github.com/microsoft/vscode');
+				},
+				fileExistsResult: async () => {
+					await checking.complete();
+					return exists.p;
+				},
+			});
+			const plugin = createPlugin({ source: 'plugins/myPlugin', sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' } });
+			const pending = service.installPlugin(plugin, cancellation.token);
+			await checking.p;
+			cancellation.cancel();
+			await exists.complete(true);
+			await assert.rejects(pending, isCancellationError);
+			assert.deepStrictEqual({
+				repositoryReceivedToken: repositoryToken === cancellation.token,
+				installed: state.addedPlugins,
+			}, { repositoryReceivedToken: true, installed: [] });
+		});
 
 		test('skips trust prompt when marketplace is already trusted', async () => {
 			const { service, state } = createService({ marketplaceTrusted: true });

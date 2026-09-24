@@ -114,9 +114,39 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		const provider = createProvider(service);
 		const skipped = await provider.query({ mediaType: CustomizationMarketplaceMediaType.Skill }, CancellationToken.None);
 		const partial = await provider.query({}, CancellationToken.None);
-		assert.deepStrictEqual({ skipped, partial: { items: partial.items.map(item => item.displayName), total: partial.total, error: partial.error } }, {
+		assert.deepStrictEqual({ skipped, partial: { items: partial.items.map(item => item.displayName), total: partial.total, warning: partial.warning } }, {
 			skipped: { items: [], total: 0 },
-			partial: { items: ['Review'], total: undefined, error: 'microsoft/plugins#stable: Unavailable' },
+			partial: { items: ['Review'], total: undefined, warning: 'microsoft/plugins#stable: Unavailable' },
+		});
+	});
+
+	test('reports a partial failure on every native page without blocking supported entries', async () => {
+		let fetches = 0;
+		const service = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override async fetchMarketplacePlugins(_token: CancellationToken, _ids?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions) {
+				fetches++;
+				options?.onMarketplaceError?.(reference, new Error('Unavailable'));
+				return [plugin, { ...plugin, name: 'Another' }, { ...plugin, name: 'Third' }];
+			}
+		}();
+		const provider = createProvider(service);
+		const first = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		const second = await provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		const third = await provider.query({ pageSize: 1, cursor: second.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			names: [first, second, third].map(page => page.items.map(item => item.displayName)),
+			warnings: [first, second, third].map(page => page.warning),
+			totals: [first, second, third].map(page => page.total),
+			hasMore: [first.nextCursor !== undefined, second.nextCursor !== undefined, third.nextCursor !== undefined],
+			fetches,
+		}, {
+			names: [['Review'], ['Another'], ['Third']],
+			warnings: Array(3).fill('microsoft/plugins#stable: Unavailable'),
+			totals: [undefined, undefined, undefined],
+			hasMore: [true, true, false],
+			fetches: 1,
 		});
 	});
 

@@ -197,8 +197,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
 			readonly directInstalls: IMarketplaceInstalledPlugin['plugin'][] = [];
-			override async installPlugin(plugin: IMarketplaceInstalledPlugin['plugin']) {
+			onDirectInstall: ((token: CancellationToken | undefined) => Promise<void>) | undefined;
+			override async installPlugin(plugin: IMarketplaceInstalledPlugin['plugin'], token?: CancellationToken) {
 				this.directInstalls.push(plugin);
+				await this.onDirectInstall?.(token);
 			}
 			result: IInstallPluginFromSourceResult = { success: true };
 			onInstall: (() => Promise<IInstallPluginFromSourceResult>) | undefined;
@@ -802,6 +804,39 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 			await assert.rejects(fixture.service.install(candidate), /no longer available/);
 			assert.deepStrictEqual({ direct: fixture.pluginService.directInstalls, legacy: fixture.pluginService.calls }, { direct: [], legacy: [] });
+		});
+
+		test('passes source-disable cancellation through to the existing plugin installer', async () => {
+			const fixture = await createFixture();
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, true);
+			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin;
+			fixture.marketplaceService.availablePlugins = [plugin];
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: getPluginMarketplaceIdentifier(plugin),
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: undefined,
+			});
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			let installerToken: CancellationToken | undefined;
+			fixture.pluginService.onDirectInstall = async token => {
+				installerToken = token;
+				await started.complete();
+				await release.p;
+			};
+			const install = fixture.service.install(candidate);
+			await started.p;
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled);
+			const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
+			await release.complete();
+			await assert.rejects(install, isCancellationError);
+			assert.deepStrictEqual({
+				calls: fixture.pluginService.directInstalls.length,
+				cancelledBeforeInstallerResolves,
+				state: fixture.service.getInstallState(candidate).kind,
+			}, { calls: 1, cancelledBeforeInstallerResolves: true, state: 'unavailable' });
 		});
 
 		for (const path of ['plugins/demo', '']) {

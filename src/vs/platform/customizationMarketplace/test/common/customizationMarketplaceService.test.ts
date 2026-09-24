@@ -624,6 +624,42 @@ suite('CustomizationMarketplaceService', () => {
 			next: undefined,
 			calls: 1,
 		});
+
+	});
+
+	test('non-terminal source warnings persist while buffered entries and later native pages remain available', async () => {
+		const cursors: (string | undefined)[] = [];
+		const service = new CustomizationMarketplaceService([{
+			id: 'partial',
+			query: async options => {
+				cursors.push(options.cursor);
+				return options.cursor
+					? { items: [{ ...entry, identifier: 'third', score: 60 }] }
+					: {
+						items: [{ ...entry, identifier: 'first', score: 80 }, { ...entry, identifier: 'second', score: 70 }],
+						nextCursor: 'native-next',
+						warning: 'Another marketplace is unavailable',
+					};
+			},
+		}, {
+			id: 'healthy',
+			query: async () => ({ items: [{ ...entry, identifier: 'healthy-first', score: 100 }, { ...entry, identifier: 'healthy-second', score: 90 }], total: 2 }),
+		}]);
+		const options = { sourceIds: ['partial', 'healthy'], query: 'mail', pageSize: 2 };
+		const first = await service.query(options, CancellationToken.None);
+		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		const third = await service.query({ ...options, cursor: second.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: [first, second, third].map(page => page.items.map(item => item.identifier)),
+			errors: [first, second, third].map(page => page.sourceErrors),
+			totals: [first, second, third].map(page => page.total),
+			cursors,
+		}, {
+			items: [['healthy-first', 'healthy-second'], ['first', 'second'], ['third']],
+			errors: Array.from({ length: 3 }, () => [{ sourceId: 'partial', message: 'Another marketplace is unavailable' }]),
+			totals: [undefined, undefined, undefined],
+			cursors: [undefined, 'native-next'],
+		});
 	});
 
 	test('source cancellation is never converted into an unavailable-source warning', async () => {

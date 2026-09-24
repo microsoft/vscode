@@ -8,7 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -35,6 +35,7 @@ import { AICustomizationManagementSection, IAICustomizationWorkspaceService } fr
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
@@ -85,6 +86,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const marketplaceChanges = store.add(new Emitter<void>());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = marketplaceChanges.event;
+		}());
 		let recoveryAction: ICustomizationMarketplaceSourceRecoveryAction | undefined;
 		const deletions: DeferredPromise<void>[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
@@ -153,7 +158,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
 		return {
-			page, container, configuration, requests, listService, creationEvents, opened, deletions,
+			page, container, configuration, requests, marketplaceChanges, listService, creationEvents, opened, deletions,
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryAction = action; },
 			selectImport: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
@@ -493,6 +498,46 @@ suite('AICustomizationDiscoveryPage', () => {
 			queries: fixture.requests.length,
 			containsBlocked: fixture.page.getAccessibilityContent().includes('blocked'),
 		}, { queries: 2, containsBlocked: false });
+	});
+
+	test('workspace marketplace changes reset plugin results and cursor without requerying the public source', async () => {
+		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id]);
+		fixture.page.setSearchQuery('@type:plugin review');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('old-review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			nextCursor: { token: 'old-cursor' },
+		});
+		await timeout(0);
+		fixture.marketplaceChanges.fire();
+		await timeout(0);
+		const beforeNewResults = {
+			requests: fixture.requests.map(request => request.options.cursor),
+			previousResultVisible: fixture.page.getAccessibilityContent().includes('old-review'),
+		};
+		await fixture.requests[1].result.complete({
+			items: [resource('new-review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			beforeNewResults,
+			newResultVisible: fixture.page.getAccessibilityContent().includes('new-review'),
+		}, {
+			beforeNewResults: { requests: [undefined, undefined], previousResultVisible: false },
+			newResultVisible: true,
+		});
+	});
+
+	test('plugin marketplace changes do not reload Discover when only the public feed is enabled', async () => {
+		const fixture = createPage([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('public')] });
+		fixture.marketplaceChanges.fire();
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: fixture.requests.length,
+			publicResultVisible: fixture.page.getAccessibilityContent().includes('public'),
+		}, { requests: 1, publicResultVisible: true });
 	});
 
 	for (const query of ['', '@type:mcp mail']) {

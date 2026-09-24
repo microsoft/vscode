@@ -46,6 +46,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
@@ -393,6 +394,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingInstalls = new Set<string>();
 	private readonly pendingUninstalls = new Set<string>();
 	private readonly pendingDirectUninstalls = new Set<string>();
+	private readonly marketplaceRefreshScheduler = this._register(new RunOnceScheduler(() => {
+		if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) === true) {
+			this.handleAvailabilityChanged(true);
+		}
+	}, 0));
 	private query = CustomizationDiscoveryQuery.parse('');
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
 	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
@@ -429,6 +435,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@ICustomizationMarketplaceInstallService private readonly installService: ICustomizationMarketplaceInstallService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly pluginService: IAgentPluginService,
+		@IPluginMarketplaceService pluginMarketplaceService: IPluginMarketplaceService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
@@ -559,6 +566,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		});
 		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(pluginMarketplaceService.onDidChangeMarketplaces(() => this.marketplaceRefreshScheduler.schedule()));
 		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AccessibilityVerbositySettingId.CustomizationDiscovery)) {
@@ -573,10 +581,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (this.marketplaceService.sources.some(source => event.affectsConfiguration(source.enablementSetting))) {
 				this.updateSources();
 				this.handleAvailabilityChanged();
-			} else if (this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.PluginMarketplacesEnabled) === true &&
-				[ChatConfiguration.StrictMarketplaces, ChatConfiguration.PluginMarketplaces, ChatConfiguration.ExtraMarketplaces, ChatConfiguration.PluginsEnabled]
-					.some(setting => event.affectsConfiguration(setting))) {
-				this.handleAvailabilityChanged(true);
+			} else if (event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)) {
+				this.marketplaceRefreshScheduler.schedule();
 			}
 		}));
 	}

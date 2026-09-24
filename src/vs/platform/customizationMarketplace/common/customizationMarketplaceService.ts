@@ -114,6 +114,8 @@ export interface ICustomizationMarketplaceSourcePage {
 	readonly nextCursor?: string;
 	/** A failure after fetching these items. Preserve them, but do not continue this source until a new query. */
 	readonly error?: string;
+	/** A partial failure that leaves this source's remaining pages available. */
+	readonly warning?: string;
 }
 
 /** A feed with a stable ID that owns transport, response validation, and installation provenance. */
@@ -256,7 +258,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					state.items = [...page.items];
 					state.cursor = page.nextCursor;
 					state.total = page.total;
-					state.error = page.error;
+					state.error = page.error ?? state.error ?? page.warning;
 					state.exhausted = page.error !== undefined || page.nextCursor === undefined;
 					state.lastScore = lastScore;
 				})), cancellation.token);
