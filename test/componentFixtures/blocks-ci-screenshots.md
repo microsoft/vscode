@@ -201,12 +201,6 @@
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)
 
-#### sessions/chat/input/chatInput/ResponsiveModelResizeCycleMinimal/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0fadae9fab68892552ea7008bd229daa6b1a8ac5bee117a524bff8ce912766af)
-
-#### sessions/chat/input/chatInput/ResponsiveModelResizeCycleMinimal/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/db4c0f5af66921e0f3ec672e488fddc46029fd9377983401dfd411bb1f0795c7)
-
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/c5b1229147bb8bff5c8fa9941ae86443f60b1492f292a1d88bdc756a0c294bd2)
 
@@ -415,13 +409,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/166ca4d77c1ea93fc135e75c201f28dfd4bff9f0999e4786e7255f9d55f8b639)
 
 #### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/19848fef9455de199ef49620b6e5f94f77093eddcfc1ffa2dd6732f355c516f3)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/896c81c88ce27eda9c02e7baf0de351ee2b7a3bcf4a57eab06f3f04fb5d0c23b)
 
 #### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/DarkHighContrast
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/50440b966cd7c6cf462f584c7048f5a669b292463ae8914657281b048c1a6806)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/50a987116cb81b3139ca96f0c67f07f3e16052c366f77a532167562e0ed22f57)
 
 #### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/1378229a45238eac02e9b4d12d2a37da63d58e9e81612a7a0c09da7bc5a11242)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6dc0ca91d25531aeea79c4b9d145c1fafd7b705047d0805fc69192d1b372e650)
 
 #### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/245b31e99f7831acfcd27e05a1aa3574e94bf387a33f19851c16dde3a0593601)

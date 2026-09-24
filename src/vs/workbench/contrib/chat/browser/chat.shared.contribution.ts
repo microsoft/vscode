@@ -313,7 +313,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.experimentalModelPicker': {
 			type: 'boolean',
-			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses a tab per model provider and configures thinking effort and context from a detail card next to each model, instead of a separate configuration button."),
+			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses provider tabs and a model details page for information and configuration. Open details from a model's information button or the thinking effort and context readout in the chat input."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -2526,6 +2526,28 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
+		},
+		[ChatConfiguration.ChatCustomizationsListLayout]: {
+			type: 'string',
+			enum: ['tabs', 'tree'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.customizations.listLayout.tabs', "Show customization groups as tabs above a flat tree."),
+				nls.localize('chat.experimental.customizations.listLayout.tree', "Show customization groups as collapsible parent nodes in a tree."),
+			],
+			tags: ['experimental'],
+			description: nls.localize('chat.experimental.customizations.listLayout', "Controls how groups are presented in customization management lists."),
+			default: 'tabs',
+		},
+		[ChatConfiguration.ChatCustomizationsToggleStyle]: {
+			type: 'string',
+			enum: ['checkbox', 'switch'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.customizations.toggleStyle.checkbox', "Use checkboxes for customization enablement controls."),
+				nls.localize('chat.experimental.customizations.toggleStyle.switch', "Use switches for customization enablement controls."),
+			],
+			tags: ['experimental'],
+			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
+			default: 'switch',
 		},
 		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 			type: 'boolean',

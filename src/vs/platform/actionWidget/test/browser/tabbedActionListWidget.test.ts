@@ -4,8 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextViewDelegate, IContextViewService } from '../../../contextview/browser/contextView.js';
 import { IHoverService } from '../../../hover/browser/hover.js';
@@ -93,11 +98,11 @@ class FakeContextViewService implements Partial<IContextViewService> {
 	}
 }
 
-function createWidget(disposables: DisposableStore, motionReduced = true) {
+function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextView = new FakeContextViewService();
 	const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
-	instantiationService.stub(IContextViewService, contextView as IContextViewService);
+	instantiationService.stub(IContextViewService, contextViewService ?? contextView as IContextViewService);
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
 	instantiationService.set(IHoverService, NullHoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
@@ -216,6 +221,340 @@ suite('TabbedActionListWidget', () => {
 	test('construct + dispose without crashing', () => {
 		const { widget } = createWidget(disposables);
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('details preserve the live search and capture Escape from a real radio', async () => {
+		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
+		let radio: Radio | undefined;
+		widget.showDetails({
+			label: 'Model details',
+			backLabel: 'Back',
+			render: container => {
+				radio = new Radio({ items: [{ text: 'Low', isActive: true }, { text: 'High' }], arrowKeyBehavior: 'focus' });
+				container.appendChild(radio.domNode);
+				return radio;
+			},
+		});
+		assert.ok(radio);
+		radio.focusActiveItem();
+		const during = {
+			details: widget.isShowingDetails,
+			mainInert: input.closest<HTMLElement>('.tabbed-action-list-main')?.inert,
+			inputConnected: input.isConnected,
+		};
+		radio.optionElements[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		await settleLayout();
+		const after = { visible: widget.isVisible, details: widget.isShowingDetails, filter: input.value, focused: document.activeElement === input };
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({ during, after, closed: !widget.isVisible, selected }, {
+			during: { details: true, mainInert: true, inputConnected: true },
+			after: { visible: true, details: false, filter: 'match', focused: true },
+			closed: true,
+			selected: [],
+		});
+	});
+
+	test('details track keyboard and pointer navigation without moving page focus', () => {
+		const { widget, input } = createSearchableWidget(disposables, ['model match']);
+		const popup = input.closest<HTMLElement>('.action-widget')!;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+		widget.showDetails({
+			label: 'Model details',
+			backLabel: 'Back',
+			render: () => ({ dispose: () => { } }),
+			focus: container => container.focus(),
+		});
+		const page = popup.querySelector<HTMLElement>('.tabbed-action-list-details')!;
+		const keyboardEntry = popup.classList.contains('keyboard-navigation');
+		page.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		const pointerNavigation = popup.classList.contains('keyboard-navigation');
+		page.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+		assert.deepStrictEqual({
+			keyboardEntry,
+			pointerNavigation,
+			keyboardNavigation: popup.classList.contains('keyboard-navigation'),
+			focused: document.activeElement === page,
+		}, { keyboardEntry: true, pointerNavigation: false, keyboardNavigation: true, focused: true });
+	});
+
+	test('details use theme tokens for an inset keyboard-only outline', () => {
+		const rules = [...document.styleSheets, ...document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.endsWith('.tabbed-action-list-details:focus'))
+			// WebKit serializes `outline: none` as `medium`, so use the longhand for disabled outlines.
+			.map(rule => ({ selector: rule.selectorText, outline: rule.style.outlineStyle === 'none' ? 'none' : rule.style.outline, offset: rule.style.outlineOffset }));
+		assert.deepStrictEqual(rules, [
+			{ selector: '.action-widget.showing-details .tabbed-action-list-details:focus', outline: 'none', offset: '' },
+			{ selector: '.action-widget.showing-details.keyboard-navigation .tabbed-action-list-details:focus', outline: 'var(--vscode-strokeThickness) solid var(--vscode-focusBorder)', offset: 'calc(-1 * var(--vscode-strokeThickness))' },
+		]);
+	});
+
+	test('Back uses the shared icon action without text-button borders or outset focus styling', () => {
+		const { widget, input } = createSearchableWidget(disposables, ['model match']);
+		widget.showDetails({
+			label: 'Model details',
+			backLabel: 'Back',
+			renderHeader: () => ({ dispose: () => { } }),
+			render: () => ({ dispose: () => { } }),
+		});
+		const popup = input.closest<HTMLElement>('.action-widget')!;
+		popup.style.setProperty('--vscode-button-border', '#0069cc');
+		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label="Back"]')!;
+		back.focus();
+		assert.deepStrictEqual({
+			inlineBorder: back.style.border,
+			borderWidth: mainWindow.getComputedStyle(back).borderTopWidth,
+			iconAction: !!back.closest('.monaco-action-bar'),
+			textButton: back.classList.contains('monaco-text-button'),
+			focused: document.activeElement === back,
+		}, { inlineBorder: '', borderWidth: '0px', iconAction: true, textButton: false, focused: true });
+	});
+
+	test('details defer list updates and restore toolbar focus after pin-like changes', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		let builds = 0;
+		let updated = false;
+		const item = { ...action('model'), toolbarActions: [toAction({ id: 'details', label: 'Details', run: () => { } })] };
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => {
+				builds++;
+				return { items: updated ? [item, action('new')] : [item] };
+			},
+			delegate: { onSelect: () => assert.fail('Details must not select'), onHide: () => { } },
+		});
+		const list = contextView.getContextViewElement().querySelector('.monaco-list');
+		let button: Button | undefined;
+		widget.showDetails({
+			label: 'Details',
+			backLabel: 'Back',
+			render: container => button = new Button(container, {}),
+			restoreFocus: () => widget.focusItemAction('model', 'details'),
+		});
+		assert.ok(button);
+		button.focus();
+		updated = true;
+		widget.refreshActiveList({ focusItemId: 'new' });
+		const during = { builds, focused: button.hasFocus() };
+		button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		await settleLayout();
+		assert.deepStrictEqual({
+			during,
+			builds,
+			visible: widget.isVisible,
+			sameList: list === contextView.getContextViewElement().querySelector('.monaco-list'),
+			focus: document.activeElement?.getAttribute('aria-label'),
+			rows: contextView.getContextViewElement().querySelectorAll('.monaco-list-row.action').length,
+		}, { during: { builds: 1, focused: true }, builds: 2, visible: true, sameList: true, focus: 'Details', rows: 2 });
+	});
+
+	for (const hoverTarget of ['row', 'toolbar'] as const) {
+		test(`Back keeps the picker open when the pointer lands on another ${hoverTarget}`, async () => {
+			const { widget, contextView } = createWidget(disposables);
+			widget.show<ITestItem>({
+				user: 'test',
+				anchor: document.body,
+				tabs: [{ id: 'Models' }],
+				initialTab: 'Models',
+				createActionList: () => ({
+					items: ['first', 'second'].map(id => ({
+						...action(id),
+						toolbarActions: [toAction({ id: 'details', label: `${id} details`, run: () => { } })],
+					})),
+					listOptions: { tabThroughItemActions: true },
+				}),
+				delegate: { onSelect: () => assert.fail('Back must not select'), onHide: () => { } },
+			});
+			widget.showDetails({
+				label: 'Details',
+				backLabel: 'Back',
+				render: () => ({ dispose: () => { } }),
+				restoreFocus: () => widget.focusItemAction('first', 'details'),
+			});
+			const popup = contextView.getContextViewElement();
+			popup.querySelector<HTMLElement>('.tabbed-action-list-details-header .monaco-button')!.click();
+			const restored = document.activeElement?.getAttribute('aria-label');
+			const row = popup.querySelectorAll<HTMLElement>('.monaco-list-row.action')[1];
+			const target = hoverTarget === 'toolbar' ? row.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')! : row;
+			target.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+			await settleLayout();
+			assert.deepStrictEqual({
+				restored,
+				visible: widget.isVisible,
+				listFocused: document.activeElement === popup.querySelector('.monaco-list'),
+				focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+			}, { restored: 'first details', visible: true, listFocused: true, focusedRow: 'second' });
+		});
+	}
+
+	test('details remain interactive while the footer changes the collapsed body', async () => {
+		const result = createCollapsibleWidget(disposables, true, true);
+		let button: Button | undefined;
+		result.widget.showDetails({
+			label: 'Auto details',
+			backLabel: 'Back',
+			render: container => {
+				const store = new DisposableStore();
+				button = store.add(new Button(container, {}));
+				store.add(button.onDidClick(() => result.setCollapsed(false)));
+				return store;
+			},
+		});
+		assert.ok(button);
+		button.focus();
+		button.element.click();
+		const during = { focused: button.hasFocus(), collapsed: result.body.inert, pageInert: !!button.element.closest('[inert]') };
+		button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		await settleLayout();
+		assert.deepStrictEqual({ during, visible: result.widget.isVisible, collapsed: result.body.inert }, {
+			during: { focused: true, collapsed: true, pageInert: false },
+			visible: true,
+			collapsed: false,
+		});
+	});
+
+	test('search Tab reaches row actions without opening a hover or selecting the row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let opened = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [
+					{ ...action('model'), toolbarActions: [toAction({ id: 'details', label: 'Details', run: () => { opened++; } })] },
+					{ ...action('other'), toolbarActions: [toAction({ id: 'otherDetails', label: 'Other Details', run: () => { } })] },
+				],
+				listOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true, tabThroughItemActions: true },
+			}),
+			delegate: { onSelect: () => assert.fail('Toolbar must not select'), onHide: () => { } },
+		});
+		const input = contextView.getContextViewElement().querySelector<HTMLInputElement>('input')!;
+		const tabIndices = Array.from(contextView.getContextViewElement().querySelectorAll<HTMLElement>('.action-list-item-toolbar .action-label'), element => element.tabIndex);
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+		const toolbar = document.activeElement as HTMLElement;
+		const label = toolbar.ariaLabel;
+		toolbar.click();
+		toolbar.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({ label, opened, inputFocused: document.activeElement === input, visible: widget.isVisible, tabIndices }, {
+			label: 'Details', opened: 1, inputFocused: true, visible: true, tabIndices: [0, -1],
+		});
+	});
+
+	test('details scroll independently and retain a fixed Back button', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('button');
+		anchor.style.cssText = 'position: fixed; top: 0; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('model')], listOptions: { anchorPosition: AnchorPosition.BELOW } }),
+			delegate: { onSelect: () => assert.fail('Scrolling must not select'), onHide: () => { } },
+		});
+		widget.showDetails({
+			label: 'Details',
+			backLabel: 'Back',
+			renderHeader: container => {
+				const title = document.createElement('span');
+				title.textContent = 'Model name';
+				container.appendChild(title);
+				return { dispose: () => title.remove() };
+			},
+			render: container => {
+				container.style.height = '1200px';
+				return { dispose: () => { } };
+			},
+		});
+		await settleLayout();
+		const popup = contextView.getContextViewElement();
+		const back = popup.querySelector<HTMLElement>('[role="button"][aria-label="Back"]')!;
+		const title = popup.querySelector<HTMLElement>('.tabbed-action-list-details-header > span')!;
+		const viewport = popup.querySelector<HTMLElement>('.tabbed-action-list-details-viewport')!;
+		const buttonBounds = back.getBoundingClientRect();
+		const iconStyle = mainWindow.getComputedStyle(back);
+		const before = buttonBounds.top;
+		const titleBefore = title.getBoundingClientRect().top;
+		back.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', keyCode: 34, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			scrolled: viewport.scrollTop > 0,
+			backStationary: back.getBoundingClientRect().top === before,
+			titleStationary: title.getBoundingClientRect().top === titleBefore,
+			iconOnly: back.textContent === '' && back.classList.contains('codicon-arrow-left'),
+			sharedIconLayout: !!back.closest('.monaco-action-bar') && iconStyle.display === 'flex' && iconStyle.alignItems === 'center'
+				&& iconStyle.paddingTop === iconStyle.paddingBottom && iconStyle.paddingLeft === iconStyle.paddingRight,
+			backLabel: back.getAttribute('aria-label'),
+			details: widget.isShowingDetails,
+			mainHidden: popup.querySelector('.tabbed-action-list-main')?.getAttribute('aria-hidden'),
+		}, { scrolled: true, backStationary: true, titleStationary: true, iconOnly: true, sharedIconLayout: true, backLabel: 'Back', details: true, mainHidden: 'true' });
+	});
+
+	test('details stay anchored after their rendered header height settles', async () => {
+		const view = disposables.add(new ContextView(document.body, ContextViewDOMPosition.ABSOLUTE));
+		const service = upcastPartial<IContextViewService>({
+			showContextView: delegate => {
+				view.show(delegate);
+				return { close: () => view.hide() };
+			},
+			hideContextView: () => view.hide(),
+			getContextViewElement: () => view.getViewElement(),
+			layout: () => view.layout(),
+		});
+		const { widget } = createWidget(disposables, true, service);
+		const anchor = document.createElement('button');
+		anchor.style.cssText = 'position: fixed; top: 400px; left: 100px; width: 100px; height: 22px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			width: 300,
+			createActionList: () => ({ items: [action('model')], listOptions: { anchorPosition: AnchorPosition.ABOVE } }),
+			isBodyCollapsed: () => true,
+			renderFooter: container => {
+				container.style.height = '24px';
+				return { dispose: () => { } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const title = document.createElement('span');
+		title.style.height = '50px';
+		title.textContent = 'Auto';
+		const gap = () => Math.round(anchor.getBoundingClientRect().top - view.getViewElement().getBoundingClientRect().bottom);
+		let focusState: { gap: number; detailsVisible: boolean } | undefined;
+		widget.showDetails({
+			label: 'Auto details',
+			backLabel: 'Back',
+			renderHeader: container => {
+				container.appendChild(title);
+				return { dispose: () => title.remove() };
+			},
+			render: container => {
+				container.style.height = '60px';
+				return { dispose: () => { } };
+			},
+			focus: container => {
+				focusState = { gap: gap(), detailsVisible: !!container.parentElement?.classList.contains('showing-details') };
+				container.focus();
+			},
+		});
+		await settleLayout();
+		const before = gap();
+		title.style.height = '22px';
+		await settleLayout();
+		assert.deepStrictEqual({ focusState, before, after: gap(), visible: widget.isVisible }, {
+			focusState: { gap: 0, detailsVisible: true }, before: 0, after: 0, visible: true,
+		});
 	});
 
 	test('show() makes the popup visible and hide() dismisses it', () => {
