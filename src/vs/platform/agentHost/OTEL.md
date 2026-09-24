@@ -252,17 +252,6 @@ Claude honors these standard resource variables for traces, logs, and metrics wh
 
 The host emits a zero-duration `vscode.agent_host.session` anchor and passes its W3C `traceparent`/`tracestate` to native runtimes. Copilot reads the context through `CopilotClientOptions.onGetTraceContext`, Claude receives it in its session subprocess environment, and Codex receives it on session-scoped JSON-RPC request envelopes. Provider-native traces can therefore share one trace id while retaining their provider conversation attributes.
 
-Sessions created by Run Multiple Agents add bounded correlation attributes to this anchor:
-
-| Attribute | Description |
-|---|---|
-| `vscode.agent_host.comparison.id` | Hashed random comparison identifier, matching the correlation key in the VS Code comparison telemetry events. |
-| `vscode.agent_host.comparison.role` | `attempt`, `judge`, or `synthesis`. |
-| `vscode.agent_host.comparison.attempt_index` | Zero-based attempt ordinal; present only for attempts. |
-| `vscode.agent_host.comparison.attempt_count` | Number of implementation attempts in the comparison. |
-
-These attributes contain no prompt, title, path, model label, or tool content and do not require content capture. They are emitted only when Agent Host OTel is already enabled; comparisons do not enable or reconfigure OTel. Token consumption comes from the provider-native chat spans in the same trace (`gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`) rather than VS Code telemetry.
-
 ## Session Title Metadata
 
 When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative Copilot, Claude, or Codex session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.

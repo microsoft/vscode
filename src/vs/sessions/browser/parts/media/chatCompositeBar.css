@@ -255,17 +255,6 @@
 	gap: 4px;
 }
 
-.session-header-bar .chat-composite-bar-title-actions .action-label.codicon-close {
-	opacity: 0;
-	pointer-events: none;
-}
-
-.session-header-bar:hover .chat-composite-bar-title-actions .action-label.codicon-close,
-.session-header-bar:focus-within .chat-composite-bar-title-actions .action-label.codicon-close {
-	opacity: 1;
-	pointer-events: auto;
-}
-
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
 .chat-composite-bar.chat-composite-bar-toolbar-floating {
 	position: absolute;
