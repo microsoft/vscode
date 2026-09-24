@@ -714,9 +714,11 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
-		if (item.actions.length) {
+		const primaryActions = item.actions.filter(action => action.kind !== InboxNotificationActionKind.OpenSession);
+		const bottomActions = item.actions.filter(action => action.kind === InboxNotificationActionKind.OpenSession);
+		if (primaryActions.length) {
 			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
-			for (const action of item.actions) {
+			for (const action of primaryActions) {
 				const button = this.renderActionButton(headingActions, item, action);
 				if (action.kind === InboxNotificationActionKind.MarkDone) {
 					button.element.classList.add('inbox-notifications-item-action-done');
@@ -769,6 +771,15 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 		this.renderNeedsInputPart(card, item, this.renderedListDisposables);
 		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
+		if (bottomActions.length) {
+			const footerActions = card.appendChild($('.inbox-notifications-item-footer-actions'));
+			for (const action of bottomActions) {
+				const button = this.renderActionButton(footerActions, item, action);
+				if (action.kind === InboxNotificationActionKind.MarkDone) {
+					button.element.classList.add('inbox-notifications-item-action-done');
+				}
+			}
+		}
 
 		return card;
 	}

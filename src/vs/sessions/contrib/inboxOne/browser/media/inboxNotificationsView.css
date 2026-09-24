@@ -504,6 +504,23 @@
 	flex: 0 0 auto;
 }
 
+.inbox-notifications-item-footer-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-item-footer-actions .monaco-button,
+.inbox-notifications-item-footer-actions .monaco-text-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-item-footer-actions .monaco-button-dropdown {
+	flex: 0 0 auto;
+}
+
 .inbox-notifications-item-badges {
 	display: flex;
 	flex-wrap: wrap;
