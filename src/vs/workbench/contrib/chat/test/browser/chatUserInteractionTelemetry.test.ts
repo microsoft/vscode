@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
-import { IChatProgress, IChatToolInvocation } from '../../common/chatService/chatService.js';
+import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
+import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
 import { IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
@@ -30,6 +32,9 @@ suite('ChatUserInteractionTelemetry', () => {
 			[{ kind: 'markdownContent', content: new MarkdownString('Response') }, true],
 			[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation', presentation: ToolInvocationPresentation.Hidden }), false],
 			[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' }), true],
+			[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized' }), true],
+			[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', presentation: ToolInvocationPresentation.Hidden }), false],
+			[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', presentation: ToolInvocationPresentation.HiddenAfterComplete }), false],
 		];
 		for (const [part, expected] of cases) {
 			assert.strictEqual(isChatFirstVisibleProgress(part), expected, JSON.stringify(part));
@@ -39,6 +44,7 @@ suite('ChatUserInteractionTelemetry', () => {
 	test('reports the exact schema and correlated boundaries once after two frames, even without focus', () => {
 		const h = createChatUserInteractionTestHarness(disposables);
 		const response = h.createResponse(undefined, {
+			requestId: 'request-id',
 			agent: upcastPartial<NonNullable<IChatResponseModel['agent']>>({ id: 'agent-id', extensionId: new ExtensionIdentifier('publisher.extension') }),
 			request: upcastPartial<IChatRequestModel>({
 				modelId: 'model-id',
@@ -54,7 +60,6 @@ suite('ChatUserInteractionTelemetry', () => {
 		let finished = 0;
 		timer.addDisposable(timer.onDidFinish(() => finished++));
 		timer.observeResponse(response.response, () => view.widget);
-		timer.setContext({ requestId: 'request-id' });
 		h.blur();
 		response.progress();
 		timer.checkResponse();
@@ -83,6 +88,48 @@ suite('ChatUserInteractionTelemetry', () => {
 			finished: 1, observing: false,
 		});
 		h.assertFinished('success');
+	});
+
+	test('counts a tool-only serialized response without waiting for markdown', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		h.createInteraction().observeResponse(response.response, () => view.widget);
+		response.progress([upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized' })]);
+		response.complete();
+		h.setTime(240);
+		h.frame(2);
+		assert.strictEqual(h.events[0].data.timeToFirstProgress, 140);
+		h.assertFinished('success');
+	});
+
+	for (const outcome of ['success', 'hidden'] as const) {
+		test(`uses current participant attribution when the observation ends as ${outcome}`, () => {
+			const h = createChatUserInteractionTestHarness(disposables);
+			let agent = upcastPartial<NonNullable<IChatResponseModel['agent']>>({ id: 'default', extensionId: new ExtensionIdentifier('default.extension') });
+			const response = h.createResponse();
+			Object.defineProperty(response.response, 'agent', { get: () => agent });
+			const view = h.createWidget(response.response);
+			h.createInteraction().observeResponse(response.response, () => view.widget);
+			agent = upcastPartial<NonNullable<IChatResponseModel['agent']>>({ id: 'detected', extensionId: new ExtensionIdentifier('detected.extension') });
+			response.progress();
+			if (outcome === 'hidden') {
+				h.setDocumentVisible(false);
+			} else {
+				h.frame(2);
+			}
+			assert.deepStrictEqual([h.events[0].data.agent, h.events[0].data.agentExtensionId], ['detected', 'detected.extension']);
+			h.assertFinished(outcome);
+		});
+	}
+
+	test('preserves remote peer chat identity without connection or query information', () => {
+		const session = URI.from({ scheme: 'remote-private-host-copilot', authority: 'private-authority', path: '/session-id', query: 'private-query' });
+		assert.deepStrictEqual(['', 'peer-one', 'peer-two'].map(fragment => getChatSessionTelemetryContext(session.with({ fragment }))), [
+			{ chatSessionId: 'session-id', sessionType: 'remote-agent-host', harness: 'copilot' },
+			{ chatSessionId: 'session-id#peer-one', sessionType: 'remote-agent-host', harness: 'copilot' },
+			{ chatSessionId: 'session-id#peer-two', sessionType: 'remote-agent-host', harness: 'copilot' },
+		]);
 	});
 
 	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'navigated', 'hidden', 'timedOut', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {

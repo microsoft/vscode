@@ -42,7 +42,7 @@ export function isChatFirstVisibleProgress(part: IChatProgress | IChatProgressRe
 		return values.some(value => typeof value === 'string' && value.trim().length > 0);
 	}
 	return part.kind === 'markdownContent' ? part.content.value.trim().length > 0
-		: part.kind === 'toolInvocation' && !IChatToolInvocation.isEffectivelyHidden(part);
+		: (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && !IChatToolInvocation.isEffectivelyHidden(part);
 }
 
 /** One submission owns its clock, response observation, render acknowledgement and reporting. */
@@ -106,15 +106,6 @@ export class ChatUserInteraction extends Disposable {
 		}
 		this._response = response;
 		this._getWidget = getWidget;
-		this.setContext({
-			...getChatSessionTelemetryContext(response.session.sessionResource),
-			requestId: response.requestId,
-			agent: response.agent?.id,
-			agentExtensionId: response.agent?.extensionId.value,
-			model: response.request?.modelId,
-			permissionLevel: response.request?.modeInfo?.kind === ChatModeKind.Ask ? undefined : response.request?.modeInfo?.permissionLevel,
-			chatMode: response.request?.modeInfo?.telemetryModeName ?? response.request?.modeInfo?.telemetryModeId,
-		});
 		this._register(response.onDidChange(() => this.checkResponse()));
 		this._register(response.session.onDidDispose(() => this.cancel('disposed')));
 		this.checkResponse();
@@ -194,6 +185,19 @@ export class ChatUserInteraction extends Disposable {
 		}
 		this._active = false;
 		const elapsedMs = this._now() - this.startedAt;
+		const response = this._response;
+		if (response) {
+			// Participant detection and session adoption can update attribution after response creation.
+			this.setContext({
+				...getChatSessionTelemetryContext(response.session.sessionResource),
+				requestId: response.requestId,
+				agent: response.agent?.id,
+				agentExtensionId: response.agent?.extensionId.value,
+				model: response.request?.modelId,
+				permissionLevel: response.request?.modeInfo?.kind === ChatModeKind.Ask ? undefined : response.request?.modeInfo?.permissionLevel,
+				chatMode: response.request?.modeInfo?.telemetryModeName ?? response.request?.modeInfo?.telemetryModeId,
+			});
+		}
 		this.resetRender();
 		this._response = undefined;
 		this._getWidget = undefined;

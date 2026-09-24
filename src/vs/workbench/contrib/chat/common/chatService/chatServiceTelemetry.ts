@@ -461,7 +461,9 @@ export function getChatSessionTelemetryContext(sessionResource: URI): IChatSessi
 
 function getChatSessionIdForTelemetry(sessionResource: URI): string {
 	const sessionType = getChatSessionType(sessionResource);
-	return isRemoteAgentHostSessionType(sessionType) ? sessionResource.path.slice(1) : chatSessionResourceToId(sessionResource);
+	return isRemoteAgentHostSessionType(sessionType)
+		? sessionResource.path.slice(1) + (sessionResource.fragment ? `#${sessionResource.fragment}` : '')
+		: chatSessionResourceToId(sessionResource);
 }
 
 function getChatSessionTypeForTelemetry(sessionResource: URI): string {
