@@ -96,6 +96,10 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			const state = await pluginState(sessionUri, pluginUri);
 			assert.ok(state.children?.some(child => child.type === CustomizationType.McpServer));
 		}, 100, 100);
+		// Materialize the default chat used by restart tests before waiting for its MCP server.
+		const initialized = await driveTurnToCompletion(context.client, sessionUri, 'runtime-mcp-initialized', 'Reply exactly MCP_READY. Do not call tools.', 2);
+		assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
+		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 100);
 		return { sessionUri, pluginUri, workspace, calls, customization };
 	}
 
@@ -151,7 +155,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		this.timeout(240_000);
 		const session = await createPluginSession(true);
 		const result = await driveTurnToCompletion(context.client, session.sessionUri, 'mixed-images',
-			'Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.', 2);
+			'Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.', 10);
 		const request = context.observedModelRequestBodies.at(-1)!;
 		const modelRequest: {
 			messages: { content: { type: string; content?: string | { type: string; source?: { type: string; media_type: string; data: string } }[] }[] }[];
@@ -208,10 +212,10 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	test('runtime MCP: plugin tools remain callable after a built-in subagent', async function () {
 		this.timeout(240_000);
 		const { sessionUri, calls } = await createPluginSession();
-		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-child', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 2);
+		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-child', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 10);
 		assert.deepStrictEqual(probeResults(sessionUri), ['MCP_PROBE:before']);
 		await driveTurnToCompletion(context.client, sessionUri, 'builtin-child',
-			'Call task exactly once with {"name":"probe-child","description":"Reply without tools","agent_type":"general-purpose","mode":"sync","prompt":"Reply exactly CHILD_READY. Do not call tools."}. After it finishes reply exactly PARENT_READY.', 10);
+			'Call task exactly once with {"name":"probe-child","description":"Reply without tools","agent_type":"general-purpose","mode":"sync","prompt":"Reply exactly CHILD_READY. Do not call tools."}. After it finishes reply exactly PARENT_READY.', 100);
 		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart')).some(notification => {
 			const action = getActionEnvelope(notification).action;
 			return action.type === ActionType.ChatToolCallStart && action.toolName === 'task';
@@ -220,7 +224,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			const action = getActionEnvelope(notification).action;
 			return action.type === ActionType.ChatToolCallComplete && textFromContent(action.result.content ?? []).includes('CHILD_READY');
 		}));
-		await driveTurnToCompletion(context.client, sessionUri, 'probe-after-child', 'Call runtime_probe exactly once with tag "after", then reply with its exact result.', 20);
+		await driveTurnToCompletion(context.client, sessionUri, 'probe-after-child', 'Call runtime_probe exactly once with tag "after", then reply with its exact result.', 200);
 		assert.deepStrictEqual({ results: probeResults(sessionUri), calls: readFileSync(calls, 'utf8') }, {
 			results: ['MCP_PROBE:after'], calls: '"before"\n"after"\n',
 		});
@@ -229,22 +233,22 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	test('runtime MCP: tools execute after their server is stopped and restarted', async function () {
 		this.timeout(180_000);
 		const { sessionUri, pluginUri, calls } = await createPluginSession();
-		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-restart', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 2);
+		await driveTurnToCompletion(context.client, sessionUri, 'probe-before-restart', 'Call runtime_probe exactly once with tag "before", then reply with its exact result.', 10);
 		assert.deepStrictEqual(probeResults(sessionUri), ['MCP_PROBE:before']);
 		const server = await serverState(sessionUri, pluginUri);
 		context.client.dispatch({
 			channel: sessionUri,
-			clientSeq: 10,
+			clientSeq: 20,
 			action: { type: ActionType.SessionMcpServerStopRequested, id: server.id },
 		});
 		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Stopped), 100, 100);
 		context.client.dispatch({
 			channel: sessionUri,
-			clientSeq: 11,
+			clientSeq: 21,
 			action: { type: ActionType.SessionMcpServerStartRequested, id: server.id },
 		});
 		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 100);
-		await driveTurnToCompletion(context.client, sessionUri, 'probe-after-restart', 'Call runtime_probe exactly once with tag "after", then reply with its exact result.', 20);
+		await driveTurnToCompletion(context.client, sessionUri, 'probe-after-restart', 'Call runtime_probe exactly once with tag "after", then reply with its exact result.', 30);
 		assert.deepStrictEqual({ results: probeResults(sessionUri), calls: readFileSync(calls, 'utf8') }, {
 			results: ['MCP_PROBE:after'], calls: '"before"\n"after"\n',
 		});
@@ -254,7 +258,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		this.timeout(180_000);
 		const { sessionUri } = await createPluginSession();
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'plugin-reference',
-			'Invoke the runtime-reference skill exactly once, follow its instructions to read the plugin reference file, then reply with its exact contents.', 2);
+			'Invoke the runtime-reference skill exactly once, follow its instructions to read the plugin reference file, then reply with its exact contents.', 10);
 		assert.deepStrictEqual({ confirmation: result.sawPendingConfirmation, response: result.responseText.trim() }, {
 			confirmation: false, response: 'HOST_PLUGIN_REFERENCE_OK',
 		});

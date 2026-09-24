@@ -527,6 +527,8 @@ Codex also refuses to create helper aliases when `CODEX_HOME` is inside its effe
 
 A recorded response can name an MCP tool before the real server finishes starting and enters the turn's tool inventory. For Copilot tests of an initialized server, create an empty chat with `createChat` and wait for its server's `session/customizationUpdated` notification to report `McpServerStatus.Ready` before dispatching the recorded turn. This separates MCP startup from model replay without sleeps or an extra recorded warm-up turn.
 
+Default-chat persistence scenarios instead materialize that same chat with a recorded no-tool turn, then wait for `Ready`; using a peer would test a different provider backing. The runtime MCP suite shares this setup so its tool, subagent, stop/start, and cold-resume assertions cannot race startup.
+
 Keep asserting the real tool result: the replayed assistant text can report the recorded success even when the actual tool call failed.
 
 ### A turn hangs or times out with no OS pattern
