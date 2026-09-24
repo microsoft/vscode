@@ -32,7 +32,7 @@ export const CLOUD_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.cloud.enabled
 const REPOSITORIES_STORAGE_KEY = 'cloudAutomations.repositories';
 const HISTORY_REFRESH_MS = 30_000;
 const HISTORY_DISCOVERY_REFRESH_MS = 5_000;
-const FULL_HISTORY_REFRESH_MS = 5 * 60_000;
+const FULL_HISTORY_REFRESH_MS = HISTORY_REFRESH_MS;
 const TARGET_ELIGIBILITY_CACHE_LIMIT = 100;
 
 interface ICloudAutomationEntry {
@@ -49,13 +49,15 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	readonly automations = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly history = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly accountName = observableValue<string | undefined>(this, undefined);
-	readonly canCreateAutomation = derived(this, reader => this.accountName.read(reader) !== undefined && this.catalogueState.read(reader) === 'ready');
+	private readonly repositoriesLoaded = observableValue(this, false);
+	readonly canCreateAutomation = derived(this, reader => this.accountName.read(reader) !== undefined && this.repositoriesLoaded.read(reader));
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly configuration: IAutomationProviderConfiguration;
 
 	private readonly entries = new Map<string, ICloudAutomationEntry>();
 	private readonly repositories = new Map<string, ICloudAutomationRepository>();
 	private readonly mutations = new SequencerByKey<string>();
+	private readonly stoppingRuns = new Map<string, Promise<void>>();
 	private readonly targetEligibility = new LRUCache<string, IObservable<string | undefined>>(TARGET_ELIGIBILITY_CACHE_LIMIT);
 	private readonly targetEligibilityReset = observableSignal(this);
 	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(4));
@@ -217,16 +219,49 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	canRunAutomation(id: string): boolean {
 		const automation = this.getAutomation(id);
-		return this.isReady() && automation !== undefined && automation.enabled && automation.readOnlyReason === undefined;
+		return this.isAvailable() && automation !== undefined && automation.enabled && automation.readOnlyReason === undefined;
 	}
 
 	canUpdateAutomation(id: string): boolean {
 		const automation = this.getAutomation(id);
-		return this.isReady() && automation !== undefined && automation.readOnlyReason === undefined;
+		return this.isAvailable() && automation !== undefined && automation.readOnlyReason === undefined;
 	}
 
 	canDeleteAutomation(id: string): boolean {
-		return this.isReady() && this.entries.has(id);
+		return this.isAvailable() && this.entries.has(id);
+	}
+
+	canStopRun(run: IAutomationRun): boolean {
+		return this.isAvailable() && this.entries.has(run.automationId)
+			&& this.history.get().some(current => current.id === run.id && current.automationId === run.automationId
+				&& (current.status === 'pending' || current.status === 'running'));
+	}
+
+	async stopRun(run: IAutomationRun): Promise<void> {
+		const pending = this.stoppingRuns.get(run.id);
+		if (pending) {
+			return pending;
+		}
+		if (!this.canStopRun(run)) {
+			throw new AutomationUnavailableError(localize('cloudAutomations.stopUnavailable', "This cloud automation run is no longer active. Refresh its history."));
+		}
+		const account = this.requireAccount();
+		const token = this.lifetime.token;
+		const current = this.history.get().find(current => current.id === run.id)!;
+		const taskId = current.sessionResource!.path.slice('/task/'.length);
+		const stop = this.api.stopTask(account, taskId, token);
+		this.stoppingRuns.set(run.id, stop);
+		try {
+			await stop;
+		} finally {
+			if (this.stoppingRuns.get(run.id) === stop) {
+				this.stoppingRuns.delete(run.id);
+			}
+			if (!this._store.isDisposed && !token.isCancellationRequested && this.accountName.get() === account) {
+				this.requestedHistory.set(run.automationId, Date.now() + 2 * 60_000);
+				this.scheduleHistory(0);
+			}
+		}
 	}
 
 	async registerRepository(workspace: URI): Promise<void> {
@@ -346,6 +381,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.historyRequest.clear();
 		this.historyRefreshPromise = undefined;
 		this.entries.clear();
+		this.stoppingRuns.clear();
 		this.repositories.clear();
 		this.targetEligibility.clear();
 		this.historyLoaded = false;
@@ -360,6 +396,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		transaction(tx => {
 			this.enabled.set(enabled, tx);
 			this.accountName.set(name, tx);
+			this.repositoriesLoaded.set(false, tx);
 			this.automations.set([], tx);
 			this.history.set([], tx);
 			this.definitionState.set(!enabled ? 'ready' : name === undefined ? 'unavailable' : 'loading', tx);
@@ -388,6 +425,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				return;
 			}
 		}
+		this.repositoriesLoaded.set(true, undefined);
 		this.refreshScheduler.schedule();
 	}
 
@@ -396,12 +434,22 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		if (this.accountName.get() === undefined) {
 			return;
 		}
+		if (!this.repositoriesLoaded.get()) {
+			throw new AutomationUnavailableError(this.unavailableReason.get());
+		}
 		if (this.refreshPromise !== undefined) {
 			await this.refreshPromise;
 			return;
 		}
 		const account = this.requireAccount();
 		const generation = this.generation;
+		const token = this.lifetime.token;
+		const assertCurrent = () => {
+			this.assertAccount(account);
+			if (token.isCancellationRequested || generation !== this.generation) {
+				throw new CancellationError();
+			}
+		};
 		if (this.definitionState.get() !== 'loading') {
 			this.targetEligibility.clear();
 		}
@@ -412,28 +460,62 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			this.unavailableReason.set(undefined, tx);
 		});
 		const refresh = (async () => {
+			const errors: unknown[] = [];
 			for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
 				const uri = recent.workspace.folders[0]?.root;
-				const repositoryUri = uri === undefined ? undefined : this.resolveRepositoryUri(uri);
-				if (repositoryUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME || repositoryUri.authority !== 'github') {
-					continue;
-				}
-				const repository = this.repositoryFor(repositoryUri);
-				if (!this.repositories.has(repositoryKey(repository)) && await this.api.isPrivateRepository(account, repository, this.lifetime.token)) {
-					this.assertAccount(account);
-					this.repositories.set(repositoryKey(repository), repository);
+				try {
+					assertCurrent();
+					const repository = uri === undefined ? undefined : this.tryResolveRepository(uri);
+					if (repository && !this.repositories.has(repositoryKey(repository)) && await this.api.isPrivateRepository(account, repository, token)) {
+						assertCurrent();
+						this.repositories.set(repositoryKey(repository), repository);
+					}
+				} catch (error) {
+					assertCurrent();
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					this.logService.warn('[CloudAutomations] Failed to discover a recent repository', error);
+					errors.push(error);
 				}
 			}
+			assertCurrent();
 			this.storageService.store(this.storageKey(account), JSON.stringify([...this.repositories.values()]), StorageScope.PROFILE, StorageTarget.MACHINE);
-			const snapshot = new Map<string, ICloudAutomationEntry>();
+			const originalEntries = new Map(this.entries);
+			const snapshot = new Map(originalEntries);
 			for (const repository of this.repositories.values()) {
-				for (const definition of await this.api.list(account, repository, this.lifetime.token)) {
-					snapshot.set(this.definitionId(account, definition.id), { repository, definition });
+				try {
+					assertCurrent();
+					const definitions = await this.api.list(account, repository, token);
+					assertCurrent();
+					for (const [id, entry] of snapshot) {
+						if (repositoryKey(entry.repository) === repositoryKey(repository)) {
+							snapshot.delete(id);
+						}
+					}
+					for (const definition of definitions) {
+						snapshot.set(this.definitionId(account, definition.id), { repository, definition });
+					}
+				} catch (error) {
+					assertCurrent();
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					this.logService.warn(`[CloudAutomations] Failed to refresh ${repositoryKey(repository)}`, error);
+					errors.push(error);
 				}
 			}
-			this.assertAccount(account);
-			if (generation !== this.generation) {
-				return;
+			assertCurrent();
+			// Preserve mutations that completed while the catalogue request was in flight.
+			for (const [id, entry] of this.entries) {
+				if (originalEntries.get(id) !== entry) {
+					snapshot.set(id, entry);
+				}
+			}
+			for (const id of originalEntries.keys()) {
+				if (!this.entries.has(id)) {
+					snapshot.delete(id);
+				}
 			}
 			this.entries.clear();
 			for (const [id, entry] of snapshot) {
@@ -441,11 +523,14 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			}
 			transaction(tx => {
 				this.automations.set([...snapshot].map(([id, entry]) => this.toAutomation(id, entry)), tx);
-				this.definitionState.set('ready', tx);
+				this.definitionState.set(errors.length > 0 ? 'error' : 'ready', tx);
 				this.unavailableReason.set(undefined, tx);
 			});
 			if (this.historyObservers > 0) {
 				this.scheduleHistory(0);
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, localize('cloudAutomations.partialRefreshFailed', "Some GitHub repositories could not be refreshed. Check the logs for details."));
 			}
 		})();
 		this.refreshPromise = refresh;
@@ -503,42 +588,58 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const entries = [...this.entries].filter(([id]) => fullRefresh || activeDefinitions.has(id) || this.requestedHistory.has(id));
 		const refreshedIds = new Set(entries.map(([id]) => id));
 		const collected = retained.filter(run => !refreshedIds.has(run.automationId));
+		const errors: unknown[] = [];
 		try {
 			await Promise.all(entries.map(([id, entry]) => this.historyLimiter.queue(async () => {
 				if (token.isCancellationRequested) {
 					return;
 				}
-				const tasks = [...await this.api.listRuns(account, entry.definition.id, token)];
-				if (token.isCancellationRequested) {
-					return;
-				}
-				const listed = new Set(tasks.map(task => task.id));
-				const olderActive = retained.filter(run => run.automationId === id && (run.status === 'pending' || run.status === 'running'));
-				for (const run of olderActive) {
-					const taskId = run.sessionResource?.path.slice('/task/'.length);
-					if (taskId !== undefined && !listed.has(taskId)) {
-						try {
-							tasks.push(await this.api.getTask(account, taskId, entry.definition.id, token));
-						} catch (error) {
-							if (!(error instanceof GitHubApiError) || error.statusCode !== 404) {
-								throw error;
+				try {
+					const tasks = [...await this.api.listRuns(account, entry.definition.id, token)];
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const listed = new Set(tasks.map(task => task.id));
+					const olderActive = retained.filter(run => run.automationId === id && (run.status === 'pending' || run.status === 'running'));
+					for (const run of olderActive) {
+						const taskId = run.sessionResource?.path.slice('/task/'.length);
+						if (taskId !== undefined && !listed.has(taskId)) {
+							try {
+								tasks.push(await this.api.getTask(account, taskId, entry.definition.id, token));
+							} catch (error) {
+								if (!(error instanceof GitHubApiError) || error.statusCode !== 404) {
+									throw error;
+								}
+								this.logService.trace(`[CloudAutomations] Previously active task ${taskId} is no longer available.`);
 							}
-							this.logService.trace(`[CloudAutomations] Previously active task ${taskId} is no longer available.`);
 						}
 					}
+					collected.push(...tasks.map(task => cloudAutomationRun(id, account, task, entry.repository)));
+				} catch (error) {
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					this.logService.warn('[CloudAutomations] Failed to refresh run history', error);
+					errors.push(error);
+					collected.push(...retained.filter(run => run.automationId === id));
+					if (error instanceof GitHubApiError && error.retryAfterSeconds !== undefined) {
+						this.historyRetryAfter = Math.max(this.historyRetryAfter, Date.now() + error.retryAfterSeconds * 1000);
+					}
 				}
-				collected.push(...tasks.map(task => cloudAutomationRun(id, account, task, entry.repository)));
 			})));
 			if (generation === this.generation && !this._store.isDisposed && !token.isCancellationRequested) {
 				this.historyLoaded = true;
 				// A catalogue refreshed during this request still needs its own full history snapshot.
-				if (fullRefresh && refreshVersion === this.historyRefreshVersion) {
+				if (fullRefresh && errors.length === 0 && refreshVersion === this.historyRefreshVersion) {
 					this.lastFullHistoryRefresh = now;
 				}
 				transaction(tx => {
-					this.historyFailed.set(false, tx);
+					this.historyFailed.set(errors.length > 0, tx);
 					this.history.set(collected.filter(run => this.entries.has(run.automationId)).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), tx);
 				});
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, localize('cloudAutomations.partialHistoryFailed', "Some cloud automation runs could not be refreshed."));
 			}
 		} catch (error) {
 			if (generation === this.generation && !this._store.isDisposed && !token.isCancellationRequested) {
@@ -670,8 +771,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private tryResolveRepository(workspace: URI): ICloudAutomationRepository | undefined {
-		const uri = this.resolveRepositoryUri(workspace);
-		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github' ? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)\/HEAD$/.exec(uri.path) : undefined;
+		const uri = workspace.scheme === GITHUB_REMOTE_FILE_SCHEME ? workspace : this.resolveRepositoryUri(workspace);
+		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github' ? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)(?:\/|$)/.exec(uri.path) : undefined;
 		return match?.groups ? { owner: match.groups.owner, name: match.groups.name } : undefined;
 	}
 
@@ -729,8 +830,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 	}
 
-	private isReady(): boolean {
-		return this.accountName.get() !== undefined && this.catalogueState.get() === 'ready';
+	private isAvailable(): boolean {
+		return !this._store.isDisposed && this.canCreateAutomation.get() && !this.lifetime.token.isCancellationRequested;
 	}
 
 	private reportRefreshError(error: unknown): void {
@@ -814,7 +915,7 @@ export function cloudAutomationRun(automationId: string, account: string, task: 
 		startedAt: task.created_at,
 		...(status === 'completed' || status === 'failed' ? { completedAt: task.updated_at } : {}),
 		...(status === 'failed' ? { errorMessage: task.status !== undefined && task.status !== null && task.status.length > 0 ? task.status : task.state } : {}),
-		...(task.state === 'waiting_for_user' ? { statusDescription: localize('cloudAutomations.needsInput', "Needs input on GitHub") } : {}),
+		...(task.state === 'waiting_for_user' ? { needsInput: true, statusDescription: localize('cloudAutomations.needsInput', "Needs input on GitHub") } : {}),
 		sessionResource: URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${task.id}` }),
 		externalResource: URI.from({
 			scheme: Schemas.https,

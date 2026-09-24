@@ -125,6 +125,22 @@ suite('CloudAutomationApiClient', () => {
 		assert.deepStrictEqual(JSON.parse(requests.calls[0].data!), { event: 'manual' });
 	});
 
+	test('stops the exact task through the abort steering endpoint', async () => {
+		const { requests, client } = setup();
+		requests.responses.push({ status: 202 });
+		await client.stopTask('octocat', 'exact-task', CancellationToken.None);
+		assert.deepStrictEqual(requests.calls.map(request => ({
+			url: request.url, method: request.type, body: JSON.parse(request.data!),
+		})), [{ url: 'https://api.githubcopilot.com/agents/tasks/exact-task/steer', method: 'POST', body: { type: 'abort' } }]);
+	});
+
+	test('does not retry or hide an unconfirmed stop request', async () => {
+		const { requests, client } = setup();
+		requests.responses.push({ status: 503, data: { message: 'Unavailable' } });
+		await assert.rejects(client.stopTask('octocat', 'exact-task', CancellationToken.None), AutomationMutationUncertainError);
+		assert.strictEqual(requests.calls.length, 1);
+	});
+
 	test('does not send a request after an account change or cancellation', async () => {
 		const { requests, client, accounts } = setup();
 		accounts.currentDefaultAccount = null;

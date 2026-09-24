@@ -42,7 +42,9 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Inert plugin blueprint discovery and enablement | `IAgentPluginService` |
 | Definition review, draft configuration, cards, and history presentation | Automations contributions |
 
-The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency. An accepted cloud dispatch can have no correlated task ID yet; it is not represented as a synthetic run or a session-creation failure.
+The provider-neutral store exposes definition mutations, a manual run request, and optional cancellation of an existing run through its owning authority, not run-claim or lifecycle-write APIs. Cancellation does not archive the conversation or synthesize a terminal run; the provider continues observing the authoritative outcome. The manual runner has no Sessions session-creation dependency. An accepted cloud dispatch can have no correlated task ID yet; it is not represented as a synthetic run or a session-creation failure.
+
+Cloud history uses the run authority's status and optional `needsInput` flag, independently of a lazily loaded conversation's status or local archive state.
 
 `IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one authority's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. Optional integrations can disable catalogue participation without reporting a disconnected host or turning a provider-less window into an empty ready catalogue.
 

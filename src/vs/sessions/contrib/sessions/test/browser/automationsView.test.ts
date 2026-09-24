@@ -170,6 +170,10 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	deleteError: Error | undefined;
 	canDelete = true;
 	canUpdate = true;
+	canStop = false;
+	stopError: Error | undefined;
+	stopPromise: Promise<void> | undefined;
+	readonly stoppedRuns: string[] = [];
 	publishCreates = true;
 	createdAutomation: IAutomationDescriptor | undefined;
 	beforeCreate: (() => Promise<void>) | undefined;
@@ -274,6 +278,18 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	}
 
 	override canRunAutomation(): boolean { return true; }
+
+	override canStopRun(run: IAutomationRun): boolean {
+		return this.canStop && (run.status === 'pending' || run.status === 'running');
+	}
+
+	override async stopRun(run: IAutomationRun): Promise<void> {
+		this.stoppedRuns.push(run.id);
+		if (this.stopError) {
+			throw this.stopError;
+		}
+		await this.stopPromise;
+	}
 }
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -1000,6 +1016,107 @@ suite('AutomationsCardsWidget', () => {
 		}, { localStop: false, openOnGitHub: true });
 	});
 
+	for (const sessionLoaded of [false, true]) {
+		test(`stops a cloud task through its automation provider without archiving or opening it (session loaded: ${sessionLoaded})`, async () => {
+			const { automationService, sessionsManagementService, sessionsService, contextMenuService, widget } = setup('done');
+			const resource = URI.parse('copilot-cloud-agent:/task/exact-task');
+			const cloudRun = run({ status: 'running', sessionResource: resource, externalResource: URI.parse('https://github.com/example/private/tasks/exact-task') });
+			automationService.canStop = true;
+			automationService.setAutomations([automation()]);
+			automationService.setRuns([cloudRun]);
+			if (sessionLoaded) {
+				sessionsManagementService.addSession(resource, 'Cloud run');
+			}
+			await waitForSessionActions();
+			const row = widget.element.querySelector<HTMLElement>(sessionLoaded ? '.automations-run-session-list .session-item' : '.automations-temporary-run')!;
+			const stop = row.querySelector<HTMLElement>('.action-label[aria-label="Stop"]')!;
+			assert.ok(stop);
+			const pending = new DeferredPromise<void>();
+			automationService.stopPromise = pending.p;
+			stop.click();
+			await waitForSessionActions();
+			const pendingStop = row.querySelector<HTMLElement>('.action-label[aria-label="Stop"]')!;
+			const disabledWhileStopping = pendingStop.getAttribute('aria-disabled') === 'true' || pendingStop.closest('.action-item')?.classList.contains('disabled') === true;
+			await pending.complete();
+			await timeout(0);
+			let archiveVisible = false;
+			if (sessionLoaded) {
+				dispatchContextMenu(row);
+				archiveVisible = (contextMenuService.delegate?.getActions() ?? []).some(action => action.id === 'sessionsViewPane.archiveSession' || action.id === UNARCHIVE_SESSION_COMMAND_ID);
+				contextMenuService.delegate?.onHide?.(false);
+			}
+			assert.deepStrictEqual({
+				stopped: automationService.stoppedRuns, disabledWhileStopping, archiveVisible,
+				localCancellation: sessionsManagementService.cancelCurrentRequestCalls, opened: sessionsService.openCalls,
+				status: automationService.runs.get()[0].status, markDone: !!getSessionAction(widget, 'Mark as Done'),
+			}, {
+				stopped: [RUN_ID], disabledWhileStopping: true, archiveVisible: false,
+				localCancellation: 0, opened: 0, status: 'running', markDone: false,
+			});
+		});
+	}
+
+	test('cloud history follows task status without opening or refreshing the cached session', async () => {
+		const { automationService, sessionsManagementService, widget } = setup('done');
+		const resource = URI.parse('copilot-cloud-agent:/task/cloud-task');
+		const cloudRun = run({ sessionResource: resource, externalResource: URI.parse('https://github.com/example/private/tasks/cloud-task') });
+		sessionsManagementService.isArchived.set(true, undefined);
+		automationService.canStop = true;
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([cloudRun]);
+		sessionsManagementService.addSession(resource, 'Cloud run');
+		await waitForSessionActions();
+		const states: { running: boolean; archived: boolean; stop: boolean }[] = [];
+		for (const status of ['running', 'completed', 'running', 'failed'] as const) {
+			automationService.setRuns([{ ...cloudRun, status }]);
+			await waitForSessionActions();
+			const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item')!;
+			states.push({ running: row.classList.contains('in-progress'), archived: row.classList.contains('archived'), stop: !!getSessionAction(widget, 'Stop') });
+		}
+		assert.deepStrictEqual(states, [
+			{ running: true, archived: false, stop: true },
+			{ running: false, archived: false, stop: false },
+			{ running: true, archived: false, stop: true },
+			{ running: false, archived: false, stop: false },
+		]);
+	});
+
+	test('reports a cloud Stop failure and leaves the task available to retry', async () => {
+		const { automationService, dialogService, sessionsManagementService, widget } = setup();
+		automationService.canStop = true;
+		automationService.stopError = new Error('Remote stop failed');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running', externalResource: URI.parse('https://github.com/example/private/tasks/exact-task') })]);
+		await waitForSessionActions();
+		getSessionAction(widget, 'Stop')!.click();
+		await dialogService.errorCalled.p;
+		await waitForSessionActions();
+		assert.deepStrictEqual({
+			errors: dialogService.errors, localCancellation: sessionsManagementService.cancelCurrentRequestCalls,
+			stillRunning: automationService.runs.get()[0].status, stopDisabled: getSessionAction(widget, 'Stop')?.classList.contains('disabled'),
+		}, {
+			errors: [{ message: 'Failed to stop the automation run session.', detail: 'Remote stop failed' }],
+			localCancellation: 0, stillRunning: 'running', stopDisabled: false,
+		});
+	});
+
+	test('cloud history uses authoritative input-needed state rather than a stale conversation status', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
+		automationService.setAutomations([automation()]);
+		const cloudRun = run({ status: 'running', externalResource: URI.parse('https://github.com/example/private/tasks/exact-task') });
+		const states = [false, true, false].map(needsInput => {
+			automationService.setRuns([{ ...cloudRun, needsInput }]);
+			const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item')!;
+			return { running: row.classList.contains('in-progress'), needsInput: row.classList.contains('needs-input') };
+		});
+		assert.deepStrictEqual(states, [
+			{ running: true, needsInput: false },
+			{ running: false, needsInput: true },
+			{ running: true, needsInput: false },
+		]);
+	});
+
 	test('cancelled GitHub opens do not produce an error or open a local session', async () => {
 		const { automationService, openerService, dialogService, sessionsService, widget } = setup();
 		openerService.result = false;
@@ -1595,44 +1712,40 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('keeps templates available while distinguishing incomplete catalogues from confirmed empty', () => {
+	test('keeps the normal empty state and shows recoverable warnings below Create', () => {
 		const { automationService, widget } = setup();
-
-		const loadingState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-loading .automations-cards-state-create-button')?.textContent,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-		automationService.setCatalogueState('error');
-		const errorState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-error .automations-cards-state-create-button')?.textContent,
-			description: widget.element.querySelector('.automations-cards-error .automations-cards-state-description')?.textContent,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-		automationService.setCatalogueState('unavailable');
-		const unavailableState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			unavailable: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-unavailable .automations-cards-state-create-button')?.textContent,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-		automationService.setCatalogueState('ready');
-		const readyState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-
-		assert.deepStrictEqual({ loadingState, errorState, unavailableState, readyState }, {
-			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
-			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
-			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
-			readyState: { loading: 'none', error: 'none', templates: AUTOMATION_TEMPLATES.length },
+		const states = (['loading', 'error', 'unavailable', 'ready'] as const).map(state => {
+			automationService.setCatalogueState(state);
+			const warning = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')!;
+			return {
+				state,
+				loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display === '',
+				empty: widget.element.querySelector<HTMLElement>('.automations-cards-empty')?.style.display === '',
+				warning: warning.style.display === '' ? warning.textContent : undefined,
+				afterCreate: warning.previousElementSibling?.classList.contains('automations-cards-create-button') ?? false,
+				templates: widget.element.querySelectorAll('.automations-template-card').length,
+			};
 		});
+		assert.deepStrictEqual(states, [
+			{ state: 'loading', loading: true, empty: false, warning: undefined, afterCreate: false, templates: AUTOMATION_TEMPLATES.length },
+			{ state: 'error', loading: false, empty: true, warning: 'Some automations could not be loaded.', afterCreate: true, templates: AUTOMATION_TEMPLATES.length },
+			{ state: 'unavailable', loading: false, empty: true, warning: 'Some automations are unavailable.', afterCreate: true, templates: AUTOMATION_TEMPLATES.length },
+			{ state: 'ready', loading: false, empty: true, warning: undefined, afterCreate: true, templates: AUTOMATION_TEMPLATES.length },
+		]);
+	});
+
+	test('initial refresh failures are logged and shown inline without an error notification', async () => {
+		const pending = new DeferredPromise<void>();
+		const { automationService, widget, logService, notificationErrors } = setup('archive', NullHoverService, undefined, undefined, () => pending.p);
+		automationService.setUnavailableProviders([{ id: 'cloud', label: 'GitHub Cloud', unavailableReason: 'Try again later.' }]);
+		automationService.setCatalogueState('error');
+		await pending.error(new Error('Offline'));
+		await timeout(0);
+		assert.deepStrictEqual({
+			empty: widget.element.querySelector<HTMLElement>('.automations-cards-empty')?.style.display,
+			warning: widget.element.querySelector('.automations-cards-partial-state')?.textContent,
+			notifications: notificationErrors, logged: logService.errors.length,
+		}, { empty: '', warning: 'Automations from GitHub Cloud are unavailable. Try again later.', notifications: [], logged: 1 });
 	});
 
 	test('surfaces partial catalogue states with saved automations', () => {
@@ -1655,7 +1768,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			loadingMessage: 'Loading additional automations...',
 			unavailableMessage: 'Automations from Remote build host are unavailable.',
-			errorMessage: 'Some automations could not be loaded.',
+			errorMessage: 'Automations from Remote build host are unavailable.',
 			savedCards: 1,
 			appearsAfterCards: true,
 			templatesDisplay: '',
@@ -1666,7 +1779,7 @@ suite('AutomationsCardsWidget', () => {
 		const { automationDialogService, automationService, widget } = setup();
 		automationService.setCatalogueState('error');
 
-		widget.element.querySelector<HTMLButtonElement>('.automations-cards-error .automations-cards-state-create-button')?.click();
+		widget.element.querySelector<HTMLButtonElement>('.automations-cards-empty .automations-cards-create-button')?.click();
 		await Promise.resolve();
 
 		assert.strictEqual(automationDialogService.showCalls, 1);
@@ -1797,7 +1910,7 @@ suite('AutomationsCardsWidget', () => {
 			const beforeCreate = {
 				templatesVisible: templates.style.display === '',
 				emptyClaimVisible: widget.element.querySelector<HTMLElement>('.automations-cards-empty')?.style.display === '',
-				catalogueStatusVisible: widget.element.querySelector<HTMLElement>(`.automations-cards-${catalogueState}`)?.style.display === '',
+				catalogueStatusVisible: widget.element.querySelector<HTMLElement>(catalogueState === 'loading' ? '.automations-cards-loading' : '.automations-cards-partial-state')?.style.display === '',
 			};
 			template.focus();
 			template.click();
@@ -1812,7 +1925,7 @@ suite('AutomationsCardsWidget', () => {
 				cardLabel: widget.element.querySelector('.automations-card-main')?.getAttribute('aria-label'),
 				warningVisible: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
 			}, {
-				beforeCreate: { templatesVisible: true, emptyClaimVisible: false, catalogueStatusVisible: true },
+				beforeCreate: { templatesVisible: true, emptyClaimVisible: catalogueState !== 'loading', catalogueStatusVisible: true },
 				createCalls: [submitted],
 				catalogueState,
 				templateDisplay: '',
@@ -1845,8 +1958,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const stateFocus = (['error', 'unavailable', 'ready'] as const).map(state => {
 			automationService.setCatalogueState(state);
-			const selector = state === 'ready' ? '.automations-cards-empty .automations-cards-create-button' : `.automations-cards-${state} .automations-cards-state-create-button`;
-			return widget.element.querySelector(selector) === document.activeElement;
+			return widget.element.querySelector('.automations-cards-empty .automations-cards-create-button') === document.activeElement;
 		});
 		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
 		assert.ok(template);
@@ -1859,7 +1971,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			stateFocus,
 			afterPopulated,
-			afterRemoval: widget.element.querySelector('.automations-cards-unavailable .automations-cards-state-create-button') === document.activeElement,
+			afterRemoval: widget.element.querySelector('.automations-cards-empty .automations-cards-create-button') === document.activeElement,
 		}, {
 			stateFocus: [true, true, true],
 			afterPopulated: 'Edit automation Daily review',
@@ -3102,12 +3214,12 @@ suite('AutomationsCardsWidget', () => {
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {
 		assert.deepStrictEqual({
 			loading: buildAutomationsAccessibleContent([], [], 'loading').split('\n').slice(0, 2),
-			unavailable: buildAutomationsAccessibleContent([], [], 'unavailable', undefined, [{ id: 'remote-build-host', label: 'Remote build host' }]).split('\n').slice(0, 2),
-			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 2),
+			unavailable: buildAutomationsAccessibleContent([], [], 'unavailable', undefined, [{ id: 'remote-build-host', label: 'Remote build host' }]).split('\n').slice(0, 3),
+			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 3),
 		}, {
 			loading: ['Automations', 'Loading automations.'],
-			unavailable: ['Automations', 'Automations from Remote build host are unavailable.'],
-			error: ['Automations', 'Unable to load automations.'],
+			unavailable: ['Automations', 'No automations are currently shown.', 'Automations from Remote build host are unavailable.'],
+			error: ['Automations', 'No automations are currently shown.', 'Some automations could not be loaded.'],
 		});
 	});
 
@@ -3115,8 +3227,8 @@ suite('AutomationsCardsWidget', () => {
 		const reason = 'Update this Agent Host to support autonomous automations.';
 		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
 		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
-		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
-			'Automations', `Automations from Remote host are unavailable. ${reason}`,
+		assert.deepStrictEqual(content.split('\n').slice(0, 3), [
+			'Automations', 'No automations are currently shown.', `Automations from Remote host are unavailable. ${reason}`,
 		]);
 	});
 

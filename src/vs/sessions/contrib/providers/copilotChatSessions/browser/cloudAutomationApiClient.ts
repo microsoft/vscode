@@ -182,6 +182,12 @@ export class CloudAutomationApiClient extends Disposable {
 		return task;
 	}
 
+	async stopTask(accountName: string, id: string, token: CancellationToken): Promise<void> {
+		await this.mutate(token, async () => {
+			await this.request(accountName, 'POST', `/agents/tasks/${encodeURIComponent(id)}/steer`, token, { type: 'abort' });
+		});
+	}
+
 	private request<T>(accountName: string, method: string, path: string, token: CancellationToken, data?: object): Promise<IGitHubApiResponse<T>> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

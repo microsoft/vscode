@@ -208,6 +208,10 @@ export interface IAutomationStore {
 	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;
 
+	/** Requests cancellation of an existing run through its owning authority, without archiving its session. */
+	stopRun?(run: IAutomationRun): Promise<void>;
+	canStopRun?(run: IAutomationRun): boolean;
+
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
 

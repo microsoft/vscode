@@ -102,6 +102,8 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 	override canRunAutomation(): boolean { return true; }
 	override canUpdateAutomation(): boolean { return true; }
 	override canDeleteAutomation(): boolean { return true; }
+	override canStopRun(run: IAutomationRun): boolean { return run.externalResource !== undefined && (run.status === 'pending' || run.status === 'running'); }
+	override async stopRun(): Promise<void> { }
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -248,6 +250,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Error: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'error' }),
+	}),
+	CloudUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderAutomations(ctx, {
+			width: 520, height: 620, populated: false, catalogueState: 'error',
+			unavailableProviders: [{ id: 'cloud', label: 'GitHub Cloud', unavailableReason: 'GitHub is temporarily unavailable. Refresh to try again.' }],
+		}),
 	}),
 	Narrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },

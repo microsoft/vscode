@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,7 +19,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ICreateAutomationOptions } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GitHubApiError } from '../../../../github/browser/githubApiClient.js';
 import { CloudAutomationApiClient, ICloudAutomationDefinition, ICloudAutomationMutation, ICloudAutomationRepository, ICloudAutomationTask } from '../../browser/cloudAutomationApiClient.js';
 import { cloudAutomationRun, cloudAutomationSchedule, cloudAutomationTriggers, CloudAutomationStore, CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../browser/cloudAutomationStore.js';
@@ -62,10 +62,17 @@ class TestApi extends mock<CloudAutomationApiClient>() {
 	privateRepositoryError: Error | undefined;
 	readonly privateRepositoryCalls: { account: string; repository: ICloudAutomationRepository; token: CancellationToken }[] = [];
 	listCalls = 0;
+	readonly listedRepositories: ICloudAutomationRepository[] = [];
+	readonly listErrors = new Map<string, Error>();
+	readonly repositoryDefinitions = new Map<string, readonly ICloudAutomationDefinition[]>();
 	listPromise: Promise<readonly ICloudAutomationDefinition[]> | undefined;
 	historyPromise: Promise<readonly ICloudAutomationTask[]> | undefined;
 	historyTasks: readonly ICloudAutomationTask[] = [];
 	historyError: Error | undefined;
+	readonly historyErrors = new Map<string, Error>();
+	readonly historyByDefinition = new Map<string, readonly ICloudAutomationTask[]>();
+	stopPromise: Promise<void> | undefined;
+	stopError: Error | undefined;
 	readonly historyStarted = new DeferredPromise<void>();
 	readonly historyTokens: CancellationToken[] = [];
 	readonly historyCalls: { id: string; time: number }[] = [];
@@ -81,9 +88,14 @@ class TestApi extends mock<CloudAutomationApiClient>() {
 			throw new Error('Private repository required.');
 		}
 	}
-	override async list(): Promise<readonly ICloudAutomationDefinition[]> {
+	override async list(_account: string, repository: ICloudAutomationRepository): Promise<readonly ICloudAutomationDefinition[]> {
 		this.listCalls++;
-		return this.listPromise ?? this.definitions;
+		this.listedRepositories.push(repository);
+		const error = this.listErrors.get(repository.name);
+		if (error) {
+			throw error;
+		}
+		return this.listPromise ?? this.repositoryDefinitions.get(repository.name) ?? this.definitions;
 	}
 	override async get(_account: string, _repository: ICloudAutomationRepository, id: string): Promise<ICloudAutomationDefinition> {
 		const current = this.definitions.find(definition => definition.id === id);
@@ -109,14 +121,22 @@ class TestApi extends mock<CloudAutomationApiClient>() {
 	override async run(account: string, repository: ICloudAutomationRepository, id: string): Promise<void> {
 		this.calls.push({ method: 'run', account, repository, id });
 	}
+	override async stopTask(account: string, id: string): Promise<void> {
+		this.calls.push({ method: 'stop', account, id });
+		if (this.stopError) {
+			throw this.stopError;
+		}
+		return this.stopPromise;
+	}
 	override async listRuns(_account: string, id: string, token: CancellationToken): Promise<readonly ICloudAutomationTask[]> {
 		this.historyTokens.push(token);
 		this.historyCalls.push({ id, time: Date.now() });
 		void this.historyStarted.complete();
-		if (this.historyError !== undefined) {
-			throw this.historyError;
+		const error = this.historyErrors.get(id) ?? this.historyError;
+		if (error !== undefined) {
+			throw error;
 		}
-		return this.historyPromise ?? this.historyTasks;
+		return this.historyPromise ?? this.historyByDefinition.get(id) ?? this.historyTasks;
 	}
 }
 
@@ -134,11 +154,87 @@ suite('CloudAutomationStore', () => {
 		const api = new TestApi();
 		const recents = new class extends mock<ISessionsRecentWorkspacesService>() {
 			override readonly onDidChangeRecentWorkspaces = Event.None;
-			override getRecentWorkspaces() { return []; }
+			workspaces: IRecentWorkspace[] = [];
+			override getRecentWorkspaces() { return this.workspaces; }
 		}();
 		const store = disposables.add(new CloudAutomationStore('cloud', 'copilot-cloud-agent', resolveRepositoryUri, api, accounts, configuration, storage, new NullLogService(), recents));
-		return { store, api, storage, accounts, configuration, changeAccount: (value: IDefaultAccount | null) => { accounts.currentDefaultAccount = value; changed.fire(value); } };
+		return { store, api, storage, accounts, configuration, recents, changeAccount: (value: IDefaultAccount | null) => { accounts.currentDefaultAccount = value; changed.fire(value); } };
 	}
+
+	function recentWorkspace(uri: URI): IRecentWorkspace {
+		return upcastDeepPartial<IRecentWorkspace>({ workspace: { folders: [{ root: uri }] } });
+	}
+
+	test('discovers repositories from task branches and ignores incomplete recent workspaces', async () => {
+		const { store, api, recents } = setup();
+		api.definitions = [definition()];
+		recents.workspaces = [
+			recentWorkspace(workspace.with({ path: '/example/private-repo/copilot%2Ftask-123' })),
+			recentWorkspace(workspace.with({ path: '/example/private-repo/main/src' })),
+			recentWorkspace(workspace.with({ path: '/example' })),
+			recentWorkspace(URI.file('C:\\local-project')),
+		];
+		await store.refresh();
+		const automation = store.automations.get()[0];
+		assert.deepStrictEqual({
+			repositories: api.listedRepositories, privateChecks: api.privateRepositoryCalls.length,
+			state: store.catalogueState.get(), target: automation.target,
+		}, {
+			repositories: [repository], privateChecks: 1, state: 'ready',
+			target: { ...createOptions().target },
+		});
+	});
+
+	test('a failed repository does not discard successful catalogues or disable their mutations', async () => {
+		const { store, api, recents } = setup();
+		api.repositoryDefinitions.set('private-repo', [definition()]);
+		api.repositoryDefinitions.set('other-repo', [definition({ id: 'other' })]);
+		recents.workspaces = [recentWorkspace(workspace), recentWorkspace(workspace.with({ path: '/example/other-repo/HEAD' }))];
+		await store.refresh();
+		api.repositoryDefinitions.set('private-repo', [definition({ name: 'Updated remotely' })]);
+		api.listErrors.set('other-repo', new Error('Repository unavailable'));
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		const automation = store.automations.get().find(item => item.name === 'Updated remotely')!;
+		const availability = { create: store.canCreateAutomation.get(), update: store.canUpdateAutomation(automation.id), delete: store.canDeleteAutomation(automation.id) };
+		api.definitions = [definition({ name: 'Updated remotely' })];
+		await store.updateAutomation(automation.id, { enabled: false });
+		assert.deepStrictEqual({
+			state: store.catalogueState.get(), availability,
+			names: store.automations.get().map(item => item.name).sort(),
+			enabled: store.getAutomation(automation.id)?.enabled, mutations: api.calls.map(call => call.method),
+		}, {
+			state: 'error', availability: { create: true, update: true, delete: true },
+			names: ['Daily review', 'Updated remotely'], enabled: false, mutations: ['update'],
+		});
+	});
+
+	test('keeps known repositories available when a new recent repository cannot be checked', async () => {
+		const { store, api, recents } = setup();
+		api.definitions = [definition()];
+		await store.registerRepository(workspace);
+		recents.workspaces = [recentWorkspace(workspace.with({ path: '/example/inaccessible/HEAD' }))];
+		api.privateRepositoryError = new Error('Access denied');
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		assert.deepStrictEqual({ names: store.automations.get().map(item => item.name), calls: api.listCalls, canCreate: store.canCreateAutomation.get() }, {
+			names: ['Daily review'], calls: 2, canCreate: true,
+		});
+	});
+
+	test('a stale refresh cannot overwrite a completed update or resurrect a deleted automation', async () => {
+		const { store, api } = setup();
+		api.definitions = [definition(), definition({ id: 'deleted' })];
+		await store.registerRepository(workspace);
+		const [updated, deleted] = store.automations.get();
+		const stale = [...api.definitions];
+		const pending = new DeferredPromise<readonly ICloudAutomationDefinition[]>();
+		api.listPromise = pending.p;
+		const refresh = store.refresh();
+		await store.updateAutomation(updated.id, { enabled: false });
+		await store.deleteAutomation(deleted.id);
+		await pending.complete(stale);
+		await refresh;
+		assert.deepStrictEqual(store.automations.get().map(item => ({ id: item.id, enabled: item.enabled })), [{ id: updated.id, enabled: false }]);
+	});
 
 	test('disabled feature does not affect the ready local catalogue', () => {
 		const { store } = setup(false);
@@ -246,7 +342,7 @@ suite('CloudAutomationStore', () => {
 
 		test('distinguishes repository resolution failure from an unsupported repository', () => {
 			const { store } = setup(true, () => { throw new Error('Resolution failed'); });
-			assert.strictEqual(store.configuration.getTargetDisabledReason!(workspace).get(), 'Unable to verify repository visibility.');
+			assert.strictEqual(store.configuration.getTargetDisabledReason!(URI.file('C:\\workspace')).get(), 'Unable to verify repository visibility.');
 		});
 
 		test('pins requests to their account and discards late checks after account changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -463,7 +559,7 @@ suite('CloudAutomationStore', () => {
 			duringRefresh: 'loading', calls: 2,
 			states: [
 				{ state: 'ready', create: true, reason: undefined },
-				{ state: 'loading', create: false, reason: undefined },
+				{ state: 'loading', create: true, reason: undefined },
 				{ state: 'ready', create: true, reason: undefined },
 			],
 			definitions: [],
@@ -533,14 +629,103 @@ suite('CloudAutomationStore', () => {
 		await timeout(0);
 		await store.runAutomation(created.id);
 		await timeout(2 * 60_000);
+		await timeout(0);
 		const callsAtDeadline = api.historyCalls.length;
 		await timeout(60_000);
+		await timeout(0);
 		observer.dispose();
 
 		assert.deepStrictEqual({
 			callsAtDeadline, callsAfterDeadline: api.historyCalls.length,
 			lastPoll: api.historyCalls.at(-1)?.time, runs: store.runs.get(),
-		}, { callsAtDeadline: 24, callsAfterDeadline: 24, lastPoll: 115_000, runs: [] });
+		}, { callsAtDeadline: 25, callsAfterDeadline: 27, lastPoll: 180_000, runs: [] });
+	}));
+
+	test('discovers website runs and resumed completed tasks within the regular refresh interval', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { store, api } = setup();
+		api.definitions = [definition()];
+		api.historyTasks = [cloudTask()];
+		await store.registerRepository(workspace);
+		const observer = disposables.add(autorun(reader => store.runs.read(reader)));
+		await timeout(0);
+		api.historyTasks = [cloudTask({ state: 'running' }), cloudTask({ id: 'website-run', state: 'queued' })];
+		await timeout(30_000);
+		await timeout(0);
+		const resumed = store.runs.get().map(run => run.status);
+		api.historyTasks = api.historyTasks.map(task => ({ ...task, state: 'completed' }));
+		await timeout(30_000);
+		await timeout(0);
+		observer.dispose();
+		assert.deepStrictEqual({ resumed, completed: store.runs.get().map(run => run.status), times: api.historyCalls.map(call => call.time) }, {
+			resumed: ['running', 'pending'], completed: ['completed', 'completed'], times: [0, 30_000, 60_000],
+		});
+	}));
+
+	test('refreshes healthy history while retaining the last known runs for a failed history request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { store, api } = setup();
+		api.definitions = [definition(), definition({ id: 'automation-2' })];
+		api.historyByDefinition.set('automation-1', [cloudTask({ state: 'running' })]);
+		api.historyByDefinition.set('automation-2', [cloudTask({ id: 'task-2', automation_id: 'automation-2', state: 'running' })]);
+		await store.registerRepository(workspace);
+		const observer = disposables.add(autorun(reader => store.runs.read(reader)));
+		await timeout(0);
+		api.historyByDefinition.set('automation-1', [cloudTask({ state: 'completed' })]);
+		api.historyErrors.set('automation-2', new Error('History unavailable'));
+		await timeout(30_000);
+		await timeout(0);
+		observer.dispose();
+		assert.deepStrictEqual({
+			state: store.catalogueState.get(), canCreate: store.canCreateAutomation.get(),
+			runs: store.runs.get().map(run => ({ path: run.sessionResource?.path, status: run.status })),
+		}, {
+			state: 'error', canCreate: true,
+			runs: [{ path: '/task/task-existing', status: 'completed' }, { path: '/task/task-2', status: 'running' }],
+		});
+	}));
+
+	test('stops the exact cloud task without archiving it or inventing a terminal state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { store, api } = setup();
+		api.definitions = [definition()];
+		api.historyTasks = [cloudTask({ id: 'first', state: 'running' }), cloudTask({ id: 'second', state: 'queued' })];
+		await store.registerRepository(workspace);
+		const observer = disposables.add(autorun(reader => store.runs.read(reader)));
+		await timeout(0);
+		const run = store.runs.get()[1];
+		const stopping = new DeferredPromise<void>();
+		api.stopPromise = stopping.p;
+		const stop = store.stopRun(run);
+		const duplicate = store.stopRun(run);
+		await stopping.complete();
+		await Promise.all([stop, duplicate]);
+		const afterRequest = store.runs.get().map(run => run.status);
+		api.historyTasks = [api.historyTasks[0], { ...api.historyTasks[1], state: 'cancelled' }];
+		await timeout(0);
+		observer.dispose();
+		assert.deepStrictEqual({
+			calls: api.calls, afterRequest, afterConfirmation: store.runs.get().map(run => run.status),
+			canStop: store.canStopRun(run),
+		}, {
+			calls: [{ method: 'stop', account: 'octocat', id: 'second' }], afterRequest: ['running', 'pending'],
+			afterConfirmation: ['running', 'failed'], canStop: false,
+		});
+		await assert.rejects(store.stopRun(run), /no longer active/);
+	}));
+
+	test('surfaces remote stop failures without changing the run state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { store, api, changeAccount } = setup();
+		api.definitions = [definition()];
+		api.historyTasks = [cloudTask({ state: 'running' })];
+		await store.registerRepository(workspace);
+		const observer = disposables.add(autorun(reader => store.runs.read(reader)));
+		await timeout(0);
+		const run = store.runs.get()[0];
+		api.stopError = new Error('Stop denied');
+		await assert.rejects(store.stopRun(run), /Stop denied/);
+		assert.strictEqual(store.runs.get()[0].status, 'running');
+		changeAccount(null);
+		observer.dispose();
+		await assert.rejects(store.stopRun(run), /no longer active/);
+		assert.strictEqual(api.calls.length, 1);
 	}));
 
 	test('retains post-run discovery demand without polling unobserved history', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -800,10 +985,10 @@ suite('Cloud automation projection', () => {
 	test('preserves idle, needs-input, and timed-out task states without inventing completion', () => {
 		const base = { id: 'task', created_at: '2026-09-22T00:00:00Z' };
 		const runs = ['idle', 'waiting_for_user', 'timed_out'].map(state => cloudAutomationRun('automation', 'octocat', { ...base, state }, repository));
-		assert.deepStrictEqual(runs.map(run => ({ status: run.status, description: run.statusDescription, error: run.errorMessage })), [
-			{ status: 'running', description: undefined, error: undefined },
-			{ status: 'running', description: 'Needs input on GitHub', error: undefined },
-			{ status: 'failed', description: undefined, error: 'timed_out' },
+		assert.deepStrictEqual(runs.map(run => ({ status: run.status, needsInput: run.needsInput, description: run.statusDescription, error: run.errorMessage })), [
+			{ status: 'running', needsInput: undefined, description: undefined, error: undefined },
+			{ status: 'running', needsInput: true, description: 'Needs input on GitHub', error: undefined },
+			{ status: 'failed', needsInput: undefined, description: undefined, error: 'timed_out' },
 		]);
 	});
 });

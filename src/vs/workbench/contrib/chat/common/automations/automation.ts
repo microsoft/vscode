@@ -155,6 +155,8 @@ export interface IAutomationRun {
 	readonly startedAt: string;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
+	/** Whether the authority reports that this non-terminal run is waiting for user input. */
+	readonly needsInput?: boolean;
 	/** Provider-specific detail for a non-terminal run, such as waiting for user input. */
 	readonly statusDescription?: string;
 }

@@ -38,7 +38,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.cloud', "Cloud automations run on GitHub and require a private repository. Their schedule times are UTC. Disabling the cloud-management setting or closing VS Code does not stop existing cloud schedules. The view loads automations when opened. The Refresh Automations icon reloads definitions. After Run Now, history is checked automatically for the new run. In cloud history, press Enter or Space on a run's title to open its session, or Tab to its Open on GitHub action. That action remains available after the session loads. Enable and Disable in an automation's menu update it directly without opening the edit dialog."),
-			localize('automationsCustomView.help.cloudStop', "Use GitHub to stop a cloud task. Stop in this view is available only for Agent Host runs; cancelling a local cloud conversation stream does not stop the task on GitHub."),
+			localize('automationsCustomView.help.cloudStop', "Stop on a cloud run requests cancellation on GitHub. Its status updates when GitHub confirms the result. Cloud run history does not offer Mark as Done or Restore because archiving a conversation does not stop or resume its task. Disabling an automation prevents future scheduled runs; it does not stop an active run."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected Agent Host, not in this window. Creation and changes require a connected Agent Host that supports automations. Run now requests execution from that host; a disconnected or unsupported host never falls back to local execution. To use another host, duplicate the automation. The original history stays with its host, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
@@ -134,11 +134,15 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	} else if (catalogueState === 'loading') {
 		lines.push(localize('automationsAccessibleView.loading', "Loading automations."));
 	} else if (catalogueState === 'unavailable') {
+		lines.push(localize('automationsAccessibleView.noneLoaded', "No automations are currently shown."));
 		lines.push(unavailableProviders.length > 0
 			? formatUnavailableAutomationsMessage(unavailableProviders)
 			: localize('automationsAccessibleView.unavailable', "Some automations are unavailable. One or more providers are disconnected, disabled, or do not support automations."));
 	} else if (catalogueState === 'error') {
-		lines.push(localize('automationsAccessibleView.loadError', "Unable to load automations."));
+		lines.push(localize('automationsAccessibleView.noneLoaded', "No automations are currently shown."));
+		lines.push(unavailableProviders.length > 0
+			? formatUnavailableAutomationsMessage(unavailableProviders)
+			: localize('automationsAccessibleView.partialLoadError', "Some automations could not be loaded."));
 	} else {
 		lines.push(localize('automationsAccessibleView.empty', "No automations."));
 	}

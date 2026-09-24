@@ -49,7 +49,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.unavailableProviders = derived(this, reader => {
 			this.providersChanged.read(reader);
 			return this.sessionsProvidersService.getProviders()
-				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.catalogueState.read(reader) === 'unavailable')
+				.filter(provider => {
+					const state = provider.automations?.catalogueState.read(reader);
+					return provider.automations?.enabled?.read(reader) !== false && (state === 'unavailable' || state === 'error');
+				})
 				.map(provider => {
 					const reason = provider.automations?.unavailableReason?.read(reader);
 					return { id: provider.id, label: provider.automations?.configuration?.label ?? provider.label, ...(reason !== undefined ? { unavailableReason: reason } : {}) };
@@ -133,6 +136,18 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult> {
 		return this.requireAutomationStore(automationId).runAutomation(automationId, token);
+	}
+
+	canStopRun(run: IAutomationRun): boolean {
+		return this.findAutomationStore(run.automationId)?.canStopRun?.(run) === true;
+	}
+
+	async stopRun(run: IAutomationRun): Promise<void> {
+		const store = this.requireAutomationStore(run.automationId);
+		if (!store.stopRun || !store.canStopRun?.(run)) {
+			throw new AutomationUnavailableError(localize('automationStopUnavailable', "This automation run cannot be stopped from VS Code."));
+		}
+		await store.stopRun(run);
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {

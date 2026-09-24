@@ -193,6 +193,28 @@ suite('ProviderAutomationService', () => {
 		assert.deepStrictEqual(states, ['ready', 'loading', 'error', 'unavailable']);
 	});
 
+	test('includes failed providers and their reason in the partial-catalogue warning', () => {
+		const cloud = new TestAuthority('cloud');
+		cloud.catalogueState.set('error', undefined);
+		cloud.unavailableReason.set('GitHub is temporarily unavailable.', undefined);
+		const { service } = setup([provider(cloud)]);
+		assert.deepStrictEqual(service.unavailableProviders.get(), [{ id: 'cloud', label: 'cloud', unavailableReason: 'GitHub is temporarily unavailable.' }]);
+	});
+
+	test('routes run cancellation only to the authority that supports it', async () => {
+		const local = new TestAuthority('local');
+		const remote = new TestAuthority('remote');
+		const stopped: string[] = [];
+		const run: IAutomationRun = { id: 'remote-run', automationId: 'remote-automation', status: 'running', trigger: 'external', startedAt: '2026-01-02T00:00:00Z' };
+		remote.runs.set([run], undefined);
+		remote.canStopRun = candidate => candidate.id === run.id;
+		remote.stopRun = async candidate => { stopped.push(candidate.id); };
+		const { service } = setup([provider(local), provider(remote)]);
+		await service.stopRun(run);
+		await assert.rejects(service.stopRun({ ...run, automationId: 'local-automation' }), AutomationUnavailableError);
+		assert.deepStrictEqual({ canStop: service.canStopRun(run), stopped, localCalls: local.calls }, { canStop: true, stopped: ['remote-run'], localCalls: [] });
+	});
+
 	test('missing, unsupported and disconnected providers cannot recreate browser automations', () => {
 		const disconnected = new TestAuthority('disconnected');
 		disconnected.catalogueState.set('unavailable', undefined);

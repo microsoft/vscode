@@ -325,7 +325,7 @@
 	font-size: 12px;
 }
 
-/* Loading and error states */
+/* Loading state */
 .automations-cards-state {
 	display: flex;
 	flex-direction: column;
@@ -340,10 +340,6 @@
 .automations-cards-state-icon {
 	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
-}
-
-.automations-cards-error .automations-cards-state-icon {
-	color: var(--vscode-errorForeground);
 }
 
 .automations-cards-state-title {
@@ -378,10 +374,14 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.automations-cards-partial-state-error {
-	border-color: var(--vscode-inputValidation-warningBorder);
-	background-color: var(--vscode-inputValidation-warningBackground);
-	color: var(--vscode-inputValidation-warningForeground);
+.automations-cards-empty .automations-cards-partial-state {
+	width: fit-content;
+	max-width: 100%;
+	text-align: left;
+}
+
+.automations-cards-partial-state .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
 }
 
 .automations-cards-partial-state-icon {
