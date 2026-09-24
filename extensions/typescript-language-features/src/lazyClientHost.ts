@@ -72,7 +72,7 @@ export function lazilyActivateClient(
 				}
 
 				// Force activation
-				disposables.push(lazyClientHost.value);
+				void lazyClientHost.value;
 
 				disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker));
 			});

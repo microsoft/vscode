@@ -62,6 +62,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		context.subscriptions.push(experimentTelemetryReporter);
 	}
 
+	const logger = new Logger();
+
 	import('./languageFeatures/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
 	});
@@ -86,7 +88,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 				TypeScriptVersionSource.Bundled,
 				vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
 				API.fromSimpleString('5.9.0')));
-		const logger = new Logger();
 
 		const lazyClientHost = createLazyClientHost(context, false, {
 			pluginManager,
@@ -101,7 +102,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 			logger,
 		}, item => {
 			onCompletionAccepted.fire(item);
-		});
+		}).map(clientHost => disposables.add(clientHost));
 
 		registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 
