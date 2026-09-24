@@ -50,6 +50,11 @@ function Save-Download([string] $Url, [string] $Destination) {
 	}
 }
 
+function Test-KernelPackageSignature([string] $Path) {
+	$signature = Get-AuthenticodeSignature -LiteralPath $Path
+	return $signature.Status -eq 'Valid' -and $signature.SignerCertificate.Subject -match 'CN=Microsoft Corporation,'
+}
+
 function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
 	"--- $Name ---"
 	try {
@@ -181,10 +186,35 @@ Write-SmokeOutput 'root' $Root
 Write-SmokeOutput 'distro' $Distribution
 
 $kernelPackage = Join-Path $Root 'wsl_update_x64.msi'
-Save-Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $kernelPackage
-$signature = Get-AuthenticodeSignature -LiteralPath $kernelPackage
-if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation,') {
+$kernelCachePath = $env:WSL_KERNEL_CACHE_PATH
+$usedKernelCache = $false
+if ($kernelCachePath -and (Test-Path -LiteralPath $kernelCachePath -PathType Leaf)) {
+	if (Test-KernelPackageSignature $kernelCachePath) {
+		Copy-Item -LiteralPath $kernelCachePath -Destination $kernelPackage
+		$usedKernelCache = $true
+		Write-Host 'Using verified cached WSL2 kernel installer.'
+	} else {
+		Write-Warning 'Cached WSL2 kernel installer has an invalid Microsoft signature; downloading a fresh copy.'
+	}
+}
+if (-not $usedKernelCache) {
+	Save-Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $kernelPackage
+}
+if (-not (Test-KernelPackageSignature $kernelPackage)) {
 	throw 'The WSL2 kernel package does not have a valid Microsoft signature.'
+}
+if (-not $usedKernelCache) {
+	if ($kernelCachePath) {
+		New-Item -ItemType Directory -Force -Path (Split-Path -Parent $kernelCachePath) | Out-Null
+		Copy-Item -LiteralPath $kernelPackage -Destination $kernelCachePath -Force
+	}
+}
+if ($usedKernelCache -and $env:WSL_KERNEL_CACHE_RESULT -ne 'true') {
+	$refreshPath = Join-Path (Split-Path -Parent $kernelCachePath) "wsl_update_x64.$([guid]::NewGuid().ToString('N')).msi"
+	$refreshJob = Start-ThreadJob -ArgumentList $refreshPath, ${function:Save-Download} -ScriptBlock {
+		param([string] $Destination, [scriptblock] $Download)
+		& $Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $Destination
+	}
 }
 $installer = Start-Process msiexec.exe -ArgumentList @('/i', "`"$kernelPackage`"", '/qn', '/norestart') -Wait -PassThru
 Write-Host "WSL2 kernel installer exit code: $($installer.ExitCode)"
@@ -281,3 +311,24 @@ if ($guestAddress -notmatch '^\d+\.\d+\.\d+\.\d+$') {
 New-NetFirewallRule -Name $Distribution -DisplayName $Distribution -Direction Inbound -Action Allow -Protocol TCP -RemoteAddress $guestAddress | Out-Null
 Write-SmokeOutput 'serverPath' '/opt/vscode-smoke-server'
 Write-Host "WSL Docker is ready in $Distribution with Linux server $serverCommit."
+if ($refreshJob) {
+	try {
+		Receive-Job -Job $refreshJob -Wait -ErrorAction Stop | Out-Host
+		if (-not (Test-KernelPackageSignature $refreshPath)) {
+			throw 'The refreshed WSL2 kernel package does not have a valid Microsoft signature.'
+		}
+		if ((Get-FileHash -LiteralPath $refreshPath -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $kernelCachePath -Algorithm SHA256).Hash) {
+			[IO.File]::Move($refreshPath, $kernelCachePath, $true)
+			Write-Host 'Updated the WSL2 kernel installer cache for the next build.'
+		} else {
+			Write-Host 'The cached WSL2 kernel installer is current.'
+		}
+	} catch {
+		Write-Warning "Unable to refresh the cached WSL2 kernel installer: $_"
+	} finally {
+		Remove-Job -Job $refreshJob -Force
+		if (Test-Path -LiteralPath $refreshPath) {
+			Remove-Item -LiteralPath $refreshPath -Force
+		}
+	}
+}
