@@ -47,6 +47,8 @@ export interface IBuildArgs {
 	readonly outDir: string;
 }
 
+type ReadDirectory = (directory: string) => readonly fs.Dirent[];
+
 /**
  * Build one runtime tarball for `args.target`. Copies the SDK's prebuilt native
  * files, fetches the matching ONNX libraries from NuGet, and tars them into a
@@ -143,20 +145,45 @@ function isNativeRuntimeFile(name: string): boolean {
 
 /**
  * Build the gzipped tar via node-tar so the output is consistent regardless of
- * which host's system tar would otherwise be used. `portable`/`mtime` strip
- * host-specific metadata for reproducible bytes across re-runs on the same host.
+ * which host's system tar would otherwise be used. The explicit sorted manifest
+ * avoids filesystem-dependent directory enumeration order, while
+ * `portable`/`mtime` strip host-specific metadata.
+ *
+ * Exported and accepts `readDirectory` only so tests can verify reproducibility
+ * against different filesystem enumeration orders without stubbing `fs`.
  */
-async function buildTarball(stagingDir: string, outTgz: string): Promise<void> {
+export async function buildTarball(
+	stagingDir: string,
+	outTgz: string,
+	readDirectory: ReadDirectory = directory => fs.readdirSync(directory, { withFileTypes: true }),
+): Promise<void> {
+	const entries = listTarballEntries(stagingDir, 'prebuilds', readDirectory);
 	await tar.c(
 		{
 			file: outTgz,
 			cwd: stagingDir,
 			gzip: { level: 9 },
+			noDirRecurse: true,
 			portable: true,
 			mtime: new Date(0),
 		},
-		['prebuilds'],
+		entries,
 	);
+}
+
+function listTarballEntries(stagingDir: string, relativeDirectory: string, readDirectory: ReadDirectory): string[] {
+	const entries = [relativeDirectory];
+	const directory = path.join(stagingDir, ...relativeDirectory.split('/'));
+	const children = [...readDirectory(directory)].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+	for (const child of children) {
+		const relativePath = path.posix.join(relativeDirectory, child.name);
+		if (child.isDirectory()) {
+			entries.push(...listTarballEntries(stagingDir, relativePath, readDirectory));
+		} else {
+			entries.push(relativePath);
+		}
+	}
+	return entries;
 }
 
 // #region CLI entry point
