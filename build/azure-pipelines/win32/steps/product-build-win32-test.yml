@@ -132,9 +132,26 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: |
+          $day = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+          Write-Host "##vso[task.setvariable variable=WSL_KERNEL_CACHE_DAY]$day"
+        displayName: Set WSL kernel cache day
+
+      - task: Cache@2
+        displayName: Restore WSL kernel installer cache
+        inputs:
+          key: '"wsl-kernel" | "win32-x64" | "$(WSL_KERNEL_CACHE_DAY)"'
+          restoreKeys: |
+            "wsl-kernel" | "win32-x64"
+          path: $(Build.SourcesDirectory)/.build/wsl-kernel-cache
+          cacheHitVar: WSL_KERNEL_CACHE_RESULT
+
       - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
         displayName: Prepare WSL Dev Container smoke tests
         timeoutInMinutes: 15
+        env:
+          WSL_KERNEL_CACHE_PATH: $(Build.SourcesDirectory)/.build/wsl-kernel-cache/wsl_update_x64.msi
+          WSL_KERNEL_CACHE_RESULT: $(WSL_KERNEL_CACHE_RESULT)
 
     - powershell: |
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
