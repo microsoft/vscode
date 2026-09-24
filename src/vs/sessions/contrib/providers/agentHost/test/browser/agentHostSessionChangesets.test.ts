@@ -647,13 +647,14 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('binds Agent Merge changes to completed repair turns after the last default-chat user turn', () => {
+	test('binds Agent Merge changes to completed repair turns after the owning chat user turn', () => {
 		const sessionUri = URI.parse('ahp-session:/session-1');
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri));
+		const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer'));
 		const modifiedAt = new Date(0).toISOString();
 		const chatSummary: ChatSummary = {
-			resource: defaultChatUri.toString(),
-			title: 'Default',
+			resource: peerChatUri.toString(),
+			title: 'Peer',
 			status: SessionStatus.Idle,
 			modifiedAt,
 		};
@@ -663,7 +664,7 @@ suite('AgentHostSessionChangesets', () => {
 			status: SessionStatus.Idle,
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
-			chats: [chatSummary],
+			chats: [{ ...chatSummary, resource: defaultChatUri.toString(), title: 'Default' }, chatSummary],
 			defaultChat: defaultChatUri.toString(),
 		};
 		const makeTurn = (id: string, kind: MessageKind, agentMerge = false): Turn => ({
@@ -699,12 +700,14 @@ suite('AgentHostSessionChangesets', () => {
 		});
 		const acquiredChangesets: string[] = [];
 		const releasedChangesets: string[] = [];
+		const acquiredChats: string[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
 			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 				switch (component) {
 					case StateComponents.Session:
 						return { object: sessionSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 					case StateComponents.Chat:
+						acquiredChats.push(resource.toString());
 						return { object: chatSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 					case StateComponents.Changeset: {
 						const key = resource.toString();
@@ -730,11 +733,11 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const changeset = createChangesets(defaultChatUri, options, constObservable(true), [{
+		const changeset = createChangesets(peerChatUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
 			changeKind: AGENT_MERGE_CHANGESET_ID,
-			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri.toString()),
-		}], defaultChatUri)[0];
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(peerChatUri.toString()),
+		}], peerChatUri)[0];
 		if (!changeset) {
 			throw new Error('Expected Agent Merge changeset');
 		}
@@ -760,18 +763,20 @@ suite('AgentHostSessionChangesets', () => {
 		chatSubscription.set({ ...createChatState(chatSummary), turns: [...repairsAfterUser3, user6] });
 		chatSubscription.set({ ...createChatState(chatSummary), turns: [...repairsAfterUser3, user6, merge7] });
 
-		const compareFromUser3 = `ahp-session:/session-1/changeset/compare/user-3/merge-5`;
-		const compareFromUser6 = `ahp-session:/session-1/changeset/compare/user-6/merge-7`;
+		const compareFromUser3 = `${peerChatUri.toString()}/changeset/compare/user-3/merge-5`;
+		const compareFromUser6 = `${peerChatUri.toString()}/changeset/compare/user-6/merge-7`;
 		assert.deepStrictEqual({
 			id: changeset.id,
 			enabled: changeset.isEnabled.get(),
 			visibleChangeCount,
+			acquiredChats,
 			acquiredChangesets,
 			releasedChangesets,
 		}, {
 			id: AGENT_MERGE_CHANGESET_ID,
 			enabled: true,
 			visibleChangeCount: 0,
+			acquiredChats: [peerChatUri.toString()],
 			acquiredChangesets: [compareFromUser3, compareFromUser6],
 			releasedChangesets: [compareFromUser3],
 		});
