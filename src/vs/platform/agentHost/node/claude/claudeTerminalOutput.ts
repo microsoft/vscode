@@ -45,10 +45,10 @@ export class ClaudeTerminalOutputs {
 	/**
 	 * Stores the output Claude saved for a top-level shell result and stages its
 	 * terminal content on `state`, so the mapper publishes the content with the
-	 * completion. Callers must await this before mapping `message`. Nothing is
-	 * kept when `signal` aborts before the result is published.
+	 * completion. Callers must await this before mapping `message`; the returned
+	 * id lets them discard cancellation that races the final abort check.
 	 */
-	async capture(storage: URI, chat: URI, turnId: string, message: Extract<SDKMessage, { type: 'user' }>, state: ClaudeMapperState, signal?: AbortSignal): Promise<void> {
+	async capture(storage: URI, chat: URI, turnId: string, message: Extract<SDKMessage, { type: 'user' }>, state: ClaudeMapperState, signal?: AbortSignal): Promise<string | undefined> {
 		const outputPath = getPersistedOutputPath(message.tool_use_result);
 		const blocks = message.message.content;
 		if (!outputPath || message.parent_tool_use_id !== null || !Array.isArray(blocks)) {
@@ -82,8 +82,23 @@ export class ClaudeTerminalOutputs {
 				return;
 			}
 			state.cacheTerminalOutput(result.tool_use_id, terminal);
+			return result.tool_use_id;
 		} catch (error) {
 			this._logService.warn(`[Claude] Failed to retain shell output for ${result.tool_use_id}`, error);
+		} finally {
+			database?.dispose();
+		}
+	}
+
+	async discard(storage: URI, toolCallId: string, state: ClaudeMapperState): Promise<void> {
+		state.takeTerminalOutput(toolCallId);
+		state.completeToolCall(toolCallId);
+		let database: IReference<ISessionDatabase> | undefined;
+		try {
+			database = this._sessionDataService.openDatabase(storage);
+			await database.object.deleteTerminalOutput(toolCallId);
+		} catch (error) {
+			this._logService.warn(`[Claude] Failed to discard retained shell output for ${toolCallId}`, error);
 		} finally {
 			database?.dispose();
 		}

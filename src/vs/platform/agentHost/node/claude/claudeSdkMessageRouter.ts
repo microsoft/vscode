@@ -76,7 +76,11 @@ export class ClaudeSdkMessageRouter extends Disposable {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);
-			await this._terminalOutputs.capture(this._resource, this._chatChannelUri, turnId, message, this._mapperState, context?.signal);
+			const retainedToolCallId = await this._terminalOutputs.capture(this._resource, this._chatChannelUri, turnId, message, this._mapperState, context?.signal);
+			if (retainedToolCallId && context?.signal?.aborted) {
+				await this._terminalOutputs.discard(this._resource, retainedToolCallId, this._mapperState);
+				return;
+			}
 		}
 		if (turnId === undefined) {
 			return;

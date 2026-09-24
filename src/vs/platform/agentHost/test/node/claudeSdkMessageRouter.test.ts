@@ -63,12 +63,13 @@ function createRouter(
 	disposables: Pick<DisposableStore, 'add'>,
 	chatChannelUri = URI.parse(buildDefaultChatUri('claude:/sess-1')),
 	attributionService = new NullAgentEditAttributionService(),
+	db = new TestSessionDatabase(),
+	sessionDataService: ISessionDataService = createSessionDataService(db),
 ): IRouterHarness {
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
 
-	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 
 	const services = new ServiceCollection(
@@ -78,7 +79,7 @@ function createRouter(
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, new NullEditArcReporterService()],
-		[ISessionDataService, createSessionDataService(db)],
+		[ISessionDataService, sessionDataService],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
@@ -194,5 +195,52 @@ suite('ClaudeSdkMessageRouter', () => {
 			storedSizesAtCompletion: ['full output'.length],
 			content: [ToolResultContentType.Text, ToolResultContentType.Terminal],
 		});
+	});
+
+	test('drops retained Bash output when cancellation lands after capture completes', async () => {
+	const cancellation = new AbortController();
+	const database = new TestSessionDatabase();
+	const baseSessionDataService = createSessionDataService(database);
+	const sessionDataService: ISessionDataService = {
+		...baseSessionDataService,
+		openDatabase: resource => {
+			const reference = baseSessionDataService.openDatabase(resource);
+			return {
+				object: reference.object,
+				dispose: () => {
+					reference.dispose();
+					cancellation.abort();
+				},
+			};
+		},
+	};
+	const { router, signals, fileService } = createRouter(
+		disposables,
+		undefined,
+		undefined,
+		database,
+		sessionDataService,
+	);
+	const outputFile = URI.file('/claude/tool-results/toolu_1.txt');
+	await fileService.writeFile(outputFile, VSBuffer.fromString('full output'));
+
+	await router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
+	await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(0, 'toolu_1', 'Bash')), 'turn-1');
+	await router.handle(makeStreamEvent('sess-1', makeContentBlockStop(0)), 'turn-1');
+	await router.handle({
+		...userMessage([{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'Output too large' }]),
+		parent_tool_use_id: null,
+		tool_use_result: { stdout: 'full', stderr: '', interrupted: false, persistedOutputPath: outputFile.fsPath },
+	}, 'turn-1', { signal: cancellation.signal });
+
+	assert.deepStrictEqual({
+		aborted: cancellation.signal.aborted,
+		completion: signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete),
+		stored: await database.getTerminalOutputSize('toolu_1'),
+	}, {
+		aborted: true,
+		completion: undefined,
+		stored: undefined,
+	});
 	});
 });
