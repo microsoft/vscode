@@ -6,30 +6,15 @@
 import { localize } from '../../../../../nls.js';
 import { CopilotConnectorConnectionStatus, ICopilotConnector } from './copilotConnectorsService.js';
 
-export type ConnectorPrimaryAction = 'connect' | 'disconnect' | 'reconnect' | 'refresh';
+type ConnectorPrimaryAction = 'connect' | 'disconnect' | 'reconnect' | 'refresh';
 export type ConnectorRowAction = 'check' | 'connect' | 'sign_in' | 'reconnect' | 'review' | 'retry' | 'more';
-export type ConnectorRowStatusIcon = 'connected' | 'attention' | 'pending' | 'error' | 'info';
+type ConnectorRowStatusIcon = 'connected' | 'attention' | 'pending' | 'error' | 'info';
 
-export interface IConnectorRowPresentation {
+interface IConnectorRowPresentation {
 	readonly statusLabel: string;
 	readonly statusIcon?: ConnectorRowStatusIcon;
 	readonly action?: ConnectorRowAction;
 	readonly actionLabel?: string;
-}
-
-export function getConnectorPrimaryAction(connectionStatus: CopilotConnectorConnectionStatus): ConnectorPrimaryAction {
-	switch (connectionStatus) {
-		case 'unknown':
-			return 'refresh';
-		case 'connected':
-			return 'disconnect';
-		case 'pending':
-			return 'refresh';
-		case 'error':
-			return 'reconnect';
-		case 'not_connected':
-			return 'connect';
-	}
 }
 
 export function getConnectorStatusLabel(connectionStatus: CopilotConnectorConnectionStatus): string {

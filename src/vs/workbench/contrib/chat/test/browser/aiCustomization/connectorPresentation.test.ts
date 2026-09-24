@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -109,5 +109,29 @@ suite('Connector presentation', () => {
 		await result.p;
 
 		assert.deepStrictEqual({ started: actionToken !== undefined, cancelled: actionToken?.isCancellationRequested }, { started: true, cancelled: true });
+	});
+
+	test('an earlier refresh cannot replace a newly selected connector', async () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const change = disposables.add(new Emitter<void>());
+		const result = new DeferredPromise<readonly ICopilotConnector[]>();
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = change.event;
+			override getConnectors(): Promise<readonly ICopilotConnector[]> {
+				return result.p;
+			}
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		detail.setInput(connector('connected'));
+		change.fire();
+		detail.setInput({ ...connector('not_connected'), name: 'calendar', displayName: 'Calendar' });
+		result.complete([{ ...connector('connected'), displayName: 'Updated Mail' }]);
+		await result.p;
+		await timeout(0);
+
+		assert.strictEqual(container.querySelector('.embedded-detail-name')?.textContent, 'Calendar');
 	});
 });

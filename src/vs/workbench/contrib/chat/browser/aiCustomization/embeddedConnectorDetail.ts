@@ -327,7 +327,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 				return;
 			}
 			const connector = connectors.find(candidate => candidate.name === connectorName);
-			if (connector) {
+			if (connector && this.current?.name === connectorName) {
 				this.current = connector;
 				this.renderItem();
 			}

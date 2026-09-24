@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -16,6 +17,10 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 
 const MCP_CONNECTORS_REQUEST_TIMEOUT_MS = 10_000;
 const MCP_CONNECTORS_REVALIDATION_INTERVAL_MS = 60_000;
+const MCP_CONNECTORS_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const MCP_CONNECTORS_MAX_PLUGINS = 1000;
+const MCP_CONNECTORS_MAX_SERVERS_PER_PLUGIN = 64;
+const MCP_CONNECTORS_RESPONSE_TOO_LARGE_MESSAGE = 'Connected plugins response is too large';
 
 interface ICachedConnectorRepresentation {
 	readonly url: string;
@@ -98,8 +103,8 @@ function isTrustedConnectorUrl(value: string, copilotResource: string): boolean 
 function parseConnectedConnectors(body: string, token: string, copilotResource: string, onDuplicateServerName?: (serverName: string, firstPluginName: string, duplicatePluginName: string) => void): readonly IAgentHostMcpConnector[] {
 	const document = asRecord(JSON.parse(body));
 	const plugins = document?.plugins;
-	if (!Array.isArray(plugins)) {
-		throw new Error('Connected plugins response does not contain a plugins array');
+	if (!Array.isArray(plugins) || plugins.length > MCP_CONNECTORS_MAX_PLUGINS) {
+		throw new Error('Connected plugins response contains an invalid plugins array');
 	}
 
 	const connectors: IAgentHostMcpConnector[] = [];
@@ -119,7 +124,11 @@ function parseConnectedConnectors(body: string, token: string, copilotResource: 
 		const configuredScopes = connection.scopes;
 		const scopes = Array.isArray(configuredScopes) ? configuredScopes.filter(scope => typeof scope === 'string') : [];
 		const mcpServers = asRecord(asRecord(plugin.mcpServers)?.mcpServers);
-		for (const [serverName, serverValue] of Object.entries(mcpServers ?? {})) {
+		const mcpServerEntries = Object.entries(mcpServers ?? {});
+		if (mcpServerEntries.length > MCP_CONNECTORS_MAX_SERVERS_PER_PLUGIN) {
+			throw new Error(`Connected plugin '${pluginName}' contains too many MCP servers`);
+		}
+		for (const [serverName, serverValue] of mcpServerEntries) {
 			const server = asRecord(serverValue);
 			const url = server?.url;
 			// The catalog is not authority to send a GitHub OAuth token to a new host.
@@ -155,6 +164,50 @@ function canStoreResponse(response: Response): boolean {
 		.some(directive => directive.trim().toLowerCase() === 'no-store');
 }
 
+async function cancelResponseBody(response: Response): Promise<void> {
+	try {
+		await response.body?.cancel();
+	} catch {
+		// The body may already be closed or errored.
+	}
+}
+
+async function readBoundedResponse(response: Response): Promise<string> {
+	const contentLength = Number(response.headers.get('content-length'));
+	if (Number.isFinite(contentLength) && contentLength > MCP_CONNECTORS_MAX_RESPONSE_BYTES) {
+		await cancelResponseBody(response);
+		throw new Error(MCP_CONNECTORS_RESPONSE_TOO_LARGE_MESSAGE);
+	}
+	if (!response.body) {
+		return '';
+	}
+
+	const reader = response.body.getReader();
+	const chunks: VSBuffer[] = [];
+	let size = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			size += value.byteLength;
+			if (size > MCP_CONNECTORS_MAX_RESPONSE_BYTES) {
+				try {
+					await reader.cancel();
+				} catch {
+					// The size error below remains authoritative.
+				}
+				throw new Error(MCP_CONNECTORS_RESPONSE_TOO_LARGE_MESSAGE);
+			}
+			chunks.push(VSBuffer.wrap(value));
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	return VSBuffer.concat(chunks, size).toString();
+}
+
 export class AgentHostMcpConnectorsService extends Disposable implements IAgentHostMcpConnectorsService {
 	declare readonly _serviceBrand: undefined;
 
@@ -170,6 +223,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 	private _initialized = false;
 	private _generation = 0;
 	private _refreshPromise: Promise<readonly IAgentHostMcpConnector[]> | undefined;
+	private _refreshAbortController: AbortController | undefined;
 	private _lastRefreshTime = 0;
 	private _currentToken: string | undefined;
 	private _currentApiBaseUrl: string | undefined;
@@ -235,24 +289,31 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 		const generation = this._generation;
 		const token = this._currentToken;
 		const url = `${this._currentApiBaseUrl}/plugins/connected`;
+		const abortController = new AbortController();
 		this._lastRefreshTime = this._now();
-		const promise = this._doRefresh(generation, url, token).finally(() => {
+		const promise = this._doRefresh(generation, url, token, abortController.signal).finally(() => {
 			if (this._refreshPromise === promise) {
 				this._refreshPromise = undefined;
 			}
+			if (this._refreshAbortController === abortController) {
+				this._refreshAbortController = undefined;
+			}
 		});
+		this._refreshAbortController = abortController;
 		this._refreshPromise = promise;
 		return promise;
 	}
 
-	private async _doRefresh(generation: number, url: string, token: string): Promise<readonly IAgentHostMcpConnector[]> {
+	private async _doRefresh(generation: number, url: string, token: string, signal: AbortSignal): Promise<readonly IAgentHostMcpConnector[]> {
 		try {
 			let cached = this._cachedRepresentation?.url === url ? this._cachedRepresentation : undefined;
-			let response = await this._request(url, token, cached?.etag);
+			let response = await this._request(url, token, signal, cached?.etag);
 			if (response.status === 304 && !cached) {
-				response = await this._request(url, token);
+				await cancelResponseBody(response);
+				response = await this._request(url, token, signal);
 			}
 			if (generation !== this._generation) {
+				await cancelResponseBody(response);
 				return this._connectors;
 			}
 			if (response.status === 304) {
@@ -269,15 +330,17 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 				return this._connectors;
 			}
 			if (!response.ok) {
+				await cancelResponseBody(response);
 				this._logService.warn(`[AgentHostMcpConnectorsService] Connected plugins request failed: ${response.status} ${response.statusText}`);
 				this._initialized = true;
 				if (response.status === 401 || response.status === 403 || response.status === 404) {
+					this._cachedRepresentation = undefined;
 					this._setConnectors([]);
 				}
 				return this._connectors;
 			}
 
-			const body = await response.text();
+			const body = await readBoundedResponse(response);
 			const connectors = this._parseConnectors(body, token);
 			if (generation !== this._generation) {
 				return this._connectors;
@@ -303,7 +366,7 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 		});
 	}
 
-	private _request(url: string, token: string, etag?: string): Promise<Response> {
+	private _request(url: string, token: string, signal: AbortSignal, etag?: string): Promise<Response> {
 		const headers: Record<string, string> = {
 			'Accept': 'application/json',
 			'Authorization': `Bearer ${token}`,
@@ -311,7 +374,12 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 		if (etag) {
 			headers['If-None-Match'] = etag;
 		}
-		return this._fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(MCP_CONNECTORS_REQUEST_TIMEOUT_MS) });
+		return this._fetch(url, {
+			method: 'GET',
+			headers,
+			redirect: 'error',
+			signal: AbortSignal.any([signal, AbortSignal.timeout(MCP_CONNECTORS_REQUEST_TIMEOUT_MS)]),
+		});
 	}
 
 	private _updateContext(): void {
@@ -331,11 +399,21 @@ export class AgentHostMcpConnectorsService extends Disposable implements IAgentH
 
 	private _invalidate(): void {
 		this._generation++;
+		this._refreshAbortController?.abort();
+		this._refreshAbortController = undefined;
 		this._initialized = false;
 		this._lastRefreshTime = 0;
 		this._cachedRepresentation = undefined;
 		this._refreshPromise = undefined;
 		this._setConnectors([]);
+	}
+
+	override dispose(): void {
+		this._generation++;
+		this._refreshAbortController?.abort();
+		this._refreshAbortController = undefined;
+		this._refreshPromise = undefined;
+		super.dispose();
 	}
 
 	private _setConnectors(connectors: readonly IAgentHostMcpConnector[]): void {

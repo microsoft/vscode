@@ -105,6 +105,7 @@ suite('AgentHostMcpConnectorsService', () => {
 			new Response(JSON.stringify(connectedPluginsResponse('rotated')), { status: 200, headers: { etag: 'W/"catalog-2"' } }),
 		];
 		const authenticationService = disposables.add(new TestAuthenticationService('token-a'));
+		const logService = new RecordingLogService();
 		const service = disposables.add(new AgentHostMcpConnectorsService(
 			async (input, init) => {
 				requests.push({ url: String(input), headers: init?.headers as Record<string, string> });
@@ -113,7 +114,7 @@ suite('AgentHostMcpConnectorsService', () => {
 			'https://connectors.example.test/api/v1/',
 			authenticationService,
 			createTestGitHubEndpointService(),
-			new NullLogService(),
+			logService,
 		));
 
 		const first = await service.getConnectors();
@@ -126,6 +127,7 @@ suite('AgentHostMcpConnectorsService', () => {
 			revalidated,
 			rotated,
 			requests,
+			warnings: logService.warnings,
 		}, {
 			first: [{
 				pluginName: 'mail-plugin',
@@ -140,6 +142,7 @@ suite('AgentHostMcpConnectorsService', () => {
 				scopes: ['write:plugin_gateway_connections'],
 			}],
 			revalidated: first,
+			warnings: [],
 			rotated: [{
 				pluginName: 'mail-plugin',
 				displayName: 'Work IQ Mail',
@@ -236,6 +239,103 @@ suite('AgentHostMcpConnectorsService', () => {
 		});
 	});
 
+	test('aborts a pending request when the experiment is disabled', async () => {
+		const started = new DeferredPromise<AbortSignal>();
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async (_input, init) => {
+				const signal = init?.signal;
+				assert.ok(signal);
+				started.complete(signal);
+				return new Promise<Response>((_resolve, reject) => {
+					if (signal.aborted) {
+						reject(signal.reason);
+						return;
+					}
+					signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+				});
+			},
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('token')),
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+		));
+
+		const pending = service.getConnectors();
+		const signal = await started.p;
+		service.setEnabled(false);
+
+		assert.deepStrictEqual({
+			aborted: signal.aborted,
+			connectors: await pending,
+			cached: service.getCachedConnectors(),
+		}, {
+			aborted: true,
+			connectors: [],
+			cached: [],
+		});
+	});
+
+	test('rejects oversized connected-plugin responses without replacing connectors', async () => {
+		const logService = new RecordingLogService();
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async () => new Response(' '.repeat(5 * 1024 * 1024 + 1)),
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('token')),
+			createTestGitHubEndpointService(),
+			logService,
+		));
+
+		assert.deepStrictEqual({
+			connectors: await service.getConnectors(),
+			warned: logService.warnings.some(message => message.includes('response is too large')),
+		}, {
+			connectors: [],
+			warned: true,
+		});
+	});
+
+	test('bounds connected plugins and their MCP server collections', async () => {
+		const logService = new RecordingLogService();
+		const responses = [
+			new Response(JSON.stringify({ plugins: Array.from({ length: 1001 }, () => ({})) })),
+			new Response(JSON.stringify({
+				plugins: [{
+					name: 'oversized-plugin',
+					connection: { status: 'connected' },
+					mcpServers: {
+						mcpServers: Object.fromEntries(Array.from({ length: 65 }, (_, index) => [
+							`server-${index}`,
+							{ type: 'http', url: `https://api.github.com/connectors/${index}/mcp` },
+						])),
+					},
+				}],
+			})),
+		];
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async () => responses.shift()!,
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('token')),
+			createTestGitHubEndpointService(),
+			logService,
+		));
+
+		const tooManyPlugins = await service.getConnectors();
+		const tooManyServers = await service.refresh();
+
+		assert.deepStrictEqual({
+			tooManyPlugins,
+			tooManyServers,
+			warnings: logService.warnings.map(message => message.replace(/^.*Failed to refresh connected plugins: /, '')),
+		}, {
+			tooManyPlugins: [],
+			tooManyServers: [],
+			warnings: [
+				'Connected plugins response contains an invalid plugins array',
+				'Connected plugin \'oversized-plugin\' contains too many MCP servers',
+			],
+		});
+	});
+
 	test('does not retain an ETag from a no-store response', async () => {
 		const validators: Array<string | undefined> = [];
 		const authenticationService = disposables.add(new TestAuthenticationService('token'));
@@ -257,6 +357,31 @@ suite('AgentHostMcpConnectorsService', () => {
 		await service.refresh();
 
 		assert.deepStrictEqual(validators, [undefined, undefined]);
+	});
+
+	test('clears cached validators after an authorization failure', async () => {
+		const validators: Array<string | undefined> = [];
+		const responses = [
+			new Response(JSON.stringify(connectedPluginsResponse()), { status: 200, headers: { etag: 'W/"private"' } }),
+			new Response(null, { status: 403 }),
+			new Response(JSON.stringify(connectedPluginsResponse()), { status: 200 }),
+		];
+		const service = disposables.add(new AgentHostMcpConnectorsService(
+			async (_input, init) => {
+				validators.push((init?.headers as Record<string, string>)['If-None-Match']);
+				return responses.shift()!;
+			},
+			'https://connectors.example.test/api/v1',
+			disposables.add(new TestAuthenticationService('token')),
+			createTestGitHubEndpointService(),
+			new NullLogService(),
+		));
+
+		await service.getConnectors();
+		await service.refresh();
+		await service.refresh();
+
+		assert.deepStrictEqual(validators, [undefined, 'W/"private"', undefined]);
 	});
 
 	test('updates and clears cached metadata from 304 responses', async () => {

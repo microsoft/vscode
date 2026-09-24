@@ -1560,21 +1560,6 @@ export class McpListWidget extends Disposable {
 					this.filterServers();
 				}
 			}
-			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)) {
-				this.connectorsCancellation.value?.cancel();
-				this.connectorsCancellation.clear();
-				this.connectorActionCancellation.value?.cancel();
-				this.connectorActionCancellation.clear();
-				this.connectorsError = undefined;
-				if (this.visible && this.isConnectorsEnabled()) {
-					void this.refreshConnectors();
-				} else {
-					this.connectorSignIn.clear();
-					this.connectors = [];
-					this.connectorsLoading = false;
-					this.filterServers();
-				}
-			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
 				this.updateMcpServerCompatibilityScope();
 			}
