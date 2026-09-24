@@ -13,7 +13,7 @@ const CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE = 'vscode-workspace';
 const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
-export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
+export function codexPermissionProfileOverrides(platform: NodeJS.Platform, binaryPath: string): string[] {
 	// Codex materializes its Linux sandbox helper below /tmp before entering bwrap.
 	// Keep it executable from inside the sandbox without granting shared temp write access.
 	const slashTmpAccess = platform === 'linux' ? 'read' : 'deny';
@@ -24,6 +24,8 @@ export function codexPermissionProfileOverrides(platform: NodeJS.Platform = proc
 			`":minimal" = "read"`,
 			`":tmpdir" = "write"`,
 			`":slash_tmp" = "${slashTmpAccess}"`,
+			// Linux re-executes Codex inside bwrap, even when its SDK is outside the workspace.
+			...(platform === 'linux' ? [`${JSON.stringify(binaryPath)} = "read"`] : []),
 		].join(', ')} }`;
 	const readOnlyProfile = platform === 'win32'
 		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
@@ -92,6 +94,7 @@ export function buildCodexLaunchConfig(
 	inheritedEnv: NodeJS.ProcessEnv,
 	proxy: ICodexLaunchProxy,
 	extraArgs: readonly string[],
+	binaryPath: string,
 	telemetry?: IAgentHostNativeOTelConfig,
 ): ICodexLaunchConfig {
 	const env: NodeJS.ProcessEnv = { ...inheritedEnv, [AiAgentEnvVar]: AiAgentEnvValue };
@@ -116,7 +119,7 @@ export function buildCodexLaunchConfig(
 		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
 	];
-	const permissionOverrides = codexPermissionProfileOverrides();
+	const permissionOverrides = codexPermissionProfileOverrides(process.platform, binaryPath);
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,

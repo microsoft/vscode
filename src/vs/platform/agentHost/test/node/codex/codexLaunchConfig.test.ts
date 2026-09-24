@@ -9,9 +9,10 @@ import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile,
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+	const binaryPath = '/sdk/codex';
 
 	test('adds the Copilot proxy and enforces telemetry overrides after extra arguments', () => {
-		const config = buildCodexLaunchConfig({ PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug', '-c', 'analytics.enabled=true']);
+		const config = buildCodexLaunchConfig({ PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug', '-c', 'analytics.enabled=true'], binaryPath);
 		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce', AI_AGENT: 'github_copilot_vscode_agent' });
 		assert.ok(config.args.includes('model_providers.vscode-proxy.name="VS Code Proxy"'));
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
@@ -31,7 +32,7 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('routes traces to loopback and logs/metrics directly to the external sink', () => {
-		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], {
+		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], binaryPath, {
 			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
 			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf', headers: { authorization: 'Bearer test' } },
 			captureContent: false,
@@ -48,7 +49,7 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('keeps gRPC signal endpoints unchanged and uses decoded headers', () => {
-		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], {
+		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], binaryPath, {
 			traces: { endpoint: 'https://collector:4317', protocol: 'grpc' },
 			external: { endpoint: 'https://collector:4317', protocol: 'grpc', headers: { authorization: 'Bearer test/token' } },
 			captureContent: false,
@@ -60,8 +61,8 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('defines workspace-scoped permission profiles after extra arguments', () => {
-		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
-		const expectedOverrides = codexPermissionProfileOverrides();
+		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"'], binaryPath);
+		const expectedOverrides = codexPermissionProfileOverrides(process.platform, binaryPath);
 		assert.deepStrictEqual({
 			profiles: expectedOverrides.map(override => config.args.includes(override)),
 			secureDefaultWins: config.args.indexOf('default_permissions=":danger-full-access"') < config.args.indexOf('default_permissions="vscode-workspace"'),
@@ -84,9 +85,9 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('keeps the Linux sandbox bootstrap visible while denying shared temp access on macOS', () => {
-		const linuxProfile = codexPermissionProfileOverrides('linux')[1];
-		const macProfile = codexPermissionProfileOverrides('darwin')[1];
-		const windowsProfiles = codexPermissionProfileOverrides('win32');
+		const linuxProfile = codexPermissionProfileOverrides('linux', binaryPath)[1];
+		const macProfile = codexPermissionProfileOverrides('darwin', binaryPath)[1];
+		const windowsProfiles = codexPermissionProfileOverrides('win32', binaryPath);
 		const windowsProfile = windowsProfiles[1];
 		assert.deepStrictEqual({
 			linux: linuxProfile,
@@ -94,7 +95,7 @@ suite('CodexLaunchConfig', () => {
 			windows: windowsProfiles,
 			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
 		}, {
-			linux: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read" }, network = { enabled = false } }',
+			linux: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read", "/sdk/codex" = "read" }, network = { enabled = false } }',
 			mac: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
 			windows: [
 				'default_permissions="vscode-workspace"',
@@ -104,6 +105,16 @@ suite('CodexLaunchConfig', () => {
 			],
 			temp: [[true, false], [true, true], [false, false]],
 		});
+	});
+
+	test('makes only the bundled Linux Codex executable readable in workspace profiles', () => {
+		const binaryPath = '/home/user/.vscode-server/data/agent-host/sdk-cache/codex/0.153.0/linux-x64/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex';
+		assert.deepStrictEqual(codexPermissionProfileOverrides('linux', binaryPath), [
+			'default_permissions="vscode-workspace"',
+			'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read", "/home/user/.vscode-server/data/agent-host/sdk-cache/codex/0.153.0/linux-x64/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex" = "read" }, network = { enabled = false } }',
+			'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
+			'permissions.vscode-workspace-read-only={ extends = "vscode-workspace", filesystem = { ":workspace_roots" = { "." = "read" } } }',
+		]);
 	});
 
 	test('resume explicitly binds each session model and provider', () => {
