@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
 import { retry } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -62,7 +61,10 @@ suite('Agent Host Provider Integration — Codex Permissions', function () {
 		if (!CODEX_SDK_ROOT || process.platform !== 'darwin') {
 			this.skip();
 		}
-		testRoot = await mkdtemp(join(tmpdir(), 'codex-permissions-'));
+		const fixtureParent = join(process.cwd(), '.build');
+		await mkdir(fixtureParent, { recursive: true });
+		// Codex grants macOS system temp roots by design, so sandbox probes must live elsewhere.
+		testRoot = await mkdtemp(join(fixtureParent, 'codex-permissions-'));
 		homeDir = join(testRoot, 'home');
 		workspaceDir = join(testRoot, 'workspace');
 		temporaryDir = join(testRoot, 'tmp');
