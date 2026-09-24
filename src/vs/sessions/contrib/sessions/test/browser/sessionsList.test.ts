@@ -62,7 +62,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -5631,6 +5631,7 @@ suite('Sessions - SessionsList', () => {
 				status: observableValue('status', SessionStatus.Completed),
 				changes: constObservable([]),
 				changesets: constObservable([]),
+				workspace: observableValue<ISessionWorkspace | undefined>('workspace', undefined),
 				interactivity: observableValue('interactivity', interactivity),
 				origin: origin ? { kind: origin } : undefined,
 			};
@@ -5852,6 +5853,53 @@ suite('Sessions - SessionsList', () => {
 				mainFocus: { session, chat: undefined },
 				readSessions: [],
 				opened: [],
+			});
+		});
+
+		test('reconciles nested chat folder heights when workspace metadata changes', () => {
+			const peer = createChat('Peer');
+			const base = createChatSession('Session', [peer]).session;
+			const workspace = base.workspace.get();
+			assert.ok(workspace);
+			const root = URI.file('/different-project');
+			const folder: ISessionFolder = { root, workingDirectory: root, name: 'different-project', description: undefined };
+			const firstRoot = URI.file('/first-project');
+			const session: ISession = {
+				...base,
+				workspace: constObservable({
+					...workspace,
+					folders: [{ root: firstRoot, workingDirectory: firstRoot, name: 'first-project', description: undefined }, folder],
+				}),
+			};
+			const { container, list, store } = renderFlatList([session]);
+			const heights: number[] = [];
+			store.add(list.onDidChangeContentHeight(() => heights.push(list.getContentHeight())));
+			const baseline = list.getContentHeight();
+			peer.workspace.set({
+				...workspace,
+				uri: root,
+				label: 'different-project',
+				folders: [folder],
+			}, undefined);
+			const withFolder = list.getContentHeight();
+			const folderLabel = row(container, 'Peer').querySelector('.session-chat-folder-label')?.textContent;
+			const renderedHeight = parseInt(row(container, 'Peer').style.height);
+			peer.workspace.set(undefined, undefined);
+
+			assert.deepStrictEqual({
+				addedHeight: withFolder - baseline,
+				folderLabel,
+				renderedHeightMatches: renderedHeight + 56 === withFolder,
+				restoredHeight: list.getContentHeight(),
+				notifiedFolder: heights.includes(withFolder),
+				notifiedRemoval: heights.includes(baseline),
+			}, {
+				addedHeight: 16,
+				folderLabel: 'different-project',
+				renderedHeightMatches: true,
+				restoredHeight: baseline,
+				notifiedFolder: true,
+				notifiedRemoval: true,
 			});
 		});
 

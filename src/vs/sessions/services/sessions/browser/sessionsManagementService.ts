@@ -552,8 +552,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let provider = initialProvider;
 		await this._checkSessionDraftTarget(provider, sessionTypeId, folderUri);
 		let session = folderUri
-			? provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options))
-			: provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
+			? provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, options))
+			: provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
 		this._unlistedNewSessions.set(session.resource, session);
 		try {
 			options?.onSessionCreated?.(session);

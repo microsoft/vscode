@@ -6192,7 +6192,24 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		const chatRenderer = showChatChildren ? new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, contextViewService, markdownRendererService, approvalModel, approvalRowMaxLines, undefined, () => this.tree.domFocus(), activeGuideSessionIds) : undefined;
+		const chatRenderer = showChatChildren ? new SessionChatItemRenderer(
+			hoverService,
+			instantiationService,
+			this._sessionsManagementService,
+			contextViewService,
+			markdownRendererService,
+			approvalModel,
+			approvalRowMaxLines,
+			undefined,
+			() => this.tree.domFocus(),
+			item => withSessionsListHoverPresentation(createSessionSummaryHover(
+				item.session,
+				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, openerService, labelService, preferencesService, getCreatorHoverData(item.session, this._sessionsManagementService, agentHostConnectionsService, openerService), false),
+				preferencesService,
+			)),
+			() => false,
+			activeGuideSessionIds,
+		) : undefined;
 		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, session => getSessionRowStatus(session, undefined, showChatChildren), approvalRowMaxLines, this.options.ciFixModel, useCompactQuickChatRows, !showChatChildren, showChatChildren);
 		const accessibilityProvider = new SessionsAccessibilityProvider(undefined, {
 			grouping: () => SessionsGrouping.Date,
