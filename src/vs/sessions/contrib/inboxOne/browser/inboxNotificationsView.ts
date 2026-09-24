@@ -574,7 +574,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			revealTarget.scrollIntoView({ block: 'nearest' });
 		} else if (hadFocusWithinList) {
 			const target = this.getNotificationCards().find(card => card.tabIndex === 0);
-			target?.focus();
+			target?.focus({ preventScroll: true });
 		}
 
 		this.scrollableElement.scanDomNode();
@@ -1207,9 +1207,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private renderActionButton(container: HTMLElement, item: IInboxNotificationItem, action: IInboxNotificationAction): IButton {
+		const openSessionIsSecondary = action.kind === InboxNotificationActionKind.OpenSession;
 		const baseOptions = {
 			...defaultButtonStyles,
-			secondary: !action.primary,
+			secondary: openSessionIsSecondary || !action.primary,
 			small: true,
 			supportIcons: action.kind === InboxNotificationActionKind.MarkDone,
 			ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
