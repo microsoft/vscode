@@ -53,7 +53,7 @@ const chatInputTourPayload: ISpotlightPayload = {
 		{
 			id: 'modePicker',
 			targetId: ChatInputTourTarget.ModePicker,
-			title: localize('chat.onboarding.chatInput.mode.title', "Switch Between Agent, Ask, and Plan"),
+			title: localize('chat.onboarding.chatInput.mode.title', "Get the Right Kind of Help"),
 			description: localize('chat.onboarding.chatInput.mode.description', "Use Agent to make changes and run tools across your workspace, Ask to get answers about your code without editing it, and Plan to think through an approach before any code is written. Switch anytime to match your task."),
 			placement: 'above',
 			missingTarget: { kind: 'skip' },
@@ -61,7 +61,7 @@ const chatInputTourPayload: ISpotlightPayload = {
 		{
 			id: 'modelPicker',
 			targetId: ChatInputTourTarget.ModelPicker,
-			title: localize('chat.onboarding.chatInput.model.title', "Choose Your Model"),
+			title: localize('chat.onboarding.chatInput.model.title', "Find the Model That Fits Your Task"),
 			description: localize('chat.onboarding.chatInput.model.description', "Change the model at any time. Some models respond faster, while others are better at complex reasoning, so pick the one that fits your task."),
 			placement: 'above',
 			missingTarget: { kind: 'skip' },
