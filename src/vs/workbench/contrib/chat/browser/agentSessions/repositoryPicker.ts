@@ -11,11 +11,14 @@ import Severity from '../../../../../base/common/severity.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 
 export const PICK_REPOSITORY_COMMAND_ID = '_chat.pickRepository';
 
 export interface IRepositoryPickerOptions {
 	readonly allowRepositoryUrl?: boolean;
+	/** Select a GitHub repository URL as a remote target rather than offering to clone it. */
+	readonly preferRemote?: boolean;
 }
 
 export interface IRepositoryPickResult {
@@ -51,9 +54,11 @@ export class RepositoryPicker extends Disposable {
 		const pickToken = cancelOnDispose(store);
 		const requests = store.add(new DisposableStore());
 		const quickPick = store.add(this.quickInputService.createQuickPick<RepositoryQuickPickItem>());
-		quickPick.placeholder = options.allowRepositoryUrl
-			? localize('repositoryPicker.searchOrUrl', "Search for a repository or paste a repository URL...")
-			: localize('repositoryPicker.search', "Search for a repository...");
+		quickPick.placeholder = options.preferRemote
+			? localize('repositoryPicker.remoteSearchOrUrl', "Search for a GitHub repository or paste its URL...")
+			: options.allowRepositoryUrl
+				? localize('repositoryPicker.searchOrUrl', "Search for a repository or paste a repository URL...")
+				: localize('repositoryPicker.search', "Search for a repository...");
 		quickPick.ariaLabel = quickPick.placeholder;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
@@ -64,14 +69,21 @@ export class RepositoryPicker extends Disposable {
 			const query = quickPick.value;
 			quickPick.busy = true;
 			try {
+				const remote = options.preferRemote ? getGitHubRepositoryFromRemoteUrl(query.trim(), ['github.com']) : undefined;
+				if (remote) {
+					const repository = `${remote.owner}/${remote.repo}`;
+					quickPick.items = [{ label: repository, repository, alwaysShow: true }];
+					quickPick.validationMessage = undefined;
+					return;
+				}
 				const repositories = await raceCancellationError(getRepositories(query, requestToken), requestToken);
 				if (!requestToken.isCancellationRequested) {
-					quickPick.items = getRepositoryQuickPickItems(repositories, query, options.allowRepositoryUrl === true);
+					quickPick.items = getRepositoryQuickPickItems(repositories, query, options.allowRepositoryUrl === true && !options.preferRemote);
 				}
 			} catch (error) {
 				if (!requestToken.isCancellationRequested && !isCancellationError(error)) {
 					this.logService.error('Error fetching repositories', error);
-					quickPick.items = getRepositoryQuickPickItems([], query, options.allowRepositoryUrl === true);
+					quickPick.items = getRepositoryQuickPickItems([], query, options.allowRepositoryUrl === true && !options.preferRemote);
 					quickPick.validationMessage = localize('repositoryPicker.loadFailed', "Could not load repositories. Check your GitHub sign-in and connection, then try searching again.");
 					quickPick.severity = Severity.Error;
 				}

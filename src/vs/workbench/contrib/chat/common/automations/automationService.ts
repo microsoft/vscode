@@ -6,6 +6,7 @@
 import { IObservable } from '../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
@@ -237,6 +238,8 @@ export interface IAutomationProviderConfiguration {
 	readonly timeZone: 'UTC';
 	readonly defaultEnabled: boolean;
 	readonly tools: readonly { readonly id: string; readonly label: string }[];
+	/** UI-only target eligibility; return a reason while checking or unavailable, otherwise undefined. */
+	getTargetDisabledReason?(workspace: URI | undefined): IObservable<string | undefined>;
 }
 
 /** Identity and optional unavailability explanation of a concrete Automation provider. */

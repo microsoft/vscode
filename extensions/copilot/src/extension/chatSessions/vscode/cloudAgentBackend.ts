@@ -39,6 +39,7 @@ export interface CreateCloudSessionParams {
 
 export interface CloudSessionData {
 	readonly taskId: string;
+	readonly automationId?: string;
 	readonly title: string;
 	readonly state: AgentTaskState;
 	readonly createdAt: string;

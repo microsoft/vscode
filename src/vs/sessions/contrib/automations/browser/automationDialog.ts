@@ -15,6 +15,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, disposableObservableValue, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -43,8 +44,9 @@ import { hasNativeContextMenu } from '../../../../platform/window/common/window.
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
+import { ISessionTypePickerEntry } from '../../chat/browser/sessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
-import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationProviderConfiguration, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -216,6 +218,7 @@ export interface IFormState {
 	branch: string | undefined;
 	enabled: boolean;
 	timeZone?: 'UTC';
+	targetDisabledReason?: string;
 }
 
 export interface IValidationState {
@@ -238,6 +241,43 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 			return [];
 		}
 		return [providerId];
+	});
+}
+
+export function getAutomationSessionTypeEntries(
+	sessionsManagementService: ISessionsManagementService,
+	allowedProviders: IObservable<readonly string[]>,
+	folderSource: IObservable<URI | undefined>,
+	quickChatSource: IObservable<boolean>,
+	getProviderConfiguration: (providerId: string | undefined) => IAutomationProviderConfiguration | undefined,
+): IObservable<readonly ISessionTypePickerEntry[]> {
+	const typesChanged = observableSignalFromEvent(allowedProviders, sessionsManagementService.onDidChangeSessionTypes);
+	return derived(reader => {
+		typesChanged.read(reader);
+		const providerIds = allowedProviders.read(reader);
+		const folder = folderSource.read(reader);
+		const isQuickChat = quickChatSource.read(reader);
+		const folderTypes = isQuickChat ? sessionsManagementService.getQuickChatSessionTypes()
+			: folder ? sessionsManagementService.getSessionTypesForFolder(folder) : [];
+		const configuredTypes = providerIds.some(id => getProviderConfiguration(id) !== undefined)
+			? sessionsManagementService.getAllProviderSessionTypes().filter(type => getProviderConfiguration(type.providerId)?.sessionTypes.includes(type.sessionType.id))
+			: [];
+		const entries = new Map<string, ISessionTypePickerEntry>();
+		for (const type of [...folderTypes, ...configuredTypes]) {
+			const configuration = getProviderConfiguration(type.providerId);
+			const key = `${type.providerId}\0${type.sessionType.id}`;
+			if (entries.has(key) || !providerIds.includes(type.providerId) || configuration !== undefined && !configuration.sessionTypes.includes(type.sessionType.id)) {
+				continue;
+			}
+			entries.set(key, {
+				...type,
+				disabledReason: configuration?.getTargetDisabledReason?.(isQuickChat ? undefined : folder).read(reader)
+					?? (folderTypes.some(candidate => candidate.providerId === type.providerId && candidate.sessionType.id === type.sessionType.id)
+						? undefined
+						: localize('automation.form.unsupportedTarget', "The selected session type cannot use this target.")),
+			});
+		}
+		return [...entries.values()];
 	});
 }
 
@@ -1023,6 +1063,7 @@ export function renderForm(
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 	allowedProviders: IObservable<readonly string[]>,
 	getProviderConfiguration: (providerId: string | undefined) => IAutomationProviderConfiguration | undefined = () => undefined,
+	isEdit = false,
 ): IRenderFormHandle {
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
@@ -1109,12 +1150,17 @@ export function renderForm(
 	// The picker is authoritative for the session type
 	const providerConfiguration = observableValue<IAutomationProviderConfiguration | undefined>(form, getProviderConfiguration(state.providerId));
 	const isolationModel = new AutomationIsolationModel(state);
-	const workspaceControlsVisible = derived(reader => providerConfiguration.read(reader) === undefined && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader) !== undefined);
+	const workspaceControlsVisible = derived(reader => {
+		const folder = isolationModel.folderUriObs.read(reader);
+		return providerConfiguration.read(reader) === undefined && !isolationModel.isQuickChatObs.read(reader) && folder !== undefined && folder.scheme !== GITHUB_REMOTE_FILE_SCHEME;
+	});
+	const sessionTypeEntries = getAutomationSessionTypeEntries(sessionsManagementService, allowedProviders, isolationModel.folderUriObs, isolationModel.isQuickChatObs, getProviderConfiguration);
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
 		persistSelection: false,
-		preserveUnavailableSelection: true,
+		preserveUnavailableSelection: isEdit,
 		telemetrySource: 'AutomationSessionTypePicker',
 		allowedProviders,
+		sessionTypes: sessionTypeEntries,
 		isSessionTypeAllowed: (providerId, sessionTypeId) => getProviderConfiguration(providerId)?.sessionTypes.includes(sessionTypeId) ?? true,
 	}));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
@@ -1122,7 +1168,7 @@ export function renderForm(
 		initialPick: state.sessionTypeId
 			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
 			: undefined,
-		preserveUnavailableInitialPick: true,
+		preserveUnavailableInitialPick: initialTarget !== undefined,
 	});
 	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
 	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
@@ -1135,6 +1181,10 @@ export function renderForm(
 		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
+		const entries = sessionTypeEntries.get();
+		state.targetDisabledReason = pick
+			? entries.find(entry => entry.providerId === pick.providerId && entry.sessionType.id === pick.sessionTypeId)?.disabledReason
+			: state.folderUri ? entries.find(entry => entry.disabledReason !== undefined)?.disabledReason : undefined;
 		const configuration = getProviderConfiguration(state.providerId);
 		providerConfiguration.set(configuration, undefined);
 		state.timeZone = configuration?.timeZone;
@@ -1165,6 +1215,11 @@ export function renderForm(
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
 	workspacePicker.canBrowseGitHub = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
+	workspacePicker.onSelectionError = error => {
+		logService.error('[AutomationDialog] Failed to select a workspace.', error);
+		sessionConfigurationError.textContent = getErrorMessage(error);
+		DOM.show(sessionConfigurationError);
+	};
 
 	const automationSessionDraftSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(
 		sessionsManagementService,
@@ -1195,7 +1250,7 @@ export function renderForm(
 		const folderUri = isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
-		if (!pick || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
+		if (!pick || state.targetDisabledReason !== undefined || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
 		}
@@ -1230,6 +1285,8 @@ export function renderForm(
 	}));
 	disposables.add(autorun(reader => {
 		allowedProviders.read(reader);
+		sessionTypeEntries.read(reader);
+		syncStateFromPicker();
 		updateAutomationSessionTarget();
 		revalidate();
 	}));
@@ -1512,6 +1569,7 @@ export function renderForm(
 		DOM.clearNode(toolsContainer);
 		setAutomationControlVisible(providerDetails, configuration !== undefined);
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeUtc', "Time (UTC)") : localize('automation.form.time', "Time");
+		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (configuration === undefined || state.providerId === undefined) {
 			selectedTools = undefined;
 			previousProvider = state.providerId;
@@ -1536,7 +1594,7 @@ export function renderForm(
 			const row = DOM.append(toolsContainer, $('.automation-form-checkbox-row'));
 			const checkbox = toolDisposables.add(new Checkbox(tool.label, selectedTools?.includes(tool.id) === true, defaultCheckboxStyles));
 			row.appendChild(checkbox.domNode);
-			const label = DOM.append(row, $('span', undefined, tool.label));
+			const label = DOM.append(row, $('span.automation-form-checkbox-label', undefined, tool.label));
 			const update = () => {
 				const tools = new Set(selectedTools ?? []);
 				if (checkbox.checked) {
@@ -1702,6 +1760,8 @@ export function updateSaveButtonState(
 		: undefined;
 	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
 		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another provider, duplicate this automation. The original keeps its schedule until you disable it.");
+	} else if (state.targetDisabledReason !== undefined) {
+		validation.sessionTypeError = state.targetDisabledReason;
 	} else if (!providerAvailable) {
 		validation.sessionTypeError = localize('automation.form.hostUnavailable', "Choose an available provider that supports automations.");
 	} else if (!state.sessionTypeId || !state.providerId) {
@@ -1730,7 +1790,9 @@ export function updateSaveButtonState(
 export class AutomationsWorkspacePicker extends WorkspacePicker {
 	private readonly targetModelWatch = this._register(new MutableDisposable<IDisposable>());
 	private targetModel: AutomationIsolationModel | undefined;
+	private selectionGeneration = 0;
 	canBrowseGitHub: () => boolean = () => false;
+	onSelectionError: (error: unknown) => void = onUnexpectedError;
 
 	setTargetModel(model: AutomationIsolationModel): void {
 		this.targetModel = model;
@@ -1766,9 +1828,39 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+		const generation = ++this.selectionGeneration;
+		const action = item.browseAction ?? (item.browseActionIndex === undefined ? undefined : this._getAllBrowseActions()[item.browseActionIndex]);
+		if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB) {
+			try {
+				await Promise.resolve();
+				if (generation !== this.selectionGeneration || this._store.isDisposed || !this.canBrowseGitHub()) {
+					return false;
+				}
+				const workspace = await action.run(this.selectedResolved?.workspace, { preferRemote: true });
+				const folder = workspace?.folders[0]?.root;
+				if (!folder || generation !== this.selectionGeneration || this._store.isDisposed || !this.canBrowseGitHub()) {
+					return false;
+				}
+				if (this.options.canSelectWorkspace && !await this.options.canSelectWorkspace(folder, action.providerId)) {
+					return false;
+				}
+				if (generation !== this.selectionGeneration || this._store.isDisposed || !this.canBrowseGitHub()) {
+					return false;
+				}
+				// Automation repository targets stay remote even when a matching local checkout exists.
+				this.setSelectedWorkspace(folder, { providerId: action.providerId, persist: false });
+				this.targetModel?.setQuickChat(false, folder);
+				return true;
+			} catch (error) {
+				if (!isCancellationError(error) && generation === this.selectionGeneration && !this._store.isDisposed) {
+					this.onSelectionError(error);
+				}
+				return false;
+			}
+		}
 		const applied = await super._dispatchPickerItem(item);
 		const selectedFolder = this.selectedFolderUri;
-		if (applied && selectedFolder && (item.folderUri || item.browseActionIndex !== undefined)) {
+		if (applied && selectedFolder && (item.folderUri || action)) {
 			this.targetModel?.setQuickChat(false, selectedFolder);
 		}
 		return applied;

@@ -829,6 +829,29 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('remote-only browse uses the repository picker on desktop without offering a clone', async () => {
+		const options: boolean[] = [];
+		let authenticated = false;
+		const gitHubService = new class extends TestGitHubService {
+			override async authenticateForRepositoryAccess(): Promise<void> { authenticated = true; }
+		}();
+		const provider = createProvider(disposables, model, {
+			providerMode: 'sandbox',
+			gitHubService,
+			repositoryPicker: {
+				pickRepository: async (_getRepositories, pickerOptions) => {
+					options.push(pickerOptions?.preferRemote === true);
+					return { repository: 'example/private' };
+				},
+				dispose: () => { },
+			},
+		});
+		const workspace = await provider.browseActions[0].run(undefined, { preferRemote: true });
+		assert.deepStrictEqual({ authenticated, options, root: workspace?.folders[0]?.root.toString() }, {
+			authenticated: true, options: [true], root: 'github-remote-file://github/example/private/HEAD',
+		});
+	});
+
 	for (const changesWhilePicking of [false, true]) {
 		(isWeb ? test : test.skip)(`rejects enterprise identities instead of creating github.com workspaces (changes during picker: ${changesWhilePicking})`, async () => {
 			const gitHubService = new TestGitHubService();
@@ -1377,6 +1400,19 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 2);
+	});
+
+	test('projects the cloud automation marker without hiding runs from the session resolver', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/automation-task');
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, metadata: { isAutomation: true } }));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const values: boolean[] = [];
+		disposables.add(autorun(reader => values.push(session.isAutomation?.read(reader) ?? false)));
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, metadata: {} }));
+		assert.deepStrictEqual({ values, resource: session.resource.toString(), count: provider.getSessions().length }, {
+			values: [true, false], resource: resource.toString(), count: 1,
+		});
 	});
 
 	test('adapts and atomically refreshes aggregate change metadata without synthetic file changes', () => {

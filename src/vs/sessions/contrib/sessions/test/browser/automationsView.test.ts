@@ -39,6 +39,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -47,7 +48,7 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -152,7 +153,9 @@ async function waitForSessionActions(): Promise<void> {
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
-	override getProviderConfiguration() { return undefined; }
+	configuration: IAutomationProviderConfiguration | undefined;
+	override getProviderConfiguration() { return this.configuration; }
+	override refresh?: () => Promise<void>;
 	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly catalogueStateValue = observableValue<AutomationCatalogueState>(this, 'loading');
@@ -621,13 +624,15 @@ suite('AutomationsCardsWidget', () => {
 		return !!button && button.style.display !== 'none';
 	}
 
-	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService, storageService?: IStorageService) {
+	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService, storageService?: IStorageService, refresh?: () => Promise<void>) {
 		const automationService = new FakeAutomationService();
+		automationService.refresh = refresh;
 		const automationDialogService = new FakeAutomationDialogService();
 		const agentPluginService = new FakeAgentPluginService();
 		const contextMenuService = new TestContextMenuService();
 		const dialogService = new FakeDialogService();
 		const openerService = new FakeOpenerService();
+		const notificationErrors: Parameters<INotificationService['error']>[0][] = [];
 		const runner = new FakeRunner();
 		const sessionsManagementService = disposables.add(new FakeSessionsManagementService());
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
@@ -650,6 +655,9 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IContextMenuService, contextMenuService);
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: Parameters<INotificationService['error']>[0]): void { notificationErrors.push(message); }
+		}());
 		instantiationService.stub(IAutomationRunner, runner);
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
@@ -698,7 +706,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, openerService, runner, sessionsManagementService, sessionsService, telemetryService, widget };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, notificationErrors, openerService, runner, sessionsManagementService, sessionsService, telemetryService, widget };
 	}
 
 	test('reports the Automations view when rendered', () => {
@@ -831,18 +839,18 @@ suite('AutomationsCardsWidget', () => {
 			externalResource: URI.parse('https://github.com/example/private/tasks/cloud-task?author=octocat'),
 		})]);
 		const row = widget.element.querySelector('.automations-temporary-run');
-		const actions = Array.from(row?.querySelectorAll<HTMLButtonElement>('.monaco-button') ?? []);
-		actions[0].click();
+		const actions = Array.from(row?.querySelectorAll<HTMLElement>('.action-label') ?? []);
+		row?.querySelector<HTMLElement>('.session-main')?.click();
 		await sessionsService.openGate.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			status: row?.querySelector('.session-description')?.textContent,
-			actions: actions.map(button => button.textContent),
+			actions: actions.map(button => button.getAttribute('aria-label')),
 			openCalls: sessionsService.openCalls,
 			openedResources: sessionsService.openedResources.map(resource => resource.toString()),
 			errors: dialogService.errors,
 		}, {
-			status: 'Completed on GitHub', actions: ['Open Session', 'Open on GitHub'], openCalls: 1,
+			status: 'Completed on GitHub', actions: ['Open on GitHub'], openCalls: 1,
 			openedResources: ['copilot-cloud-agent:/task/cloud-task'], errors: [],
 		});
 	});
@@ -854,7 +862,7 @@ suite('AutomationsCardsWidget', () => {
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running', sessionResource: resource, externalResource }), run({ id: 'local-run' })]);
-		const beforeLoading = Array.from(widget.element.querySelectorAll('.automations-temporary-run .monaco-button'), button => button.textContent);
+		const beforeLoading = Array.from(widget.element.querySelectorAll('.automations-temporary-run .action-label'), button => button.getAttribute('aria-label'));
 
 		sessionsManagementService.addSession(resource, 'Cloud automation run');
 		await waitForSessionActions();
@@ -894,7 +902,7 @@ suite('AutomationsCardsWidget', () => {
 			sessionOpenCalls: sessionsService.openCalls,
 			cancelCalls: sessionsManagementService.cancelCurrentRequestCalls,
 		}, {
-			beforeLoading: ['Open Session', 'Open on GitHub'],
+			beforeLoading: ['Open on GitHub'],
 			temporaryRows: 0,
 			gitHubActions: 1,
 			localHasGitHubAction: false,
@@ -963,7 +971,7 @@ suite('AutomationsCardsWidget', () => {
 			await waitForSessionActions();
 			const button = sessionLoaded
 				? getSessionAction(widget, 'Open on GitHub')
-				: [...widget.element.querySelectorAll<HTMLElement>('.automations-temporary-run .monaco-button')].find(button => button.textContent === 'Open on GitHub');
+				: widget.element.querySelector<HTMLElement>('.automations-temporary-run .action-label');
 			assert.ok(button);
 			button.click();
 			await dialogService.errorCalled.p;
@@ -977,6 +985,78 @@ suite('AutomationsCardsWidget', () => {
 			});
 		});
 	}
+
+	test('does not offer a local Stop action for a remotely running cloud task', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		const resource = URI.parse('copilot-cloud-agent:/task/cloud-task');
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running', sessionResource: resource, externalResource: URI.parse('https://github.com/example/private/tasks/cloud-task') })]);
+		sessionsManagementService.addSession(resource, 'Cloud run');
+		await waitForSessionActions();
+		assert.deepStrictEqual({
+			localStop: !!getSessionAction(widget, 'Stop'),
+			openOnGitHub: !!getSessionAction(widget, 'Open on GitHub'),
+		}, { localStop: false, openOnGitHub: true });
+	});
+
+	test('cancelled GitHub opens do not produce an error or open a local session', async () => {
+		const { automationService, openerService, dialogService, sessionsService, widget } = setup();
+		openerService.result = false;
+		automationService.setRuns([run({ externalResource: URI.parse('https://github.com/example/private/tasks/exact-task') })]);
+		widget.element.querySelector<HTMLElement>('.automations-temporary-run .action-label')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ errors: dialogService.errors, openedSessions: sessionsService.openCalls }, { errors: [], openedSessions: 0 });
+	});
+
+	test('queued rows open their exact task after reordering runs with identical titles', async () => {
+		const { automationService, openerService, sessionsService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const first = run({ id: 'first', status: 'pending', sessionResource: URI.parse('copilot-cloud-agent:/task/first'), externalResource: URI.parse('https://github.com/example/private/tasks/first') });
+		const second = run({ id: 'second', status: 'pending', sessionResource: URI.parse('copilot-cloud-agent:/task/second'), externalResource: URI.parse('https://github.com/example/private/tasks/second') });
+		automationService.setRuns([first, second]);
+		automationService.setRuns([second, first]);
+		const rows = [...widget.element.querySelectorAll<HTMLElement>('.automations-temporary-run')];
+		const title = rows[0].querySelector<HTMLElement>('.session-title')!;
+		title.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		rows[1].querySelector<HTMLElement>('.action-label')!.click();
+		await sessionsService.openGate.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			titles: rows.map(row => row.querySelector('.session-title')?.textContent),
+			opened: sessionsService.openedResources.map(resource => resource.toString()),
+			external: openerService.openedResources,
+		}, { titles: ['Daily review', 'Daily review'], opened: ['copilot-cloud-agent:/task/second'], external: ['https://github.com/example/private/tasks/first'] });
+	});
+
+	test('refreshes on opening and keeps the empty state loading until refresh completes', async () => {
+		const refresh = new DeferredPromise<void>();
+		let refreshes = 0;
+		const { automationService, widget } = setup('archive', NullHoverService, undefined, undefined, () => { refreshes++; return refresh.p; });
+		automationService.setCatalogueState('ready');
+		const loading = widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display;
+		await refresh.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			refreshes, loading, empty: widget.element.querySelector<HTMLElement>('.automations-cards-empty')?.style.display,
+		}, { refreshes: 1, loading: '', empty: '' });
+	});
+
+	test('cloud cards show an accessible cloud icon and enable directly without editing', async () => {
+		const { automationService, automationDialogService, instantiationService, widget, notificationErrors } = setup();
+		automationService.configuration = { sessionTypes: ['cloud'], label: 'GitHub Cloud', description: '', timeZone: 'UTC', defaultEnabled: false, tools: [] };
+		const item = automation({ enabled: false });
+		automationService.setAutomations([item]);
+		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, item));
+		assert.deepStrictEqual({
+			icon: !!widget.element.querySelector('.automations-card-folder .codicon-cloud'),
+			metadata: widget.element.querySelector('.automations-card-folder')?.textContent,
+			accessibleLabel: widget.element.querySelector('.automations-card-folder')?.getAttribute('aria-label'),
+			enabled: automationService.automations.get()[0].enabled,
+			dialogs: automationDialogService.showCalls, errors: notificationErrors,
+		}, { icon: true, metadata: 'workspace', accessibleLabel: 'GitHub Cloud · workspace', enabled: true, dialogs: 0, errors: [] });
+	});
 
 	test('automation updates preserve card identity and focus', () => {
 		const { automationService, widget } = setup();
@@ -2288,7 +2368,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('disable conflicts are logged and reported to the user', async () => {
-		const { automationService, dialogService, instantiationService, logService } = setup();
+		const { automationService, notificationErrors, instantiationService, logService } = setup();
 		const source = automation();
 		automationService.setAutomations([source]);
 		automationService.updateResult = { kind: 'conflict', current: automation({ prompt: 'Changed' }) };
@@ -2296,24 +2376,20 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(command);
 
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		await dialogService.errorCalled.p;
 
 		assert.deepStrictEqual({
 			automationEnabled: automationService.automations.get()[0].enabled,
 			loggedErrors: logService.errors.map(entry => entry.message),
-			dialogErrors: dialogService.errors,
+			notificationErrors,
 		}, {
 			automationEnabled: true,
 			loggedErrors: ['[Automations] Failed to disable automation'],
-			dialogErrors: [{
-				message: 'Failed to disable automation.',
-				detail: 'This automation changed before it could be disabled. Try again.',
-			}],
+			notificationErrors: ['Failed to disable automation: This automation changed before it could be disabled. Try again.'],
 		});
 	});
 
 	test('disable reports when the automation was deleted concurrently', async () => {
-		const { automationService, dialogService, instantiationService } = setup();
+		const { automationService, notificationErrors, instantiationService } = setup();
 		const source = automation();
 		automationService.setAutomations([source]);
 		automationService.updateResult = { kind: 'conflict', current: undefined };
@@ -2321,12 +2397,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(command);
 
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		await dialogService.errorCalled.p;
 
-		assert.deepStrictEqual(dialogService.errors, [{
-			message: 'Failed to disable automation.',
-			detail: 'This automation was deleted before it could be disabled.',
-		}]);
+		assert.deepStrictEqual(notificationErrors, ['Failed to disable automation: This automation was deleted before it could be disabled.']);
 	});
 
 	test('delete context menu action confirms before deleting the automation and its history', async () => {

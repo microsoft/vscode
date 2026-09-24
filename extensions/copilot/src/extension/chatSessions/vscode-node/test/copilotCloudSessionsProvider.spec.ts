@@ -355,6 +355,16 @@ describe('cloud session visibility', () => {
 			));
 		}
 
+		it('publishes automation provenance without filtering tasks from the cloud catalogue', async () => {
+			fetchSessionList.mockResolvedValue([session('ordinary'), { ...session('automated'), automationId: 'automation-1' }]);
+			const provider = createProvider();
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			expect(items.map(item => ({ resource: item.resource.path, automation: item.metadata?.isAutomation === true }))).toEqual([
+				{ resource: '/task/ordinary', automation: false },
+				{ resource: '/task/automated', automation: true },
+			]);
+		});
+
 		it('resolves an exact task missing from cached discovery and retains it through refresh', async () => {
 			fetchSessionList.mockResolvedValue([session('listed')]);
 			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('unlisted', now - 120 * day));
@@ -1050,6 +1060,21 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it('preserves authoritative automation IDs in both discovery and exact-task reads', async () => {
+		const task = {
+			...makeTask([], 'completed'),
+			id: 'automated-task',
+			automation_id: 'automation-1',
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		};
+		const client = new FakeTaskApiClient({ globalTasks: [task] });
+		vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const listed = await backend.fetchSessionList(undefined, true);
+		const resolved = await backend.fetchSession(task.id);
+		expect({ listed: listed[0].automationId, resolved: resolved.automationId }).toEqual({ listed: 'automation-1', resolved: 'automation-1' });
+	});
+
 	it('resolves a task directly when it is not in the global discovery page', async () => {
 		const task = {
 			...makeTask([], 'completed'),

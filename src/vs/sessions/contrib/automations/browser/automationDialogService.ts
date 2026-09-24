@@ -341,7 +341,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration(providerId));
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration(providerId), isEdit);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -369,10 +369,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						if ((saveInProgress || mutationUncertain) && saveButton) {
 							saveButton.enabled = false;
 						} else if (saveButton) {
-							const cloud = this.automationService.getProviderConfiguration(state.providerId) !== undefined;
-							saveButton.label = !isEdit && cloud && state.interval !== 'manual'
-								? state.enabled ? localize('automation.dialog.createEnabled', "Create and Enable") : localize('automation.dialog.createPaused', "Create Paused")
-								: saveButtonLabel;
+							saveButton.label = saveButtonLabel;
 						}
 					};
 					revalidate();

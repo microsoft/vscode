@@ -648,29 +648,52 @@
 	max-width: 100%;
 }
 
+.cloud-automation .automations-card-folder {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.cloud-automation .automations-card-folder > span:last-child {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
 .cloud-automation .automations-card-meta-item + .automations-card-meta-item::before {
 	content: none;
 }
 
 .automations-temporary-run.cloud-automation-run {
-	height: auto;
 	min-height: 54px;
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size80);
 }
 
 .cloud-automation-run .session-main {
-	min-width: 120px;
+	min-width: 0;
 }
 
-.automations-run-actions {
-	display: flex;
-	flex: 0 0 auto;
-	margin-left: auto;
-	gap: var(--vscode-spacing-size80);
+.cloud-automation-run.openable {
+	cursor: pointer;
 }
 
-.automations-run-actions .monaco-button {
-	width: auto;
-	white-space: nowrap;
+.cloud-automation-run.openable:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.cloud-automation-run .session-title:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.cloud-automation-run .session-title-toolbar {
+	display: none;
+	position: relative;
+	height: var(--vscode-codiconFontSize);
+}
+
+.cloud-automation-run:hover .session-title-toolbar,
+.cloud-automation-run:focus-within .session-title-toolbar,
+.phone-layout .cloud-automation-run .session-title-toolbar {
+	display: block;
 }

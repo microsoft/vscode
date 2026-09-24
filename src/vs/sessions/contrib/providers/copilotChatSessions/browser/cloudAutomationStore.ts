@@ -8,7 +8,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { LRUCache } from '../../../../../base/common/map.js';
+import { constObservable, derived, IObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isStringArray } from '../../../../../base/common/types.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -30,7 +31,9 @@ import { CloudAutomationApiClient, ICloudAutomationDefinition, ICloudAutomationM
 export const CLOUD_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.cloud.enabled';
 const REPOSITORIES_STORAGE_KEY = 'cloudAutomations.repositories';
 const HISTORY_REFRESH_MS = 30_000;
+const HISTORY_DISCOVERY_REFRESH_MS = 5_000;
 const FULL_HISTORY_REFRESH_MS = 5 * 60_000;
+const TARGET_ELIGIBILITY_CACHE_LIMIT = 100;
 
 interface ICloudAutomationEntry {
 	readonly repository: ICloudAutomationRepository;
@@ -53,6 +56,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	private readonly entries = new Map<string, ICloudAutomationEntry>();
 	private readonly repositories = new Map<string, ICloudAutomationRepository>();
 	private readonly mutations = new SequencerByKey<string>();
+	private readonly targetEligibility = new LRUCache<string, IObservable<string | undefined>>(TARGET_ELIGIBILITY_CACHE_LIMIT);
+	private readonly targetEligibilityReset = observableSignal(this);
+	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(4));
 	private readonly historyLimiter = this._register(new Limiter<void>(4));
 	private readonly historyRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly historyScheduler: RunOnceScheduler;
@@ -61,7 +67,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	private refreshPromise: Promise<void> | undefined;
 	private historyObservers = 0;
 	private historyLoaded = false;
-	private lastFullHistoryRefresh = 0;
+	private lastFullHistoryRefresh: number | undefined;
+	private historyRefreshVersion = 0;
 	private historyRetryAfter = 0;
 	private readonly requestedHistory = new Map<string, number>();
 	private historyRefreshPromise: Promise<void> | undefined;
@@ -82,9 +89,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.configuration = {
 			sessionTypes: [sessionTypeId],
 			label: localize('cloudAutomations.provider', "GitHub Cloud"),
-			description: localize('cloudAutomations.description', "Runs on GitHub even when VS Code is closed and may consume credits. Requires a private repository. Schedule times are UTC."),
+			description: localize('cloudAutomations.description', "Runs on GitHub even when VS Code is closed and may consume credits. Requires a private repository."),
 			timeZone: 'UTC',
 			defaultEnabled: false,
+			getTargetDisabledReason: workspace => this.getTargetDisabledReason(workspace),
 			tools: [
 				{ id: 'read', label: localize('cloudAutomations.read', "Read Files") },
 				{ id: 'edit', label: localize('cloudAutomations.edit', "Edit Files") },
@@ -109,9 +117,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.runs = derived(this, reader => {
 			this.historyObservers++;
 			if (!this.historyScheduler.isScheduled() && this.historyRefreshPromise === undefined) {
-				this.scheduleHistory(this.historyLoaded ? HISTORY_REFRESH_MS : 0);
+				this.scheduleHistory(0);
 			}
-			reader.store.add(toDisposable(() => {
+			// Retain observation across recomputation so publishing history does not cancel its own request.
+			reader.delayedStore.add(toDisposable(() => {
 				if (--this.historyObservers === 0) {
 					this.historyScheduler.cancel();
 					this.historyRequest.value?.cancel();
@@ -129,6 +138,69 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}));
 		this._register(toDisposable(() => this.lifetime.dispose(true)));
 		this.reset();
+	}
+
+	override dispose(): void {
+		this.historyRequest.value?.cancel();
+		this.lifetime.cancel();
+		this.targetEligibility.clear();
+		super.dispose();
+		this.targetEligibilityReset.trigger(undefined);
+	}
+
+	private getTargetDisabledReason(workspace: URI | undefined): IObservable<string | undefined> {
+		const requiredRepository = localize('cloudAutomations.privateRepositoryTarget', "Requires a private repository");
+		if (workspace === undefined) {
+			return constObservable(requiredRepository);
+		}
+		let repository: ICloudAutomationRepository | undefined;
+		try {
+			repository = this.tryResolveRepository(workspace);
+		} catch (error) {
+			this.logService.warn('[CloudAutomations] Repository resolution failed', error);
+			return constObservable(localize('cloudAutomations.repositoryCheckFailed', "Unable to verify repository visibility."));
+		}
+		if (repository === undefined) {
+			return constObservable(requiredRepository);
+		}
+		const account = this.accountName.get();
+		if (account === undefined || this._store.isDisposed || this.lifetime.token.isCancellationRequested) {
+			return constObservable(this.unavailableReason.get() ?? localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable."));
+		}
+		const key = repositoryKey(repository);
+		const cached = this.targetEligibility.get(key);
+		if (cached !== undefined) {
+			return cached;
+		}
+		const generation = this.generation;
+		const token = this.lifetime.token;
+		const reason = observableValue<string | undefined>(this, localize('cloudAutomations.checkingRepository', "Checking repository visibility..."));
+		const eligibility = derived(this, reader => {
+			this.targetEligibilityReset.read(reader);
+			if (generation !== this.generation || this._store.isDisposed) {
+				return this.unavailableReason.read(reader) ?? localize('cloudAutomations.targetRecheck', "Repository access must be verified again.");
+			}
+			return reason.read(reader);
+		});
+		this.targetEligibility.set(key, eligibility);
+		void this.targetEligibilityLimiter.queue(async () => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			let disabledReason: string | undefined;
+			try {
+				disabledReason = await this.api.isPrivateRepository(account, repository, token) ? undefined : requiredRepository;
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.warn('[CloudAutomations] Repository visibility check failed', error);
+				}
+				disabledReason = localize('cloudAutomations.repositoryCheckFailed', "Unable to verify repository visibility.");
+			}
+			if (generation === this.generation && !this._store.isDisposed && !token.isCancellationRequested) {
+				reason.set(disabledReason, undefined);
+			}
+		});
+		return eligibility;
 	}
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
@@ -250,17 +322,15 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		try {
 			await this.api.run(account, entry.repository, current.id, Object.keys(current.triggers ?? {}).length === 0 ? 'manual' : 'interval', token);
 		} catch (error) {
-			if (error instanceof AutomationMutationUncertainError && this.accountName.get() === account) {
+			if (error instanceof AutomationMutationUncertainError && this.accountName.get() === account && !this._store.isDisposed) {
 				this.requestedHistory.set(id, Date.now() + 2 * 60_000);
-				if (this.historyObservers > 0) {
-					this.scheduleHistory(1000);
-				}
+				this.scheduleHistory(HISTORY_DISCOVERY_REFRESH_MS);
 			}
 			throw error;
 		}
-		if (this.accountName.get() === account && !this._store.isDisposed && this.historyObservers > 0) {
+		if (this.accountName.get() === account && !this._store.isDisposed) {
 			this.requestedHistory.set(id, Date.now() + 2 * 60_000);
-			this.scheduleHistory(1000);
+			this.scheduleHistory(HISTORY_DISCOVERY_REFRESH_MS);
 		}
 		return { kind: 'accepted' };
 	}
@@ -277,8 +347,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.historyRefreshPromise = undefined;
 		this.entries.clear();
 		this.repositories.clear();
+		this.targetEligibility.clear();
 		this.historyLoaded = false;
-		this.lastFullHistoryRefresh = 0;
+		this.lastFullHistoryRefresh = undefined;
 		this.historyRetryAfter = 0;
 		this.requestedHistory.clear();
 		const enabled = this.configurationService.getValue<boolean>(CLOUD_AUTOMATIONS_ENABLED_SETTING) === true
@@ -294,6 +365,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			this.definitionState.set(!enabled ? 'ready' : name === undefined ? 'unavailable' : 'loading', tx);
 			this.historyFailed.set(false, tx);
 			this.unavailableReason.set(enabled && name === undefined ? localize('cloudAutomations.signIn', "Sign in to GitHub.com with repository access to manage cloud automations.") : undefined, tx);
+			this.targetEligibilityReset.trigger(tx);
 		});
 		if (name === undefined) {
 			return;
@@ -321,7 +393,6 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	async refresh(): Promise<void> {
 		this.refreshScheduler.cancel();
-		this.lastFullHistoryRefresh = 0;
 		if (this.accountName.get() === undefined) {
 			return;
 		}
@@ -331,6 +402,15 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 		const account = this.requireAccount();
 		const generation = this.generation;
+		if (this.definitionState.get() !== 'loading') {
+			this.targetEligibility.clear();
+		}
+		this.lastFullHistoryRefresh = undefined;
+		this.historyRefreshVersion++;
+		transaction(tx => {
+			this.definitionState.set('loading', tx);
+			this.unavailableReason.set(undefined, tx);
+		});
 		const refresh = (async () => {
 			for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
 				const uri = recent.workspace.folders[0]?.root;
@@ -384,6 +464,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private async refreshHistory(): Promise<void> {
+		if (this._store.isDisposed || this.historyObservers === 0 || this.accountName.get() === undefined || this.definitionState.get() === 'loading') {
+			return;
+		}
 		if (this.historyRefreshPromise !== undefined) {
 			return this.historyRefreshPromise;
 		}
@@ -404,12 +487,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			return;
 		}
 		const generation = this.generation;
+		const refreshVersion = this.historyRefreshVersion;
 		const cancellation = new CancellationTokenSource(this.lifetime.token);
 		this.historyRequest.value = cancellation;
 		const token = cancellation.token;
 		const retained = [...this.history.get()];
 		const now = Date.now();
-		const fullRefresh = !this.historyLoaded || now - this.lastFullHistoryRefresh >= FULL_HISTORY_REFRESH_MS;
+		const fullRefresh = !this.historyLoaded || this.lastFullHistoryRefresh === undefined || now - this.lastFullHistoryRefresh >= FULL_HISTORY_REFRESH_MS;
 		const activeDefinitions = new Set(retained.filter(run => run.status === 'pending' || run.status === 'running').map(run => run.automationId));
 		for (const [id, until] of this.requestedHistory) {
 			if (until <= now || !this.entries.has(id)) {
@@ -421,7 +505,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const collected = retained.filter(run => !refreshedIds.has(run.automationId));
 		try {
 			await Promise.all(entries.map(([id, entry]) => this.historyLimiter.queue(async () => {
+				if (token.isCancellationRequested) {
+					return;
+				}
 				const tasks = [...await this.api.listRuns(account, entry.definition.id, token)];
+				if (token.isCancellationRequested) {
+					return;
+				}
 				const listed = new Set(tasks.map(task => task.id));
 				const olderActive = retained.filter(run => run.automationId === id && (run.status === 'pending' || run.status === 'running'));
 				for (const run of olderActive) {
@@ -441,7 +531,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			})));
 			if (generation === this.generation && !this._store.isDisposed && !token.isCancellationRequested) {
 				this.historyLoaded = true;
-				if (fullRefresh) {
+				// A catalogue refreshed during this request still needs its own full history snapshot.
+				if (fullRefresh && refreshVersion === this.historyRefreshVersion) {
 					this.lastFullHistoryRefresh = now;
 				}
 				transaction(tx => {
@@ -462,13 +553,18 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				this.historyRequest.clear();
 			}
 			if (generation === this.generation && !this._store.isDisposed && this.historyObservers > 0) {
-				this.scheduleHistory();
+				this.scheduleHistory(token.isCancellationRequested || refreshVersion !== this.historyRefreshVersion ? 0 : undefined);
 			}
 		}
 	}
 
-	private scheduleHistory(delay = HISTORY_REFRESH_MS): void {
-		this.historyScheduler.schedule(Math.max(delay, this.historyRetryAfter - Date.now()));
+	private scheduleHistory(delay?: number): void {
+		if (this._store.isDisposed || this.historyObservers === 0 || this.accountName.get() === undefined) {
+			return;
+		}
+		const now = Date.now();
+		const discovering = [...this.requestedHistory.values()].some(until => until > now);
+		this.historyScheduler.schedule(Math.max(delay ?? (discovering ? HISTORY_DISCOVERY_REFRESH_MS : HISTORY_REFRESH_MS), this.historyRetryAfter - now));
 	}
 
 	private createValue(options: ICreateAutomationOptions): ICloudAutomationMutation {
@@ -566,12 +662,17 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private repositoryFor(workspace: URI): ICloudAutomationRepository {
-		const uri = this.resolveRepositoryUri(workspace);
-		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github' ? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)\/HEAD$/.exec(uri.path) : undefined;
-		if (match?.groups === undefined) {
+		const repository = this.tryResolveRepository(workspace);
+		if (repository === undefined) {
 			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub repository for this cloud automation."));
 		}
-		return { owner: match.groups.owner, name: match.groups.name };
+		return repository;
+	}
+
+	private tryResolveRepository(workspace: URI): ICloudAutomationRepository | undefined {
+		const uri = this.resolveRepositoryUri(workspace);
+		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github' ? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)\/HEAD$/.exec(uri.path) : undefined;
+		return match?.groups ? { owner: match.groups.owner, name: match.groups.name } : undefined;
 	}
 
 	private validateTemplate(template: IAutomationSessionTemplate | undefined): void {

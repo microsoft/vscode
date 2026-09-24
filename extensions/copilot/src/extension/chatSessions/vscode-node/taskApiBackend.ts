@@ -161,9 +161,10 @@ function taskToDiffRefs(
 	return { owner: repo.owner, repo: repo.name, baseRef: branch.data.base_ref, headRef: branch.data.head_ref };
 }
 
-function taskToSessionData(task: AgentTask, repo: CloudSessionData['repo']): CloudSessionData {
+function taskToSessionData(task: AgentTask & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
 	return {
 		taskId: task.id,
+		...(typeof task.automation_id === 'string' && task.automation_id ? { automationId: task.automation_id } : {}),
 		title: task.name ?? '',
 		state: task.state,
 		createdAt: task.created_at,

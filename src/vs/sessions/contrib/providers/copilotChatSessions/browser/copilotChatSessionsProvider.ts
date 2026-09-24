@@ -142,6 +142,7 @@ export interface ICopilotChatSession {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
+	readonly isAutomation?: IObservable<boolean>;
 	/** Status description shown while the session is active (e.g., current agent action). */
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
@@ -1022,6 +1023,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly isRead: IObservable<boolean>;
+	readonly isAutomation = observableValue(this, false);
 
 	private readonly _description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
 	readonly description: IObservable<IMarkdownString | undefined>;
@@ -1149,6 +1151,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.isArchived = this._isArchived;
 		this._isRead = observableValue(this, session.isRead());
 		this.isRead = this._isRead;
+		this.isAutomation.set(session.providerType === AgentSessionProviders.Cloud && session.metadata?.isAutomation === true, undefined);
 		this._description = observableValue(this, this._extractDescription(session));
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
@@ -1198,6 +1201,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._checkpoints, this._extractCheckpoints(session), tx, structuralEquals) || changed;
 			changed = setIfChanged(this._isArchived, session.isArchived(), tx) || changed;
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
+			changed = setIfChanged(this.isAutomation, session.providerType === AgentSessionProviders.Cloud && session.metadata?.isAutomation === true, tx) || changed;
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
 			changed = setIfChanged(this._baseGitHubInfo, gitHubInfo, tx, gitHubInfoEqual) || changed;
@@ -1743,7 +1747,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			providerId: this.id,
 			attachesContext: false,
 			supportsContextAttachment: !isSandbox,
-			run: () => this._browseForRepository(),
+			run: (_workspace, options) => this._browseForRepository(options?.preferRemote),
 		};
 
 		if (isSandbox) {
@@ -3179,8 +3183,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Private --
 
-	private async _pickRepository(allowRepositoryUrl = false): Promise<string | undefined> {
-		if (isWeb) {
+	private async _pickRepository(allowRepositoryUrl = false, preferRemote = false): Promise<string | undefined> {
+		if (isWeb || preferRemote) {
 			const store = new DisposableStore();
 			this._repositoryPicker.value = store;
 			const token = cancelOnDispose(store);
@@ -3202,7 +3206,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 					checkHost();
 					return repositories.map(repository => repository.fullName);
-				}, undefined, token);
+				}, preferRemote ? { preferRemote: true } : undefined, token);
 				if (selection) {
 					checkHost();
 				}
@@ -3227,9 +3231,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		);
 	}
 
-	private async _browseForRepository(): Promise<ISessionWorkspace | undefined> {
-		const allowRepositoryUrl = this._supportsLocalRepositoryActions();
-		const repository = await this._pickRepository(allowRepositoryUrl);
+	private async _browseForRepository(preferRemote = false): Promise<ISessionWorkspace | undefined> {
+		const allowRepositoryUrl = !preferRemote && this._supportsLocalRepositoryActions();
+		const repository = await this._pickRepository(allowRepositoryUrl, preferRemote);
 		if (!repository) {
 			return undefined;
 		}
@@ -3924,6 +3928,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mode: primaryChat.mode,
 			loading: primaryChat.loading,
 			isArchived: primaryChat.isArchived,
+			isAutomation: primaryChat.isAutomation,
 			isRead: chatsObs.map((chats, reader) => chats.every(c => c.isRead.read(reader))),
 			description: primaryChat.description,
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
@@ -3968,6 +3973,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mode: chat.mode,
 			loading: chat.loading,
 			isArchived: chat.isArchived,
+			isAutomation: chat.isAutomation,
 			isRead: chat.isRead,
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,

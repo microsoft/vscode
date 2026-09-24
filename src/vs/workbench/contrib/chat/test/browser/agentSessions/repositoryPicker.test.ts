@@ -183,6 +183,22 @@ suite('RepositoryPicker', () => {
 		]);
 	});
 
+	test('remote targets accept GitHub URLs without a clone action or filtered-out results', async () => {
+		const { picker, quickPicks } = createPicker();
+		const queries: string[] = [];
+		const result = picker.pickRepository(async query => { queries.push(query); return []; }, { preferRemote: true, allowRepositoryUrl: true });
+		await clock.tickAsync(0);
+		const quickPick = quickPicks[0];
+		quickPick.changeValue('https://github.com/example/private-repo.git');
+		await clock.tickAsync(300);
+		const items = quickPick.items;
+		quickPick.acceptItem();
+		assert.deepStrictEqual({ items, queries, selection: await result }, {
+			items: [{ label: 'example/private-repo', repository: 'example/private-repo', alwaysShow: true }],
+			queries: [''], selection: { repository: 'example/private-repo' },
+		});
+	});
+
 	test('debounces searches and replaces the repository list', async () => {
 		const { picker, quickPicks } = createPicker();
 		const queries: string[] = [];

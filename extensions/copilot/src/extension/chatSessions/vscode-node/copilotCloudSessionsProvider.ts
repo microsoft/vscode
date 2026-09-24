@@ -1451,7 +1451,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			status: taskStateToChatSessionStatus(entry.state),
 			...(pr ? { badge: this.getPullRequestBadge(repoIds, pr), tooltip: this.createPullRequestTooltip(pr) } : {}),
 			...(changes?.length ? { changes } : {}),
-			...(metadata ? { metadata } : {}),
+			...(metadata || entry.automationId ? { metadata: { ...metadata, ...(entry.automationId ? { isAutomation: true } : {}) } } : {}),
 			...(Number.isFinite(createdAt) && createdAt > 0 ? {
 				timing: { created: createdAt, startTime: createdAt, endTime: Number.isFinite(completedAt) && completedAt > 0 ? completedAt : undefined },
 			} : {}),
