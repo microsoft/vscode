@@ -675,12 +675,16 @@ suite('ChatPetWidget', () => {
 		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new input');
 		const frames = drawImage.getCalls().map(call => call.args[1] / 96)
 			.filter((frame, index, allFrames) => index === 0 || frame !== allFrames[index - 1]);
+		const respawnIndex = frames.indexOf(0);
 
 		assert.deepStrictEqual({
 			departure,
 			respawn,
 			duringFall,
-			frames,
+			// Elapsed-time animation can skip intermediate frames when callbacks run late.
+			frameEndpoints: [frames[0], frames[respawnIndex], frames.at(-1)],
+			framesInOrder: frames.every((frame, index) => index === 0
+				|| (index <= respawnIndex ? frame < frames[index - 1] : frame > frames[index - 1])),
 			attached: overlay.parentElement === firstParent,
 			landed: button.getBoundingClientRect().bottom,
 			effectHidden: effect.classList.contains('hidden'),
@@ -690,7 +694,8 @@ suite('ChatPetWidget', () => {
 			departure: { left: source.left, top: source.top, hidden: true },
 			respawn: { top: root.getBoundingClientRect().top, aboveInput: true },
 			duringFall: { state: 'falling', effectHidden: true, aboveInput: true, tabIndex: -1 },
-			frames: [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5],
+			frameEndpoints: [5, 0, 5],
+			framesInOrder: true,
 			attached: true,
 			landed: targetTop,
 			effectHidden: true,
