@@ -419,11 +419,11 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 			if (picker.isVisible) {
 				picker.hide();
 			} else {
-				picker.show(anchor, pickerContext, undefined, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
+				picker.show(anchor, pickerContext, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
 			}
 		}));
 	}
-	picker.show(anchor, pickerContext, undefined, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
+	picker.show(anchor, pickerContext, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
 
 	if (options.expandOther) {
 		[...container.querySelectorAll<HTMLElement>('.monaco-list-row.action')]

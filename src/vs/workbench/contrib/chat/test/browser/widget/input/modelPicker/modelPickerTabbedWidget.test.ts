@@ -406,7 +406,7 @@ suite('TabbedModelPicker', () => {
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
 		result.picker.hide();
-		result.picker.show(result.anchor, result.context, undefined, models[1].identifier);
+		result.picker.show(result.anchor, result.context, models[1].identifier);
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
 		const before = [...writes];
@@ -544,7 +544,7 @@ suite('TabbedModelPicker', () => {
 				getModelConfigurationActions: () => [],
 				setModelConfiguration: async (_id, values) => { Object.assign(secondValues, values); },
 			},
-		}, undefined, models[1].identifier);
+		}, models[1].identifier);
 		element(result.popup, '.chat-model-card [aria-label="Context"] [role="radio"]:last-child').click();
 		await timeout(0);
 		const before = { first: { ...firstValues }, second: { ...secondValues } };
