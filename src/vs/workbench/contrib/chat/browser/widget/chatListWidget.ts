@@ -42,7 +42,7 @@ import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatConte
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { getLinkTarget, removeUnrenderedChatClipboardContent, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -767,16 +767,6 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		// Cloning a range never yields the anchors around it, so ask the selection what it
-		// touches: otherwise a selection inside a link looks clean while the browser still
-		// copies the enclosing anchor.
-		// eslint-disable-next-line no-restricted-syntax
-		const touched = Array.from(this._container.querySelectorAll('a, img'))
-			.filter(element => selection.containsNode(element, true));
-		if (!touched.length) {
-			return;
-		}
-
 		const ranges: Range[] = [];
 		for (let i = 0; i < selection.rangeCount; i++) {
 			const range = selection.getRangeAt(i);
@@ -787,7 +777,9 @@ export class ChatListWidget extends Disposable {
 		}
 
 		const fragments = ranges.map(range => this.cloneSelectedContents(range));
-		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
+		const removedUnrenderedText = fragments.flatMap(fragment => removeUnrenderedChatClipboardContent(fragment));
+		const sanitizedTargets = fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean);
+		if (!removedUnrenderedText.length && !sanitizedTargets) {
 			return;
 		}
 
@@ -796,7 +788,14 @@ export class ChatListWidget extends Disposable {
 			holder.appendChild(fragment);
 		}
 
-		e.clipboardData.setData(Mimes.text, selection.toString());
+		let text = selection.toString();
+		for (const omitted of removedUnrenderedText.reverse()) {
+			const index = text.lastIndexOf(omitted);
+			if (index >= 0) {
+				text = text.slice(0, index) + text.slice(index + omitted.length);
+			}
+		}
+		e.clipboardData.setData(Mimes.text, removedUnrenderedText.length ? text.trimEnd() : text);
 		e.clipboardData.setData(Mimes.html, holder.innerHTML);
 		e.preventDefault();
 	}

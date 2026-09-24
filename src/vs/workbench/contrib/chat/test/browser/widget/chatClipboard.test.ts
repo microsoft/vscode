@@ -7,7 +7,7 @@ import assert from 'assert';
 import { convertHtmlToMarkdown } from '../../../../../../base/browser/htmlToMarkdown.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { sanitizeChatClipboardFragment, toPortableMarkdown } from '../../../browser/widget/chatClipboard.js';
+import { removeUnrenderedChatClipboardContent, sanitizeChatClipboardFragment, toPortableMarkdown } from '../../../browser/widget/chatClipboard.js';
 
 function toFragment(html: string): DocumentFragment {
 	const template = document.createElement('template');
@@ -33,6 +33,24 @@ suite('ChatClipboard', () => {
 				sanitizeChatClipboardFragment(toFragment('<a href="" data-href="file:///repo/a.ts">a.ts</a>')),
 			],
 			[false, true]);
+	});
+
+	test('removes hidden transcript metadata and injected styles', () => {
+		const fragment = toFragment('<p>Selected response</p><div style="display: none;">0 files changed+0-0</div><style>.monaco-list { color: red; }</style>');
+
+		assert.deepStrictEqual({
+			removedText: removeUnrenderedChatClipboardContent(fragment),
+			text: fragment.textContent,
+			html: (() => {
+				const holder = document.createElement('div');
+				holder.appendChild(fragment);
+				return holder.innerHTML;
+			})(),
+		}, {
+			removedText: ['0 files changed+0-0', '.monaco-list { color: red; }'],
+			text: 'Selected response',
+			html: '<p>Selected response</p>',
+		});
 	});
 
 	test('replaces internal resource links with their visible label as code', () => {
