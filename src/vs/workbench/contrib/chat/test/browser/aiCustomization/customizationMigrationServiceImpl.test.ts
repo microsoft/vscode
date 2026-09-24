@@ -568,7 +568,7 @@ suite('CustomizationMigrationService', () => {
 
 		assert.deepStrictEqual(hint, {
 			migrationFlowId: 'test-migration-flow-id',
-			message: '1 workspace and 0 user customizations need an update to keep working.',
+			message: '1 workspace customization needs an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 	});
@@ -604,8 +604,6 @@ suite('CustomizationMigrationService', () => {
 
 	test('uses singular wording for a single user customization', async () => {
 		const promptsService = store.add(new TestPromptsService([
-			{ uri: URI.file('/workspace/.github/prompts/one.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
-			{ uri: URI.file('/workspace/.github/prompts/two.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 			{ uri: URI.file('/user-data/prompts/three.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
 		]));
 		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
@@ -622,11 +620,8 @@ suite('CustomizationMigrationService', () => {
 
 		assert.deepStrictEqual(hint, {
 			migrationFlowId: 'test-migration-flow-id',
-			message: '2 workspace and 1 user customizations need an update to keep working.',
-			counts: [
-				{ type: CustomizationMigrationType.UserData, count: 1 },
-				{ type: CustomizationMigrationType.PromptFiles, count: 2 },
-			],
+			message: '1 user customization needs an update to keep working.',
+			counts: [{ type: CustomizationMigrationType.UserData, count: 1 }],
 		});
 	});
 
@@ -1016,7 +1011,7 @@ suite('CustomizationMigrationService', () => {
 			disabledSourceFolderTypes: [],
 			promptOnlyHint: {
 				migrationFlowId: 'test-migration-flow-id',
-				message: '1 workspace and 0 user customizations need an update to keep working.',
+				message: '1 workspace customization needs an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
 			promptOnlyRequestedTypes: [PromptsType.prompt],
@@ -1094,7 +1089,7 @@ suite('CustomizationMigrationService', () => {
 			candidates: [{ name: 'server', source: '/workspace/.vscode/mcp.json', target: '/workspace/.mcp.json' }],
 			hint: {
 				migrationFlowId: 'test-migration-flow-id',
-				message: '1 workspace and 0 user customizations need an update to keep working.',
+				message: '1 workspace customization needs an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
