@@ -1488,7 +1488,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const database = new TestSessionDatabase();
 			const agent = await createAgent(disposables, { database });
 			const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL }, session: requestedSession });
-			const chat = defaultChatOf(session);
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			await database.createTurn('turn-1');
 			agent['_handleItemStarted'](entry, { item: command, threadId: 'thread-1', turnId: 'turn-1', startedAtMs: 0 } as never);
@@ -1512,9 +1511,15 @@ suite('CodexAgent prewarm eviction', () => {
 			results.push({
 				retainRecoveredOutput,
 				stored: await database.getTerminalOutputSize('cmd-recovered'),
-				content: content?.map(part => part.type === ToolResultContentType.Text
-					? { type: part.type, text: part.text }
-					: { type: part.type, resource: part.resource }),
+				content: content?.map(part => {
+					if (part.type === ToolResultContentType.Text) {
+						return { type: part.type, text: part.text };
+					}
+					if (part.type === ToolResultContentType.Terminal) {
+						return { type: part.type, resource: part.resource };
+					}
+					return { type: part.type };
+				}),
 			});
 		}
 

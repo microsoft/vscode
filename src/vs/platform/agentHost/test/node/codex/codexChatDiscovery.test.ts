@@ -485,9 +485,10 @@ suite('Codex chat discovery', () => {
 				{
 					type: 'commandExecution', id: 'cmd-retained', command: 'build', cwd: '/tmp',
 					processId: null, source: 'agent', status: 'completed', commandActions: [],
+					pluginId: null, scriptPath: null,
 					aggregatedOutput: output, exitCode: 0, durationMs: 5,
 				},
-				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null },
+				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
 			],
 		});
 		const retainedContent = (turns: readonly import('../../../common/state/sessionState.js').Turn[]) => {
