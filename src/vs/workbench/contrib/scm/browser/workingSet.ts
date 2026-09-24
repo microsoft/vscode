@@ -12,7 +12,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { getProviderKey } from './util.js';
 import { ISCMRepository, ISCMService } from '../common/scm.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { applyWorkingSetWithPinnedEditors } from './workingSetPins.js';
 
 type ISCMSerializedWorkingSet = {
 	readonly providerKey: string;
@@ -36,6 +38,7 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
@@ -156,7 +159,13 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 			// in which the terminal is in the editor part.
 			const preserveFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 
-			await this.editorGroupsService.applyWorkingSet(editorWorkingSetId, { preserveFocus });
+			await applyWorkingSetWithPinnedEditors(
+				this.editorGroupsService,
+				this.editorService,
+				editorWorkingSetId,
+				preserveFocus,
+				this.configurationService.getValue<boolean>('scm.workingSets.persistPins')
+			);
 		}
 	}
 
