@@ -82,6 +82,75 @@ suite('VirtualizedItemManager', () => {
 		assert.deepStrictEqual(createdTemplateIds, ['text', 'image']);
 	});
 
+	test('retains reusable templates up to the delegate limit', () => {
+		const items = Array.from({ length: 8 }, (_, index) => new TestItem(String(index), 100));
+		let createdTemplates = 0;
+		const manager = disposables.add(new VirtualizedItemManager<TestItem, TestBinding, TestTemplate>(constObservable(items), createContext(), {
+			getId: item => item.id,
+			getTemplateId: () => 'test',
+			getUnboundSize: item => item.size,
+			createTemplate: () => {
+				createdTemplates++;
+				return new TestTemplate();
+			},
+			shouldKeepUnusedTemplate: (_template, unusedTemplates) => unusedTemplates.size < 8,
+		}));
+		const virtualItems = manager.virtualizedItems.get();
+		const range = new OffsetRange(0, 100);
+		for (const item of virtualItems) {
+			item.render(range, 0, 800, range);
+		}
+		for (const item of virtualItems) {
+			item.hide();
+		}
+		for (const item of virtualItems) {
+			item.render(range, 0, 800, range);
+		}
+		assert.strictEqual(createdTemplates, 8);
+	});
+
+	test('retains and prefers lightweight and allocated templates separately', () => {
+		const items = [
+			...Array.from({ length: 3 }, (_, index) => new TestItem(`light-${index}`, 100)),
+			...Array.from({ length: 2 }, (_, index) => new TestItem(`heavy-${index}`, 100)),
+		];
+		const templates: TestTemplate[] = [];
+		const heavyTemplates = new Set<TestTemplate>();
+		const manager = disposables.add(new VirtualizedItemManager<TestItem, TestBinding, TestTemplate>(constObservable(items), createContext(), {
+			getId: item => item.id,
+			getTemplateId: () => 'test',
+			getUnboundSize: item => item.size,
+			createTemplate: () => {
+				const template = new TestTemplate();
+				templates.push(template);
+				return template;
+			},
+			preferUnusedTemplate: (item, template) => heavyTemplates.has(template) === item.id.startsWith('heavy'),
+			shouldKeepUnusedTemplate: (template, unusedTemplates) => {
+				const isHeavy = heavyTemplates.has(template);
+				return [...unusedTemplates].filter(unused => heavyTemplates.has(unused) === isHeavy).length < (isHeavy ? 2 : 3);
+			},
+		}));
+		const virtualItems = manager.virtualizedItems.get();
+		const range = new OffsetRange(0, 100);
+		for (const item of virtualItems) {
+			item.render(range, 0, 800, range);
+			if (item.item.id.startsWith('heavy')) {
+				heavyTemplates.add(item.template.get()!);
+			}
+		}
+		const originalTemplates = new Set(virtualItems.map(item => item.template.get()));
+		for (const item of virtualItems) {
+			item.hide();
+		}
+		for (const item of [...virtualItems].reverse()) {
+			item.render(range, 0, 800, range);
+			assert.ok(originalTemplates.has(item.template.get()));
+			assert.strictEqual(heavyTemplates.has(item.template.get()!), item.item.id.startsWith('heavy'));
+		}
+		assert.strictEqual(templates.length, 5);
+	});
+
 	test('isolates a failed binding without changing cached layout state', () => {
 		const itemA = new TestItem('a', 100);
 		const itemB = new TestItem('b', 200);
