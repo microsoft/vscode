@@ -58,7 +58,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
-import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
+import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseSessionV2, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -1920,9 +1920,11 @@ export class AgentService extends Disposable implements IAgentService {
 			: sessions.filter(metadata => !unmaterialized.has(metadata.session.toString()));
 	}
 
-	private async _resolveSessionOrigin(session: URI, persisted: string | undefined): Promise<SessionOrigin | undefined> {
+	private async _resolveSessionOrigin(session: URI, persisted: string | undefined, catalog?: IAgentHostDatabaseSessionV2 | null): Promise<SessionOrigin | undefined> {
 		const origin = readPersistedSessionOrigin(persisted);
-		const catalog = await this._orchestratorDatabase.getSessionV2(session.toString());
+		if (catalog === undefined) {
+			catalog = await this._orchestratorDatabase.getSessionV2(session.toString());
+		}
 		const decoded = catalog && decodeAgentHostCatalogPayload(catalog.payload);
 		if (decoded && !decoded.ok) {
 			this._logService.warn(`[AgentService] Failed to read session origin from catalog for ${session}: ${decoded.error}`);
@@ -1962,7 +1964,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return recovered;
 	}
 
-	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<ILegacyRegisteredSessionMetadata | undefined> {
+	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession, catalog?: IAgentHostDatabaseSessionV2 | null): Promise<ILegacyRegisteredSessionMetadata | undefined> {
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
 			return undefined;
@@ -1975,7 +1977,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			const ref = await this._sessionDataService.tryOpenDatabase(metadata.session);
 			if (!ref) {
-				const origin = await this._resolveSessionOrigin(metadata.session, undefined);
+				const origin = await this._resolveSessionOrigin(metadata.session, undefined, catalog);
 				return { metadata: { ...sanitized, ...(origin ? { origin } : {}) }, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
 			}
 			try {
@@ -1990,7 +1992,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (persisted[CHAT_BACKING_METADATA_KEY]) {
 					return undefined;
 				}
-				const origin = await this._resolveSessionOrigin(metadata.session, persisted[SESSION_ORIGIN_KEY]);
+				const origin = await this._resolveSessionOrigin(metadata.session, persisted[SESSION_ORIGIN_KEY], catalog);
 				let updated = { ...sanitized, ...(origin ? { origin } : {}) };
 				const persistedTitle = persisted.customTitle
 					|| await this._readDefaultChatTitle(metadata.session, persisted[defaultChatTitleKey]);
@@ -3519,7 +3521,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (!central.metadata.origin && this._automationService.getLegacySessionOrigin(session.toString())) {
 						const ref = await this._sessionDataService.tryOpenDatabase(session);
 						try {
-							const origin = await this._resolveSessionOrigin(session, await ref?.object.getMetadata(SESSION_ORIGIN_KEY));
+							const origin = await this._resolveSessionOrigin(session, await ref?.object.getMetadata(SESSION_ORIGIN_KEY), central.catalog);
 							repairSessions.add(session.toString());
 							return { ...central.metadata, origin };
 						} finally {
@@ -3540,7 +3542,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 
 				try {
-					const fallback = await this._legacyRegisteredSessionMetadata(registeredSession);
+					const fallback = await this._legacyRegisteredSessionMetadata(registeredSession, central.catalog);
 					if (!fallback) {
 						return undefined;
 					}

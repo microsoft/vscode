@@ -204,13 +204,29 @@ suite('AgentHostCatalogListReader', () => {
 		assert.deepStrictEqual(actual, cases.map(testCase => testCase.expected));
 	});
 
+	test('retains catalog reads independently of listing eligibility', async () => {
+		const eligible = createDatabase();
+		const outdated = createDatabase();
+		outdated.catalog = { ...outdated.catalog!, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1 };
+		const missing = createDatabase();
+		missing.catalog = undefined;
+		const failed = createDatabase();
+		failed.readError = new Error('read failed');
+
+		const results = await Promise.all([eligible, outdated, missing, failed].map(database =>
+			new AgentHostCatalogListReader(database).read(registered)
+		));
+
+		assert.deepStrictEqual(results.map(result => result.catalog), [eligible.catalog, outdated.catalog, null, undefined]);
+	});
+
 	test('hides a chat-backing payload even when the row marker disagrees', async () => {
 		const database = createDatabase({ ...data, isChatBacking: true });
 		database.catalog = { ...database.catalog!, isChatBacking: false };
 
 		const result = await new AgentHostCatalogListReader(database).read(registered);
 
-		assert.deepStrictEqual(result, { eligible: false, chatBacking: true });
+		assert.deepStrictEqual(result, { eligible: false, chatBacking: true, catalog: database.catalog });
 	});
 
 	test('rejects a registry provider that does not match the session identity', async () => {
