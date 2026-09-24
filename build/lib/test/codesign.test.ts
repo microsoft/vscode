@@ -6,12 +6,22 @@
 import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { suite, test, type TestContext } from 'node:test';
 import { fileURLToPath } from 'url';
 import { $, ProcessOutput } from 'zx';
 import { monitorCodesignProcess, streamProcessOutputAndCheckResult } from '../../azure-pipelines/common/codesign.ts';
 
 const minute = 60 * 1000;
+
+function summarizeOutput(output: string) {
+	return {
+		bytes: Buffer.byteLength(output),
+		sha256: createHash('sha256').update(output).digest('hex'),
+	};
+}
 
 function createDiagnostics(context: TestContext) {
 	let elapsed = 1000;
@@ -162,10 +172,6 @@ suite('Codesign output streaming', () => {
 				fileURLToPath(new URL('./codesignOutput.fixture.ts', import.meta.url)),
 				scenario,
 			], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 10_000 });
-			const summarize = (output: string) => ({
-				bytes: Buffer.byteLength(output),
-				sha256: createHash('sha256').update(output).digest('hex'),
-			});
 			const expectedStdout = 'A'.repeat(outputSize) + '\n\nfirst completed successfully. Duration: <duration> ms\n'
 				+ 'B'.repeat(outputSize) + '\n'
 				+ (scenario.endsWith('failure') ? '' : '\nsecond completed successfully. Duration: <duration> ms\n');
@@ -173,14 +179,47 @@ suite('Codesign output streaming', () => {
 			assert.deepStrictEqual({
 				status: result.status,
 				error: result.error?.message,
-				stdout: summarize(result.stdout.replace(/\d+(?= ms)/g, '<duration>')),
-				stderr: summarize(result.stderr),
+				stdout: summarizeOutput(result.stdout.replace(/\d+(?= ms)/g, '<duration>')),
+				stderr: summarizeOutput(result.stderr),
 			}, {
 				status: 0,
 				error: undefined,
-				stdout: summarize(expectedStdout),
-				stderr: summarize('a'.repeat(outputSize) + '\n' + 'b'.repeat(outputSize) + '\n'),
+				stdout: summarizeOutput(expectedStdout),
+				stderr: summarizeOutput('a'.repeat(outputSize) + '\n' + 'b'.repeat(outputSize) + '\n'),
 			});
+		});
+	}
+
+	for (const failedIndex of [1, 2]) {
+		test(`observes signer ${failedIndex + 1} failing before the first signer completes`, () => {
+			const directory = mkdtempSync(join(tmpdir(), 'vscode-codesign-'));
+			try {
+				const result = spawnSync(process.execPath, [
+					'--unhandled-rejections=strict',
+					fileURLToPath(new URL('./codesignOutput.fixture.ts', import.meta.url)),
+					'early-failure',
+					directory,
+					String(failedIndex),
+				], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 10_000 });
+				const indices = Array.from({ length: failedIndex + 1 }, (_, index) => index);
+				const expectedStdout = indices.map(index => String.fromCharCode(65 + index).repeat(256 * 1024) + '\n'
+					+ (index === failedIndex ? '' : `\nsigner ${index + 1} completed successfully. Duration: <duration> ms\n`)).join('');
+				const expectedStderr = indices.map(index => String.fromCharCode(97 + index).repeat(256 * 1024) + '\n').join('');
+
+				assert.deepStrictEqual({
+					status: result.status,
+					error: result.error?.message,
+					stdout: summarizeOutput(result.stdout.replace(/\d+(?= ms)/g, '<duration>')),
+					stderr: summarizeOutput(result.stderr),
+				}, {
+					status: 0,
+					error: undefined,
+					stdout: summarizeOutput(expectedStdout),
+					stderr: summarizeOutput(expectedStderr),
+				});
+			} finally {
+				rmSync(directory, { recursive: true, force: true });
+			}
 		});
 	}
 

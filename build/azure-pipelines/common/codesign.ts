@@ -94,5 +94,8 @@ export function monitorCodesignProcess<T extends PromiseLike<unknown>>(name: str
 }
 
 export function spawnCodesignProcess(esrpCliDLLPath: string, type: 'sign-windows' | 'sign-windows-appx' | 'sign-pgp' | 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
-	return $({ quiet: true })`node build/azure-pipelines/common/sign.ts ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
+	const promise = $({ quiet: true })`node build/azure-pipelines/common/sign.ts ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
+	// Parallel callers stream in order; observe early failures without replacing the original rejection.
+	void promise.catch(() => { });
+	return promise;
 }
