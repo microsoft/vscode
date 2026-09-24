@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { localize2 } from '../../../../../nls.js';
-import { AccessibleViewProviderId, IAccessibleViewService, NavigationType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService, NavigationType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -22,9 +24,10 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityVerbositySettingId, accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityHelpAction, AccessibleViewAction } from '../../../accessibility/browser/accessibleViewActions.js';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { ITerminalContribution, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -263,6 +266,43 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 	}
 }
 registerTerminalContribution(TerminalAccessibilityHelpContribution.ID, TerminalAccessibilityHelpContribution);
+
+AccessibleViewRegistry.register({
+	priority: 110,
+	name: 'terminal-tabs',
+	type: AccessibleViewType.Help,
+	when: TerminalContextKeys.tabsFocus,
+	getProvider: accessor => {
+		const groupService = accessor.get(ITerminalGroupService);
+		const configurationService = accessor.get(IConfigurationService);
+		const previousFocus = getActiveElement();
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalHelp,
+			{ type: AccessibleViewType.Help },
+			() => {
+				const location = configurationService.getValue<string>(TerminalSettingId.TabsLocation);
+				const horizontal = location === 'top' || location === 'bottom';
+				return [
+					localize('terminalTabsHelp.overview', "You are in the terminal tabs. Each tab represents a terminal, including individual terminals in a split group."),
+					horizontal
+						? localize('terminalTabsHelp.horizontal', "Use Left and Right Arrow to navigate tabs, or Home and End to move to the first and last tab. Hold Shift to select a range. Press Space to focus the terminal.")
+						: localize('terminalTabsHelp.vertical', "Use Up and Down Arrow to navigate terminals. Hold Shift to select a range."),
+					localize('terminalTabsHelp.rename', "Rename the selected terminal<keybinding:{0}>. While renaming, press Enter to confirm or Escape to cancel.", TerminalCommandId.RenameActiveTab),
+					localize('terminalTabsHelp.actions', "Split the selected terminals<keybinding:{0}> or kill them<keybinding:{1}>. Press Shift+F10 to open the context menu.", TerminalCommandId.SplitActiveTab, TerminalCommandId.KillActiveTab),
+					localize('terminalTabsHelp.location', "Use terminal.integrated.tabs.location to place tabs on the left, right, top, or bottom."),
+				].join('\n');
+			},
+			() => {
+				if (isHTMLElement(previousFocus) && previousFocus.isConnected) {
+					previousFocus.focus();
+				} else {
+					groupService.focusTabs();
+				}
+			},
+			AccessibilityVerbositySettingId.Terminal
+		);
+	}
+});
 
 // #endregion
 

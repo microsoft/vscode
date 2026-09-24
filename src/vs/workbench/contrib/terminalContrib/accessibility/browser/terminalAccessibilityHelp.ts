@@ -64,6 +64,7 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink),
 			localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile),
 			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun),
+			localize('terminalTabs', "Focus terminal tabs<keybinding:{0}> to select, rename, split, or close terminals. Configure terminal.integrated.tabs.location to show a vertical list on the left or right, or a horizontal row on the top or bottom.", TerminalCommandId.FocusTabs),
 		];
 
 		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
