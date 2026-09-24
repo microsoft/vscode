@@ -62,6 +62,7 @@ import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
+import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
@@ -471,6 +472,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 
 	private readonly _metadataStore: ClaudeSessionMetadataStore;
+	private readonly _terminalOutputs: ClaudeTerminalOutputs;
 
 	private _findAnySession(sessionId: string): ClaudeAgentSession | undefined {
 		return this._chatEntriesBySdkId.get(sessionId)?.chatSession;
@@ -631,6 +633,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
+		this._terminalOutputs = _instantiationService.createInstance(ClaudeTerminalOutputs);
 		// CAPI reports each request's billed credits via the proxy (the SDK
 		// strips `copilot_usage` from its `result`). Route every report to
 		// the originating session by the session id the proxy decoded from
@@ -1940,7 +1943,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!context.sdkSessionId) {
 			return [];
 		}
-		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		await this._terminalOutputs.restore(context.resource, context.chat, turns);
+		return turns;
 	}
 
 	/**

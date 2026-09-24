@@ -58,6 +58,15 @@ matching `SessionToolCallComplete` action. Hooks (`Options.hooks.PreToolUse` /
 `PostToolUse`) are deliberately NOT used because they are user-bypassable
 via settings; the message stream is the canonical, non-bypassable signal.
 
+**Claude retained shell output** / `ClaudeTerminalOutputs`:
+Copies the complete output Claude saves for a large top-level `Bash` result
+(`tool_use_result.persistedOutputPath`) into the chat's session database
+before the result is published, and attaches a non-PTY terminal resource to
+it. Restored transcripts carry only Claude's `<persisted-output>` notice, so
+the same resource is re-attached when the database has the output. The agent
+service rebuilds exited terminal state from the database for subscribers; no
+terminal is kept alive.
+
 ## Relationships
 
 - The **Agent Host** owns one **Claude Proxy** for the lifetime of the process.

@@ -20,15 +20,17 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildChatUri, buildDefaultChatUri, resolveChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
-import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import {
 	makeContentBlockStartText,
+	makeContentBlockStartToolUse,
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
@@ -40,6 +42,7 @@ interface IRouterHarness {
 	readonly router: ClaudeSdkMessageRouter;
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
+	readonly database: TestSessionDatabase;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -75,6 +78,7 @@ function createRouter(
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, new NullEditArcReporterService()],
+		[ISessionDataService, createSessionDataService(db)],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
@@ -88,7 +92,7 @@ function createRouter(
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService };
+	return { router, signals, fileService, database: db };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -157,6 +161,38 @@ suite('ClaudeSdkMessageRouter', () => {
 		}, {
 			recordedSessionUris: [chatChannelUri.toString()],
 			flushedSessionUris: [chatChannelUri.toString()],
+		});
+	});
+
+	test('publishes retained Bash output after storing it in the chat database', async () => {
+		const { router, signals, fileService, database } = createRouter(disposables);
+		const outputFile = URI.file('/claude/tool-results/toolu_1.txt');
+		await fileService.writeFile(outputFile, VSBuffer.fromString('full output'));
+		const storedSizesAtCompletion: Promise<number | undefined>[] = [];
+		disposables.add(router.onDidProduceSignal(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
+				storedSizesAtCompletion.push(database.getTerminalOutputSize(signal.action.toolCallId));
+			}
+		}));
+
+		await router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(0, 'toolu_1', 'Bash')), 'turn-1');
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStop(0)), 'turn-1');
+		await router.handle({
+			...userMessage([{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'Output too large' }]),
+			parent_tool_use_id: null,
+			tool_use_result: { stdout: 'full', stderr: '', interrupted: false, persistedOutputPath: outputFile.fsPath },
+		}, 'turn-1');
+
+		const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+		assert.deepStrictEqual({
+			storedSizesAtCompletion: await Promise.all(storedSizesAtCompletion),
+			content: completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete
+				? completion.action.result.content?.map(content => content.type)
+				: undefined,
+		}, {
+			storedSizesAtCompletion: ['full output'.length],
+			content: [ToolResultContentType.Text, ToolResultContentType.Terminal],
 		});
 	});
 });
