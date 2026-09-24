@@ -118,14 +118,32 @@ const COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS = 3500;
 const COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS = 4500;
 const COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR = 'COPILOT_ENABLE_BUILTIN_GITHUB_MCP';
 
-function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
+/** Deletes every casing variant of an environment variable (Windows names are case-insensitive). */
+function deleteEnvironmentVariable(env: Record<string, string | undefined>, name: string): void {
 	for (const key of Object.keys(env)) {
-		if (key.toUpperCase() === COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR) {
+		if (key.toUpperCase() === name) {
 			delete env[key];
 		}
 	}
+}
+
+function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
+	deleteEnvironmentVariable(env, COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR);
 	if (enabled) {
 		env[COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR] = 'true';
+	}
+}
+
+/**
+ * Forces tgrep indexed search past the runtime's repository-size threshold. The runtime also
+ * disables tgrep whenever `USE_BUILTIN_RIPGREP=false`, so enabling drops VS Code's override and
+ * lets the runtime use its bundled ripgrep and tgrep.
+ */
+function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
+	deleteEnvironmentVariable(env, 'USE_TGREP');
+	if (enabled) {
+		deleteEnvironmentVariable(env, 'USE_BUILTIN_RIPGREP');
+		env['USE_TGREP'] = 'true';
 	}
 }
 
@@ -1094,6 +1112,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
 	}
 
+	private _isTgrepEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
+	}
+
 	private _isHydraFusionEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
@@ -1133,6 +1155,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
 			this._isClaudeAdvisorEnabled(),
+			this._isTgrepEnabled(),
 			this._isHydraFusionEnabled(),
 			this._getSkillCharBudget(),
 			this._getCopilotSdkLogLevelSetting(),
@@ -2442,6 +2465,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['RUBBER_DUCK_AGENT'] = 'true';
 			} else {
 				delete env['RUBBER_DUCK_AGENT'];
+			}
+
+			setCopilotTgrepEnvironment(env, startupConfig.tgrep);
+			if (startupConfig.tgrep) {
+				this._logService.info('[Copilot] Set CLI env: USE_TGREP=true (tgrep indexed search forced on)');
 			}
 
 			// Keep the SDK wrapper and native module paired within one platform package.
