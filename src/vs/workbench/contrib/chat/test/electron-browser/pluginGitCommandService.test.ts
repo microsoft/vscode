@@ -114,6 +114,17 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 
 	test('cloneRepository forwards an existing GitHub session for canonical GitHub HTTPS URLs', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];
+		const debugMessages: string[] = [];
+		const warningMessages: string[] = [];
+		const logService = new class extends NullLogService {
+			override debug(message: string, ...args: unknown[]): void {
+				debugMessages.push([message, ...args].join(' '));
+			}
+
+			override warn(message: string, ...args: unknown[]): void {
+				warningMessages.push([message, ...args].join(' '));
+			}
+		}();
 		let deleted = false;
 		const service = createService(createLocalGitStub({
 			clone: async (_operationId, _url, _path, _ref, options) => {
@@ -125,7 +136,7 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		}), 'github-token', createFileService({
 			exists: async () => true,
 			del: async () => { deleted = true; },
-		}));
+		}), createAuthenticationService('github-token'), logService);
 
 		await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
 
@@ -133,7 +144,15 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			url: 'https://github.com/test/private.git',
 			authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
 		}]);
-		assert.strictEqual(deleted, true);
+		assert.deepStrictEqual({
+			deleted,
+			debugMessages,
+			warningMessages,
+		}, {
+			deleted: true,
+			debugMessages: ['[NativePluginGitCommandService] Native Git authentication failed for \'clone\'. Retrying with VS Code authentication.'],
+			warningMessages: [],
+		});
 	});
 
 	test('cloneRepository accepts a GitHub session whose scopes include repo', async () => {
@@ -345,8 +364,12 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 
 	test('pull and fetch proceed without authentication when origin cannot be resolved', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];
+		const remoteLogErrors: (boolean | undefined)[] = [];
 		const service = createService(createLocalGitStub({
-			getRemoteUrl: async () => { throw new Error('No origin remote'); },
+			getRemoteUrl: async (_operationId, _repoPath, options) => {
+				remoteLogErrors.push(options?.logErrors);
+				throw new Error('No origin remote');
+			},
 			pull: async (_operationId, _repoPath, options) => {
 				authentications.push(options?.authentication);
 				return false;
@@ -360,7 +383,10 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 		await service.pull(repository);
 		await service.fetchRepository(repository);
 
-		assert.deepStrictEqual(authentications, [undefined, undefined]);
+		assert.deepStrictEqual({ authentications, remoteLogErrors }, {
+			authentications: [undefined, undefined],
+			remoteLogErrors: [false, false],
+		});
 	});
 
 	test('checkout delegates to ILocalGitService with detached flag', async () => {

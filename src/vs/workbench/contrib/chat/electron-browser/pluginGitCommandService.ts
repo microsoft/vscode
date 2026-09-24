@@ -69,7 +69,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
 		return this._withCancel(token, async id => {
-			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath).catch(() => undefined);
+			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath, { logErrors: false }).catch(() => undefined);
 			this._throwIfCancelled(token);
 			return this._withGitHubAuthenticationFallback(
 				'pull',
@@ -101,7 +101,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
 		await this._withCancel(token, async id => {
-			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath).catch(() => undefined);
+			const remoteUrl = await this._localGitService.getRemoteUrl(id, repoDir.fsPath, { logErrors: false }).catch(() => undefined);
 			this._throwIfCancelled(token);
 			await this._withGitHubAuthenticationFallback(
 				'fetch',
@@ -150,7 +150,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 			}
 
 			this._throwIfCancelled(token);
-			this._logService.warn(`[NativePluginGitCommandService] Native Git authentication failed for '${operation}'. Retrying with VS Code authentication.`);
+			this._logService.debug(`[NativePluginGitCommandService] Native Git authentication failed for '${operation}'. Retrying with VS Code authentication.`);
 			await beforeRetry?.();
 			this._throwIfCancelled(token);
 			return runWithAuthentication(authentication);

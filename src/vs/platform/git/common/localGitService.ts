@@ -34,7 +34,7 @@ export interface ILocalGitService {
 	checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void>;
 	checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void>;
 	revParse(repoPath: string, ref: string): Promise<string>;
-	getRemoteUrl(operationId: string, repoPath: string): Promise<string>;
+	getRemoteUrl(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<string>;
 	fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void>;
 	revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number>;
 	cancel(operationId: string): Promise<void>;

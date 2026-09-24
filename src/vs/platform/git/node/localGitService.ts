@@ -241,8 +241,8 @@ export class LocalGitService implements ILocalGitService {
 		return (await this._exec(generateUuid(), ['rev-parse', ref], repoPath)).trim();
 	}
 
-	async getRemoteUrl(operationId: string, repoPath: string): Promise<string> {
-		return (await this._exec(operationId, ['remote', 'get-url', 'origin'], repoPath)).trim();
+	async getRemoteUrl(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<string> {
+		return (await this._exec(operationId, ['remote', 'get-url', 'origin'], repoPath, options)).trim();
 	}
 
 	async fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void> {
