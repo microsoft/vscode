@@ -66,6 +66,14 @@ suite('NativePluginGitCommandService', () => {
 fatal: could not read Username for 'https://github.com': terminal prompts disabled`);
 	}
 
+	function createHttpAuthenticationError(status: 401 | 403): Error & { code: number; stderr: string } {
+		const message = `fatal: unable to access 'https://github.com/test/private.git/': The requested URL returned error: ${status}`;
+		const error = new Error(message) as Error & { code: number; stderr: string };
+		error.code = 128;
+		error.stderr = message;
+		return error;
+	}
+
 	function createService(localGitService: ILocalGitService, accessToken?: string, fileService = createFileService(), authenticationService = createAuthenticationService(accessToken)): NativePluginGitCommandService {
 		return new NativePluginGitCommandService(localGitService, authenticationService, fileService, new NullLogService());
 	}
@@ -158,6 +166,27 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 			},
 		});
 	});
+
+	for (const status of [401, 403] as const) {
+		test(`cloneRepository retries with VS Code authentication after Git HTTP ${status}`, async () => {
+			const authentications: (IGitAuthentication | undefined)[] = [];
+			const service = createService(createLocalGitStub({
+				clone: async (_operationId, _url, _path, _ref, options) => {
+					authentications.push(options?.authentication);
+					if (!options?.authentication) {
+						throw createHttpAuthenticationError(status);
+					}
+				},
+			}), 'github-token');
+
+			await service.cloneRepository('https://github.com/test/private.git', URI.file('/tmp/repo'));
+
+			assert.deepStrictEqual(authentications, [undefined, {
+				url: 'https://github.com/test/private.git',
+				authorizationHeader: 'Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2l0aHViLXRva2Vu',
+			}]);
+		});
+	}
 
 	test('cloneRepository does not use a GitHub session without repo scope', async () => {
 		const authentications: (IGitAuthentication | undefined)[] = [];

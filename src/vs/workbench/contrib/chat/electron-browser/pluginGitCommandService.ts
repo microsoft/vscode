@@ -171,7 +171,7 @@ export class NativePluginGitCommandService implements IPluginGitService {
 			return false;
 		}
 		const details = `${candidate?.stderr ?? ''}\n${candidate?.message ?? ''}`;
-		return /authentication failed|invalid username or token|(?:could not read|unable to get) (?:username|password)|terminal prompts disabled/i.test(details);
+		return /authentication failed|invalid username or token|(?:could not read|unable to get) (?:username|password)|terminal prompts disabled|requested URL returned error:\s*(?:401|403)\b/i.test(details);
 	}
 
 	private _logGitError(operation: string, error: unknown): void {
