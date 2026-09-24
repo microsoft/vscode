@@ -225,8 +225,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		const render = () => {
 			partStore.clear();
 			if (toolIcon) {
-				const registeredIcon = toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
-				const icon = getToolInvocationIcon(toolInvocation.toolId, registeredIcon);
+				const registeredIcon = toolInvocation.toolSpecificData?.kind === 'search' ? Codicon.search
+					: toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
+				const icon = getToolInvocationIcon(toolInvocation.toolId, registeredIcon, undefined, toolInvocation.source);
 				toolIcon.className = 'chat-tool-call-icon';
 				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 			}
