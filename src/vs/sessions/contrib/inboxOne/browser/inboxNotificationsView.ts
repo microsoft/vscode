@@ -1647,7 +1647,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			try {
 				await this.sessionsService.openSession(item.sessionResource, { preserveFocus: true, source: 'notification' });
 				const refreshedSession = this.sessionsManagementService.getSession(item.sessionResource) ?? session;
-				const activeSession = this.sessionsService.activeSession.get()?.session;
+				const activeSession = this.sessionsService.activeSession.get();
 				if (activeSession && isEqual(activeSession.resource, refreshedSession.resource)) {
 					const activeSessionProvider = this.sessionsProvidersService.getProvider(activeSession.providerId);
 					if (supportsInlineAgentMergeActions(activeSessionProvider)) {
@@ -1686,7 +1686,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			`${provider.id}:${session.resource.toString()}`,
 		]);
 
-		const activeSession = this.sessionsService.activeSession.get()?.session;
+		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession && isEqual(activeSession.resource, session.resource)) {
 			candidates.add(activeSession.sessionId);
 		}
