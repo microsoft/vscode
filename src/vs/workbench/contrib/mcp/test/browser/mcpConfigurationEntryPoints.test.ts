@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,6 +34,7 @@ import { ActiveEditorContext, ResourceContextKey } from '../../../../common/cont
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbencMcpServerInstallOptions, LocalMcpServerScope, WorkspaceMcpConfigKind } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -40,7 +42,7 @@ import { SessionType } from '../../../chat/common/chatSessionsService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
 import { AddConfigurationAction, OpenWorkspaceFolderMcpResourceCommand } from '../../browser/mcpCommands.js';
 import { McpConfigurationDestination } from '../../browser/mcpConfigurationDestination.js';
-import { InstallAction, InstallInRemoteAction, InstallInWorkspaceAction, ShowServerJsonConfigurationAction } from '../../browser/mcpServerActions.js';
+import { getContextMenuActions, InstallAction, InstallInRemoteAction, InstallInWorkspaceAction, ShowServerJsonConfigurationAction } from '../../browser/mcpServerActions.js';
 import { mcpWorkspaceRootConfig } from '../../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerInstallState } from '../../common/mcpTypes.js';
@@ -112,6 +114,7 @@ suite('MCP configuration entry points', () => {
 			getWorkspaceFolder: resource => workspace.getFolder(resource),
 			getWorkbenchState: () => multiRoot ? WorkbenchState.WORKSPACE : WorkbenchState.FOLDER,
 		});
+		instantiation.stub(IMcpWorkspaceInstallTargetService, instantiation.createInstance(McpWorkspaceInstallTargetService));
 		instantiation.stub(IUriIdentityService, { extUri });
 		instantiation.stub(IFileService, {
 			resolve: async resource => {
@@ -288,7 +291,7 @@ suite('MCP configuration entry points', () => {
 	for (const enabled of [false, true]) {
 		test(`manual multi-root Add Server folder choices follow the flag: ${enabled}`, async () => {
 			const fixture = setup(enabled, [], true);
-			fixture.quickInput.selections.push('Command (stdio)', enabled ? fixture.secondFolder.name : 'Workspace');
+			fixture.quickInput.selections.push('Command (stdio)', enabled ? `Workspace (${fixture.secondFolder.name})` : 'Workspace');
 			fixture.quickInput.inputs.push('node server.js', installable.name);
 			await new AddConfigurationAction().run(fixture.instantiation);
 			assert.deepStrictEqual({
@@ -299,7 +302,7 @@ suite('MCP configuration entry points', () => {
 				selections: fixture.selections,
 				started: fixture.started,
 			}, {
-				scopes: enabled ? ['Global', 'Workspace', fixture.folder.name, fixture.secondFolder.name] : ['Global', 'Workspace'],
+				scopes: enabled ? ['Global', 'Workspace', `Workspace (${fixture.folder.name})`, `Workspace (${fixture.secondFolder.name})`] : ['Global', 'Workspace'],
 				target: enabled ? fixture.secondFolder : ConfigurationTarget.WORKSPACE,
 				kind: enabled ? WorkspaceMcpConfigKind.Root : undefined,
 				opened: [enabled ? fixture.secondFolder.toResource(rootFile).path : fixture.workspace.configuration!.path],
@@ -310,7 +313,7 @@ suite('MCP configuration entry points', () => {
 	}
 
 	for (const enabled of [false, true]) {
-		for (const selection of ['Add to Current Agent Session', 'Global', 'Remote', 'Workspace', ...(enabled ? ['second'] : [])]) {
+		for (const selection of ['Add to Current Agent Session', 'Global', 'Remote', 'Workspace', ...(enabled ? ['Workspace (second)'] : [])]) {
 			test(`agent-host target is shown alongside persistent targets: ${selection}, root=${enabled}`, async () => {
 				const fixture = setup(enabled, [], true, true);
 				fixture.instantiation.stub(IWorkbenchEnvironmentService, { remoteAuthority: 'ssh-remote+test' });
@@ -326,7 +329,7 @@ suite('MCP configuration entry points', () => {
 					installs: fixture.installs.map(install => install.options),
 					errors: fixture.errors,
 				}, {
-					targets: ['Add to Current Agent Session', 'Global', 'Remote', 'Workspace', ...(enabled ? [fixture.folder.name, fixture.secondFolder.name] : [])],
+					targets: ['Add to Current Agent Session', 'Global', 'Remote', 'Workspace', ...(enabled ? [`Workspace (${fixture.folder.name})`, `Workspace (${fixture.secondFolder.name})`] : [])],
 					descriptions: [undefined, 'Available in all workspaces, runs locally', 'Available on this remote machine, runs on Test Remote', 'Available in this workspace, runs on Test Remote', ...(enabled ? ['Workspace Folder', 'Workspace Folder'] : [])],
 					prompts: ['Choose the type of MCP server to add', 'Enter Command', 'Enter Server ID', 'Select the configuration target'],
 					agentHostAdds: selection === 'Add to Current Agent Session' ? [{ session: agentHostSession, name: installable.name, config: installable.config }] : [],
@@ -334,7 +337,7 @@ suite('MCP configuration entry points', () => {
 						target: selection === 'Global' ? ConfigurationTarget.USER_LOCAL
 							: selection === 'Remote' ? ConfigurationTarget.USER_REMOTE
 								: selection === 'Workspace' ? ConfigurationTarget.WORKSPACE : fixture.secondFolder,
-						workspaceConfig: selection === 'second' ? WorkspaceMcpConfigKind.Root : undefined,
+						workspaceConfig: selection === 'Workspace (second)' ? WorkspaceMcpConfigKind.Root : undefined,
 					}],
 					errors: [],
 				});
@@ -423,6 +426,44 @@ suite('MCP configuration entry points', () => {
 		});
 	}
 
+	for (const folderCount of [0, 1, 2]) {
+		for (const enabled of [false, true]) {
+			test(`manual add excludes unsupported aggregate workspace: folders=${folderCount}, root=${enabled}`, async () => {
+				const fixture = setup(enabled, [], true, true);
+				fixture.workspace.folders = fixture.workspace.folders.slice(0, folderCount);
+				fixture.instantiation.stub(IMcpWorkspaceInstallTargetService, { getTargets: () => fixture.workspace.folders });
+				const selectFolder = enabled && folderCount > 0;
+				fixture.quickInput.selections.push('Command (stdio)', selectFolder ? `Workspace (${fixture.folder.name})` : 'Global');
+				fixture.quickInput.inputs.push('node server.js', installable.name);
+				await new AddConfigurationAction().run(fixture.instantiation);
+				assert.deepStrictEqual({
+					targets: fixture.quickInput.pickLabels[1],
+					options: fixture.installs.map(install => install.options),
+					errors: fixture.errors,
+				}, {
+					targets: ['Add to Current Agent Session', 'Global', ...(enabled ? fixture.workspace.folders.map(folder => `Workspace (${folder.name})`) : [])],
+					options: [{ target: selectFolder ? fixture.folder : ConfigurationTarget.USER_LOCAL, workspaceConfig: selectFolder ? WorkspaceMcpConfigKind.Root : undefined }],
+					errors: [],
+				});
+			});
+		}
+	}
+
+	test('folder-only destination picker can be cancelled without side effects', async () => {
+		const fixture = setup(true, [], true, true);
+		fixture.instantiation.stub(IMcpWorkspaceInstallTargetService, { getTargets: () => fixture.workspace.folders });
+		fixture.quickInput.selections.push('Command (stdio)', undefined);
+		fixture.quickInput.inputs.push('node server.js', installable.name);
+		await new AddConfigurationAction().run(fixture.instantiation);
+		assert.deepStrictEqual({
+			targets: fixture.quickInput.pickLabels[1],
+			installs: fixture.installs, agentHostAdds: fixture.agentHostAdds, opened: fixture.opened, started: fixture.started, errors: fixture.errors,
+		}, {
+			targets: ['Add to Current Agent Session', 'Global', `Workspace (${fixture.folder.name})`, `Workspace (${fixture.secondFolder.name})`],
+			installs: [], agentHostAdds: [], opened: [], started: [], errors: [],
+		});
+	});
+
 	test('manual folder add cancellation does not install, reveal, or start', async () => {
 		const fixture = setup(true, [legacyFile]);
 		fixture.quickInput.selections.push('Command (stdio)', 'Workspace', undefined);
@@ -464,6 +505,25 @@ suite('MCP configuration entry points', () => {
 	});
 
 	for (const file of [rootFile, legacyFile]) {
+		test(`folder-only workspace preserves explicit ${file} destination`, async () => {
+			const fixture = setup(true, [rootFile, legacyFile], true, true);
+			fixture.instantiation.stub(IMcpWorkspaceInstallTargetService, { getTargets: () => fixture.workspace.folders });
+			fixture.quickInput.selections.push('Command (stdio)');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(file));
+			assert.deepStrictEqual({
+				pickerCount: fixture.quickInput.pickLabels.length,
+				options: fixture.installs.map(install => install.options),
+				agentHostAdds: fixture.agentHostAdds,
+				errors: fixture.errors,
+			}, {
+				pickerCount: 1,
+				options: [{ target: fixture.folder, workspaceConfig: file === rootFile ? WorkspaceMcpConfigKind.Root : WorkspaceMcpConfigKind.LegacyVscode }],
+				agentHostAdds: [],
+				errors: [],
+			});
+		});
+
 		test(`editor Add Server preserves ${file} and skips scope/file selection`, async () => {
 			const fixture = setup(true, [rootFile, legacyFile], false, true);
 			fixture.quickInput.selections.push('Command (stdio)');
@@ -644,10 +704,51 @@ suite('MCP configuration entry points', () => {
 			pickers: fixture.quickInput.pickLabels,
 			options: fixture.installs[0].options,
 		}, {
-			pickers: [[fixture.folder.name, fixture.secondFolder.name, 'Workspace']],
+			pickers: [[`Workspace (${fixture.folder.name})`, `Workspace (${fixture.secondFolder.name})`, 'Workspace']],
 			options: { target: ConfigurationTarget.WORKSPACE, workspaceConfig: undefined },
 		});
 	});
+
+	for (const gallery of [false, true]) {
+		for (const folderCount of [0, 1, 2]) {
+			test(`Install in Workspace respects folder-only targets: gallery=${gallery}, folders=${folderCount}`, async () => {
+				const fixture = setup(true, [], true);
+				fixture.workspace.folders = fixture.workspace.folders.slice(0, folderCount);
+				fixture.instantiation.stub(IMcpWorkspaceInstallTargetService, { getTargets: () => fixture.workspace.folders });
+				if (folderCount > 1) {
+					fixture.quickInput.selections.push(`Workspace (${fixture.folder.name})`);
+				}
+				const action = store.add(fixture.instantiation.createInstance(InstallInWorkspaceAction, false));
+				const mcpServer = upcastPartial<IWorkbenchMcpServer>({
+					name: installable.name,
+					gallery: gallery ? upcastPartial<IGalleryMcpServer>({ name: installable.name }) : undefined,
+					installable: gallery ? undefined : installable,
+					installState: McpServerInstallState.Uninstalled,
+				});
+				action.mcpServer = mcpServer;
+				const menuActions = getContextMenuActions(mcpServer, false, fixture.instantiation).flat();
+				for (const action of menuActions) {
+					if (isDisposable(action)) {
+						store.add(action);
+					}
+				}
+				await action.run();
+				assert.deepStrictEqual({
+					enabled: action.enabled,
+					menuActionIds: menuActions.map(action => action.id),
+					pickers: fixture.quickInput.pickLabels,
+					options: fixture.installs.map(install => install.options),
+					started: fixture.started,
+				}, {
+					enabled: folderCount > 0,
+					menuActionIds: folderCount > 0 ? [action.id] : [],
+					pickers: folderCount > 1 ? [[`Workspace (${fixture.folder.name})`, `Workspace (${fixture.secondFolder.name})`]] : [],
+					options: folderCount > 0 ? [{ target: fixture.folder, workspaceConfig: gallery ? WorkspaceMcpConfigKind.LegacyVscode : WorkspaceMcpConfigKind.Root }] : [],
+					started: folderCount > 0 ? [`installed:${fixture.folder.toResource(gallery ? legacyFile : rootFile).path}`] : [],
+				});
+			});
+		}
+	}
 
 	for (const remote of [false, true]) {
 		test(`${remote ? 'remote' : 'global'} install starts the exact installed ID`, async () => {

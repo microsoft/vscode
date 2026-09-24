@@ -30,6 +30,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IMcpWorkspaceInstallTargetService } from '../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
@@ -155,6 +156,7 @@ export class McpAddConfigurationCommand {
 		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMcpWorkspaceInstallTargetService private readonly _workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -306,8 +308,11 @@ export class McpAddConfigurationCommand {
 		}
 
 		const workbenchState = this._workspaceService.getWorkbenchState();
-		if (workbenchState !== WorkbenchState.EMPTY) {
-			const target = workbenchState === WorkbenchState.FOLDER ? this._workspaceService.getWorkspace().folders[0] : ConfigurationTarget.WORKSPACE;
+		const workspaceTargets = this._workspaceInstallTargetService.getTargets();
+		const target = workbenchState === WorkbenchState.FOLDER
+			? workspaceTargets.find(isWorkspaceFolder)
+			: workspaceTargets.find(target => target === ConfigurationTarget.WORKSPACE);
+		if (target !== undefined) {
 			if (this._environmentService.remoteAuthority) {
 				options.push({ target: { kind: 'local', target }, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
 			} else {
@@ -315,8 +320,8 @@ export class McpAddConfigurationCommand {
 			}
 		}
 		if (workbenchState === WorkbenchState.WORKSPACE && this._configurationService.getValue<boolean>(mcpWorkspaceRootConfig)) {
-			for (const folder of this._workspaceService.getWorkspace().folders) {
-				options.push({ target: { kind: 'local', target: folder }, label: folder.name, description: localize('mcp.target.workspaceFolder', "Workspace Folder") });
+			for (const folder of workspaceTargets.filter(isWorkspaceFolder)) {
+				options.push({ target: { kind: 'local', target: folder }, label: localize('mcp.target.workspaceFolderLabel', "Workspace ({0})", folder.name), description: localize('mcp.target.workspaceFolder', "Workspace Folder") });
 			}
 		}
 
