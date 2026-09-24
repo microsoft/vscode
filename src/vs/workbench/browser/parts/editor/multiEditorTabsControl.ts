@@ -2079,10 +2079,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// need to proceed with the layout without wrapping because even
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
-		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		const didTabsWrapMultiLine = assertReturnsDefined(this.tabsAndActionsContainer).classList.contains('wrapping');
+		let tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		if (connected && tabsWrapMultiLine !== didTabsWrapMultiLine) {
+			this.layoutConnectedTabLabels(connected);
+			const remeasuredTabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+			if (remeasuredTabsWrapMultiLine !== tabsWrapMultiLine) {
+				this.doLayoutTabsWrapping(dimensions, true);
+				this.layoutConnectedTabLabels(connected);
+				tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions, true);
+			} else {
+				tabsWrapMultiLine = remeasuredTabsWrapMultiLine;
+			}
+		}
 		const top = this.getTabAtIndex(0)?.offsetTop;
 		const bottom = this.getLastTab()?.offsetTop;
-		const topTabBar = this.parent.firstElementChild === this.tabsAndActionsContainer;
+		const firstVisibleTabBar = Array.from(this.parent.children)
+			.filter(isHTMLElement)
+			.find(element => element.classList.contains('tabs-and-actions-container') && !element.classList.contains('empty'));
+		const topTabBar = firstVisibleTabBar === this.tabsAndActionsContainer;
 		const upperTabBar = this.parent.classList.contains('two-tab-bars') && topTabBar;
 		this.forEachTab((_editor, _index, tab) => {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
@@ -2157,7 +2172,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return width;
 	}
 
-	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
+	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
@@ -2188,8 +2203,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}
 
+		if (forceTabsWrapMultiLine !== undefined) {
+			updateTabsWrapping(forceTabsWrapMultiLine);
+		}
+
 		// Setting enabled: selectively enable wrapping if possible
-		if (this.groupsView.partOptions.wrapTabs) {
+		else if (this.groupsView.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
 			const lastTabFitsWrapped = () => {

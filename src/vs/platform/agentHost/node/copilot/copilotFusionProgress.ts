@@ -6,7 +6,7 @@
 import type { SessionEvent, SessionEventPayload } from '@github/copilot-sdk';
 import { getDurationString } from '../../../../base/common/date.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta, type AgentFusionProgressStatus } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readToolCallMeta, toToolCallMeta, type IFusionPhaseMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -23,6 +23,53 @@ const fusionEventTypes: ReadonlySet<string> = new Set(copilotFusionEventTypes);
 
 export function isCopilotFusionEvent(event: SessionEvent): event is CopilotFusionEvent {
 	return fusionEventTypes.has(event.type);
+}
+
+/** The id of the tool call that presents a Fusion phase, and of that phase's child chat. */
+export function getFusionPhaseToolCallId(fusionId: string, phaseId: string): string {
+	return `fusion:${fusionId}:${phaseId}`;
+}
+
+export const COPILOT_FUSION_PHASE_AGENT_NAME = 'hydrafusion-phase';
+
+/** Renders a review phase's structured output (critic or judge) as markdown, falling back to its raw text. */
+export function formatFusionReviewContent(content: string): string | undefined {
+	const text = content.trim();
+	if (!text) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return text;
+	}
+	if (!isObject(parsed)) {
+		return text;
+	}
+	const review = parsed as { assessment?: unknown; score?: unknown; feedback?: unknown; rationale?: unknown; defect?: unknown };
+	const paragraphs: string[] = [];
+	const bold = (text: string) => `**${escapeMarkdownSyntaxTokens(text)}**`;
+	if (review.assessment === 'approve') {
+		paragraphs.push(bold(localize('copilot.fusion.review.approved', "Approved")));
+	} else if (review.assessment === 'revise') {
+		paragraphs.push(bold(localize('copilot.fusion.review.revise', "Changes requested")));
+	}
+	if (typeof review.score === 'number') {
+		paragraphs.push(bold(localize('copilot.fusion.review.score', "Score: {0}/5", review.score)));
+	}
+	const explanation = typeof review.feedback === 'string' ? review.feedback : typeof review.rationale === 'string' ? review.rationale : undefined;
+	if (explanation) {
+		paragraphs.push(escapeMarkdownSyntaxTokens(explanation));
+	}
+	if (isObject(review.defect)) {
+		const defect = review.defect as { target?: unknown; evidence?: unknown };
+		const details = [defect.target, defect.evidence].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' — ');
+		if (details) {
+			paragraphs.push(`${bold(localize('copilot.fusion.review.issue', "Issue:"))} ${escapeMarkdownSyntaxTokens(details)}`);
+		}
+	}
+	return paragraphs.length ? paragraphs.join('\n\n') : text;
 }
 
 /** Provisional phase conversations are not the authoritative parent transcript. */
@@ -102,6 +149,10 @@ export class CopilotFusionProgress {
 	private readonly _phaseTools = new Map<string, ToolCallRunningState | ToolCallCompletedState>();
 	private readonly _patterns = new Map<string, FusionPhase['pattern']>();
 
+	get runningPhaseToolCallId(): string | undefined {
+		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
+	}
+
 	reset(): void {
 		this._milestones.clear();
 		this._finishedFusions.clear();
@@ -159,10 +210,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
-				const plan = d.phasePlan?.map(step => step.conditional
-					? localize('copilot.fusion.conditionalPhase', "{0} (if needed)", phaseLabel(step.kind, d.pattern))
-					: phaseLabel(step.kind, d.pattern)).join(' → ');
-				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', plan, workflowDescription(d.pattern));
+				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, workflowDescription(d.pattern));
 				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}
@@ -246,7 +294,7 @@ export class CopilotFusionProgress {
 	}
 
 	private _updatePhase(data: Pick<FusionPhase, 'fusionId' | 'phaseId' | 'phaseKind' | 'model'>, status: IFusionPhaseMeta['status'], timestamp: string | undefined, duration?: number, verdict?: string | null): NonNullable<ICopilotFusionProgressUpdate['phase']> {
-		const toolCallId = `fusion:${data.fusionId}:${data.phaseId}`;
+		const toolCallId = getFusionPhaseToolCallId(data.fusionId, data.phaseId);
 		const previous = this._phaseTools.get(toolCallId);
 		const previousPhase = previous && readToolCallMeta(previous).fusionPhase;
 		const parsedTime = timestamp ? Date.parse(timestamp) : Date.now();

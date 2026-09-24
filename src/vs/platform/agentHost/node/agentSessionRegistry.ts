@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../base/common/async.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider } from '../common/agent.js';
 import { AgentSessionRegistrationSource, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions } from './agentHostDatabase.js';
+
+export const IAgentSessionRegistry = createDecorator<AgentSessionRegistry>('agentSessionRegistry');
 
 /** A session recorded in the orchestrator-owned {@link AgentSessionRegistry}. */
 export interface IRegisteredSession {
@@ -17,9 +21,9 @@ export interface IRegisteredSession {
 	readonly startTime: number;
 	/** Most recent provider modification time observed by the orchestrator. */
 	readonly modifiedTime: number;
-	/** Whether the session was first discovered from the provider's native catalog. */
+	/** Whether a provider-native session has not yet been imported or continued with a user message. */
 	readonly external: boolean;
-	/** Durable registration source used to protect external provenance. */
+	/** Durable registration source used to protect explicit ownership from discovery. */
 	readonly source: AgentSessionRegistrationSource;
 }
 
@@ -56,19 +60,44 @@ export type RegisteredSessionMigration = (entry: IStoredRegisteredSession) => Pr
  * or repeated native discovery pass — which re-reads a provider's catalog from
  * scratch — cannot register them. This covers both a session the user
  * explicitly deleted and one that must never be listed at all (e.g. a
- * throwaway chat surface, tombstoned at creation). Tombstones are cleared only
- * by an explicit {@link register} of the same session URI (i.e. an explicit
- * create/restore), never by backfill itself.
+ * throwaway chat surface, tombstoned at creation). Only {@link register} with
+ * `checkTombstone: false` clears a tombstone; restore, discovery, and adoption
+ * leave it intact.
  */
 export class AgentSessionRegistry extends Disposable {
+	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly _database: IAgentHostDatabase) {
+	private readonly _onDidAdoptSession = this._register(new Emitter<URI>());
+	readonly onDidAdoptSession = this._onDidAdoptSession.event;
+
+	constructor(@IAgentHostDatabase private readonly _database: IAgentHostDatabase) {
 		super();
 	}
 
 	/** Records a session using source-aware provenance and tombstone behavior. */
 	register(session: URI, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		return this._database.registerRuntimeSession(session.toString(), sessionOptions, registerOptions);
+	}
+
+	/** Claims an external session without changing its creation time. Returns false if it no longer exists. */
+	async adoptExternalSession(session: URI): Promise<boolean> {
+		const registered = await this.get(session);
+		if (!registered) {
+			return false;
+		}
+		if (!registered.external) {
+			return true;
+		}
+		const adopted = await this.register(session, {
+			provider: registered.provider,
+			startTime: registered.startTime,
+			modifiedTime: registered.modifiedTime,
+			source: 'explicit',
+		}, { checkTombstone: true });
+		if (adopted) {
+			this._onDidAdoptSession.fire(session);
+		}
+		return adopted;
 	}
 
 	/** Removes any registry entry for `session` without writing a tombstone. */

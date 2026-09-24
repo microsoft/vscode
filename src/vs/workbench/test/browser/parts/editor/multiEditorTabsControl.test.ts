@@ -16,6 +16,7 @@ import { ITreeViewsDnDService } from '../../../../../editor/common/services/tree
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
+import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -35,6 +36,10 @@ suite('MultiEditorTabsControl', () => {
 	let partOptions: IEditorPartOptions;
 	let model: EditorGroupModel;
 	let createControl: (menuIds?: IEditorGroupMenuIds) => MultiEditorTabsControl;
+	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
+	let groupView: IEditorGroupView;
+	let groupsView: IEditorGroupsView;
+	let editorPartsView: IEditorPartsView;
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -45,7 +50,7 @@ suite('MultiEditorTabsControl', () => {
 		// other suites may have left behind
 		disposables.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ITreeViewsDnDService, new TreeViewsDnDService());
 		instantiationService.stub(INotebookDocumentService, new NotebookDocumentWorkbenchService());
 
@@ -59,7 +64,7 @@ suite('MultiEditorTabsControl', () => {
 			model.openEditor(editor, { pinned: true, active: i === 0 });
 		}
 
-		const groupView = new class extends mock<IEditorGroupView>() {
+		groupView = new class extends mock<IEditorGroupView>() {
 			override get id() { return model.id; }
 			override get count() { return model.count; }
 			override get stickyCount() { return model.stickyCount; }
@@ -80,7 +85,7 @@ suite('MultiEditorTabsControl', () => {
 			override readonly onDidActiveEditorChange = Event.None;
 		};
 
-		const groupsView = new class extends mock<IEditorGroupsView>() {
+		groupsView = new class extends mock<IEditorGroupsView>() {
 			override get partOptions() { return partOptions; }
 			override get activeGroup(): IEditorGroupView { return groupView; }
 			override get groups(): IEditorGroupView[] { return [groupView]; }
@@ -88,7 +93,7 @@ suite('MultiEditorTabsControl', () => {
 			override readonly onDidVisibilityChange = Event.None;
 		};
 
-		const editorPartsView = new class extends mock<IEditorPartsView>() {
+		editorPartsView = new class extends mock<IEditorPartsView>() {
 			override get count() { return 1; }
 			override getGroup() { return groupView; }
 		};
@@ -164,9 +169,9 @@ suite('MultiEditorTabsControl', () => {
 		return group;
 	}
 
-	async function layoutConnectedGroup(group: HTMLElement, width: number): Promise<void> {
+	async function layoutConnectedGroup(group: HTMLElement, width: number, tabsControl: MultiEditorTabsControl | MultiRowEditorControl = control): Promise<void> {
 		group.style.width = `${width}px`;
-		control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) });
+		tabsControl.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) });
 		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 	}
 
@@ -738,6 +743,87 @@ suite('MultiEditorTabsControl', () => {
 			{ wrapped, wrappedTop, upper, unwrapped, unwrappedTop },
 			{ wrapped: [true, false], wrappedTop: [true, false], upper: { inset: '-2px', shoulder: 'none' }, unwrapped: [false, false], unwrappedTop: [true, true] }
 		);
+	});
+
+	test('connected minimum widths settle wrapping on the first scheduled layout', async () => {
+		const group = connectedGroup();
+		for (const editor of model.getEditors(EditorsOrder.SEQUENTIAL)) {
+			model.closeEditor(editor);
+			control.closeEditor(editor);
+		}
+		for (let index = 0; index < 6; index++) {
+			const editor = disposables.add(new class extends TestFileEditorInput {
+				override getName(): string { return '.markdown'; }
+			}(URI.file(`/path/file${index}.markdown`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: index === 0 });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden', hasIcons: false };
+		control.updateOptions(oldOptions, partOptions);
+
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const unstableLayouts = [];
+		for (const width of [230, 360, 400, 420, 440, 460, 480]) {
+			await layoutConnectedGroup(group, width);
+			const firstPass = {
+				offsets: tabs.map(tab => tab.offsetTop),
+				wrapping: container.querySelector('.tabs-and-actions-container')!.classList.contains('wrapping'),
+			};
+			await layoutConnectedGroup(group, width);
+			const secondPass = {
+				offsets: tabs.map(tab => tab.offsetTop),
+				wrapping: container.querySelector('.tabs-and-actions-container')!.classList.contains('wrapping'),
+			};
+			if (firstPass.wrapping !== secondPass.wrapping || firstPass.offsets.some((top, index) => top !== secondPass.offsets[index])) {
+				unstableLayouts.push({ width, firstPass, secondPass });
+			}
+		}
+
+		assert.deepStrictEqual({
+			unstableLayouts,
+			minimumConstrained: tabs.every(tab => tab.style.getPropertyValue('--connected-tab-min-width') !== ''),
+		}, {
+			unstableLayouts: [],
+			minimumConstrained: true,
+		});
+	});
+
+	test('the first nonempty connected tab bar owns the top row after the pinned row empties', async () => {
+		const group = connectedGroup();
+		control.dispose();
+		container.replaceChildren();
+		const multiRowControl = disposables.add(instantiationService.createInstance(MultiRowEditorControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
+		multiRowControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		await layoutConnectedGroup(group, 400, multiRowControl);
+		const tabBars = Array.from(container.querySelectorAll<HTMLElement>('.tabs-and-actions-container'));
+		const unstickyTopRows = () => Array.from(tabBars[1].querySelectorAll<HTMLElement>('.tabs-container > .tab'), tab => tab.classList.contains('connected-tab-top-row'));
+		const initiallyEmpty = {
+			pinnedRowEmpty: tabBars[0].classList.contains('empty'),
+			top: unstickyTopRows(),
+		};
+
+		const stickyEditor = model.getEditorByIndex(0)!;
+		model.stick(stickyEditor);
+		multiRowControl.stickEditor(stickyEditor);
+		await layoutConnectedGroup(group, 400, multiRowControl);
+		const withPinnedRow = unstickyTopRows();
+
+		model.unstick(stickyEditor);
+		multiRowControl.unstickEditor(stickyEditor);
+		await layoutConnectedGroup(group, 400, multiRowControl);
+
+		assert.deepStrictEqual({
+			initiallyEmpty,
+			withPinnedRow,
+			pinnedRowEmptyAfterFinalUnpin: tabBars[0].classList.contains('empty'),
+			afterFinalUnpin: unstickyTopRows(),
+		}, {
+			initiallyEmpty: { pinnedRowEmpty: true, top: [true, true] },
+			withPinnedRow: [false],
+			pinnedRowEmptyAfterFinalUnpin: true,
+			afterFinalUnpin: [true, true],
+		});
 	});
 
 	test('connected wrapped last tab adds its shoulder to the editor actions margin', async () => {

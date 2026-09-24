@@ -9,11 +9,11 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposa
 import { stableStringify } from '../../../base/common/objects.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -104,8 +104,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			}
 		}
 
-		if (!gitHubState) {
-			gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		// Each folder has its own GitHub state; callers may pass the session folder's.
+		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, ownerKey);
+		if (!gitHubFolder.isSessionFolder || !gitHubState) {
+			gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, gitHubFolder.folderKey);
 		}
 
 		// In a multi-folder session the per-turn `turn` and `compare-turns`
@@ -154,9 +156,14 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const ownerKey = context.ownerKey ?? parsed?.ownerUri ?? context.sessionKey;
 		const sourceKey = context.sourceKey ?? resolveChangesetOwnerScope(this._stateManager, ownerKey).sourceUri;
 		const scopedOwner = isAhpChatChannel(ownerKey) || !!parseFolderChangesetOwnerUri(ownerKey);
-		const allowsSessionWorkflowOperations = context.changesetKind === ChangesetKind.Branch && isDefaultChatUri(sourceKey);
-		const scopedOperations = scopedOwner && !allowsSessionWorkflowOperations
-			? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID && operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id))
+		const isBranchChangeset = context.changesetKind === ChangesetKind.Branch;
+		// Every folder scope's Branch changeset offers pull request workflows
+		// resolved against that scope; the direct merge stays with the default chat.
+		const allowsMergeOperation = isBranchChangeset && isDefaultChatUri(sourceKey);
+		const scopedOperations = scopedOwner
+			? operations.filter(operation => operation.id === AGENT_HOST_MERGE_CHANGESET_OPERATION_ID
+				? allowsMergeOperation
+				: isBranchChangeset || (operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id)))
 			: operations;
 
 		// Operations are disabled while a turn is active so the working tree /
@@ -251,7 +258,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		if (!gitHubState) {
 			const sessionState = this._stateManager.getSessionState(containingSessionKey);
-			gitHubState = readSessionGitHubState(sessionState?._meta);
+			gitHubState = readSessionGitHubState(sessionState?._meta, sessionState?.workingDirectories?.[0]);
 		}
 
 		for (const changeset of unsuppressed) {

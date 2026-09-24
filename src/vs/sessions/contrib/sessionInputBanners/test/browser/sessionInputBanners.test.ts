@@ -25,7 +25,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -46,35 +46,25 @@ suite('SessionInputBanners', () => {
 	async function testActionablePullRequests(isDraft: boolean): Promise<void> {
 		const sessionResource = URI.parse('local-agent-host:/session-1');
 		const pullRequests = [pullRequest(42), pullRequest(41), pullRequest(40), pullRequest(39)];
+		const sessionWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceWithPullRequests('/workspace', pullRequests));
+		const mainChat = upcastPartial<IChat>({
+			resource: URI.parse('local-agent-host-chat:/session-1/main'),
+			workspace: sessionWorkspace,
+		});
+		const secondaryPullRequest = pullRequest(38);
+		const secondaryChat = upcastPartial<IChat>({
+			resource: URI.parse('local-agent-host-chat:/session-1/secondary'),
+			workspace: observableValue<ISessionWorkspace | undefined>('secondaryWorkspace', workspaceWithPullRequests('/workspace-secondary', [secondaryPullRequest])),
+		});
+		const activeChat = observableValue<IChat>('activeChat', mainChat);
 		const session = new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'session-1';
 			override readonly resource = sessionResource;
 			override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 			override readonly status = observableValue('status', SessionStatus.Completed);
-			override readonly workspace = observableValue<ISessionWorkspace | undefined>('workspace', {
-				uri: URI.file('/workspace'),
-				label: 'workspace',
-				icon: Codicon.folder,
-				folders: [{
-					root: URI.file('/workspace'),
-					workingDirectory: URI.file('/workspace'),
-					name: 'workspace',
-					description: undefined,
-					gitRepository: {
-						uri: URI.file('/workspace'),
-						workTreeUri: undefined,
-						baseBranchName: undefined,
-						gitHubInfo: observableValue('gitHubInfo', {
-							owner: 'owner',
-							repo: 'repo',
-							pullRequests,
-							pullRequest: pullRequests[0],
-						}),
-					},
-				}],
-				requiresWorkspaceTrust: false,
-				isVirtualWorkspace: false,
-			});
+			override readonly workspace = sessionWorkspace;
+			override readonly mainChat = observableValue<IChat>('mainChat', mainChat);
+			override readonly activeChat = activeChat;
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
@@ -95,12 +85,14 @@ suite('SessionInputBanners', () => {
 			[41, pullRequestModel(41, 'Older pull request', isDraft)],
 			[40, pullRequestModel(40, 'Closed pull request', isDraft, GitHubPullRequestState.Closed)],
 			[39, pullRequestModel(39, 'Merged pull request', false, GitHubPullRequestState.Merged)],
+			[38, pullRequestModel(38, 'Secondary chat pull request', isDraft)],
 		]);
 		const ciModels = new Map([
 			[42, ciModel([failedCheck(1), failedCheck(2)])],
 			[41, ciModel([])],
 			[40, ciModel([failedCheck(3)])],
 			[39, ciModel([failedCheck(4)])],
+			[38, ciModel([failedCheck(5)])],
 		]);
 		const gitHubService = new class extends mock<IGitHubService>() {
 			override createPullRequestModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
@@ -180,8 +172,31 @@ suite('SessionInputBanners', () => {
 				{ number: 41, refreshCalls: 1, startPollingCalls: 1 },
 				{ number: 40, refreshCalls: 0, startPollingCalls: 0 },
 				{ number: 39, refreshCalls: 0, startPollingCalls: 0 },
+				{ number: 38, refreshCalls: 0, startPollingCalls: 0 },
 			],
 		});
+
+		activeChat.set(secondaryChat, undefined);
+		assert.deepStrictEqual({
+			current: currentBanner(banners),
+			secondaryCIPolling: {
+				refreshCalls: ciModels.get(38)?.refreshCalls,
+				startPollingCalls: ciModels.get(38)?.startPollingCalls,
+			},
+		}, {
+			current: {
+				position: '1/2',
+				reference: undefined,
+				text: '1 Check Failing',
+				splitButtons: 0,
+				actions: ['Fix Checks', 'Reveal'],
+			},
+			secondaryCIPolling: {
+				refreshCalls: 1,
+				startPollingCalls: 1,
+			},
+		});
+		activeChat.set(mainChat, undefined);
 
 		agentMergeState.set({ enabled: true }, undefined);
 		assert.deepStrictEqual(currentBanner(banners), {
@@ -271,6 +286,34 @@ function pullRequest(number: number): IGitHubPullRequestRef {
 		repo: 'repo',
 		number,
 		uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+	};
+}
+
+function workspaceWithPullRequests(path: string, pullRequests: readonly IGitHubPullRequestRef[]): ISessionWorkspace {
+	const uri = URI.file(path);
+	return {
+		uri,
+		label: path,
+		icon: Codicon.folder,
+		folders: [{
+			root: uri,
+			workingDirectory: uri,
+			name: path,
+			description: undefined,
+			gitRepository: {
+				uri,
+				workTreeUri: undefined,
+				baseBranchName: undefined,
+				gitHubInfo: observableValue('gitHubInfo', {
+					owner: 'owner',
+					repo: 'repo',
+					pullRequests,
+					pullRequest: pullRequests[0],
+				}),
+			},
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
 	};
 }
 
