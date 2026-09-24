@@ -16,6 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -174,6 +175,7 @@ function createTestSideEffects(
 	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
 	const logService = new NullLogService();
+	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = new NoopWorktreeIsolation();
 	const services = new ServiceCollection(
@@ -184,6 +186,7 @@ function createTestSideEffects(
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
 		[IAgentHostStateManager, stateManager],
 		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+		[IFileService, contributionFileService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -1490,6 +1493,7 @@ suite('AgentSideEffects', () => {
 				'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 				'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 				'- Focus on the user\'s selected range when one is provided.',
+				'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 				'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 				'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 				'- Produce the edit directly rather than explaining it or writing a tutorial.',
