@@ -1042,6 +1042,10 @@ export class ExternalIngestIndex extends Disposable {
 			if (stat.type !== 1) { // FileType.File = 1
 				return undefined;
 			}
+			// File system providers may violate FileStat's numeric contract at runtime.
+			if (!Number.isFinite(stat.size) || !Number.isFinite(stat.mtime)) {
+				return undefined;
+			}
 			return { size: stat.size, mtime: stat.mtime };
 		} catch {
 			return undefined;
@@ -1098,5 +1102,3 @@ export class ExternalIngestIndex extends Disposable {
 		return { fileCount: files.length, files };
 	}
 }
-
-

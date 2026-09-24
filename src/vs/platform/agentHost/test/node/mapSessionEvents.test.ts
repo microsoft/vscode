@@ -8,9 +8,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
+import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
 	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
@@ -26,12 +29,476 @@ suite('mapSessionEvents — history replay', () => {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
-	test('task_complete with a summary renders as a markdown part, not a tool call', async () => {
+	function fusionParts(parts: readonly ResponsePart[]) {
+		return parts.map(part => part.kind === ResponsePartKind.SystemNotification
+			? readAgentSystemNotificationMeta(part).fusionStatus
+			: part.kind === ResponsePartKind.ToolCall ? readToolCallMeta(part.toolCall).fusionPhase?.status
+				: part.kind === ResponsePartKind.Markdown ? part.content : part.kind);
+	}
+
+	function fusionTurnData(index: number) {
+		const fusionId = `fusion-${index}`;
+		const phaseId = `phase-${index}`;
+		const turnId = `sdk-turn-${index}`;
+		const attemptId = `attempt-${index}`;
+		return {
+			routeStarted: { ...fusion.routeStarted, attemptId },
+			routeFailed: { ...fusion.routeFailed, attemptId },
+			resolved: { ...fusion.resolved, fusionId, turnId },
+			phaseCompleted: { ...fusion.phaseCompleted, fusionId, phaseId },
+			completed: { ...fusion.completed, fusionId, turnId, commitId: `commit-${index}`, finalSourcePhaseId: phaseId },
+		};
+	}
+
+	test('restores durable Fusion milestones once without private or provisional content', async () => {
+		const provisional = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+		const resolved = event('session.fusion_resolved', fusion.resolved);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Implement the change.' } }]),
+			resolved,
+			resolved,
+			event('assistant.fusion_phase_started', fusion.started, { ephemeral: true }),
+			event('assistant.fusion_phase_activity', fusion.activity, { ephemeral: true }),
+			event('assistant.message', { messageId: 'draft', content: 'PRIVATE DRAFT', fusion: provisional }, { ephemeral: true }),
+			event('tool.execution_start', { toolCallId: 'hidden', toolName: 'read_file', fusion: provisional }, { ephemeral: true }),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.message', { messageId: 'final', content: 'Selected final answer', fusion: { ...provisional, commitId: 'commit-1' } }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual({
+			turnCount: turns.length,
+			parts: fusionParts(turns[0].responseParts),
+			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
+		}, {
+			turnCount: 1,
+			parts: ['selected', 'succeeded', 'Selected final answer'],
+			leaksPhaseContent: false,
+		});
+	});
+
+	test('restores committed Fusion phase tools and intermediate text under the phase tile', async () => {
+		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Start the app.' } }]),
+			event('session.fusion_resolved', fusion.resolved),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.message', { messageId: 'm1', content: 'Starting the server', toolRequests: [{ toolCallId: 'tc-bash', name: 'bash', arguments: {} }], fusion: committed }),
+			event('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-bash', success: true, result: { content: 'a.ts' }, fusion: committed }),
+			event('assistant.message', { messageId: 'm2', content: 'The app is running', fusion: committed }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		const phaseToolCallId = 'fusion:fusion-1:phase-1';
+		const phase = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === phaseToolCallId);
+		const phaseContent = phase?.toolCall.status === ToolCallStatus.Completed ? phase.toolCall.content : undefined;
+		assert.deepStrictEqual({
+			root: turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind),
+			phaseChat: phaseContent?.flatMap(item => item.type === ToolResultContentType.Subagent ? [{ resource: item.resource, agentName: item.agentName }] : []),
+			phaseTurn: subagentTurnsByToolCallId.get(phaseToolCallId)?.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind)),
+		}, {
+			root: [ResponsePartKind.SystemNotification, phaseToolCallId, 'The app is running'],
+			phaseChat: [{ resource: buildSubagentSessionUri(session.toString(), phaseToolCallId), agentName: 'hydrafusion-phase' }],
+			phaseTurn: ['Starting the server', 'tc-bash'],
+		});
+	});
+
+	test('restores a review phase critique into its phase chat', async () => {
+		const critic = { ...fusion.phaseCompleted, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review' } as const;
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Implement it.' } }]),
+			event('session.fusion_resolved', { ...fusion.resolved, pattern: 'critique' }),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.fusion_phase_completed', { ...critic, content: JSON.stringify({ assessment: 'revise', feedback: 'Negative input is accepted.', defect: null }) }),
+			event('assistant.message', { messageId: 'final', content: 'Done.' }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		const criticToolCallId = 'fusion:fusion-1:critic';
+		const tile = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === criticToolCallId);
+		assert.deepStrictEqual({
+			linked: tile?.toolCall.status === ToolCallStatus.Completed && !!tile.toolCall.content?.some(item => item.type === ToolResultContentType.Subagent),
+			critique: subagentTurnsByToolCallId.get(criticToolCallId)?.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind)),
+			solverChat: subagentTurnsByToolCallId.has('fusion:fusion-1:phase-1'),
+			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
+		}, {
+			linked: true,
+			critique: ['**Changes requested**\n\nNegative input is accepted.'],
+			solverChat: false,
+			leaksPhaseContent: false,
+		});
+	});
+
+	test('attaches early Fusion routing to the next user turn rather than the previous answer', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([
+				{ type: 'user.message', id: 'user-1', data: { content: 'First request' } },
+				{ type: 'assistant.message', data: { messageId: 'first', content: 'First answer' } },
+			]),
+			event('session.idle', {}),
+			event('session.fusion_resolved', fusion.resolved),
+			...toSessionEvents([{ type: 'user.message', id: 'user-2', data: { content: 'Second request' } }]),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			milestones: turn.responseParts.filter(part => part.kind === ResponsePartKind.SystemNotification || part.kind === ResponsePartKind.ToolCall).length,
+		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 2 }]);
+	});
+
+	for (const correlation of ['user', 'assistant', 'interaction', 'missing', 'shared'] as const) {
+		for (const earlyRouting of [false, true]) {
+			test(`correlates delayed routing after cancellation (${correlation}, ${earlyRouting ? 'early' : 'normal'} next routing)`, async () => {
+				const next = fusionTurnData(2);
+				const oldResolution = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'sdk-first' });
+				const nextResolution = event('session.fusion_resolved', next.resolved);
+				const { turns } = await mapSessionEvents(session, undefined, [
+					...(correlation === 'interaction' ? [event('assistant.turn_start', { turnId: 'sdk-first', interactionId: 'interaction-first' })] : []),
+					event('user.message', {
+						content: 'First request',
+						...(correlation === 'user' ? { turnId: 'sdk-first' } : correlation === 'shared' ? { turnId: next.resolved.turnId } : {}),
+						...(correlation === 'interaction' ? { interactionId: 'interaction-first' } : {}),
+					}, { id: 'user-1' }),
+					...(correlation === 'assistant' ? [event('assistant.turn_start', { turnId: 'sdk-first' })] : []),
+					event('abort', { reason: 'user_initiated' }),
+					...(earlyRouting ? [oldResolution, nextResolution] : []),
+					event('user.message', {
+						content: 'Second request',
+						...(correlation === 'user' || correlation === 'shared' ? { turnId: next.resolved.turnId } : {}),
+						...(correlation === 'interaction' ? { interactionId: 'interaction-next' } : {}),
+					}, { id: 'user-2' }),
+					...(correlation === 'assistant' || correlation === 'interaction'
+						? [event('assistant.turn_start', { turnId: next.resolved.turnId, ...(correlation === 'interaction' ? { interactionId: 'interaction-next' } : {}) })] : []),
+					...(!earlyRouting ? [oldResolution, nextResolution] : []),
+					event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+					event('session.fusion_completed', { ...fusion.completed, turnId: 'sdk-first' }),
+					event('assistant.fusion_phase_completed', next.phaseCompleted),
+					event('assistant.message', { messageId: 'answer', content: 'Second answer' }),
+					event('session.fusion_completed', next.completed),
+				]);
+				assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, state: turn.state, parts: fusionParts(turn.responseParts) })), [
+					{ id: 'user-1', state: TurnState.Cancelled, parts: [] },
+					{ id: 'user-2', state: TurnState.Complete, parts: correlation === 'missing' || correlation === 'shared' ? ['Second answer'] : ['selected', 'succeeded', 'Second answer'] },
+				]);
+			});
+		}
+	}
+
+	test('restores an interrupted ephemeral phase with its duration and rejects its late events on the next turn', async () => {
+		const next = fusionTurnData(2);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'First request' }, { id: 'user-1' }),
+			event('session.fusion_route_started', fusion.routeStarted),
+			event('assistant.fusion_phase_started', fusion.started, { timestamp: '2020-01-01T12:00:00Z' }),
+			event('assistant.fusion_phase_activity', fusion.activity),
+			event('abort', { reason: 'user_initiated' }, { timestamp: '2020-01-01T12:00:03Z' }),
+			event('user.message', { content: 'Second request', turnId: next.resolved.turnId }, { id: 'user-2' }),
+			event('session.fusion_route_failed', fusion.routeFailed),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('session.fusion_completed', fusion.completed),
+			event('session.fusion_resolved', next.resolved),
+			event('assistant.message', { messageId: 'answer', content: 'Second answer' }),
+		]);
+		const phase = turns[0].responseParts[0];
+		assert.deepStrictEqual({
+			parts: turns.map(turn => fusionParts(turn.responseParts)),
+			duration: phase.kind === ResponsePartKind.ToolCall ? readToolCallMeta(phase.toolCall).fusionPhase?.duration : undefined,
+		}, { parts: [['cancelled'], ['selected', 'Second answer']], duration: 3000 });
+	});
+
+	test('keeps an interrupted pending routing fallback with its upcoming user message', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'First request' }, { id: 'user-1' }),
+			event('assistant.message', { messageId: 'answer-1', content: 'First answer' }),
+			event('session.idle', {}),
+			event('session.fusion_route_failed', fusion.routeFailed),
+			event('abort', { reason: 'user_initiated' }),
+			event('abort', { reason: 'user_initiated' }),
+			event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['First answer'] },
+			{ id: 'user-2', parts: ['degraded', 'cancelled'] },
+		]);
+	});
+
+	for (const [abortAfter, phaseEvent, phaseStatus] of [
+		['resolved', undefined, undefined],
+		['phase completed', event('assistant.fusion_phase_completed', fusion.phaseCompleted), 'succeeded'],
+		['phase failed with fallback', event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, degradedToPhaseId: 'fallback' }), 'failed'],
+		['phase failed', event('assistant.fusion_phase_failed', fusion.phaseFailed), 'failed'],
+		['phase cancelled', event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, status: 'cancelled' }), 'cancelled'],
+	] as const) {
+		for (const earlyRouting of [false, true]) {
+			for (const idle of [false, true]) {
+				test(`restores Fusion after abort following ${abortAfter} (${earlyRouting ? 'early' : 'normal'} routing, ${idle ? 'with' : 'without'} idle)`, async () => {
+					const next = fusionTurnData(2);
+					const routing = [
+						...(earlyRouting ? [event('session.fusion_route_started', next.routeStarted)] : []),
+						event('session.fusion_resolved', next.resolved),
+					];
+					const lateEvents = [
+						event('session.fusion_route_started', fusion.routeStarted),
+						event('session.fusion_route_failed', fusion.routeFailed),
+						event('session.fusion_resolved', fusion.resolved),
+						event('assistant.fusion_phase_completed', { ...fusion.phaseCompleted, phaseId: 'late-phase' }),
+						event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, phaseId: 'late-failed-phase', degradedToPhaseId: 'late-fallback' }),
+						event('session.fusion_completed', fusion.completed),
+					];
+					const { turns } = await mapSessionEvents(session, undefined, [
+						event('user.message', { content: 'First request', turnId: fusion.resolved.turnId }, { id: 'user-1' }),
+						event('session.fusion_route_started', fusion.routeStarted),
+						event('session.fusion_resolved', fusion.resolved),
+						...(phaseEvent ? [phaseEvent] : []),
+						event('abort', { reason: 'user_initiated' }),
+						...lateEvents,
+						...(idle ? [event('session.idle', {})] : []),
+						...lateEvents,
+						...(earlyRouting ? routing : []),
+						event('user.message', { content: 'Second request', turnId: next.resolved.turnId }, { id: 'user-2' }),
+						...lateEvents,
+						...(earlyRouting ? [] : routing),
+						event('session.fusion_resolved', next.resolved),
+						...lateEvents,
+						event('assistant.fusion_phase_completed', next.phaseCompleted),
+						event('assistant.message', { messageId: 'answer-2', content: 'Second answer' }),
+						event('session.fusion_completed', next.completed),
+						...lateEvents,
+					]);
+					assert.deepStrictEqual(turns.map(turn => ({
+						id: turn.id,
+						state: turn.state,
+						parts: fusionParts(turn.responseParts),
+					})), [
+						{
+							id: 'user-1',
+							state: TurnState.Cancelled,
+							parts: ['selected', ...(phaseStatus ? [phaseStatus] : []), 'cancelled'],
+						},
+						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer'] },
+					]);
+				});
+			}
+		}
+	}
+
+	for (const earlyRouting of [false, true]) {
+		test(`cancels a routing fallback and ignores late workflow completion (${earlyRouting ? 'early' : 'normal'} routing)`, async () => {
+			const next = fusionTurnData(2);
+			const routing = [
+				event('session.fusion_route_started', fusion.routeStarted),
+				event('session.fusion_route_failed', fusion.routeFailed),
+			];
+			const { turns } = await mapSessionEvents(session, undefined, [
+				...(earlyRouting ? routing : []),
+				event('user.message', { content: 'First request', turnId: fusion.resolved.turnId }, { id: 'user-1' }),
+				...(earlyRouting ? [] : routing),
+				event('abort', { reason: 'user_initiated' }),
+				event('session.fusion_completed', fusion.completed),
+				event('session.fusion_resolved', fusion.resolved),
+				event('session.idle', {}),
+				event('session.fusion_route_started', next.routeStarted),
+				event('session.fusion_completed', fusion.completed),
+				event('user.message', { content: 'Second request', turnId: next.resolved.turnId }, { id: 'user-2' }),
+				event('session.fusion_route_failed', fusion.routeFailed),
+				event('session.fusion_resolved', next.resolved),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('session.fusion_completed', next.completed),
+				event('abort', { reason: 'user_initiated' }),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({
+				id: turn.id,
+				parts: fusionParts(turn.responseParts),
+			})), [
+				{ id: 'user-1', parts: ['degraded', 'cancelled'] },
+				{ id: 'user-2', parts: ['selected', 'succeeded'] },
+			]);
+		});
+	}
+
+	test('restores consecutive cancelled and completed Fusion turns without reviving prior workflows', async () => {
+		const states = [TurnState.Cancelled, TurnState.Cancelled, TurnState.Complete, TurnState.Complete, TurnState.Cancelled, TurnState.Complete];
+		const events = states.flatMap((state, index) => {
+			const data = fusionTurnData(index + 1);
+			const routing = [
+				event('session.fusion_route_started', data.routeStarted),
+				event('session.fusion_resolved', data.resolved),
+			];
+			return [
+				...(index % 2 === 0 ? routing : []),
+				event('user.message', { content: `Request ${index + 1}`, turnId: data.resolved.turnId }, { id: `user-${index + 1}` }),
+				...(index % 2 === 0 ? [] : routing),
+				event('assistant.fusion_phase_completed', data.phaseCompleted),
+				...(state === TurnState.Cancelled ? [event('abort', { reason: 'user_initiated' })] : [
+					event('assistant.message', { messageId: `answer-${index + 1}`, content: `Answer ${index + 1}` }),
+					event('session.fusion_completed', data.completed),
+				]),
+				event('session.idle', {}),
+			];
+		});
+		for (let index = 0; index < states.length - 1; index++) {
+			const data = fusionTurnData(index + 1);
+			events.push(
+				event('session.fusion_resolved', data.resolved),
+				event('assistant.fusion_phase_completed', { ...data.phaseCompleted, phaseId: 'late-phase' }),
+				event('session.fusion_completed', data.completed),
+			);
+		}
+		const { turns } = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			state: turn.state,
+			parts: fusionParts(turn.responseParts),
+		})), states.map((state, index) => ({
+			id: `user-${index + 1}`,
+			state,
+			parts: ['selected', 'succeeded', ...(state === TurnState.Cancelled ? ['cancelled'] : [`Answer ${index + 1}`])],
+		})));
+	});
+
+	test('does not attach an unowned routing fallback to the next request after cancellation', async () => {
+		const next = fusionTurnData(2);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'First request' }, { id: 'user-1' }),
+			event('session.fusion_resolved', fusion.resolved),
+			event('abort', { reason: 'user_initiated' }),
+			event('session.fusion_route_started', next.routeStarted),
+			event('session.fusion_route_failed', next.routeFailed),
+			event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+			event('session.fusion_route_failed', next.routeFailed),
+			event('assistant.message', { messageId: 'answer-2', content: 'Fallback answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			parts: fusionParts(turn.responseParts),
+		})), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['Fallback answer'] },
+		]);
+	});
+
+	for (const persistedOnly of [false, true]) {
+		test(`rejects a cancelled request's late routing failure (${persistedOnly ? 'durable log' : 'including ephemeral events'})`, async () => {
+			const events = [
+				event('user.message', { content: 'First request' }, { id: 'user-1' }),
+				event('session.fusion_route_started', fusion.routeStarted),
+				event('abort', { reason: 'user_initiated' }),
+				event('session.fusion_route_failed', fusion.routeFailed),
+				event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+				event('assistant.message', { messageId: 'answer-2', content: 'Second answer' }),
+			];
+			const { turns } = await mapSessionEvents(session, undefined, persistedOnly ? events.filter(event => !event.ephemeral) : events);
+			assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+				{ id: 'user-1', parts: persistedOnly ? [] : ['cancelled'] },
+				{ id: 'user-2', parts: ['Second answer'] },
+			]);
+		});
+	}
+
+	for (const knownAgent of [false, true]) {
+		test(`subagent events do not reset or interrupt root Fusion progress (${knownAgent ? 'known' : 'unknown'} agent)`, async () => {
+			const next = fusionTurnData(2);
+			const agent = { agentId: 'child-agent' };
+			const { turns } = await mapSessionEvents(session, undefined, [
+				event('user.message', { content: 'Root request' }, { id: 'user-1' }),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				...(knownAgent ? [event('subagent.started', { toolCallId: 'child-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Child task' }, agent)] : []),
+				event('user.message', { content: 'Child request' }, agent),
+				event('assistant.turn_start', { turnId: 'child-turn' }, agent),
+				event('session.fusion_route_started', next.routeStarted, agent),
+				event('session.fusion_resolved', next.resolved, agent),
+				event('assistant.fusion_phase_completed', next.phaseCompleted, agent),
+				event('session.fusion_completed', next.completed, agent),
+				event('abort', { reason: 'user_initiated' }, agent),
+				event('assistant.turn_end', { turnId: 'child-turn' }, agent),
+				event('session.idle', {}, agent),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				event('session.fusion_completed', fusion.completed),
+				event('session.fusion_resolved', next.resolved),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('assistant.message', { messageId: 'root-answer', content: 'Root answer' }),
+				event('session.fusion_completed', next.completed),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({
+				id: turn.id,
+				state: turn.state,
+				parts: fusionParts(turn.responseParts),
+			})), [{
+				id: 'user-1',
+				state: TurnState.Complete,
+				parts: ['selected', 'succeeded', 'selected', 'succeeded', 'Root answer'],
+			}]);
+		});
+	}
+
+	for (const hasExecutionEvents of [true, false]) {
+		test(`restores canonical agent read labels even when identity is recorded later (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'parent', content: 'Read the agent result.' } },
+				{ type: 'assistant.message', data: { messageId: 'read-request', content: '', toolRequests: [{ toolCallId: 'tc-read', name: 'read_agent', arguments: { agent_id: agentId } }] } },
+			];
+			if (hasExecutionEvents) {
+				events.push(
+					{ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'read_agent', arguments: { agent_id: agentId } } },
+					{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true } },
+				);
+			}
+			events.push({
+				type: 'subagent.started', agentId, data: {
+					toolCallId: 'tc-task', agentName: 'research', agentDisplayName: 'catalog-perf', agentDescription: 'Profile the catalog',
+				}
+			});
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolName === 'read_agent' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage }]
+				: [])), [{
+					invocation: { markdown: 'Read agent `catalog-perf`' },
+					completed: { markdown: 'Read agent `catalog-perf`' },
+				}]);
+		});
+	}
+
+	for (const hasExecutionEvents of [true, false]) {
+		test(`restores write recipients from background completion notifications (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const parameters = { agent_ids: ['renderer-agent', 'history-agent'], message: 'Follow up' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Continue the review.' } },
+				{ type: 'assistant.message', data: { messageId: 'write-request', content: '', toolRequests: [{ toolCallId: 'tc-write', name: 'write_agent', arguments: parameters }] } },
+			];
+			if (hasExecutionEvents) {
+				events.push(
+					{ type: 'tool.execution_start', data: { toolCallId: 'tc-write', toolName: 'write_agent', arguments: parameters } },
+					{ type: 'tool.execution_complete', data: { toolCallId: 'tc-write', success: true } },
+				);
+			}
+			events.push(
+				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId: 'renderer-agent', agentType: 'code-review', displayName: 'Renderer reviewer' } } },
+				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_completed', agentId: 'history-agent', agentType: 'code-review', description: 'Review history', status: 'completed' } } },
+			);
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolCallId === 'tc-write' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage, input: part.toolCall.toolInput }]
+				: [])), [{
+					invocation: { markdown: 'Write to agents `Renderer reviewer`, `Review history`' },
+					completed: { markdown: 'Write to agents `Renderer reviewer`, `Review history`' },
+					input: JSON.stringify(parameters, null, 2),
+				}]);
+		});
+	}
+
+	test('task_complete renders the input summary when tool output is truncated', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Done. All good.' } } },
-			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' } } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
@@ -76,6 +543,129 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
+		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', data: { interactionId: 'm1', content: 'summarize the service' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize', agent_type: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
+			// Auto routes before the model call, so the decision lands before the
+			// subagent's first message. It must not pull the turn's start time back.
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', timestamp: '2025-01-01T00:00:10.000Z', data: autoModeResolved },
+			{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { messageId: 'm3', content: 'Subagent is done.' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parentUsage: turns.map(turn => turn.usage),
+			subagentTurns: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({ text: turn.message.text, startedAt: turn.startedAt, duration: turn.duration, usage: turn.usage })),
+		}, {
+			parentUsage: [undefined],
+			subagentTurns: [{
+				text: 'Inspect the implementation.',
+				startedAt: '2025-01-01T00:00:20.000Z',
+				duration: 10000,
+				usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved } },
+			}],
+		});
+	});
+
+	for (const beforeFirstMessage of [false, true]) {
+		test(`preserves restored subagent Auto routing across same-model configuration changes (beforeFirstMessage=${beforeFirstMessage})`, async () => {
+			const configurationChange: ISessionEvent = {
+				type: 'session.model_change', agentId: 'agent-1', data: { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' },
+			};
+			const autoModeResolved = { chosenModel: 'gpt-5.5' };
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Delegate work' } },
+				{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto' } },
+				{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: autoModeResolved },
+				...(beforeFirstMessage ? [configurationChange] : []),
+				{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+				{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+				...(!beforeFirstMessage ? [configurationChange] : []),
+			]));
+
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('tc-task')?.[0].usage, {
+				model: 'gpt-5.5', _meta: { autoModeResolved },
+			});
+		});
+	}
+
+	test('restores a known subagent startup model without waiting for usage', async () => {
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.start', data: { selectedModel: 'gpt-5.5' } },
+			{ type: 'user.message', id: 'parent-turn', data: { content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'gpt-5.4-mini' } },
+			{ type: 'subagent.configured', agentId: 'agent-1', data: { model: 'claude-sonnet-4.6', multiTurn: true } },
+			{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { content: 'Explore' } },
+			{ type: 'assistant.turn_start', agentId: 'agent-1', data: { turnId: 'child-turn', model: 'claude-opus-4.8' } },
+			{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { content: 'Child response' } },
+			{ type: 'assistant.message', data: { content: 'Parent response' } },
+		]));
+
+		assert.deepStrictEqual({
+			parentModel: turns[0].message.model,
+			child: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({
+				model: turn.message.model, startedAt: turn.startedAt, usage: turn.usage,
+			})),
+		}, {
+			parentModel: { id: 'gpt-5.5' },
+			child: [{ model: { id: 'claude-opus-4.8' }, startedAt: '2025-01-01T00:00:20.000Z', usage: undefined }],
+		});
+	});
+
+	for (const source of ['subagent.started', 'subagent.configured', 'assistant.turn_start'] as const) {
+		test(`restores the subagent model first reported by ${source}`, async () => {
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', id: 'parent-turn', data: { content: 'Delegate work' } },
+				{
+					type: 'subagent.started', agentId: 'agent-1', data: {
+						toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+						...(source === 'subagent.started' ? { model: 'gpt-5.4-mini' } : {}),
+					}
+				},
+				...(source === 'subagent.started' ? [] : [{
+					type: source, agentId: 'agent-1', data: { model: 'gpt-5.4-mini', multiTurn: true, turnId: 'child-turn' },
+				}]),
+				{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { content: 'Explore' } },
+				{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { content: 'Child response' } },
+			];
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({
+				model: turn.message.model, startedAt: turn.startedAt,
+			})), [{ model: { id: 'gpt-5.4-mini' }, startedAt: '2025-01-01T00:00:20.000Z' }]);
+		});
+	}
+
+	test('restored child model changes do not change the next parent request model', async () => {
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.start', data: { selectedModel: 'gpt-5.5' } },
+			{ type: 'user.message', id: 'parent-turn', data: { content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' } },
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: { chosenModel: 'claude-opus-4.8' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+			{ type: 'session.model_change', agentId: 'agent-1', data: { newModel: 'gpt-5.4-mini' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+			{ type: 'user.message', id: 'next-parent-turn', data: { content: 'Continue' } },
+		]));
+
+		assert.deepStrictEqual({
+			parentModels: turns.map(turn => turn.message.model),
+			childModel: subagentTurnsByToolCallId.get('tc-task')?.[0].message.model,
+			childUsage: subagentTurnsByToolCallId.get('tc-task')?.[0].usage,
+		}, {
+			parentModels: [{ id: 'gpt-5.5' }, { id: 'gpt-5.5' }],
+			childModel: { id: 'gpt-5.4-mini' },
+			childUsage: { model: 'gpt-5.4-mini', _meta: {} },
+		});
+	});
+
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -90,6 +680,182 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.Markdown, content: 'All set.' },
 		]);
+	});
+
+	test('restored completed task_complete is not marked interrupted', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-task-complete', data: { interactionId: 'm1', content: 'finish the task' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All done.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
+			{ type: 'assistant.turn_end', data: { turnId: 'sdk-turn' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: {} } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			error: getErrorResponsePart(turns[0]),
+		}, {
+			state: TurnState.Complete,
+			error: undefined,
+		});
+	});
+
+	test('restores an unfinished request as a resumable error on the same turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Partial response' } },
+		];
+		const interruptedTurnError = {
+			errorType: 'executionInterrupted',
+			message: 'The agent was interrupted before this request finished.',
+		};
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
+
+		assert.deepStrictEqual({
+			turnCount: turns.length,
+			id: turns[0].id,
+			state: turns[0].state,
+			errorPart: getErrorResponsePart(turns[0]),
+		}, {
+			turnCount: 1,
+			id: 'interrupted-turn',
+			state: TurnState.Error,
+			errorPart: {
+				kind: ResponsePartKind.Error,
+				error: interruptedTurnError,
+				resumable: true,
+			},
+		});
+	});
+
+	test('restores a continued failed request as one completed turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', timestamp: '2026-08-11T00:00:02.000Z', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:03.000Z', data: { messageId: 'm2', content: 'Finished response' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-08-11T00:10:03.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'session.idle', timestamp: '2026-08-11T00:10:03.000Z', data: {} },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			state: turn.state,
+			duration: turn.duration,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'turn-1',
+			state: TurnState.Complete,
+			duration: 5000,
+			parts: [
+				{ kind: ResponsePartKind.Error },
+				{ kind: ResponsePartKind.Markdown, content: 'Finished response' },
+			],
+		}]);
+	});
+
+	test('excludes host downtime when an interrupted execution resumes and is interrupted again', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:00:02.000Z', data: { messageId: 'm2', content: 'First segment' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:03.000Z', data: { messageId: 'm3', content: 'Second segment' } },
+		];
+		const interruptedTurnError = {
+			errorType: 'executionInterrupted',
+			message: 'The agent was interrupted before this request finished.',
+		};
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
+
+		assert.deepStrictEqual({
+			duration: turns[0].duration,
+			state: turns[0].state,
+			parts: partKinds(turns[0].responseParts),
+			resumable: getErrorResponsePart(turns[0])?.resumable,
+		}, {
+			duration: 5000,
+			state: TurnState.Error,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'First segment' },
+				{ kind: ResponsePartKind.Markdown, content: 'Second segment' },
+				{ kind: ResponsePartKind.Error },
+			],
+			resumable: true,
+		});
+	});
+
+	test('keeps a resumable error terminal when a later notification starts another turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Start the background agent' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', timestamp: '2026-08-11T00:00:02.000Z', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{
+				type: 'system.notification',
+				id: 'notification-turn',
+				timestamp: '2026-08-11T00:10:00.000Z',
+				data: {
+					content: '<system_notification>\nAgent completed\n</system_notification>',
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+				},
+			},
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.100Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:01.000Z', data: { messageId: 'm2', content: 'The background agent finished.' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-08-11T00:10:01.000Z', data: { turnId: 'sdk-turn-2' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'failed-turn',
+			message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+			state: TurnState.Error,
+			parts: [{ kind: ResponsePartKind.Error }],
+		}, {
+			id: 'notification-turn',
+			message: { text: 'Background agent `general-purpose` is complete', origin: { kind: MessageKind.SystemNotification } },
+			state: TurnState.Complete,
+			parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent finished.' }],
+		}]);
+		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, true);
+	});
+
+	test('keeps a resumable error as the final part when a late tool completion arrives', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Run a command' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo hi' } } },
+			{ type: 'session.error', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'hi\n' } } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			parts: partKinds(turns[0].responseParts),
+			resumable: getErrorResponsePart(turns[0])?.resumable,
+		}, {
+			state: TurnState.Error,
+			parts: [{ kind: ResponsePartKind.Error }],
+			resumable: true,
+		});
 	});
 
 	test('fallback task_complete marks the turn complete', async () => {
@@ -128,6 +894,64 @@ suite('mapSessionEvents — history replay', () => {
 			{ kind: ResponsePartKind.ToolCall },
 		]);
 	});
+
+	for (const { withStart, toolTitle, displayName } of [
+		{ withStart: true, toolTitle: 'Read issue', displayName: 'Read issue' },
+		{ withStart: false, toolTitle: 'Read issue', displayName: 'Read issue' },
+		{ withStart: true, toolTitle: undefined, displayName: 'issue_read' },
+	]) {
+		test(`restores MCP tool labels with title=${toolTitle} and execution_start=${withStart}`, async () => {
+			const toolName = 'io-github-github-github-mcp-server-issue_read';
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'Read the issue' } },
+				{
+					type: 'assistant.message',
+					data: {
+						messageId: 'm2',
+						content: '',
+						toolRequests: [{
+							toolCallId: 'tc-mcp',
+							name: toolName,
+							toolTitle,
+							mcpServerName: 'GitHub',
+							mcpToolName: 'issue_read',
+							arguments: { issue_number: 123 },
+						}],
+					},
+				},
+			];
+			if (withStart) {
+				events.push({
+					type: 'tool.execution_start',
+					data: {
+						toolCallId: 'tc-mcp',
+						toolName,
+						mcpServerName: 'GitHub',
+						mcpToolName: 'issue_read',
+						arguments: { issue_number: 123 },
+					},
+				});
+			}
+			events.push({ type: 'tool.execution_complete', data: { toolCallId: 'tc-mcp', success: true, result: { content: 'Issue details' } } });
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+			assert.deepStrictEqual({
+				toolName: part.toolCall.toolName,
+				displayName: part.toolCall.displayName,
+				invocationMessage: part.toolCall.invocationMessage,
+				pastTenseMessage: part.toolCall.pastTenseMessage,
+				meta: readToolCallMeta(part.toolCall),
+			}, {
+				toolName,
+				displayName,
+				invocationMessage: displayName,
+				pastTenseMessage: displayName,
+				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+		});
+	}
 
 	test('resolves relative patch links in restored tool messages', async () => {
 		const patch = [
@@ -271,7 +1095,7 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
+	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
@@ -282,8 +1106,8 @@ suite('mapSessionEvents — history replay', () => {
 					toolCallId: 'tc-1',
 					success: true,
 					result: {
-						content: 'hi\n',
-						contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, cwd: '/repo', outputPreview: 'hi\n' }],
+						content: 'Saved to: /tmp/artifact-b.txt',
+						contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, cwd: '/repo', outputPreview: 'hi\n', outputTruncated: true, outputFilePath: '/tmp/artifact-a.txt' }],
 					},
 				},
 			},
@@ -296,13 +1120,13 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.deepStrictEqual(part.toolCall.content, [
-			{ type: ToolResultContentType.Text, text: 'hi\n' },
+			{ type: ToolResultContentType.Text, text: 'Saved to: /tmp/artifact-b.txt' },
 			{
 				type: ToolResultContentType.Terminal,
-				resource: 'agenthost-terminal://shell/test-session/tc-1',
+				resource: buildNonPtyShellTerminalUri(session, session, URI.parse(buildChatUri(session, 'default')), 'tc-1'),
 				title: 'Run Shell Command',
 				isPty: false,
-				result: { exitCode: 0, preview: 'hi\n' },
+				result: { exitCode: 0, preview: 'hi\n', truncated: true },
 			},
 		]);
 	});
@@ -319,7 +1143,7 @@ suite('mapSessionEvents — history replay', () => {
 					success: true,
 					result: {
 						content: 'Build completed\n',
-						contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n' }],
+						contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n', outputFilePath: '/tmp/read-shell-output.txt' }],
 					},
 				},
 			},
@@ -368,7 +1192,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.success, true);
 		assert.deepStrictEqual(part.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal), {
 			type: ToolResultContentType.Terminal,
-			resource: 'agenthost-terminal://shell/test-session/tc-1',
+			resource: buildNonPtyShellTerminalUri(session, session, URI.parse(buildChatUri(session, 'default')), 'tc-1'),
 			title: 'Run Shell Command',
 			isPty: false,
 			result: { exitCode: 127 },
@@ -525,7 +1349,7 @@ suite('mapSessionEvents — history replay', () => {
 				id: 'notification-event',
 				data: {
 					content: '<system_notification>\nAgent completed\n</system_notification>',
-					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', displayName: 'Renderer reviewer', description: 'Review the renderer' },
 				},
 			},
 			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-2' } },
@@ -546,10 +1370,38 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
-				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent agent-a is complete' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Renderer reviewer` is complete' },
 				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
 			],
 		}]);
+	});
+
+	test('restores reasoning on either side of a completion notification in order', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Review the results' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0' } },
+			{ type: 'assistant.message', data: { messageId: 'before', content: '', reasoningText: 'Before notification' } },
+			{
+				type: 'system.notification',
+				data: {
+					content: 'Agent completed',
+					kind: { type: 'agent_idle', agentId: 'agent-completed', agentType: 'code-review', displayName: 'Completed reviewer' },
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'after', content: '', reasoningText: 'After notification' } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(turns.map(turn => turn.responseParts.map(part =>
+			part.kind === ResponsePartKind.Reasoning || part.kind === ResponsePartKind.SystemNotification
+				? { kind: part.kind, content: part.content }
+				: { kind: part.kind }
+		)), [[
+			{ kind: ResponsePartKind.Reasoning, content: 'Before notification' },
+			{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Completed reviewer` is complete' },
+			{ kind: ResponsePartKind.Reasoning, content: 'After notification' },
+		]]);
 	});
 
 	test('does not restore a passive notification outside an assistant turn', async () => {
@@ -616,6 +1468,10 @@ suite('mapSessionEvents — history replay', () => {
 
 	test('strips prompt scaffolding from user message content', async () => {
 		const wrapped = 'hi\n <reminder>\nIMPORTANT: ignore this\n</reminder>\n<attachments>\n<attachment id="microsoft/vscode">repo</attachment>\n</attachments>\n<userRequest>\nhi\n</userRequest>\n';
+		// The Copilot CLI injects context as a `<system_reminder>` block (e.g. the
+		// `IMPORTANT: this context may or may not be relevant…` preamble); it must
+		// not leak into the reconstructed message (and thus the session title).
+		const systemReminder = 'hi\n\n<system_reminder>\nIMPORTANT: this context may or may not be relevant\n<sql_tables>Available tables: todos, todo_deps</sql_tables>\n</system_reminder>';
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'wrapped', data: { interactionId: 'interaction-1', content: wrapped } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Hello.', toolRequests: [] } },
@@ -625,11 +1481,13 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'Ok remote.', toolRequests: [] } },
 			{ type: 'user.message', id: 'plain', data: { interactionId: 'interaction-4', content: 'just text' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-4', content: 'Ok.', toolRequests: [] } },
+			{ type: 'user.message', id: 'system-reminder', data: { interactionId: 'interaction-5', content: systemReminder } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-5', content: 'Hi.', toolRequests: [] } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 
-		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text']);
+		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text', 'hi']);
 	});
 
 	test('terminal empty assistant message completes a tool-only turn', async () => {
@@ -752,7 +1610,7 @@ suite('mapSessionEvents — history replay', () => {
 			id: turn.id,
 			state: turn.state,
 			duration: turn.duration,
-			error: turn.error,
+			error: getTurnError(turn),
 			parts: partKinds(turn.responseParts),
 		})), [{
 			id: 'user-event',
@@ -779,7 +1637,7 @@ suite('mapSessionEvents — history replay', () => {
 			},
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
-				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		}]);
 	});
@@ -1048,9 +1906,9 @@ suite('mapSessionEvents — subagent routing', () => {
 
 		assert.deepStrictEqual({
 			parentState: turns[0].state,
-			parentError: turns[0].error,
+			parentError: getTurnError(turns[0]),
 			subagentState: subagentTurn?.state,
-			subagentError: subagentTurn?.error,
+			subagentError: getTurnError(subagentTurn),
 			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
 		}, {
 			parentState: TurnState.Complete,
@@ -1073,6 +1931,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			},
 			subagentParts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		});
 	});
@@ -1081,6 +1940,42 @@ suite('mapSessionEvents — subagent routing', () => {
 suite('appendSdkToolResultContent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+	const session = AgentSession.uri('copilot', 'test-session');
+	const chat = URI.parse(buildChatUri(session, 'default'));
+	const terminalDescriptor = { storage: session, session, chat, toolCallId: 'tc-1', title: 'Run Shell Command' };
+	const terminalResource = buildNonPtyShellTerminalUri(session, session, chat, 'tc-1');
+
+	for (const existingTerminal of [false, true]) {
+		for (const outputPreview of [undefined, null, '', 'preview\n']) {
+			test(`retains full output with ${existingTerminal ? 'existing' : 'new'} terminal and ${JSON.stringify(outputPreview)} preview`, () => {
+				const terminal = { type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/abc', title: 'Bash' } as const;
+				const content: ToolResultContent[] = existingTerminal ? [terminal] : [];
+				const result = appendSdkToolResultContent(content, [{
+					type: 'shell_exit',
+					shellId: '0',
+					exitCode: 2,
+					outputPreview,
+					outputFilePath: '/tmp/full output #1.txt',
+				}], terminalDescriptor);
+				const expectedResult = {
+					exitCode: 2,
+					...(typeof outputPreview === 'string' ? { preview: outputPreview } : {}),
+				};
+				assert.deepStrictEqual({ result, content }, {
+					result: { shellId: '0', result: expectedResult, outputFilePath: '/tmp/full output #1.txt' },
+					content: [{
+						...(existingTerminal ? terminal : {
+							type: ToolResultContentType.Terminal,
+							resource: terminalResource,
+							title: 'Run Shell Command',
+							isPty: false,
+						}),
+						result: expectedResult,
+					}],
+				});
+			});
+		}
+	}
 
 	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
 		const content: ToolResultContent[] = [
@@ -1089,7 +1984,7 @@ suite('appendSdkToolResultContent', () => {
 
 		const result = appendSdkToolResultContent(content, [
 			{ type: 'shell_exit', shellId: '0', exitCode: 2, outputPreview: 'boom\n', outputTruncated: false },
-		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+		], terminalDescriptor);
 
 		assert.deepStrictEqual(result, { shellId: '0', result: { exitCode: 2, preview: 'boom\n', truncated: false } });
 		assert.deepStrictEqual(content, [
@@ -1107,14 +2002,14 @@ suite('appendSdkToolResultContent', () => {
 
 		const result = appendSdkToolResultContent(content, [
 			{ type: 'shell_exit', shellId: '0', exitCode: 7, outputPreview: null, outputTruncated: false },
-		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+		], terminalDescriptor);
 
 		assert.deepStrictEqual({ result, content }, {
 			result: { shellId: '0', result: { exitCode: 7, truncated: false } },
 			content: [
 				{
 					type: ToolResultContentType.Terminal,
-					resource: 'agenthost-terminal://shell/test-session/tc-1',
+					resource: terminalResource,
 					title: 'Run Shell Command',
 					isPty: false,
 					result: { exitCode: 7, truncated: false },

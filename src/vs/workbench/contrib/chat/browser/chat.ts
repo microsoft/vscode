@@ -6,6 +6,7 @@
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -25,11 +26,11 @@ import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
-import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
-import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
+import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
@@ -158,6 +159,7 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+	/** Opens or reveals a session, retaining its model while moving it between widgets. */
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
@@ -209,7 +211,7 @@ export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(uri: URI, skipRequestSignal?: boolean): void;
 	disposeRequest(requestId: URI): void;
-	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
+	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
 
@@ -233,6 +235,20 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
 
+export interface IChatContextMenuActionContext {
+	readonly $chatContextMenu: true;
+	readonly item: ChatTreeItem | null;
+	readonly linkTarget?: string;
+}
+
+export function isChatContextMenuActionContext(context: unknown): context is IChatContextMenuActionContext {
+	return typeof context === 'object' && context !== null && '$chatContextMenu' in context && context.$chatContextMenu === true;
+}
+
+export function unwrapChatContextMenuActionContext(context: unknown): unknown {
+	return isChatContextMenuActionContext(context) ? context.item : context;
+}
+
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
@@ -241,9 +257,12 @@ export interface IChatListItemRendererOptions {
 	readonly restorable?: boolean;
 	readonly supportsFork?: boolean;
 	readonly editable?: boolean;
+	/** Whether the chat is read-only, independently of whether request editing is enabled. */
+	readonly readOnly?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
 	readonly contentHorizontalPadding?: number;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
@@ -265,10 +284,10 @@ export interface IChatWidgetViewOptions {
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
 	 * Action triggered when 'clear' is called on the widget. The optional
-	 * `targetSessionType` carries the already-resolved new session type so the
-	 * host can open a session of that type instead of recomputing the default.
+	 * `resolvedSessionType` carries the already-resolved new session type and
+	 * selection reason so the host does not recompute either value.
 	 */
-	clear?: (targetSessionType?: string) => Promise<void>;
+	clear?: (resolvedSessionType?: IResolvedNewChatSessionType) => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -326,8 +345,22 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/** Tab index for the transcript tree root. Use `-1` to exclude it from sequential keyboard navigation while preserving programmatic focus. */
+	transcriptTabIndex?: 0 | -1;
+
+	/** Whether this host supports the experimental session state indicator. Defaults to false. */
+	enableSessionStateIndicator?: boolean;
+
 	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
 	enableFind?: boolean;
+
+	/**
+	 * Height of the content this host mounts into
+	 * {@link ChatInputPart.persistentContentContainerElement}. Setting it floats that
+	 * content above the input, so the transcript scrolls underneath it, and reserves
+	 * the same space below the transcript. Must match the content's rendered height.
+	 */
+	persistentContentHeight?: number;
 }
 
 export interface IChatViewViewContext {
@@ -370,6 +403,8 @@ export interface IChatAcceptInputOptions {
 	preserveFocus?: boolean;
 	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. The query itself is sent as-is: prompt slash commands in it are not resolved. */
 	preserveInput?: boolean;
+	/** Rejects if this existing session's writable model is no longer bound to the widget during submission preparation. Omit for submissions that may create or replace the session. */
+	expectedSessionResource?: URI;
 	/**
 	 * Called once the request has been handed over to the chat service, i.e. it was either sent
 	 * right away or queued because another request is in progress. Callers that must not wait for
@@ -396,6 +431,10 @@ export interface IChatWidgetViewState {
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
 
 export interface IChatWidget {
+	/** Whether cancellable transcript preparation is blocking new submissions. */
+	readonly isTranscriptProgressActive?: boolean;
+	/** Cancels transcript preparation and returns whether it handled cancellation. */
+	cancelTranscriptProgress?(): boolean;
 	readonly domNode: HTMLElement;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
 	readonly transcriptDomNode: HTMLElement;
@@ -439,6 +478,8 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	refreshParsedInput(): void;
+	/** Floats persistent input content and reserves matching space below the transcript. */
+	setPersistentContentHeight(height: number | undefined): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
@@ -505,7 +546,7 @@ export interface IChatWidget {
 	 * clobber each other.
 	 */
 	holdAutoScroll(): IDisposable;
-	clear(targetSessionType?: string): Promise<void>;
+	clear(resolvedSessionType?: IResolvedNewChatSessionType): Promise<void>;
 	getInputState(): IChatModelInputState | undefined;
 	getViewState(): IChatWidgetViewState;
 	restoreViewState(state: IChatWidgetViewState): void;

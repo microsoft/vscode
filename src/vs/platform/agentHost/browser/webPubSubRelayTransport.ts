@@ -16,6 +16,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IntervalTimer, disposableTimeout } from '../../../base/common/async.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { Reassembler } from '../common/webPubSub/chunking.js';
@@ -82,6 +83,14 @@ export interface IWebPubSubRelayTransportOptions {
 	readonly webSocketFactory?: WebSocketFactory;
 	/** Invoked when an inbound frame can't be parsed or framed. */
 	readonly onProtocolError?: (err: unknown) => void;
+	/** Content-free receive counter, including control, malformed and chunk frames. */
+	readonly onDidReceiveFrame?: () => void;
+	/**
+	 * Records every AHP frame to a JSONL transcript when
+	 * `chat.agentHost.ahpJsonlLoggingEnabled` is on. Cloud sandbox hosts do not implement
+	 * `vscode/collectAgentHostDebugLogs`, so this is the only way to see their frames.
+	 */
+	readonly ahpLogger?: AhpJsonlLogger;
 }
 
 /**
@@ -91,9 +100,9 @@ export interface IWebPubSubRelayTransportOptions {
  * 1. {@link connect} opens the WebSocket, waits for the WPS `connected` system
  *    event, joins the requested groups, and resolves once every joinGroup ack
  *    has arrived (so the host can't publish before we're subscribed).
- * 2. Inbound group-fanout frames are reassembled and surfaced via
- *    {@link onMessage}; outbound messages are chunked and published to the
- *    `to_host` lane by {@link send}.
+ * 2. Inbound messages are acknowledged and deduplicated before group-fanout
+ *    reassembly and delivery via {@link onMessage}; outbound messages are
+ *    chunked and published to the `to_host` lane by {@link send}.
  * 3. {@link dispose} (or a socket close/error) fires {@link onClose} once.
  */
 export class WebPubSubRelayTransport extends Disposable implements IClientTransport {
@@ -110,6 +119,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	private _ws: IWebSocketLike | undefined;
 	private _ackId = 0;
+	private _lastReceivedSequenceId = 0;
 	private readonly _pendingJoinAcks = new Map<number, string>();
 
 	/** Guards against firing onClose / resolving connect more than once. */
@@ -118,6 +128,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	constructor(private readonly _options: IWebPubSubRelayTransportOptions) {
 		super();
+		if (this._options.ahpLogger) {
+			this._register(this._options.ahpLogger);
+		}
 	}
 
 	get isOpen(): boolean {
@@ -145,7 +158,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 			const settleReject = (err: Error) => {
 				handshakeStore.dispose();
-				this._failConnect();
+				this._closeSocket();
 				reject(err);
 			};
 
@@ -166,6 +179,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			};
 
 			ws.onmessage = event => {
+				if (!this._closed) {
+					this._options.onDidReceiveFrame?.();
+				}
 				let frame: Record<string, unknown>;
 				try {
 					frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
@@ -220,9 +236,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			return;
 		}
 
-		// Any group-fanout frames that arrive before the handshake completes are
-		// buffered by the reassembler and surfaced once observing starts.
-		this._ingestGroupFrame(frame);
+		this._ingestGroupFrame(frame, onFail);
 	}
 
 	/** Switch the socket handlers over to steady-state observation. */
@@ -234,6 +248,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		this._sweepTimer.cancelAndSet(() => this._reassembler.sweepExpired(), REASSEMBLY_SWEEP_INTERVAL_MS);
 
 		ws.onmessage = event => {
+			if (!this._closed) {
+				this._options.onDidReceiveFrame?.();
+			}
 			let frame: Record<string, unknown>;
 			try {
 				frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
@@ -241,14 +258,38 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._options.onProtocolError?.(err);
 				return;
 			}
-			this._ingestGroupFrame(frame);
+			this._ingestGroupFrame(frame, () => this._fireClose());
 		};
 		ws.onclose = () => this._fireClose();
 		ws.onerror = () => this._fireClose();
 	}
 
 	/** Reassemble and surface a group-fanout frame as a {@link ProtocolMessage}. */
-	private _ingestGroupFrame(frame: Record<string, unknown>): void {
+	private _ingestGroupFrame(frame: Record<string, unknown>, onFail: (err: Error) => void): void {
+		if (this._closed) {
+			return;
+		}
+		if (frame?.['type'] === 'message' && frame['sequenceId'] !== undefined) {
+			const sequenceId = frame['sequenceId'];
+			if (typeof sequenceId !== 'number' || !Number.isSafeInteger(sequenceId) || sequenceId <= 0) {
+				this._options.onProtocolError?.(new Error('Invalid WPS message sequenceId'));
+				return;
+			}
+			const duplicate = sequenceId <= this._lastReceivedSequenceId;
+			this._lastReceivedSequenceId = Math.max(this._lastReceivedSequenceId, sequenceId);
+			try {
+				// Receipt acknowledgements must not wait for reassembly or application processing.
+				this._sendRaw({ type: 'sequenceAck', sequenceId: this._lastReceivedSequenceId });
+			} catch (err) {
+				const error = new Error('Failed to send WPS sequence acknowledgement', { cause: err });
+				this._options.onProtocolError?.(error);
+				onFail(error);
+				return;
+			}
+			if (duplicate) {
+				return;
+			}
+		}
 		let result: InboundResult;
 		try {
 			result = parseInbound(frame, { reassembler: this._reassembler, groupValidation: this._options.groupValidation });
@@ -257,7 +298,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			return;
 		}
 		if (result.kind === 'payload') {
-			this._onMessage.fire(result.payload as ProtocolMessage);
+			const payload = result.payload as ProtocolMessage;
+			this._options.ahpLogger?.log(payload, 's2c', getAhpLogByteLength(JSON.stringify(payload)));
+			this._onMessage.fire(payload);
 		}
 	}
 
@@ -273,6 +316,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');
 		}
+		// Logged before chunking, so the transcript carries whole AHP messages rather than the
+		// relay frames they were split into.
+		this._options.ahpLogger?.log(message, 'c2s', getAhpLogByteLength(JSON.stringify(message)));
 		const frames = buildPublish({
 			group: this._options.toHostGroup,
 			nextAckId: () => ++this._ackId,
@@ -292,13 +338,12 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (this._closed) {
 			return;
 		}
-		this._closed = true;
-		this._sweepTimer.cancel();
+		this._closeSocket();
 		this._onClose.fire();
 	}
 
-	/** Tear down a failed/incomplete connect without firing onClose to observers. */
-	private _failConnect(): void {
+	/** Stop background work and close the socket without firing onClose. */
+	private _closeSocket(): void {
 		this._closed = true;
 		this._sweepTimer.cancel();
 		try {
@@ -310,13 +355,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	override dispose(): void {
 		if (!this._closed) {
-			this._closed = true;
-			this._sweepTimer.cancel();
-			try {
-				this._ws?.close();
-			} catch {
-				// best-effort
-			}
+			this._closeSocket();
 		}
 		super.dispose();
 	}

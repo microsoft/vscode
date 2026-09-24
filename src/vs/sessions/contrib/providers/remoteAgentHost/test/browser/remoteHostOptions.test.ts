@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -11,21 +12,37 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IProgressService, IProgressOptions, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import {
 	buildRemoteHostOptionItems,
 	changeRemoteAgentHostLocationPreference,
 	getStatusHover,
 	getStatusLabel,
 	hasUpgradeReconnectStarted,
+	removeRemoteHost,
 	supportsRemoteAgentHostLocationPreference,
+	usesSSHConfigFile,
 } from '../../browser/remoteHostOptions.js';
 
 suite('remoteHostOptions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const hasRemove of [false, true]) {
+		test(`host removal ${hasRemove ? 'uses permanent removal instead of temporary disconnect' : 'preserves the legacy disconnect fallback'}`, async () => {
+			const calls: string[] = [];
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remove = hasRemove ? async () => { calls.push('remove'); } : undefined;
+				override async disconnect(): Promise<void> { calls.push('disconnect'); }
+			}();
+			await removeRemoteHost(provider, new class extends mock<IRemoteAgentHostService>() { }(), new TestConfigurationService());
+			assert.deepStrictEqual(calls, [hasRemove ? 'remove' : 'disconnect']);
+		});
+	}
+
 	test('getStatusLabel covers every connection status variant', () => {
 		assert.ok(getStatusLabel(RemoteAgentHostConnectionStatus.connected).length > 0);
 		assert.ok(getStatusLabel(RemoteAgentHostConnectionStatus.connecting).length > 0);
+		assert.ok(getStatusLabel(RemoteAgentHostConnectionStatus.reconnecting).length > 0);
 		assert.ok(getStatusLabel(RemoteAgentHostConnectionStatus.disconnected).length > 0);
 
 		const incompatibleLabel = getStatusLabel(
@@ -60,6 +77,7 @@ suite('remoteHostOptions', () => {
 		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.disconnected), false);
 		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.incompatible('reason', ['0.1.0'])), false);
 		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.connecting), true);
+		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.reconnecting), true);
 		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.connected), true);
 	});
 
@@ -129,7 +147,46 @@ suite('remoteHostOptions', () => {
 			// Always-present items remain regardless of preference support.
 			assert.ok(items.some(item => item.id === 'remove'));
 			assert.ok(items.some(item => item.id === 'copy'));
-			assert.ok(items.some(item => item.id === 'settings'));
+			// An aliased SSH host is authored in ~/.ssh/config, not settings.
+			assert.ok(items.some(item => item.id === 'sshConfig'));
+		});
+
+		test('offers the SSH config file for an aliased SSH host, and settings for every other host', () => {
+			const idsFor = (options: Parameters<typeof buildRemoteHostOptionItems>[0]) =>
+				buildRemoteHostOptionItems(options).map(item => item.id);
+
+			assert.deepStrictEqual({
+				aliasedSSH: idsFor({ address: 'localhost:4321', preferenceKey: 'ssh:my-host-alias', isConnected: true, isWebPlatform: false }).filter(id => id === 'sshConfig' || id === 'settings'),
+				// Explicit-credential SSH keys as user@host:port, so there is no file to open.
+				credentialSSH: idsFor({ address: 'me@host.example:22', isConnected: true, isWebPlatform: false }).filter(id => id === 'sshConfig' || id === 'settings'),
+				webSocket: idsFor({ address: 'host1:8080', isConnected: true, isWebPlatform: false }).filter(id => id === 'sshConfig' || id === 'settings'),
+				tunnel: idsFor({ address: 'tunnel:some-tunnel-id', isConnected: true, isWebPlatform: false }).filter(id => id === 'sshConfig' || id === 'settings'),
+			}, {
+				aliasedSSH: ['sshConfig'],
+				credentialSSH: ['settings'],
+				webSocket: ['settings'],
+				tunnel: ['settings'],
+			});
+		});
+	});
+
+	suite('usesSSHConfigFile', () => {
+		test('only an ssh: aliased key on desktop resolves to the SSH config file', () => {
+			assert.deepStrictEqual({
+				aliasedDesktop: usesSSHConfigFile('ssh:my-host-alias', false),
+				aliasedWeb: usesSSHConfigFile('ssh:my-host-alias', true),
+				credentialKey: usesSSHConfigFile('me@host.example:22', false),
+				forwardedAddress: usesSSHConfigFile('localhost:4321', false),
+				tunnel: usesSSHConfigFile('tunnel:some-tunnel-id', false),
+				empty: usesSSHConfigFile('', false),
+			}, {
+				aliasedDesktop: true,
+				aliasedWeb: false,
+				credentialKey: false,
+				forwardedAddress: false,
+				tunnel: false,
+				empty: false,
+			});
 		});
 	});
 

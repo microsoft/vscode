@@ -50,7 +50,7 @@ export function observePromptTimelineHostWidth(
 export function isStickyPromptHeaderShown(widget: IChatWidget, configurationService: IConfigurationService): boolean {
 	return supportsPromptTimeline(widget)
 		&& configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true
-		&& configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) !== true;
+		&& configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) === false;
 }
 
 /**

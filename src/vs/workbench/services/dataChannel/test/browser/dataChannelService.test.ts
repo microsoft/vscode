@@ -5,13 +5,13 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { linkPresentationProviderInitialKinds } from '../../browser/dataChannelService.js';
+import { linkPresentationProviderKinds } from '../../browser/dataChannelService.js';
 
 suite('DataChannelService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('link presentation contribution supports chat initial kind', () => {
-		assert.ok(linkPresentationProviderInitialKinds.includes('chat'));
+	test('link presentation contribution supports chat kind', () => {
+		assert.ok(linkPresentationProviderKinds.includes('chat'));
 	});
 });

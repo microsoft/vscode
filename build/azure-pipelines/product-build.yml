@@ -43,6 +43,10 @@ parameters:
     values:
       - Product
       - CI
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    displayName: "Build Title Prefix"
+    type: string
+    default: none
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
@@ -122,26 +126,30 @@ parameters:
     displayName: "Run sanity tests against this build's artifacts (for unpublished builds)"
     type: boolean
     default: false
-  # SDK -> VS Code integration: override the Copilot dependencies to a version
-  # already published to the private feed. 'none'/'auto' = normal build.
+  # SDK -> VS Code integration: override Copilot dependencies with versions
+  # already published to the private feed. 'none' = use the OSS SDK version.
   # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
   - name: VSCODE_SDK_CANARY_VERSION
     displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
     type: string
     default: none
   - name: VSCODE_CLI_CANARY_VERSION
-    displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
+    displayName: "Expected SDK-bundled runtime version ('auto' = infer from SDK)"
     type: string
     default: auto
 
 variables:
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_BUILD_TITLE_PREFIX }}
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
-  # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
-  # node-modules steps (condition: ne(..., '')) stay a no-op for normal builds
-  # and the override script infers the CLI when it is empty.
+  # Normalize sentinels back to empty so the override script can distinguish
+  # the normal SDK and inferred runtime paths.
   - name: VSCODE_SDK_CANARY_VERSION
     ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
       value: ""
@@ -170,6 +178,18 @@ variables:
     value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+  - name: VSCODE_USE_PUBLISHING_POOLS
+    value: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
+  - name: VSCODE_WINDOWS_POOL
+    ${{ if eq(variables.VSCODE_USE_PUBLISHING_POOLS, true) }}:
+      value: 1es-windows-2022-x64-publishing
+    ${{ else }}:
+      value: 1es-windows-2022-x64
+  - name: VSCODE_UBUNTU_POOL
+    ${{ if eq(variables.VSCODE_USE_PUBLISHING_POOLS, true) }}:
+      value: 1es-ubuntu-22.04-x64-publishing
+    ${{ else }}:
+      value: 1es-ubuntu-22.04-x64
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_PUBLISH_COUNTER_PREFIX
@@ -217,7 +237,7 @@ variables:
   - name: ARTIFACT_PREFIX
     value: ''
 
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+name: "$(VSCODE_BUILD_TITLE_PREFIX)$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
 resources:
   repositories:
@@ -284,19 +304,19 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      sourceAnalysisPool: 1es-windows-2022-x64
+      sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     settings:
-      networkIsolationPolicy: Permissive,CFSClean2,CFSClean3
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
 
       - stage: Quality
         dependsOn: []
         pool:
-          name: 1es-ubuntu-22.04-x64
+          name: ${{ variables.VSCODE_UBUNTU_POOL }}
           os: linux
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
@@ -304,7 +324,7 @@ extends:
       - stage: Copilot
         dependsOn: []
         pool:
-          name: 1es-ubuntu-22.04-x64
+          name: ${{ variables.VSCODE_UBUNTU_POOL }}
           os: linux
         jobs:
           - template: build/azure-pipelines/product-copilot.yml@self
@@ -316,7 +336,7 @@ extends:
         - stage: Windows
           dependsOn: []
           pool:
-            name: 1es-windows-2022-x64
+            name: ${{ variables.VSCODE_WINDOWS_POOL }}
             os: windows
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -325,12 +345,14 @@ extends:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
 
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
@@ -370,7 +392,7 @@ extends:
         - stage: Linux
           dependsOn: []
           pool:
-            name: 1es-ubuntu-22.04-x64
+            name: ${{ variables.VSCODE_UBUNTU_POOL }}
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -379,18 +401,21 @@ extends:
                   VSCODE_ARCH: x64
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
               - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: armhf
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
@@ -445,18 +470,22 @@ extends:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
                 parameters:
                   VSCODE_ARCH: x64
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
               - template: build/azure-pipelines/alpine/product-build-alpine-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
               - template: build/azure-pipelines/alpine/product-build-alpine-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
@@ -519,6 +548,8 @@ extends:
           dependsOn: []
           jobs:
             - template: build/azure-pipelines/web/product-build-web.yml@self
+              parameters:
+                VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
@@ -528,6 +559,7 @@ extends:
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
+                VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
 
       - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
         - stage: SanityTests
@@ -1027,7 +1059,7 @@ extends:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:
-              name: 1es-ubuntu-22.04-x64
+              name: ${{ variables.VSCODE_UBUNTU_POOL }}
               os: linux
             jobs:
               - job: ApproveRelease
@@ -1042,7 +1074,7 @@ extends:
               - Publish
               - ApproveRelease
             pool:
-              name: 1es-ubuntu-22.04-x64
+              name: ${{ variables.VSCODE_UBUNTU_POOL }}
               os: linux
             jobs:
               - job: ReleaseBuild
@@ -1082,7 +1114,7 @@ extends:
         - stage: APIScan
           dependsOn: []
           pool:
-            name: 1es-windows-2022-x64
+            name: ${{ variables.VSCODE_WINDOWS_POOL }}
             os: windows
           jobs:
             - job: WindowsAPIScan

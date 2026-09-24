@@ -176,6 +176,7 @@
 
 .chat-terminal-content-part .chat-terminal-action-bar {
 	display: flex;
+	flex-shrink: 0;
 	gap: 4px;
 	margin-left: auto;
 	align-self: center;
@@ -230,6 +231,13 @@
 .chat-terminal-output-container.expanded {
 	display: block;
 }
+.chat-terminal-output-container.chat-terminal-output-clickable,
+.chat-terminal-output-clickable .xterm:not(.column-select),
+.chat-terminal-output-clickable .xterm:not(.column-select) .xterm-screen,
+.chat-terminal-output-clickable .xterm:not(.column-select) .terminal-widget-container {
+	cursor: pointer;
+}
+
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 	background: inherit;
@@ -269,12 +277,12 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
-.chat-terminal-output {
-	margin: 0;
-	white-space: pre;
-	font-size: 12px;
+.chat-terminal-output-truncation:not(:empty) {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: normal;
+	padding: 4px 12px 0;
 }
-
 .chat-terminal-output-empty {
 	display: none;
 	font-style: italic;
@@ -297,20 +305,6 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 
 .chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal .slider {
 	pointer-events: auto;
-}
-
-.chat-terminal-output div,
-.chat-terminal-output span {
-	height: auto;
-	line-height: normal;
-}
-
-.chat-terminal-output pre {
-	margin: 0;
-}
-.chat-terminal-output-info {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-xs);
 }
 
 .chat-used-context-label .chat-terminal-show-link {

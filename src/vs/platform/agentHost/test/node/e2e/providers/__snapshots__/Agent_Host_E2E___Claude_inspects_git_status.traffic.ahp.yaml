@@ -27,6 +27,9 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
+          type: chat/changesetsChanged
+      - channel: ${chat_0}
+        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
@@ -45,8 +48,8 @@ rounds:
           part:
             kind: markdown
             content: |-
-              Modified: tracked.txt
-              Untracked: untracked.txt
+              Modified: `tracked.txt`
+              Untracked: `untracked.txt`
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

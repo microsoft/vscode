@@ -6,7 +6,7 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentCreateChatOptions, IAgentCreateSessionConfig } from '../common/agent.js';
+import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 
@@ -33,8 +33,43 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createSession(config));
 	}
 
-	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void> {
+	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		if (!this._agentService.createDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.createDetachedWorktree!(session, prompt));
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		if (!this._agentService.setDetachedWorktreeArchived) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.setDetachedWorktreeArchived!(handle, archived));
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		if (!this._agentService.claimDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.claimDetachedWorktree!(handle));
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		if (!this._agentService.deleteDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.deleteDetachedWorktree!(handle));
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		if (!this._agentService.reconcileDetachedWorktrees) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
 	}
 
 	shutdown(): Promise<void> {
@@ -88,18 +123,18 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		if (!this._agentService.getSessionStateFile) {
 			throw new Error('Agent Host session state files are unavailable');
 		}
-		return this._agentService.getSessionStateFile(session);
+		return this._agentService.getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._agentService.collectDebugLogs) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
-		return this._agentService.collectDebugLogs(session, kind);
+		return this._agentService.collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
