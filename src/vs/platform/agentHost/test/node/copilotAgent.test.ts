@@ -233,23 +233,6 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	chatScopes(agent).set(typed.chatChannelUri.toString(), sessionUri);
 }
 
-function queueTestTurn(agent: CopilotAgent, sessionId: string, task: () => Promise<void>): Promise<void> {
-	const session = AgentSession.uri('copilotcli', sessionId);
-	const chat = defaultChatUri(session);
-	return (agent as unknown as {
-		_queueChatTurn(
-			context: { readonly configurationId: string; readonly sequencerKey: string; readonly chatKey: string },
-			operation: 'sendMessage',
-			turnId: string,
-			task: () => Promise<void>,
-		): Promise<void>;
-	})._queueChatTurn({
-		configurationId: AgentSession.id(session),
-		sequencerKey: chat.toString(),
-		chatKey: chat.toString(),
-	}, 'sendMessage', 'test-turn', task);
-}
-
 function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSessionId?: string): void {
 	const resolvedSdkSessionId = sdkSessionId ?? (stub as { sessionId?: string }).sessionId ?? `sdk-${chatUri.toString()}`;
 	const ownerSession = URI.parse(parseRequiredSessionUriFromChatUri(chatUri));
@@ -2981,75 +2964,20 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('allows one-hour GitHub Enterprise auth and defers renewal restart until idle', async () => {
-		let now = 1_000_000;
+	test('restarts an authenticated GitHub Enterprise client after a token change', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
 			name: 'GPT-4o',
 		}]);
 		const endpointService = createTestGitHubEndpointService('https://example.ghe.com');
-		const { agent, authenticationService } = createTestAgentContext(disposables, { copilotClient: client, gitHubEndpointService: endpointService, now: () => now });
-		const authenticationRequests: Array<{ readonly resource: ProtectedResourceMetadata; readonly reason?: string }> = [];
-		disposables.add(autorun(reader => {
-			const requirement = agent.authenticationRequired.read(reader);
-			if (requirement) {
-				authenticationRequests.push(requirement);
-			}
-		}));
-		let sessionReads = 0;
-		const getSessions = async () => {
-			sessionReads++;
-			return [{
-				accessToken: sessionReads === 1 ? 'enterprise-model-token' : 'renewed-enterprise-model-token',
-				expiresAfter: 60 * 60 * 1000,
-			}];
-		};
-		const reconcileAuthentication = async () => {
-			const [session] = await getSessions();
-			await authenticationService.authenticate({
-				resource: endpointService.getCopilotResource().resource,
-				scopes: endpointService.getCopilotResource().scopes_supported,
-				token: session.accessToken,
-				expiresIn: Math.ceil(session.expiresAfter / 1000),
-			}, [agent]);
-		};
+		const agent = createTestAgent(disposables, { copilotClient: client, gitHubEndpointService: endpointService });
 		try {
-			await reconcileAuthentication();
+			await agent.authenticate(endpointService.getCopilotResource().resource, 'enterprise-model-token');
 			await waitForState(agent.models, models => models.length > 0);
-			await timeout(0);
-			let hasActiveTurn = true;
-			const liveSession = {
-				get hasActiveTurn() { return hasActiveTurn; },
-				usesStaticGitHubToken: false,
-				updateGitHubCredentials: async () => { throw new Error('unexpected credential update'); },
-				dispose() { },
-			} satisfies ICredentialUpdateSession;
-			setDefaultSessionStub(agent, 'enterprise-active-turn', liveSession);
-			now += 31 * 60 * 1000;
-			await agent.refreshModels();
-			await reconcileAuthentication();
-			let newWorkSettled = false;
-			const newWork = queueTestTurn(agent, 'enterprise-new-turn', async () => {
-				newWorkSettled = true;
-			});
-			await timeout(0);
-			const whileTurnActive = {
-				clientStops: client.stopCallCount,
-				modelListRequests: client.modelListRequests.length,
-				newWorkSettled,
-				authenticationRequired: agent.authenticationRequired.get(),
-			};
-			hasActiveTurn = false;
-			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
-			await newWork;
+			await agent.authenticate(endpointService.getCopilotResource().resource, 'rotated-enterprise-model-token');
 			await waitForState(agent.models, () => client.modelListRequests.length === 2);
-			await timeout(0);
-			await agent.refreshModels();
 
 			assert.deepStrictEqual({
-				sessionReads,
-				authenticationRequests,
-				whileTurnActive,
 				clientTokens: getCreatedClientOptions(agent).map(options => options.gitHubToken),
 				enterpriseHosts: getCreatedClientOptions(agent).map(options => options.env?.['COPILOT_GH_HOST']),
 				clientStarts: client.startCallCount,
@@ -3057,22 +2985,11 @@ suite('CopilotAgent', () => {
 				modelListRequests: client.modelListRequests,
 				authenticationRequired: agent.authenticationRequired.get(),
 			}, {
-				sessionReads: 2,
-				authenticationRequests: [{
-					resource: endpointService.getCopilotResource(),
-					reason: AuthRequiredReason.Expired,
-				}],
-				whileTurnActive: {
-					clientStops: 0,
-					modelListRequests: 1,
-					newWorkSettled: false,
-					authenticationRequired: undefined,
-				},
-				clientTokens: ['enterprise-model-token', 'renewed-enterprise-model-token'],
+				clientTokens: ['enterprise-model-token', 'rotated-enterprise-model-token'],
 				enterpriseHosts: ['example.ghe.com', 'example.ghe.com'],
 				clientStarts: 2,
 				clientStops: 1,
-				modelListRequests: [{}, {}, {}],
+				modelListRequests: [{}, {}],
 				authenticationRequired: undefined,
 			});
 		} finally {
@@ -7218,12 +7135,7 @@ suite('CopilotAgent', () => {
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
-				let newWorkSettled = false;
-				const newWork = queueTestTurn(agent, 'ordinary-restart-new-turn', async () => {
-					newWorkSettled = true;
-				});
-				await newWork;
-				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed, newWorkSettled };
+				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
 
 				chat.hasActiveTurn = false;
 				reportChatTurnEnded(agent);
@@ -7233,7 +7145,7 @@ suite('CopilotAgent', () => {
 					duringTurn,
 					afterTurn: { stopCount: client.stopCount, disposed: chat.disposed },
 				}, {
-					duringTurn: { stopCount: 0, disposed: false, newWorkSettled: true },
+					duringTurn: { stopCount: 0, disposed: false },
 					afterTurn: { stopCount: 1, disposed: true },
 				});
 			} finally {

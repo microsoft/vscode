@@ -651,7 +651,6 @@ export function resolveCopilotOtlpMetricsEndpoint(endpoint: string, protocol: 'h
 
 const COPILOT_EXTERNAL_SESSION_CLIENT_NAMES = new Set(['github/cli', 'github/autopilot']);
 const COPILOT_EXTERNAL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const COPILOT_GITHUB_ENTERPRISE_TOKEN_REFRESH_LEAD_TIME_SECONDS = 30 * 60;
 /** How many SDK sessions are classified before the batch is published to clients. */
 const COPILOT_DISCOVERY_BATCH_SIZE = 250;
 
@@ -866,8 +865,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
-	private _clientRestartBarrier: DeferredPromise<void> | undefined;
-	private readonly _blockingClientRestartReasons = new Set<string>();
 	/**
 	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
 	 * that all concurrent callers share a single, global retry budget for
@@ -890,7 +887,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _closedConnectionRecovery: { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> } | undefined;
 	private readonly _authenticationSequencer = new Sequencer();
 	private _updatingGitHubCredentials = false;
-	private readonly _githubCredentials = this._register(new CopilotGitHubCredentials(() => this._now()));
+	private readonly _githubCredentials = this._register(new CopilotGitHubCredentials());
 	private _githubCredentialInvalid = false;
 	private _telemetryAuthenticationGeneration = 0;
 	private _gitHubEndpointGeneration = 0;
@@ -1231,25 +1228,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
 	 * start, so applying the restart late is always correct.
 	 */
-	private async _requestClientRestart(reason: string, blockNewWork = false): Promise<boolean> {
+	private async _requestClientRestart(reason: string): Promise<boolean> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
 			return false;
-		}
-		if (blockNewWork) {
-			this._clientRestartBarrier ??= new DeferredPromise<void>();
-			this._blockingClientRestartReasons.add(reason);
 		}
 		this._pendingClientRestartReasons.add(reason);
 		if (this._clientStarting) {
 			try {
 				await this._clientStarting;
 			} catch {
-				this._clearClientRestartReason(reason);
+				this._pendingClientRestartReasons.delete(reason);
 				return false;
 			}
 		}
 		if (!this._client) {
-			this._clearClientRestartReason(reason);
+			this._pendingClientRestartReasons.delete(reason);
 			return false;
 		}
 		if (this._updatingGitHubCredentials) {
@@ -1909,7 +1902,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				resource: this._gitHubEndpointService.getCopilotResource(),
 				reason: AuthRequiredReason.Expired,
 			}, undefined);
-			await this._requestClientRestart('GitHub authentication cleared', this._getEnterpriseHost() !== undefined);
+			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
 			return;
 		}
@@ -1943,12 +1936,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._applyPendingClientRestart();
 		}
 		const restartWillRefreshModels = restartRequired
-			&& await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed', useClientAuthentication);
+			&& await this._requestClientRestart(useClientAuthentication ? 'GitHub Enterprise authentication updated' : tokenProviderModeChanged ? 'GitHub credential mode changed' : 'GitHub credential update failed');
 		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== token) {
 			return;
 		}
 		await this._resolveCopilotSku(token);
-		if (!restartWillRefreshModels) {
+		if (!useClientAuthentication || !restartWillRefreshModels) {
 			void this._scheduleModelRefresh();
 		}
 	}
@@ -2200,11 +2193,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 
-		if (this._getEnterpriseHost() && this._githubCredentials.needsRefreshWithin(COPILOT_GITHUB_ENTERPRISE_TOKEN_REFRESH_LEAD_TIME_SECONDS)) {
-			this._handleCopilotSessionAuthRequired(false);
-			return;
-		}
-
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
@@ -2359,27 +2347,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._clientStopping;
 		}
 		const stopping = (async () => {
-			try {
-				const clientStarting = this._clientStarting;
-				if (clientStarting) {
-					try {
-						await clientStarting;
-					} catch {
-						// A failed/stale start owns its own cleanup. Continue so
-						// any client it managed to publish is still stopped below.
-					}
+			const clientStarting = this._clientStarting;
+			if (clientStarting) {
+				try {
+					await clientStarting;
+				} catch {
+					// A failed/stale start owns its own cleanup. Continue so
+					// any client it managed to publish is still stopped below.
 				}
-				const client = this._client;
-				this._client = undefined;
-				this._clientStarting = undefined;
-				await client?.stop();
-				// The runtime subprocess is now dead, so it is safe to release the BYOK
-				// proxy handle: the next session launch mints a fresh nonce. See the
-				// ownership invariant on `CopilotSessionLauncher.disposeByokProxyHandle`.
-				await this._sessionLauncher.disposeByokProxyHandle();
-			} finally {
-				this._completeClientRestartBarrier();
 			}
+			const client = this._client;
+			this._client = undefined;
+			this._clientStarting = undefined;
+			await client?.stop();
+			// The runtime subprocess is now dead, so it is safe to release the BYOK
+			// proxy handle: the next session launch mints a fresh nonce. See the
+			// ownership invariant on `CopilotSessionLauncher.disposeByokProxyHandle`.
+			await this._sessionLauncher.disposeByokProxyHandle();
 		})().finally(() => {
 			if (this._clientStopping === stopping) {
 				this._clientStopping = undefined;
@@ -2387,32 +2371,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		this._clientStopping = stopping;
 		return stopping;
-	}
-
-	private _completeClientRestartBarrier(): void {
-		this._blockingClientRestartReasons.clear();
-		const barrier = this._clientRestartBarrier;
-		this._clientRestartBarrier = undefined;
-		barrier?.complete();
-	}
-
-	private _clearClientRestartReason(reason: string): void {
-		this._pendingClientRestartReasons.delete(reason);
-		this._blockingClientRestartReasons.delete(reason);
-		if (this._blockingClientRestartReasons.size === 0) {
-			this._completeClientRestartBarrier();
-		}
-	}
-
-	private _waitForClientRestart(): Promise<void> | undefined {
-		if (!this._clientRestartBarrier) {
-			return undefined;
-		}
-		return (async () => {
-			while (this._clientRestartBarrier) {
-				await this._clientRestartBarrier.p;
-			}
-		})();
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -3508,10 +3466,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */
 	private async _createChat(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions = {}): Promise<IAgentCreateChatResult> {
-		const clientRestart = this._waitForClientRestart();
-		if (clientRestart) {
-			await clientRestart;
-		}
 		const scope = context.configurationResource;
 		const chatKey = chat.toString();
 		this._throwIfWorkingDirectoryMutationBlocksChat(scope, chat);
@@ -5203,13 +5157,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._isShuttingDown) {
 			throw new CancellationError();
 		}
-		const clientRestart = this._waitForClientRestart();
-		if (clientRestart) {
-			await clientRestart;
-		}
-		if (this._isShuttingDown) {
-			throw new CancellationError();
-		}
 		let pendingTurns = this._pendingChatTurns.get(context.chatKey);
 		if (!pendingTurns) {
 			pendingTurns = new DisposableSet<CancellationTokenSource>();
@@ -5834,10 +5781,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _doResumeSession(sessionId: string, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
-		const clientRestart = this._waitForClientRestart();
-		if (clientRestart) {
-			await clientRestart;
-		}
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
