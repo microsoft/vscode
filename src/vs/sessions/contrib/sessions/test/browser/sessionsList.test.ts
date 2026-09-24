@@ -584,7 +584,7 @@ suite('Sessions - SessionsList', () => {
 			const sessionsHeaderContainer = mainWindow.document.createElement('div');
 			const sessionsHeader = mainWindow.document.createElement('div');
 			sessionsHeader.textContent = 'Sessions';
-			sessionsHeader.style.height = '32px';
+			sessionsHeader.style.height = '28px';
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			sessionsHeader.append(findWidgetContainer);
 			sessionsHeaderContainer.appendChild(sessionsHeader);
@@ -607,8 +607,15 @@ suite('Sessions - SessionsList', () => {
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
 			const headerParkedAfterScroll = sessionsHeader.parentElement === sessionsHeaderContainer;
 			const headerHiddenAfterScroll = sessionsHeader.style.display === 'none' && sessionsHeader.getAttribute('aria-hidden') === 'true';
+			list.layout(120, 400);
 			tree.scrollTop = 0;
 			await timeout(0);
+			const headerRowHeightAfterHiddenLayout = sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height;
+			tree.scrollTop = 400;
+			await timeout(0);
+			list.openFind();
+			const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+			const findFocusedAfterOffscreenOpen = mainWindow.document.activeElement === findInput;
 
 			assert.deepStrictEqual({
 				headerText: sessionsHeader.textContent,
@@ -617,10 +624,10 @@ suite('Sessions - SessionsList', () => {
 				navigationVisibleAfterScroll,
 				headerParkedAfterScroll,
 				headerHiddenAfterScroll,
-				navigationRestoredAfterScroll: container.querySelector('.monaco-list-rows .session-section-shortcut') !== null,
-				headerRestoredAfterScroll: sessionsHeader.closest('.monaco-list-rows') !== null,
-				headerVisibleAfterScroll: sessionsHeader.style.display === '' && !sessionsHeader.hasAttribute('aria-hidden'),
-				headerRowHeight: sessionsHeader.closest<HTMLElement>('.monaco-list-row')?.style.height,
+				headerRowHeightAfterHiddenLayout,
+				headerRevealedForFind: sessionsHeader.closest('.monaco-list-rows') !== null,
+				headerVisibleForFind: sessionsHeader.style.display === '' && !sessionsHeader.hasAttribute('aria-hidden'),
+				findFocusedAfterOffscreenOpen,
 			}, {
 				headerText: 'Sessions',
 				headerInStickyContainer: false,
@@ -628,11 +635,13 @@ suite('Sessions - SessionsList', () => {
 				navigationVisibleAfterScroll: false,
 				headerParkedAfterScroll: true,
 				headerHiddenAfterScroll: true,
-				navigationRestoredAfterScroll: true,
-				headerRestoredAfterScroll: true,
-				headerVisibleAfterScroll: true,
-				headerRowHeight: '42px',
+				headerRowHeightAfterHiddenLayout: '38px',
+				headerRevealedForFind: true,
+				headerVisibleForFind: true,
+				findFocusedAfterOffscreenOpen: true,
 			});
+			list.closeFind();
+			await timeout(350);
 		});
 
 		test('derives terminal automation status from the supplied session snapshot', () => {

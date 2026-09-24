@@ -3245,6 +3245,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
+	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -3486,10 +3487,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useCompactQuickChatRows */,
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
-			() => {
-				const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
-				return headerHeight ? headerHeight + SESSIONS_HEADER_VERTICAL_SPACING : 0;
-			},
+			() => this.getSessionsHeaderHeight(),
 		);
 		this._delegate = delegate;
 		const sessionsHeaderRenderer = this.options.sessionsHeader
@@ -4518,6 +4516,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.layout(height, width);
 	}
 
+	private getSessionsHeaderHeight(): number {
+		const headerHeight = this.options.sessionsHeader?.offsetHeight ?? 0;
+		if (headerHeight > 0) {
+			this.sessionsHeaderHeight = headerHeight + SESSIONS_HEADER_VERTICAL_SPACING;
+		}
+		return this.sessionsHeaderHeight;
+	}
+
 	setCompact(): void {
 		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
@@ -4577,6 +4583,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	openFind(): void {
+		if (this.tree.hasElement(SESSIONS_HEADER_SECTION)) {
+			this.tree.reveal(SESSIONS_HEADER_SECTION);
+			this.tree.updateElementHeight(SESSIONS_HEADER_SECTION, this._delegate.getHeight(SESSIONS_HEADER_SECTION));
+		}
 		this.tree.openFind();
 	}
 
