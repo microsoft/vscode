@@ -129,7 +129,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		return workspaceCount + userCount > 0 ? {
 			migrationFlowId: this.generateMigrationFlowId(),
-			message: localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount),
+			message: this.getMigrationHintMessage(workspaceCount, userCount),
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
 				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
@@ -137,6 +137,20 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount },
 			].filter(({ count }) => count > 0),
 		} : undefined;
+	}
+
+	private getMigrationHintMessage(workspaceCount: number, userCount: number): string {
+		if (userCount === 0) {
+			return workspaceCount === 1
+				? localize('customizationMigrationHintWorkspaceCountSingular', "{0} workspace customization needs an update to keep working.", workspaceCount)
+				: localize('customizationMigrationHintWorkspaceCountPlural', "{0} workspace customizations need an update to keep working.", workspaceCount);
+		}
+		if (workspaceCount === 0) {
+			return userCount === 1
+				? localize('customizationMigrationHintUserCountSingular', "{0} user customization needs an update to keep working.", userCount)
+				: localize('customizationMigrationHintUserCountPlural', "{0} user customizations need an update to keep working.", userCount);
+		}
+		return localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
