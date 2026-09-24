@@ -111,6 +111,7 @@ class MockSessionStore implements ISessionsManagementService {
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
 	readonly automationSession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly sessionDrafts = constObservable(new Set<ISession>());
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;

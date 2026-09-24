@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, ObservableSet, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -47,7 +47,7 @@ import { ISessionChangesService } from '../../../../../../contrib/changes/browse
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
@@ -435,6 +435,9 @@ suite('Agent Host Session Config Picker', () => {
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([services.activeSession]);
 		}());
+		services.instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly sessionDrafts = constObservable(new Set<IActiveSession>());
+		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
 		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
@@ -443,6 +446,38 @@ suite('Agent Host Session Config Picker', () => {
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 
 		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
+	});
+
+	test('contributes and removes repository controls for isolated composer drafts without selecting them', () => {
+		const services = setupServices(store);
+		const drafts = new ObservableSet<IActiveSession>();
+		const visible = observableValue<readonly IActiveSession[]>('visibleSessions', []);
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = visible;
+		}());
+		services.instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly sessionDrafts = drafts.observable;
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+		const entries = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+
+		drafts.add(services.activeSession);
+		assert.deepStrictEqual({ entries: entries(), visible: visible.get() }, { entries: ['Isolation', 'Base Branch'], visible: [] });
+		visible.set([services.activeSession], undefined);
+		assert.deepStrictEqual(entries(), ['Isolation', 'Base Branch']);
+		visible.set([], undefined);
+		drafts.delete(services.activeSession);
+		assert.deepStrictEqual(entries(), []);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {

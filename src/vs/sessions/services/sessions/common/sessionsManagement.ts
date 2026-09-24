@@ -406,6 +406,9 @@ export interface ISessionsManagementService {
 	 */
 	readonly newSession: IObservable<ISession | undefined>;
 
+	/** Isolated composer drafts, excluded from the session list and main view selection. */
+	readonly sessionDrafts: IObservable<ReadonlySet<ISession>>;
+
 	/**
 	 * Observable for the Automation dialog's in-progress session draft. This is
 	 * independent from {@link newSession} so the dialog cannot replace the

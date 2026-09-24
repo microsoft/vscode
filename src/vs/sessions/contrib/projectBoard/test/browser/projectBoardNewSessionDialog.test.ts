@@ -706,6 +706,27 @@ suite('ProjectBoardNewSessionDialog', () => {
 		await h.showing;
 	});
 
+	test('an auxiliary popup adopted from the main window retains Escape ownership', async () => {
+		const frame = mainWindow.document.createElement('iframe');
+		mainWindow.document.body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		const h = setup({ document: frame.contentDocument! });
+		const targetWindow = dom.getWindow(h.container);
+		const popup = dom.append(h.container, dom.$('.context-view.monaco-component', { tabindex: '0' }));
+		assert.strictEqual(popup instanceof targetWindow.HTMLElement, false);
+		let closed = false;
+		void h.showing.then(() => { closed = true; });
+		popup.focus();
+		popup.dispatchEvent(new targetWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		popup.remove();
+		h.editor.focus();
+		h.editor.dispatchEvent(new targetWindow.KeyboardEvent('keyup', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		assert.strictEqual(closed, false, 'dismissing the popup must leave the composer available');
+		h.cancel();
+		await h.showing;
+	});
+
 	test('shared Tab navigation reaches Project Path and composer without a footer action; Escape dismisses', async () => {
 		const h = setup();
 		assert.strictEqual(mainWindow.document.activeElement, h.editor);

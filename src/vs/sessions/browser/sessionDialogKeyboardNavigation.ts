@@ -64,7 +64,7 @@ export function registerSessionDialogKeyboardNavigation(
 
 	store.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 		const target = event.target;
-		const isPopup = target instanceof targetWindow.HTMLElement && isPopupTarget(target);
+		const isPopup = DOM.isHTMLElement(target) && isPopupTarget(target);
 		// Keep ownership of the Escape press when the popup closes and key repeat targets the form.
 		if (event.key === 'Escape' && !event.repeat) {
 			const promptSuggestionCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelPromptSuggestion();
