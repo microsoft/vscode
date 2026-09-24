@@ -1076,8 +1076,10 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, localServer, { allowExtensionMethods: false },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService,
-			{ ...NullAgentHostOTelService, diagnosticsEnabled: true,
-				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; } },
+			{
+				...NullAgentHostOTelService, diagnosticsEnabled: true,
+				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; }
+			},
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
