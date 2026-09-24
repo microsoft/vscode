@@ -50,7 +50,7 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PIC
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -1584,6 +1584,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -1599,6 +1600,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// modules have finished evaluating.
 		this._register(autorun(reader => {
 			this._sessionsService.visibleSessions.read(reader);
+			this._sessionsManagementService.newSession.read(reader);
 			this._refreshRepositoryMenuItems(actionViewItemService);
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders(), actionViewItemService);
@@ -1691,7 +1693,12 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		for (const session of this._sessionsService.visibleSessions.get()) {
+		const visibleSessions = this._sessionsService.visibleSessions.get();
+		const newSession = this._sessionsManagementService.newSession.get();
+		const sessions = newSession && !visibleSessions.some(session => session?.sessionId === newSession.sessionId)
+			? [...visibleSessions, newSession]
+			: visibleSessions;
+		for (const session of sessions) {
 			if (!session) {
 				continue;
 			}
