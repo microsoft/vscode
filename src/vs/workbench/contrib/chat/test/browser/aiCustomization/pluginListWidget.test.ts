@@ -10,13 +10,15 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, isLegacyPluginMarketplaceAvailable, LegacyPluginMarketplaceAvailability, partitionInstalledPluginItemsByScope, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 
 suite('pluginListWidget', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('renders host-published disabled reasons', () => {
 		assert.deepStrictEqual([
@@ -136,13 +138,59 @@ suite('pluginListWidget', () => {
 		], [false, true, false, false]);
 	});
 
+	test('shows the legacy marketplace only when unified sources are disabled', () => {
+		assert.deepStrictEqual([
+			isLegacyPluginMarketplaceAvailable(true, 0),
+			isLegacyPluginMarketplaceAvailable(true, 1),
+			isLegacyPluginMarketplaceAvailable(true, 2),
+			isLegacyPluginMarketplaceAvailable(false, 0),
+		], [true, false, false, false]);
+	});
+
+	test('updates legacy marketplace availability for every registered source', async () => {
+		const sources = [
+			{ id: 'first', enablementSetting: 'test.first.enabled' },
+			{ id: 'second', enablementSetting: 'test.second.enabled' },
+		];
+		const configuration = new TestConfigurationService({
+			[sources[0].enablementSetting]: false,
+			[sources[1].enablementSetting]: false,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const availability = store.add(new LegacyPluginMarketplaceAvailability(true, sources, configuration));
+		const changes: boolean[] = [];
+		store.add(availability.onDidChange(available => changes.push(available)));
+		const setEnabled = async (setting: string, enabled: boolean) => {
+			await configuration.setUserConfiguration(setting, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean { return section === setting; }
+			}());
+		};
+
+		const states = [availability.available];
+		await setEnabled(sources[1].enablementSetting, true);
+		states.push(availability.available);
+		await setEnabled(sources[0].enablementSetting, true);
+		states.push(availability.available);
+		await setEnabled(sources[1].enablementSetting, false);
+		states.push(availability.available);
+		await setEnabled(sources[0].enablementSetting, false);
+		states.push(availability.available);
+
+		assert.deepStrictEqual({ states, changes }, {
+			states: [true, false, false, false, true],
+			changes: [false, true],
+		});
+	});
+
 	test('accepts marketplace results only for the initiating search', () => {
 		assert.deepStrictEqual([
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, false),
-			isCurrentPluginMarketplaceRequest('agent', '', false, false, true, false),
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, true, true, false),
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, false, false),
-			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, true),
-		], [true, false, false, false, false]);
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, false, true),
+			isCurrentPluginMarketplaceRequest('agent', '', false, false, true, false, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, true, true, false, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, false, false, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, true, true),
+			isCurrentPluginMarketplaceRequest('agent', 'agent', false, false, true, false, false),
+		], [true, false, false, false, false, false]);
 	});
 });

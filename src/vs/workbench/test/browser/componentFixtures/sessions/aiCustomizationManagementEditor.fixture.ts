@@ -1960,10 +1960,11 @@ const overflowingPluginReadme = [
 	'```',
 ].join('\n\n');
 
-async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false): Promise<void> {
+async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false, unifiedMarketplaceEnabled = false): Promise<void> {
 	const height = browse ? 600 : 800;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
+	let legacyMarketplaceRequestCount = 0;
 
 	// Some marketplace plugins match installed plugins by URI so the renderer
 	// shows them as "Installed" (exercises the installed-state check from #7379).
@@ -1989,6 +1990,17 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: unifiedMarketplaceEnabled,
+			}));
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [{
+					id: 'agentFinder',
+					displayName: 'GitHub Feed',
+					enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+				}];
+				override async query(): Promise<ICustomizationMarketplacePage> { return { items: [] }; }
+			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
@@ -2009,7 +2021,10 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				override readonly installedPlugins = constObservable(marketplaceInstalledPlugins);
 				override readonly recommendedPlugins = constObservable(new Set(['Figma@copilot', 'Stripe@copilot']));
 				override readonly onDidChangeMarketplaces = Event.None;
-				override async fetchMarketplacePlugins() { return marketplacePlugins; }
+				override async fetchMarketplacePlugins() {
+					legacyMarketplaceRequestCount++;
+					return marketplacePlugins;
+				}
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() {
 				override getPluginInstallUri(plugin: IMarketplacePlugin) {
@@ -2047,6 +2062,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		scrollbar.style.visibility = 'hidden';
 	}
 	await new Promise(resolve => setTimeout(resolve, 200));
+	assert(unifiedMarketplaceEnabled ? legacyMarketplaceRequestCount === 0 : legacyMarketplaceRequestCount > 0);
 }
 
 function renderPluginHomeMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -2067,6 +2083,10 @@ function renderPluginHomeNarrowMode(ctx: ComponentFixtureContext): Promise<void>
 
 function renderPluginHomeEmptyInstalledMode(ctx: ComponentFixtureContext): Promise<void> {
 	return renderPluginCatalog(ctx, false, undefined, 840, true);
+}
+
+function renderPluginManagementWithDiscover(ctx: ComponentFixtureContext): Promise<void> {
+	return renderPluginCatalog(ctx, false, undefined, 840, false, true);
 }
 
 // ============================================================================
@@ -2166,6 +2186,10 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(ChatConfiguration.PluginsEnabled, false, byPolicy));
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query(): Promise<ICustomizationMarketplacePage> { return { items: [] }; }
+			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
@@ -3057,6 +3081,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginCatalogHomeEmptyInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: renderPluginHomeEmptyInstalledMode,
+	}),
+
+	PluginManagementWithDiscover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins page shows installed plugin management without an Available section or marketplace browse action.'],
+		render: renderPluginManagementWithDiscover,
 	}),
 
 	// MCP disabled splash — chat.mcp.access set to 'none' by user
