@@ -1001,6 +1001,19 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual(fixture.service.getInstallState(galleryMcpResource()), { kind: 'available' });
 		});
 
+		test('does not uninstall a same-name server from an old registry after syncing current gallery metadata', async () => {
+			const fixture = await createFixture();
+			const oldServer = mcpServer('io.example/demo', McpServerInstallState.Installed, 'io.example/demo', 'https://old.registry.test');
+			const currentGallery = mcpServer('io.example/demo', McpServerInstallState.Uninstalled, 'io.example/demo', 'https://current.registry.test').gallery;
+			fixture.mcpService.local = [{ ...oldServer, gallery: currentGallery }];
+			const candidate = galleryMcpResource();
+			const state = fixture.service.getInstallState(candidate);
+			await fixture.service.uninstall(candidate);
+			assert.deepStrictEqual({ state, uninstalls: fixture.mcpService.uninstalls.length }, {
+				state: { kind: 'available' }, uninstalls: 0,
+			});
+		});
+
 		test('uses the versioned feed record and the existing eligibility and install flow', async () => {
 			const fixture = await createFixture();
 			const candidate = mcpResource();

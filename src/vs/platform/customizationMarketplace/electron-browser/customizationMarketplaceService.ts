@@ -32,7 +32,9 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 					id: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
 					query: async (options, token) => {
 						const page = revive<ICustomizationMarketplacePage>(await channel.call<ICustomizationMarketplacePage>('query', {
-							...options, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+							...options,
+							cursor: options.cursor ? { token: options.cursor } : undefined,
+							sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
 						}, token));
 						return { items: page.items, total: page.total, nextCursor: page.nextCursor?.token, error: page.sourceErrors?.[0]?.message };
 					},

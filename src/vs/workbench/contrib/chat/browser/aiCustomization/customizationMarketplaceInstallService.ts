@@ -110,6 +110,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			server.local.galleryUrl !== undefined &&
 			server.local.galleryUrl !== agentFinderMcpRegistryManifest.url &&
 			server.gallery?.name === name &&
+			server.local.galleryUrl === server.gallery.galleryUrl &&
 			server.installState === McpServerInstallState.Installed);
 	}
 
