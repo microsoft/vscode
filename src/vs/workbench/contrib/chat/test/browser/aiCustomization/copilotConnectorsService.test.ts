@@ -195,10 +195,14 @@ suite('CopilotConnectorsService', () => {
 	});
 
 	test('ranks keywords and representative queries locally using the cached authenticated catalog', async () => {
-		const fixture = createFixture([{ body: { plugins: [{
-			name: 'service',
-			metadata: { displayName: 'Entry', keywords: ['inbox'], representativeQueries: ['Schedule a meeting'] },
-		}] } }]);
+		const fixture = createFixture([{
+			body: {
+				plugins: [{
+					name: 'service',
+					metadata: { displayName: 'Entry', keywords: ['inbox'], representativeQueries: ['Schedule a meeting'] },
+				}]
+			}
+		}]);
 		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 		const keywords = await source.query({ query: 'inbox' }, CancellationToken.None);
 		const examples = await source.query({ query: 'schedule meeting' }, CancellationToken.None);
@@ -430,15 +434,23 @@ suite('CopilotConnectorsService', () => {
 		await runWithFakedTimers({}, async () => {
 			await timeout(1);
 			const fixture = createFixture([
-				{ body: { plugins: [
-					{ name: 'description', metadata: { displayName: 'Entry', description: 'Search Mail' } },
-					{ name: 'prefix', metadata: { displayName: 'Mail Alpha' } },
-					{ name: 'exact', metadata: { displayName: 'Mail' } },
-				] } },
-				{ body: { plugins: [
-					{ name: 'new', metadata: { displayName: 'Mail' } },
-					{ name: 'description', metadata: { displayName: 'Mail' } },
-				] } },
+				{
+					body: {
+						plugins: [
+							{ name: 'description', metadata: { displayName: 'Entry', description: 'Search Mail' } },
+							{ name: 'prefix', metadata: { displayName: 'Mail Alpha' } },
+							{ name: 'exact', metadata: { displayName: 'Mail' } },
+						]
+					}
+				},
+				{
+					body: {
+						plugins: [
+							{ name: 'new', metadata: { displayName: 'Mail' } },
+							{ name: 'description', metadata: { displayName: 'Mail' } },
+						]
+					}
+				},
 			]);
 			const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 			const options = { query: 'mail', pageSize: 1 };

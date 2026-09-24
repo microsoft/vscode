@@ -1873,8 +1873,8 @@ export class McpListWidget extends Disposable {
 					getAriaLabel: entry => entry.type !== 'marketplace-item' && isConnectorMcpEntry(entry)
 						? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
 						: entry.type === 'marketplace-item'
-						? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
-						: this.getMcpEntryAriaLabel(entry),
+							? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
+							: this.getMcpEntryAriaLabel(entry),
 					getWidgetAriaLabel: () => label,
 					getSetSize: (_entry, _index, listLength) => listLength,
 					getPosInSet: (_entry, index) => index + 1,
