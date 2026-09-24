@@ -21,7 +21,7 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -1057,10 +1057,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('does not attribute a stale model response to the active turn', () => {
 		setupSession();
-		startTurn('turn-old');
+		startTurn('turn-old', 'hello', undefined, defaultChatUri, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow));
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-old', duration: 1000 });
 		fireModelCallCompleted('turn-old', 'late-call-while-idle');
-		startTurn('turn-active');
+		startTurn('turn-active', 'hello', undefined, defaultChatUri, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow));
 
 		fireModelCallCompleted('turn-old', 'late-call');
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-active', duration: 1000 });
@@ -1071,7 +1071,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return { turnId: data.turnId, modelCallCount: data.modelCallCount };
 			}),
 			correlations: agent.modelCallTurnCorrelationCalls.map(call => ({
-				chat: call.chat.toString(), modelCallId: call.modelCallId, turnId: call.turnId,
+				chat: call.chat.toString(), modelCallId: call.modelCallId, turnId: call.turnId, initiatorClientType: call.initiatorClientType,
 			})),
 		}, {
 			completed: [
@@ -1079,8 +1079,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				{ turnId: 'turn-active', modelCallCount: 0 },
 			],
 			correlations: [
-				{ chat: defaultChatUri, modelCallId: 'late-call-while-idle', turnId: 'turn-old' },
-				{ chat: defaultChatUri, modelCallId: 'late-call', turnId: 'turn-old' },
+				{ chat: defaultChatUri, modelCallId: 'late-call-while-idle', turnId: 'turn-old', initiatorClientType: undefined },
+				{ chat: defaultChatUri, modelCallId: 'late-call', turnId: 'turn-old', initiatorClientType: undefined },
 			],
 		});
 	});
@@ -1088,7 +1088,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('attributes subagent model responses only to the subagent turn', () => {
 		setupSession();
 		setSessionConfig({ mode: 'plan' });
-		startTurn('turn-parent');
+		startTurn('turn-parent', 'hello', undefined, defaultChatUri, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow));
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent');
 		stateManager.addChat(sessionKey, subagentChatUri);
 		fire({
@@ -1134,6 +1134,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				chat: defaultChatUri,
 				modelCallId: 'subagent-model-call',
 				turnId: subagentTurnId,
+				initiatorClientType: AgentHostClientType.AgentsWindow,
 			}],
 		});
 	});

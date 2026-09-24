@@ -70,7 +70,7 @@ export class ModelCallTurnCorrelation {
 	}
 
 	getRecordedTurnId(modelCallId: string): string | undefined {
-		return this._recordedTurnIdsByModelCallId.get(modelCallId);
+		return this._recordedCorrelationsByModelCallId.get(modelCallId)?.turnId;
 	}
 
 	markResponseForwarded(modelCallId: string): void {

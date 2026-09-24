@@ -62,8 +62,8 @@ export class MockAgent implements IAgent {
 	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
 	captureTurnTelemetryContext?: IAgent['captureTurnTelemetryContext'];
 
-	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
-		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId });
+	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string, initiatorClientType?: AgentHostClientType): void {
+		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId, initiatorClientType });
 	}
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
@@ -90,7 +90,7 @@ export class MockAgent implements IAgent {
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { chat: URI; clientId: string }[] = [];
-	readonly modelCallTurnCorrelationCalls: { chat: URI; modelCallId: string; turnId: string }[] = [];
+	readonly modelCallTurnCorrelationCalls: { chat: URI; modelCallId: string; turnId: string; initiatorClientType: AgentHostClientType | undefined }[] = [];
 	/**
 	 * Every host-supplied {@link IAgentChatContext} this agent was handed,
 	 * keyed by the boundary it arrived at. Lets shared tests assert that Agent
