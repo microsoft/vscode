@@ -215,8 +215,8 @@ export class ScopedModePickerModelCache extends Disposable {
 
 /**
  * A self-contained widget for selecting a chat mode (Agent, custom agents)
- * for local/Background sessions. Shows only modes whose target matches
- * the Background session type's customAgentTarget.
+ * for a session. Shows only modes whose target matches the session type's
+ * customAgentTarget.
  */
 export class ModePicker extends Disposable {
 
