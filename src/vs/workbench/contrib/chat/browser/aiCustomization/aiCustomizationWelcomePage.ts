@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -36,6 +36,7 @@ export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
 	openInstalled?(section: AICustomizationManagementSection, uri: URI | undefined): void;
+	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;
 	closeEditor(): void;
 	reviewMigrations(): void;
 	/**
@@ -48,6 +49,11 @@ export interface IWelcomePageCallbacks {
 	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
 }
 
+export interface ICustomizationMarketplaceOrigin {
+	readonly resourceKey: string;
+	readonly mode: 'browse' | 'search';
+}
+
 export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	readonly container: HTMLElement;
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
@@ -57,6 +63,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	setVisible?(visible: boolean): void;
 	layout?(dimension: DOM.Dimension | undefined): void;
 	getAccessibilityContent?(): string;
+	restoreMarketplaceItemFocus?(origin: ICustomizationMarketplaceOrigin): void;
 	setSearchQuery?(value: string): void;
 	reset?(): void;
 }
@@ -179,6 +186,10 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	getAccessibilityContent(): string {
 		return this.implementation.value?.getAccessibilityContent?.() ?? '';
+	}
+
+	restoreMarketplaceItemFocus(origin: ICustomizationMarketplaceOrigin): void {
+		this.implementation.value?.restoreMarketplaceItemFocus?.(origin);
 	}
 
 	setSearchQuery(value: string): void {

@@ -2226,6 +2226,7 @@ per-word capitalization does not survive translation. */
 }
 
 /* Embedded plugin detail view */
+.ai-customization-management-editor .marketplace-detail-container,
 .ai-customization-management-editor .plugin-detail-container,
 .ai-customization-management-editor .tools-detail-container {
 	position: relative;
@@ -2243,23 +2244,147 @@ per-word capitalization does not survive translation. */
 
 /* Inline back button with the embedded detail header */
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
+.ai-customization-management-editor .marketplace-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail {
 	padding: 0;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
+.ai-customization-management-editor .marketplace-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-header {
 	align-items: center;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
+.ai-customization-management-editor .marketplace-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
 	display: flex;
 	align-items: center;
 	margin-inline-end: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .marketplace-detail-container {
+	position: relative;
+	height: 100%;
+	min-height: 0;
+}
+
+.ai-customization-management-editor .marketplace-detail-scrollable {
+	height: 100%;
+}
+
+.ai-customization-management-editor .marketplace-detail-editor-container {
+	box-sizing: border-box;
+	min-height: 100%;
+	padding: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .embedded-marketplace-detail {
+	max-width: 840px;
+	margin: 0 auto;
+}
+
+.ai-customization-management-editor .marketplace-detail-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-subtitle {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.ai-customization-management-editor .marketplace-detail-description,
+.ai-customization-management-editor .marketplace-detail-state {
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+}
+
+.ai-customization-management-editor .marketplace-detail-state {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .marketplace-detail-state.unavailable {
+	color: var(--vscode-errorForeground);
+}
+
+.ai-customization-management-editor .marketplace-detail-facts {
+	display: grid;
+	grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	margin: 0;
+}
+
+.ai-customization-management-editor .marketplace-detail-fact {
+	display: contents;
+}
+
+.ai-customization-management-editor .marketplace-detail-fact dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .marketplace-detail-fact dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .marketplace-detail-sections {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .marketplace-detail-section {
+	min-width: 0;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.ai-customization-management-editor .marketplace-detail-section h3 {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .marketplace-detail-section ul {
+	margin: 0;
+	padding-inline-start: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .marketplace-detail-container.narrow .marketplace-detail-sections {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	row-gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-leading-slot {
+	grid-column: 1;
+	grid-row: 1;
+}
+
+.ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header-text {
+	grid-column: 2;
+	grid-row: 1;
+}
+
+.ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-title-actions {
+	grid-column: 2;
+	grid-row: 2;
+	justify-content: flex-start;
+	margin-left: 0;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-scrollable {

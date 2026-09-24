@@ -89,6 +89,7 @@ function renderWelcomePage(ctx: ComponentFixtureContext): void {
 		{
 			selectSection: () => { },
 			selectSectionWithMarketplace: () => { },
+			openMarketplaceItem: () => { },
 			closeEditor: () => { },
 			reviewMigrations: () => { },
 			prefillChat: () => { },

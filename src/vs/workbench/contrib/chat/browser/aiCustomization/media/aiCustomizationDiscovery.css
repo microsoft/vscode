@@ -180,8 +180,7 @@
 }
 
 .customization-discovery-card {
-	display: grid;
-	grid-template-columns: 48px minmax(0, 1fr) auto;
+	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
@@ -189,6 +188,22 @@
 	padding: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
+}
+
+.customization-discovery-card-primary,
+.customization-discovery-result-primary {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	color: inherit;
+	background: transparent;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
 }
 
 .customization-discovery-section.featured .customization-discovery-card {
@@ -254,12 +269,6 @@
 	white-space: nowrap;
 }
 
-.customization-discovery-card-name[href]:hover,
-.customization-discovery-result-name[href]:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
-}
-
 .customization-discovery-card-description {
 	display: -webkit-box;
 	margin-top: var(--vscode-spacing-size40);
@@ -310,10 +319,11 @@
 }
 
 .customization-discovery-show-all:focus-visible,
-.customization-discovery-card-name:focus-visible,
-.customization-discovery-result-name:focus-visible {
+.customization-discovery-card-primary:focus-visible,
+.customization-discovery-result-primary:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .customization-discovery-results {
