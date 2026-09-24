@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IntervalTimer } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { CloudSandboxRequestError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
@@ -31,6 +32,16 @@ export type CloudSandboxRefreshStopReason =
 	| 'environmentWaking'
 	/** Refreshed tokens kept arriving already expired, or without a usable `expires_at`. */
 	| 'unusableToken';
+
+export type CloudSandboxConnectionStage = 'credentials' | 'connection';
+export type CloudSandboxConnectionOutcome = 'success' | 'failure' | 'cancelled';
+
+export interface ICloudSandboxConnectionTelemetry extends IDisposable {
+	setConnectStage(stage: CloudSandboxConnectionStage): void;
+	completeConnect(outcome: CloudSandboxConnectionOutcome): void;
+	onConnectionStateChange(state: Parameters<RemoteAgentHostConnectionObserver>[0]): void;
+	recordReceivedFrame(): void;
+}
 
 export const ICloudSandboxTelemetryService = createDecorator<ICloudSandboxTelemetryService>('cloudSandboxTelemetryService');
 
@@ -61,10 +72,22 @@ export interface ICloudSandboxTelemetryService {
 	 * running indefinitely.
 	 */
 	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void;
+
+	/** Track one logical connection, including retries and subsequent outages. No identity is recorded. */
+	trackConnection(stage: CloudSandboxConnectionStage): ICloudSandboxConnectionTelemetry;
 }
 
 /** How often accumulated request counts are reported. */
 const REQUEST_REPORT_INTERVAL_MS = 30 * 60_000;
+const CONNECTION_REPORT_INTERVAL_MS = 5 * 60_000;
+
+const nullConnectionTelemetry: ICloudSandboxConnectionTelemetry = {
+	setConnectStage() { },
+	completeConnect() { },
+	onConnectionStateChange() { },
+	recordReceivedFrame() { },
+	dispose() { },
+};
 
 /**
  * The outcome bucket for a response with {@link statusCode}.
@@ -103,6 +126,8 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 
 	private readonly _counts = new Map<CloudSandboxRequestAction, RequestCounts>();
 	private readonly _reportTimer = this._register(new IntervalTimer());
+	private readonly _connections = new Set<CloudSandboxConnectionTelemetry>();
+	private readonly _connectionReportTimer = this._register(new IntervalTimer());
 	/** When the current window began, i.e. when its first request was recorded. */
 	private _windowStart = Date.now();
 
@@ -112,6 +137,52 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		super();
 		// Report whatever has accumulated rather than losing the last window on shutdown.
 		this._register({ dispose: () => this.flushRequestCounts() });
+		this._register({
+			dispose: () => {
+				for (const connection of this._connections) {
+					connection.dispose();
+				}
+			}
+		});
+	}
+
+	trackConnection(stage: CloudSandboxConnectionStage): ICloudSandboxConnectionTelemetry {
+		if (this._store.isDisposed) {
+			return nullConnectionTelemetry;
+		}
+		const connection = new CloudSandboxConnectionTelemetry(stage, event => {
+			this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('cloudSandboxConnectionOutcome', event);
+		}, () => {
+			const counts = connection.takeHealthSnapshot(Date.now());
+			this._connections.delete(connection);
+			if (this._connections.size === 0) {
+				this._connectionReportTimer.cancel();
+			}
+			this._reportConnectionHealth(counts);
+		});
+		this._connections.add(connection);
+		if (this._connections.size === 1) {
+			this._connectionReportTimer.cancelAndSet(() => this.flushConnectionHealth(), CONNECTION_REPORT_INTERVAL_MS);
+		}
+		return connection;
+	}
+
+	flushConnectionHealth(): void {
+		const now = Date.now();
+		const counts: CloudSandboxConnectionHealthEvent = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
+		for (const connection of this._connections) {
+			const delta = connection.takeHealthSnapshot(now);
+			counts.connectedMs += delta.connectedMs;
+			counts.unexpectedDisconnects += delta.unexpectedDisconnects;
+			counts.receivedFrames += delta.receivedFrames;
+		}
+		this._reportConnectionHealth(counts);
+	}
+
+	private _reportConnectionHealth(counts: CloudSandboxConnectionHealthEvent): void {
+		if (counts.connectedMs || counts.unexpectedDisconnects || counts.receivedFrames) {
+			this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('cloudSandboxConnectionHealth', counts);
+		}
 	}
 
 	reportRequest(action: CloudSandboxRequestAction, outcome: CloudSandboxRequestOutcome): void {
@@ -167,6 +238,146 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		this._reportTimer.cancel();
 	}
 }
+
+class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandboxConnectionTelemetry {
+	private _operation: { operation: 'connect' | 'recover'; startedAt: number; stage: CloudSandboxConnectionStage } | undefined;
+	private _connectedSince: number | undefined;
+	private _restoring = false;
+	private _counts: CloudSandboxConnectionHealthEvent = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
+
+	constructor(
+		stage: CloudSandboxConnectionStage,
+		private readonly _reportOutcome: (event: CloudSandboxConnectionOutcomeEvent) => void,
+		private readonly _onDispose: () => void,
+	) {
+		super();
+		this._operation = { operation: 'connect', startedAt: Date.now(), stage };
+	}
+
+	private get isConnecting(): boolean {
+		return this._operation?.operation === 'connect';
+	}
+
+	setConnectStage(stage: CloudSandboxConnectionStage): void {
+		if (this.isConnecting && this._operation) {
+			this._operation.stage = stage;
+		}
+	}
+
+	completeConnect(outcome: CloudSandboxConnectionOutcome): void {
+		// A failed waiter does not end retries still owned by the remote service.
+		if (!this.isConnecting || (outcome === 'failure' && this._restoring)) {
+			return;
+		}
+		this._complete(outcome);
+		if (outcome === 'cancelled') {
+			this.dispose();
+		}
+	}
+
+	onConnectionStateChange(state: Parameters<RemoteAgentHostConnectionObserver>[0]): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		switch (state) {
+			case 'connecting':
+				this.setConnectStage('connection');
+				break;
+			case 'connected':
+				this._restoring = false;
+				this._connectedSince ??= Date.now();
+				this._complete('success');
+				break;
+			case 'reconnecting':
+				this._restoring = true;
+				if (this._connectedSince !== undefined) {
+					this._pauseConnectedTime();
+					this._counts.unexpectedDisconnects++;
+					this._operation = { operation: 'recover', startedAt: Date.now(), stage: 'connection' };
+				}
+				break;
+			case 'failed':
+				this._complete('failure');
+				this.dispose();
+				break;
+			case 'disposed':
+				this.dispose();
+				break;
+		}
+	}
+
+	recordReceivedFrame(): void {
+		if (!this._store.isDisposed) {
+			this._counts.receivedFrames++;
+		}
+	}
+
+	takeHealthSnapshot(now: number): CloudSandboxConnectionHealthEvent {
+		if (this._connectedSince !== undefined) {
+			this._counts.connectedMs += Math.max(0, now - this._connectedSince);
+			this._connectedSince = now;
+		}
+		const counts = this._counts;
+		this._counts = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
+		return counts;
+	}
+
+	private _pauseConnectedTime(): void {
+		if (this._connectedSince !== undefined) {
+			this._counts.connectedMs += Math.max(0, Date.now() - this._connectedSince);
+			this._connectedSince = undefined;
+		}
+	}
+
+	private _complete(outcome: CloudSandboxConnectionOutcome): void {
+		const operation = this._operation;
+		if (!operation) {
+			return;
+		}
+		this._operation = undefined;
+		this._reportOutcome({ operation: operation.operation, outcome, stage: operation.stage, durationMs: Math.max(0, Date.now() - operation.startedAt) });
+	}
+
+	override dispose(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._pauseConnectedTime();
+		this._complete('cancelled');
+		super.dispose();
+		this._onDispose();
+	}
+}
+
+type CloudSandboxConnectionOutcomeEvent = {
+	operation: 'connect' | 'recover';
+	outcome: CloudSandboxConnectionOutcome;
+	stage: CloudSandboxConnectionStage;
+	durationMs: number;
+};
+
+export type CloudSandboxConnectionOutcomeClassification = {
+	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Logical connect or recovery, including all retries.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, or cancellation; cancellations are not failures.' };
+	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Credentials (including waking and sealed-token waits), or connection (through authenticated protocol readiness and state restoration).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds to readiness, terminal failure, or cancellation, including backoff.' };
+	owner: 'osortega';
+	comment: 'One outcome per logical sandbox connect or recovery, excluding reuse of a ready connection.';
+};
+
+type CloudSandboxConnectionHealthEvent = {
+	connectedMs: number;
+	unexpectedDisconnects: number;
+	receivedFrames: number;
+};
+
+export type CloudSandboxConnectionHealthClassification = {
+	connectedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of authenticated ready connection milliseconds since the previous snapshot, excluding outages.' };
+	unexpectedDisconnects: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Losses of previously ready connections; excludes initial retries and intentional teardown.' };
+	receivedFrames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Inbound relay WebSocket frames, including setup, recovery, control, malformed and chunk frames; not unique protocol messages.' };
+	owner: 'osortega';
+	comment: 'Delta sandbox connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
+};
 
 type CloudSandboxRequestsEvent = {
 	action: string;
