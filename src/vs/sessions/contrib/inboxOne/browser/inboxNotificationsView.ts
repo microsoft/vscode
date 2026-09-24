@@ -336,7 +336,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 			sortByRecencyButton.element.setAttribute('aria-pressed', String(!prioritySelected));
 		}));
 
-		const toggleCompletedButton = this._register(new Button(toolbar, {
+		const toolbarActions = toolbar.appendChild($('.inbox-notifications-toolbar-actions'));
+		const toggleCompletedButton = this._register(new Button(toolbarActions, {
 			...defaultButtonStyles,
 			secondary: true,
 		}));
@@ -355,6 +356,20 @@ export class InboxNotificationsView extends AbstractCustomView {
 				: localize('inboxNotifications.showCompletedAria', "Show completed notifications"));
 			toggleCompletedButton.element.setAttribute('aria-pressed', String(showing));
 			toggleCompletedButton.element.classList.toggle('active', showing);
+		}));
+
+		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			supportIcons: true,
+			ariaLabel: localize('inboxNotifications.feedback.usefulAria', "Give Positive Inbox Feedback"),
+		}));
+		usefulFeedbackButton.label = localize('inboxNotifications.feedback.useful', "{0} Inbox Was Useful", '$(thumbsup)');
+		this._register(usefulFeedbackButton.onDidClick(() => {
+			this.logInboxInteraction('feedback.useful', 'toolbar');
+			this.maybeTriggerConfetti(usefulFeedbackButton.element);
+			status(localize('inboxNotifications.feedback.thanks', "Thanks for your feedback."));
 		}));
 
 		this.deferredUpdatesBanner.appendChild(this.deferredUpdatesBannerLabel);
@@ -499,9 +514,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const previouslyFocusedElement = getActiveElement();
 		const hadFocusWithinList = isHTMLElement(previouslyFocusedElement) && list.contains(previouslyFocusedElement);
-		const focusedNotificationId = hadFocusWithinList
-			? previouslyFocusedElement.closest<HTMLElement>('.inbox-notifications-item')?.dataset.notificationId
+		const previouslyFocusedCard = hadFocusWithinList
+			? previouslyFocusedElement.closest<HTMLElement>('.inbox-notifications-item')
 			: undefined;
+		const focusedNotificationId = previouslyFocusedCard?.dataset.notificationId;
+		const focusedCardIndex = previouslyFocusedCard
+			? this.renderedCards.findIndex(card => card === previouslyFocusedCard)
+			: -1;
 
 		this.renderedListDisposables.clear();
 		clearNode(list);
@@ -549,7 +568,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			: undefined;
 		this.pendingRevealId = undefined;
 
-		this.applyCardTabStops(revealTarget?.dataset.notificationId ?? focusedNotificationId);
+		this.applyCardTabStops(revealTarget?.dataset.notificationId ?? focusedNotificationId, focusedCardIndex);
 		if (revealTarget) {
 			revealTarget.focus();
 			revealTarget.scrollIntoView({ block: 'nearest' });
@@ -1056,7 +1075,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		return isEditableElement(element) || element.tagName.toLowerCase() === 'select' || element.isContentEditable;
 	}
 
-	private applyCardTabStops(preferredNotificationId: string | undefined): void {
+	private applyCardTabStops(preferredNotificationId: string | undefined, preferredIndex = -1): void {
 		const cards = this.getNotificationCards();
 		if (cards.length === 0) {
 			return;
@@ -1065,7 +1084,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const activeCard = preferredNotificationId
 			? cards.find(card => card.dataset.notificationId === preferredNotificationId)
 			: undefined;
-		this.setActiveCard(activeCard ?? cards[0]);
+		const fallbackCard = preferredIndex >= 0
+			? cards[Math.min(preferredIndex, cards.length - 1)]
+			: undefined;
+		this.setActiveCard(activeCard ?? fallbackCard ?? cards[0]);
 	}
 
 	private setActiveCard(activeCard: HTMLElement): void {
@@ -1433,11 +1455,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
-		if (sourceElement
-			&& this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
-			&& !this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(sourceElement);
-		}
+		this.maybeTriggerConfetti(sourceElement);
 
 		if (item.sessionResource) {
 			const session = this.sessionsManagementService.getSession(item.sessionResource);
@@ -1447,6 +1465,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		this.inboxNotificationsService.dismissNotification(item.id);
+	}
+
+	private maybeTriggerConfetti(sourceElement: HTMLElement | undefined): void {
+		if (!sourceElement || this.accessibilityService.isMotionReduced() || !this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)) {
+			return;
+		}
+
+		triggerConfettiAnimation(sourceElement);
 	}
 
 	private createDetailSash(): void {

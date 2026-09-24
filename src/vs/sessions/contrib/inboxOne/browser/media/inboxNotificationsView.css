@@ -274,10 +274,16 @@
 	flex: 0 0 auto;
 }
 
-.inbox-notifications-toolbar > .monaco-button {
+.inbox-notifications-toolbar-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-left: auto;
+}
+
+.inbox-notifications-toolbar-actions .monaco-button {
 	width: auto;
 	flex: 0 0 auto;
-	margin-left: auto;
 }
 
 .inbox-notifications-deferred-updates {
