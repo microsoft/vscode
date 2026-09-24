@@ -34,7 +34,7 @@ export interface IAgentHostChangeset extends Changeset {
 	 * channel; an array, including an empty one, is used as-is.
 	 */
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
-	/** Live changes layered over the authoritative changeset until its next ready snapshot. */
+	/** Live changes layered over the authoritative changeset until its next cached `Recomputing` or `Ready` snapshot. */
 	readonly streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>;
 }
 
