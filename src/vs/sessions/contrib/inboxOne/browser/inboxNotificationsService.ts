@@ -1141,7 +1141,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						? localize('inboxNotifications.failingCi.title.single', "CI Failing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.failingCi.title.multiple', "CI Failing on {0} Pull Requests", pullRequestCount),
 					description: pullRequestCount === 1
-						? localize('inboxNotifications.failingCi.description.single', "Required checks are failing for {0}. Open {1} to investigate and fix the failures.", singularPullRequestLabel, sessionTitle)
+						? localize('inboxNotifications.failingCi.description.single', "Required checks are failing. Open {0} to investigate and fix the failures.", sessionTitle)
 						: localize('inboxNotifications.failingCi.description.multiple', "Required checks are failing for {0} pull requests. Open {1} to investigate and fix the failures.", pullRequestCount, sessionTitle),
 					repositoryLabel,
 					pullRequestStates,
@@ -1159,7 +1159,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						? localize('inboxNotifications.passingCi.title.single', "CI Passing on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.passingCi.title.multiple', "CI Passing on {0} Pull Requests", pullRequestCount),
 					description: pullRequestCount === 1
-						? localize('inboxNotifications.passingCi.description.single', "All required checks are passing for {0}. Open {1} to review merge readiness.", singularPullRequestLabel, sessionTitle)
+						? localize('inboxNotifications.passingCi.description.single', "All required checks are passing. Open {0} to review merge readiness.", sessionTitle)
 						: localize('inboxNotifications.passingCi.description.multiple', "All required checks are passing for {0} pull requests. Open {1} to review merge readiness.", pullRequestCount, sessionTitle),
 					repositoryLabel,
 					pullRequestStates,
@@ -1177,7 +1177,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						? localize('inboxNotifications.reviewComments.title.single', "Copilot Comments on {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.reviewComments.title.multiple', "Copilot Comments on {0} Pull Requests", pullRequestCount),
 					description: pullRequestCount === 1
-						? localize('inboxNotifications.reviewComments.description.single', "{0} has unresolved Copilot review comments. Open the session to address feedback.", singularPullRequestLabel)
+						? localize('inboxNotifications.reviewComments.description.single', "There are unresolved Copilot review comments. Open the session to address feedback.")
 						: localize('inboxNotifications.reviewComments.description.multiple', "{0} pull requests have unresolved Copilot review comments. Open the session to address feedback.", pullRequestCount),
 					repositoryLabel,
 					pullRequestStates,
@@ -1195,7 +1195,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 						? localize('inboxNotifications.pullRequestMerged.title.single', "Pull Request Merged: {0}", singularPullRequestLabel)
 						: localize('inboxNotifications.pullRequestMerged.title.multiple', "{0} Pull Requests Merged", pullRequestCount),
 					description: pullRequestCount === 1
-						? localize('inboxNotifications.pullRequestMerged.description.single', "{0} has merged. Archive or delete {1} when you're done with it.", singularPullRequestLabel, sessionTitle)
+						? localize('inboxNotifications.pullRequestMerged.description.single', "This pull request has merged. Archive or delete {0} when you're done with it.", sessionTitle)
 						: localize('inboxNotifications.pullRequestMerged.description.multiple', "{0} pull requests have merged. Archive or delete {1} when you're done with it.", pullRequestCount, sessionTitle),
 					repositoryLabel,
 					pullRequestStates,

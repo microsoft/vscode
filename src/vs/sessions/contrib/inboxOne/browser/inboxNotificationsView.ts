@@ -84,6 +84,7 @@ const COLLAPSED_SECTIONS_STORAGE_KEY = 'sessions.inboxNotifications.collapsedSec
 const COMPLETED_SECTION_KEY = 'completed';
 const LIST_PANE_WIDTH_STORAGE_KEY = 'sessions.inboxNotifications.listPaneWidth';
 const DEFAULT_LIST_PANE_WIDTH = 400;
+const DEFAULT_LIST_PANE_WIDTH_FRACTION = 0.56;
 const MIN_LIST_PANE_WIDTH = 280;
 const MIN_DETAIL_PANE_WIDTH = 320;
 /** Below this the two panes can't both honor their minimums, so they stack vertically instead. */
@@ -197,6 +198,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private selectionTelemetryState: ISelectionTelemetryState | undefined;
 	private detailSash: Sash | undefined;
 	private listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
+	private hasStoredListPaneWidth = false;
+	private hasInitializedDefaultListPaneWidth = false;
 	private layoutWidth = 0;
 	private hasSplit = false;
 	private lastDetailSignature: string | undefined;
@@ -714,8 +717,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
 		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
-		const primaryActions = item.actions.filter(action => action.kind !== InboxNotificationActionKind.OpenSession);
-		const bottomActions = item.actions.filter(action => action.kind === InboxNotificationActionKind.OpenSession);
+		const primaryActions = item.actions.filter(action =>
+			action.kind !== InboxNotificationActionKind.OpenSession
+			&& action.kind !== InboxNotificationActionKind.MarkDone);
+		const bottomActions = item.actions.filter(action =>
+			action.kind === InboxNotificationActionKind.OpenSession
+			|| action.kind === InboxNotificationActionKind.MarkDone);
 		if (primaryActions.length) {
 			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
 			for (const action of primaryActions) {
@@ -733,7 +740,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			badges.appendChild($('.inbox-notifications-item-badge.repository', undefined, item.repositoryLabel));
 		}
 		if (item.pullRequestStates?.length) {
-			const pullRequestStates = card.appendChild($('.inbox-notifications-item-pr-states'));
+			const pullRequestStates = badges.appendChild($('.inbox-notifications-item-pr-states'));
 			for (const pullRequestState of item.pullRequestStates) {
 				const pullRequestStateElement = pullRequestStates.appendChild($('.inbox-notifications-item-pr-state'));
 				const pullRequestUri = pullRequestState.pullRequestUri;
@@ -1556,7 +1563,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 		this._register(sash.onDidEnd(() => this.persistListPaneWidth()));
 		this._register(sash.onDidReset(() => {
-			this.listPaneWidth = DEFAULT_LIST_PANE_WIDTH;
+			this.listPaneWidth = this.getDefaultListPaneWidth();
+			this.hasInitializedDefaultListPaneWidth = true;
 			this.layoutPanes();
 			this.persistListPaneWidth();
 		}));
@@ -1597,7 +1605,16 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const stored = this.storageService.getNumber(LIST_PANE_WIDTH_STORAGE_KEY, StorageScope.APPLICATION);
 		if (typeof stored === 'number' && stored > 0) {
 			this.listPaneWidth = stored;
+			this.hasStoredListPaneWidth = true;
+			this.hasInitializedDefaultListPaneWidth = true;
 		}
+	}
+
+	private getDefaultListPaneWidth(): number {
+		if (this.layoutWidth > 0) {
+			return this.clampListPaneWidth(this.layoutWidth * DEFAULT_LIST_PANE_WIDTH_FRACTION);
+		}
+		return DEFAULT_LIST_PANE_WIDTH;
 	}
 
 	private persistListPaneWidth(): void {
@@ -1977,6 +1994,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	layout(width: number, _height: number): void {
 		this.layoutWidth = width;
+		if (!this.hasStoredListPaneWidth && !this.hasInitializedDefaultListPaneWidth) {
+			this.listPaneWidth = this.getDefaultListPaneWidth();
+			this.hasInitializedDefaultListPaneWidth = true;
+		}
 		this.listPaneWidth = this.clampListPaneWidth(this.listPaneWidth);
 		this.layoutPanes();
 	}

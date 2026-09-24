@@ -568,6 +568,7 @@
 .inbox-notifications-item-pr-states {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: center;
 	gap: var(--vscode-spacing-size100);
 }
 
@@ -576,8 +577,8 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-small);
-	border: none;
-	background-color: transparent;
+	border: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
 	padding: 0 var(--vscode-spacing-size80);
 	min-height: 20px;
@@ -708,7 +709,8 @@
 	gap: var(--vscode-spacing-size60);
 }
 
-.inbox-notifications-item-header-actions .inbox-notifications-item-action-done {
+.inbox-notifications-item-header-actions .inbox-notifications-item-action-done,
+.inbox-notifications-item-footer-actions .inbox-notifications-item-action-done {
 	min-width: 0;
 	padding-inline: var(--vscode-spacing-size80);
 }
