@@ -1553,6 +1553,20 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('cloud session stays external until refreshed metadata reports it as adopted', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const metadata = { owner: 'microsoft', name: 'vscode' };
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { ...metadata, external: true } }));
+
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const observed: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => observed.push(session.isExternal?.read(reader))));
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata }));
+
+		assert.deepStrictEqual(observed, [true, false]);
+	});
+
 	test('cloud session refreshes linked issue artifacts and pill references atomically and removes stale links', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
 		const metadata = { owner: 'microsoft', name: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/336399' };
