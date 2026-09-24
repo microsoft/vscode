@@ -446,6 +446,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			() => this._options.getConnection(),
 			() => this.channelUriObs.get(),
 			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
+			chat => this._options.getBackendChatResource?.(chat),
 		);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
